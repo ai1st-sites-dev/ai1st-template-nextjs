@@ -22,28 +22,46 @@ function stripFences(text) {
 }
 
 /**
- * 解析 AI 回包。回 `{ parsed, repaired }`：`repaired` 为 true 表示严格解析失败、修复后才成功。
- * 两次都失败抛原来的 SyntaxError，并挂上 `err.context`（出错位置前后 200 字符）。
+ * 校验 AI 回包（#1618）：严格解析 → `jsonrepair`，两步都不成就带回出错的地方，给「交给 AI 只修语法」那一步用。
+ *   成功 `{ ok: true, parsed, repaired }` —— `repaired` 为 true 表示严格解析失败、`jsonrepair` 修复后才成功。
+ *   失败 `{ ok: false, error, position, context }` —— `error` 是严格解析那一步的报错原文，`position` 是从里面抠出的
+ *        字符位置（抠不出为 null），`context` 是出错位置前后 200 字符。
  */
-function parseAiJson(text) {
+function validateAiJson(text) {
   const jsonStr = stripFences(text);
   try {
-    return { parsed: JSON.parse(jsonStr), repaired: false };
+    return { ok: true, parsed: JSON.parse(jsonStr), repaired: false };
   } catch (strictErr) {
     try {
       const fixed = jsonrepair(jsonStr);
-      return { parsed: JSON.parse(fixed), repaired: true };
+      return { ok: true, parsed: JSON.parse(fixed), repaired: true };
     } catch (_repairErr) {
-      strictErr.context = contextAround(jsonStr, strictErr.message);
-      throw strictErr;
+      return { ok: false, error: strictErr.message, position: positionOf(strictErr.message), context: contextAround(jsonStr, strictErr.message) };
     }
   }
 }
 
+/**
+ * 解析 AI 回包。回 `{ parsed, repaired }`（含义同 `validateAiJson`）。
+ * 两步都失败抛 SyntaxError（严格解析那一步的报错原文），并挂上 `err.context`（出错位置前后 200 字符）。
+ */
+function parseAiJson(text) {
+  const v = validateAiJson(text);
+  if (v.ok) return { parsed: v.parsed, repaired: v.repaired };
+  const err = new SyntaxError(v.error);
+  err.context = v.context;
+  throw err;
+}
+
+/** 从 `… at position N` 抠出位置；抠不出回 null。 */
+function positionOf(message) {
+  const m = /position (\d+)/.exec(String(message || ''));
+  return m ? parseInt(m[1], 10) : null;
+}
+
 /** 从 `… at position N` 抠出位置，回前后 200 字符；抠不出就回开头 200 字符。 */
 function contextAround(jsonStr, message) {
-  const m = /position (\d+)/.exec(String(message || ''));
-  const pos = m ? parseInt(m[1], 10) : 0;
+  const pos = positionOf(message) || 0;
   const start = Math.max(0, pos - 200);
   return jsonStr.slice(start, pos + 200);
 }
@@ -61,4 +79,4 @@ function saveRawResponse(label, attempt, text) {
   }
 }
 
-module.exports = { parseAiJson, stripFences, contextAround, saveRawResponse, RAW_DIR };
+module.exports = { validateAiJson, parseAiJson, stripFences, contextAround, saveRawResponse, RAW_DIR };

@@ -98,7 +98,7 @@ const kwPages = require('./lib/keyword-pages');
 const { mostSimilarPages } = require('./lib/similarity');
 // FastBuild T2 #1596 第 4 条先行落地（2026-10-06 site-87c53d50 站级回包 3/3 没转义引号）：先严格解析、失败再修一次；
 // 修不好才算一次重试，并把原始回包存到 /tmp/ai-raw（§ai-json.js 头注）。
-const { parseAiJson, saveRawResponse } = require('./lib/ai-json');
+const { validateAiJson, saveRawResponse } = require('./lib/ai-json');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
 // #1549 重开 —— description 的长度区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），提示词与检查同一个函数；重写后仍缺地点由代码补。
 const { fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionSpec } = require('./lib/description-fit');
@@ -578,34 +578,35 @@ function isRetryableApiError(err) {
   return false;
 }
 
-// TICKET-132 + TICKET-148: AI-call-level retry layered as:
+// TICKET-132 + TICKET-148 + #1618: AI-call-level retry layered as:
 //   - API errors (429/5xx/529/overloaded) → 3 attempts with 5s/10s/20s backoff (TICKET-148)
-//   - JSON.parse failures (AI hallucinating malformed JSON) → 3 attempts with 1s/2s/4s
-//     backoff + augmented prompt asking for valid JSON (TICKET-132)
+//   - JSON 坏了 → 本地先修（`validateAiJson`：严格 → jsonrepair）；本地修不好时（#1618）：
+//       ① 修复 1 次：整份坏 JSON + 出错位置交给 AI，只修语法、内容不动（单轮新请求，不带原来的长提示词）
+//       ② 还不行 → 整份重新生成 1 次（TICKET-132 那条老路：原对话 + 500 字摘要 + "respond AGAIN"）
+//       ③ 再坏 → 抛错，调用方走各自的降级（#1596）
+//     一次失败的请求序列固定是 原始 → 修复 → 重写，跟今天一样 3 条。
 //   - max_tokens or other terminal errors → throw immediately
 //
-// Each attempt re-streams the call. On API error: retry the same prompt. On JSON
-// parse failure: augment `messages` with a short assistant excerpt + explicit
-// "respond AGAIN with ONLY valid JSON" user instruction.
-//
 // `costContext` shape: { operation, detail, pricing, durationStart? } —
-// detail gets ` [retry N]` appended on attempt 2+ for dashboard transparency.
-async function callAIWithRetry({ client, baseOptions, costContext, label, maxAttempts = 3 }) {
+// detail 尾巴：重写那次加 ` [retry N]`，修复那次加 ` [json-repair N]`（dashboard 上分得清钱花在哪一种上）。
+async function callAIWithRetry({ client, baseOptions, costContext, label, maxAttempts = 2, maxRepairs = 1 }) {
   let messages = baseOptions.messages;
   let lastParseError;
   let lastText = '';
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  let repairs = 0;
+
+  // 发一次请求（带 TICKET-148 的 API 错误重试），并记一笔 cost。`tag` 是 detail 的尾巴。
+  const send = async (options, tag) => {
     let response;
     // TICKET-148: API-error retry around stream/finalMessage. Independent retry
-    // budget from the JSON-parse-retry below (an attempt can hit API error
-    // multiple times and still get its JSON parse attempt).
+    // budget from the JSON-parse handling below.
     let apiAttempt = 0;
     const maxApiAttempts = 3;
     while (true) {
       try {
-        const stream = await client.messages.stream({ ...baseOptions, messages });
+        const stream = await client.messages.stream(options);
         response = await stream.finalMessage();
-        break; // API call succeeded — proceed to cost / JSON parse below.
+        break;
       } catch (apiErr) {
         apiAttempt++;
         if (isRetryableApiError(apiErr) && apiAttempt < maxApiAttempts) {
@@ -618,21 +619,24 @@ async function callAIWithRetry({ client, baseOptions, costContext, label, maxAtt
         throw apiErr;
       }
     }
-
-    // Emit cost on EVERY attempt — user paid for each token.
+    // Emit cost on EVERY request — user paid for each token.
     const usage = response.usage || {};
     const cost = ((usage.input_tokens || 0) * costContext.pricing.input + (usage.output_tokens || 0) * costContext.pricing.output) / 1_000_000;
-    const retryTag = attempt > 1 ? ` [retry ${attempt - 1}]` : '';
-    // #1251: 读 `baseOptions.model` 而不是模块那个 `model` 变量 —— 这个对象就是上面交给 SDK 的那一份，
-    // 记下来的和发出去的按构造是同一个字串。（不取 `response.model`：它是服务器把别名解开之后的带日期 id，
-    // 而 manager 那几条路记的是请求里的 id —— 同一列里两种口径会让 `GROUP BY model` 把一个模型数成两个。）
+    // #1251: 读 `options.model`（就是交给 SDK 的那一份）而不是模块那个 `model` 变量 —— 记下来的和发出去的按构造是同一个字串。
+    // （不取 `response.model`：它是服务器把别名解开之后的带日期 id，而 manager 那几条路记的是请求里的 id ——
+    // 同一列里两种口径会让 `GROUP BY model` 把一个模型数成两个。）
     emit('cost', {
       operation: costContext.operation,
-      model: baseOptions.model,
+      model: options.model,
       cost,
       duration: costContext.durationStart ? (Date.now() - costContext.durationStart) : 0,
-      detail: `${costContext.detail}${retryTag} (${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
+      detail: `${costContext.detail}${tag} (${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
     });
+    return response;
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await send({ ...baseOptions, messages }, attempt > 1 ? ` [retry ${attempt - 1}]` : '');
 
     // max_tokens is a prompt-size problem — retrying the same prompt would
     // hit the same wall. Throw so the caller reacts.
@@ -642,36 +646,92 @@ async function callAIWithRetry({ client, baseOptions, costContext, label, maxAtt
 
     const text = response.content[0].text.trim();
     lastText = text;
-    try {
-      const { parsed, repaired } = parseAiJson(text);
-      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: ${repaired ? 'JSON 严格解析失败，jsonrepair 修复后解析成功' : 'parse succeeded'}`);
-      return { parsed, response, text, repaired };
-    } catch (parseErr) {
-      lastParseError = parseErr;
-      const rawFile = saveRawResponse(label, attempt, text);
-      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: JSON.parse failed（修复也没成）: ${parseErr.message}`
-        + (rawFile ? ` —— 原始回包存在 ${rawFile}` : '')
-        + (parseErr.context ? `\n    出错位置前后：${JSON.stringify(parseErr.context.slice(0, 400))}` : ''));
-      if (attempt >= maxAttempts) break;
-
-      // Augment messages: truncated excerpt (cost-control) + retry instruction.
-      const excerpt = text.substring(0, 500) + (text.length > 500 ? '... [truncated]' : '');
-      messages = [
-        ...messages,
-        { role: 'assistant', content: `[Response was malformed. Excerpt: ${excerpt}]` },
-        { role: 'user', content: `Previous response failed JSON.parse with error: "${parseErr.message}". Respond AGAIN with ONLY valid JSON — no markdown fences, no comments, no trailing commas, no explanatory text. Same content/structure as originally requested.` },
-      ];
-
-      // Short exponential backoff (1s, 2s, 4s) — JSON parse failure is not
-      // a rate-limit issue so no need to wait long.
-      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+    const how = attempt > 1 ? '重写' : '原始';
+    const v = validateAiJson(text);
+    if (v.ok) {
+      debug(`[ai-retry] ${label} ${how}那次${v.repaired ? '：JSON 严格解析失败 ⟹ 本地修好（jsonrepair）' : ' parse succeeded'}`);
+      return { parsed: v.parsed, response, text, repaired: v.repaired, aiRepaired: false };
     }
+    lastParseError = jsonError(v);
+    const rawFile = saveRawResponse(label, attempt, text);
+    debug(`[ai-retry] ${label} ${how}那次 JSON.parse failed（本地也修不好）: ${v.error}`
+      + (rawFile ? ` —— 原始回包存在 ${rawFile}` : '')
+      + (v.context ? `\n    出错位置前后：${JSON.stringify(v.context.slice(0, 400))}` : ''));
+
+    // #1618 —— 先交给 AI 只修语法。修复只跟在原始那次后面（重写那次坏了不再修，直接失败）。
+    if (attempt === 1 && repairs < maxRepairs) {
+      repairs += 1;
+      const fixed = await repairJsonWithAI({ send, baseOptions, label, text, v, n: repairs });
+      if (fixed) {
+        debug(`[ai-retry] ${label} AI 修好（json-repair ${repairs}）`);
+        return { parsed: fixed.parsed, response: fixed.response, text: fixed.text, repaired: fixed.repaired, aiRepaired: true };
+      }
+    }
+    if (attempt >= maxAttempts) break;
+
+    debug(`[ai-retry] ${label} 修不好 ⟹ 重写（retry ${attempt}）`);
+    // Augment messages: truncated excerpt (cost-control) + retry instruction.
+    const excerpt = text.substring(0, 500) + (text.length > 500 ? '... [truncated]' : '');
+    messages = [
+      ...messages,
+      { role: 'assistant', content: `[Response was malformed. Excerpt: ${excerpt}]` },
+      { role: 'user', content: `Previous response failed JSON.parse with error: "${v.error}". Respond AGAIN with ONLY valid JSON — no markdown fences, no comments, no trailing commas, no explanatory text. Same content/structure as originally requested.` },
+    ];
+
+    // Short backoff — JSON parse failure is not a rate-limit issue so no need to wait long.
+    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
   }
-  const err = new Error(`${label}: failed to parse AI response as JSON after ${maxAttempts} attempts. Last error: ${lastParseError.message}`);
+  debug(`[ai-retry] ${label} 失败：原始 → 修复 → 重写 都没拿到合法 JSON`);
+  const err = new Error(`${label}: failed to parse AI response as JSON after ${maxAttempts} attempts and ${repairs} repair(s). Last error: ${lastParseError.message}`);
   // Attach last raw response so callers can persist it for postmortem.
   err.lastText = lastText;
   err.lastParseError = lastParseError;
   throw err;
+}
+
+/** `validateAiJson` 的失败结果 → 一个 SyntaxError（带 `context`），给 `err.lastParseError` 用。 */
+function jsonError(v) {
+  const e = new SyntaxError(v.error);
+  e.context = v.context;
+  return e;
+}
+
+/**
+ * #1618 —— 把整份坏 JSON + 出错位置交给 AI，只修语法。修好回 `{ parsed, repaired, response, text }`，没修好回 null。
+ * 单轮新请求，不带原来的提示词；同一个模型。`max_tokens` 沿用原请求那个上限：原始那次没撞上限
+ * （撞了在上面就抛了），所以它一定装得下一份同样长的 JSON —— 按原文长度掐着给，模型多吐几个转义符就会截断。
+ * 🔴 修复那次自己撞了 `max_tokens` 算没修好，不进 `validateAiJson`：jsonrepair 会把截断的 JSON 补上括号判成合法，
+ *    等于静默丢掉后半截内容。
+ */
+async function repairJsonWithAI({ send, baseOptions, label, text, v, n }) {
+  const where = v.position == null ? 'unknown position' : `character position ${v.position}`;
+  const prompt = 'The text below was supposed to be one valid JSON document, but JSON.parse rejects it.\n\n'
+    + `ERROR: ${v.error}\n`
+    + `WHERE: ${where}. The text around that spot:\n<<<\n${v.context}\n>>>\n\n`
+    + 'Fix ONLY the JSON syntax so that JSON.parse accepts it (escape stray quotes, add missing commas/brackets, '
+    + 'remove any text that is not part of the JSON, and so on). Do NOT add, remove, rename or rewrite any field, '
+    + 'value or wording — the content must stay exactly the same. If the text contains more than one copy of the JSON, '
+    + 'keep the last complete one. Respond with ONLY the fixed JSON — no markdown fences, no explanation.\n\n'
+    + `THE FULL TEXT:\n${text}`;
+  let response;
+  try {
+    response = await send({ model: baseOptions.model, max_tokens: baseOptions.max_tokens, messages: [{ role: 'user', content: prompt }] }, ` [json-repair ${n}]`);
+  } catch (e) {
+    debug(`[ai-retry] ${label} 修复请求失败（${e.message}）⟹ 当作没修好`);
+    return null;
+  }
+  if (response.stop_reason === 'max_tokens') {
+    debug(`[ai-retry] ${label} 修复那次也被截断（max_tokens）⟹ 当作没修好`);
+    return null;
+  }
+  const fixedText = ((response.content && response.content[0] && response.content[0].text) || '').trim();
+  const r = validateAiJson(fixedText);
+  if (!r.ok) {
+    saveRawResponse(`${label} json-repair`, n, fixedText);
+    debug(`[ai-retry] ${label} 修复回来的仍不是合法 JSON：${r.error}`);
+    return null;
+  }
+  return { parsed: r.parsed, repaired: r.repaired, response, text: fixedText };
 }
 
 // Map natural-language names → ISO 639-1 codes (case-insensitive). Both primary
@@ -2681,7 +2741,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     emit('prompt', { name: 'Base Site', content: sitePrompt });
     progress('AI is planning the site...', 20);
 
-    // TICKET-132: callAIWithRetry retries up to 3 times on JSON.parse failures
+    // TICKET-132 / #1618: JSON 坏了 callAIWithRetry 先本地修、再交给 AI 修一次、再重写一次
     // (AI hallucinating malformed JSON). max_tokens still throws immediately
     // (prompt-size issue, retry won't help).
     const call1Start = Date.now();
