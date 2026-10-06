@@ -103,6 +103,13 @@ function answer(req) {
     // 第 1–4 条：四种失败；第 5 条：回包里没有页面
     if (cfg.site === 'truncated') return { json: cfg.plan, out: 4000, stop: 'max_tokens' };
     if (cfg.site === 'apierror') { const e = new Error('stub: invalid request'); e.status = 400; throw e; }
+    // #1597：Anthropic 连续回 429（SDK 自己那 2 次重试已放弃、抛到我们这层的样子）；cfg.retryAfter 给了就带 retry-after 头
+    if (cfg.site === 'ratelimited') {
+      const e = new Error('429 {"type":"error","error":{"type":"rate_limit_error","message":"stub: rate limited"}}');
+      e.status = 429; e.error = { type: 'rate_limit_error' };
+      if (cfg.retryAfter) e.headers = new Headers({ 'retry-after': cfg.retryAfter });
+      throw e;
+    }
     if (cfg.site === 'badjson') return { text: 'this is not json {', out: 10 };
     if (cfg.site === 'other') throw new Error('stub: socket hang up');
     if (cfg.site === 'nopages') return { json: { ...cfg.plan, pages: [] }, out: 4000 };
@@ -388,6 +395,34 @@ for (const [mode, text] of SITE_FAILS) {
     check('badjson：AI 原始回包存在 site/ 外面（site/ 会整个提交进客户的站仓）', () => {
       assert.ok(fs.existsSync(path.join(R.work, '_ai-response.txt')));
       assert.ok(!fs.existsSync(path.join(R.work, 'site', '_ai-response.txt')));
+    });
+  }
+}
+
+// ── #1597：Anthropic 连续 429 ⟹ 退避带抖动 / 照 retry-after，第 3 次失败后那一步降级、建站成功 ─────────────────
+// 读的是我们这层（create-site.js §callAIWithRetry）那行 `[ai-retry] … retrying in Nms (why)`，不是 SDK 的。
+const retryWaits = (R) => R.stderr.split('\n').filter((l) => l.startsWith('[ai-retry] Call 1 base site API error 429'))
+  .map((l) => { const m = l.match(/retrying in (\d+)ms \((backoff|retry-after)\)$/); return m ? { ms: Number(m[1]), why: m[2] } : { bad: l }; });
+for (const [label, extra] of [['429 无 retry-after', {}], ['429 带 retry-after: 1', { retryAfter: '1' }]]) {
+  console.log(`── #1597：站级那一通 ${label}`);
+  const R = run(`ratelimit-${extra.retryAfter ? 'ra' : 'jitter'}`, CALGARY(), { site: 'ratelimited', place: 'Calgary', ...extra });
+  check(`${label}：建站成功；恰好一条 step=site-plan（reason 是「AI service error」那句）；站级那一通恰好 3 次（2 次重试后放弃）`, () => {
+    assertOk(R);
+    const d = degradedOf(R, 'site-plan');
+    assert.strictEqual(d.length, 1, JSON.stringify(degradedOf(R)));
+    assert.ok(d[0].reason.startsWith('AI service error: 429'), d[0].reason);
+    assert.strictEqual(R.calls.filter((c) => c.kind === 'site').length, 3);
+    assertArrayMatchesEvents(R);
+  });
+  const w = retryWaits(R);
+  if (extra.retryAfter) {
+    check(`${label}：两次都按服务器说的等 1000ms`, () => assert.deepStrictEqual(w, [{ ms: 1000, why: 'retry-after' }, { ms: 1000, why: 'retry-after' }]));
+  } else {
+    check(`${label}：两次退避带抖动 —— 不是固定的 5000 / 10000，落在 [2500, 7500) · [5000, 15000)`, () => {
+      assert.strictEqual(w.length, 2, JSON.stringify(w));
+      assert.ok(w.every((x) => x.why === 'backoff'), JSON.stringify(w));
+      assert.ok(!(w[0].ms === 5000 && w[1].ms === 10000), JSON.stringify(w));
+      assert.ok(w[0].ms >= 2500 && w[0].ms < 7500 && w[1].ms >= 5000 && w[1].ms < 15000, JSON.stringify(w));
     });
   }
 }

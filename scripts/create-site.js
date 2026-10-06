@@ -58,6 +58,7 @@ const { siteFormsFrom } = require('./lib/site-forms');
 const targetKw = require('./lib/target-keywords');
 // #1596 —— AI 那一步没给出能用的东西时代码拼的站级计划 / 骨架页（只用中性句式，事实只从 payload 取）。
 const fallbackSite = require('./lib/fallback-site');
+const { apiRetryDelayMs } = require('./lib/ai-backoff');
 // #1598 —— 建站五个阶段的存档（阶段表、site_meta.json 的 buildPhase、site/.build/state.json、续跑点怎么读）。
 const buildPhases = require('./lib/build-phases');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
@@ -582,7 +583,8 @@ function isRetryableApiError(err) {
 }
 
 // TICKET-132 + TICKET-148 + #1618: AI-call-level retry layered as:
-//   - API errors (429/5xx/529/overloaded) → 3 attempts with 5s/10s/20s backoff (TICKET-148)
+//   - API errors (429/5xx/529/overloaded) → 3 attempts; the wait is ~5s then ~10s with jitter, or the server's
+//     retry-after when it sent one (#1597, §lib/ai-backoff.js). Exhausted → throws; every caller degrades (#1596)
 //   - JSON 坏了 → 本地先修（`validateAiJson`：严格 → jsonrepair）；本地修不好时（#1618）：
 //       ① 修复 1 次：整份坏 JSON + 出错位置交给 AI，只修语法、内容不动（单轮新请求，不带原来的长提示词）
 //       ② 还不行 → 整份重新生成 1 次（TICKET-132 那条老路：原对话 + 500 字摘要 + "respond AGAIN"）
@@ -613,8 +615,9 @@ async function callAIWithRetry({ client, baseOptions, costContext, label, maxAtt
       } catch (apiErr) {
         apiAttempt++;
         if (isRetryableApiError(apiErr) && apiAttempt < maxApiAttempts) {
-          const waitMs = 1000 * Math.pow(2, apiAttempt - 1) * 5; // 5s, 10s, 20s
-          debug(`[ai-retry] ${label} API error ${apiErr.status || 'unknown'} (${apiAttempt}/${maxApiAttempts - 1}): ${apiErr.message?.substring(0, 200) || 'no message'} — retrying in ${waitMs}ms`);
+          // #1597 —— 退避加抖动；服务器给了 retry-after 就照它等（§lib/ai-backoff.js）
+          const { waitMs, why } = apiRetryDelayMs(apiErr, apiAttempt);
+          debug(`[ai-retry] ${label} API error ${apiErr.status || 'unknown'} (${apiAttempt}/${maxApiAttempts - 1}): ${apiErr.message?.substring(0, 200) || 'no message'} — retrying in ${waitMs}ms (${why})`);
           await new Promise(r => setTimeout(r, waitMs));
           continue;
         }
