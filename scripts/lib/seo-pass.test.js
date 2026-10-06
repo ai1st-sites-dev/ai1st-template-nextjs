@@ -382,37 +382,32 @@ if (!ONLY || ONLY === 'D') {
   check(pg.description === `${NO_PLACE.replace(/。$/, '')}｜Markham` && [...pg.description].length <= 80, '落盘的 description 末尾补上了「｜Markham」（主语言 zh 用全角竖线），≤ 80 字', JSON.stringify(pg.description));
   const c1 = D.prompts.find((p) => p.includes('Generate a JSON object with this EXACT structure')) || '';
   const c2s = D.prompts.filter((p) => p.includes('Write ONE keyword landing page'));
-  check(c1.includes('"siteDescription": "<50–80 chars,') && c1.includes('"description": "<Page meta description, 50–80 chars>"')
-    && c1.includes('Every meta description (seo.siteDescription and pages[].description): 50–80 chars.') && !c1.includes('70–155'),
+  check(c1.includes('"siteDescription": "<50–80 个汉字 (Chinese characters),') && c1.includes('"description": "<Page meta description, 50–80 个汉字 (Chinese characters)>"')
+    && c1.includes('Every meta description (seo.siteDescription and pages[].description): 50–80 个汉字 (Chinese characters).') && !c1.includes('70–155'),
   'Call 1 提示词三处都是 50–80（主语言 zh），没有 70–155');
-  check(c2s.length === 3 && c2s.every((c2) => c2.includes('keyword + location, 50–80 chars>') && !c2.includes('70–155')), `Call 2（${c2s.length} 通）提示词：50–80`);
+  check(c2s.length === 3 && c2s.every((c2) => c2.includes('keyword + location, 50–80 个汉字 (Chinese characters)>') && !c2.includes('70–155')), `Call 2（${c2s.length} 通）提示词：50–80`);
   // 反向对照：英文站（A）的三处仍是 70–155
   const a1 = A.prompts.find((p) => p.includes('Generate a JSON object with this EXACT structure')) || '';
-  check(a1.includes('"siteDescription": "<70–155 chars,') && !a1.includes('50–80'), '对照：英文站 Call 1 仍是 70–155');
+  check(a1.includes('"siteDescription": "<70–155 characters,') && !a1.includes('50–80'), '对照：英文站 Call 1 仍是 70–155');
 }
 
-console.log('\n── E 主语言 zh、中英混排且拉丁字母过半的 description：检查与提示词同一个区间，AI 照提示词写就过');
+console.log('\n── E 主语言 zh：第一稿 description 没到目标 50 字、但在底线 20 之上 ⟹ 不报、不修补、原样发布（#1549 r4，Chris 2026-10-06）');
 if (!ONLY || ONLY === 'E') {
-  // QA2 2026-10-05 照 Chris 两个中文真站造的形状（英文品牌 + 英文目标词）；先给一段太短的，逼出一次修补
-  const MIX = 'Acme Drains 在 Markham 提供 drain cleaning 疏通服务，厨房浴室主管道，持牌技师当天上门。';
+  // site-f7a34357 那种形状：第一稿 24–49 字、含目标词与地点。改前报「要 50–80」、每页修补一次；改后照发。
+  // 「低于底线 20 ⟹ 报」由 seo-problems.test.js ④b 的纯函数覆盖 —— 这里造不出来：目标词 + 地点本身就 ≥ 20 字。
   const SHORT = 'Acme Drains 在 Markham 提供 drain cleaning 疏通。';
   const E = run('E', {
     call1: call1({ drainDesc: SHORT }), call2: call2(),
-    rewrites: { 'services/drain-cleaning': { midDescription: MIX }, [KW_SLUGS[2]]: 'echo' },
+    rewrites: { [KW_SLUGS[2]]: 'echo' },
   }, PAYLOAD({ language: 'zh' }));
   const lines = seoLines(E.stderr);
-  const first = E.stderr.slice(E.stderr.indexOf('[seo] 检查 services/drain-cleaning '));
-  check(new RegExp(`^\\[seo\\] 检查 services/drain-cleaning [^\\n]*1 条问题：\\n\\s+\\[2 description\\] description ${[...SHORT].length} 字，要 50–80 字`).test(first),
-    `第一遍：服务页报「${[...SHORT].length} 字，要 50–80 字」（不是 70–155）`, first.slice(0, 300));
-  const rw = E.prompts.find((p) => p.includes('An automatic SEO check found the problems') && p.includes('\nPAGE: services/drain-cleaning\n')) || '';
-  check(rw.includes('要 50–80 字') && rw.includes('"description": meta description, 50–80 chars') && !rw.includes('70–155'),
-    '修补提示词：问题清单和 RULES 说的是同一个区间 50–80，整封信里没有 70–155（r2 两句并排矛盾）', rw.slice(0, 900));
   check(E.rc === 0, `建站成功（rc=${E.rc}）`, `${errorOf(E)}\n${E.stderr.slice(-1200)}`);
-  check(lines.some((l) => /^\[seo\] 修补一次后 services\/drain-cleaning · .* · 0 条问题$/.test(l)), '照提示词写（中点 65 字）之后 0 条问题', lines.filter((l) => l.includes('drain-cleaning ')).join(' | '));
+  const iCheck = lines.findIndex((l) => l.startsWith('[seo] 检查 services/drain-cleaning '));
+  check(/ · 0 条问题$/.test(lines[iCheck] || ''), `第一遍检查：服务页 ${[...SHORT].length} 字的 description 0 条问题（在底线 20 之上）`, lines[iCheck]);
+  check(!E.prompts.some((p) => p.includes('An automatic SEO check found the problems') && p.includes('\nPAGE: services/drain-cleaning\n')), '服务页零次修补调用');
   if (E.rc === 0) {
     const pg = JSON.parse(fs.readFileSync(path.join(E.site, 'zh', 'pages', 'services', 'drain-cleaning.json'), 'utf-8'));
-    const n = [...pg.description].length;
-    check(n >= 50 && n <= 80, `落盘的 description ${n} 字，在 50–80 里`, JSON.stringify(pg.description));
+    check(pg.description === SHORT, `落盘的 description 就是第一稿（${[...SHORT].length} 字），没被改`, JSON.stringify(pg.description));
   }
 }
 

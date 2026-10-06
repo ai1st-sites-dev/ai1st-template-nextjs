@@ -17,6 +17,7 @@
 
 const { loadManifests } = require('./block-manifest');
 const { SOURCES, isSourceRef } = require('./item-sources');
+const { descriptionSpec } = require('./description-fit');
 
 // ── 哪些格子跟主语言共用（不取第二语言那份）—— 按「这个值在块里是什么」判，不按键名（#1593 r2，QA2 打回）──────────
 // r1 借的是 seo-problems.js 的 NOT_TEXT（「这是不是给 SEO 数的字」），答的是另一个问题，真块上两头都错：
@@ -177,7 +178,7 @@ Same services and forms, same order and ids, as the main ones. Do NOT write page
 Respond with ONE JSON object keyed by language code:
 { "${primary.code}": ${primaryShape}, ${others.map((o) => `"${o.code}": { "title": "...", "description": "...", "navLabel": "..."${kw}, "sections": [ ... ] }`).join(', ')} }
 - Each other language has EXACTLY the same sections as "${primary.code}": same count, same order, same "type", same "options", same images, links, icons and colors, same number of items in every list — only the visitor-facing words change.
-- Its "title", "description" and "navLabel" are this page's title, meta description and nav label in that language (same length limits).${extra}`;
+- Its "title", "description" and "navLabel" are this page's title, meta description and nav label in that language (title and nav label: same length limits).${others.map((o) => `\n- "${o.code}" meta description: ${descriptionSpec(o.code)}.`).join('')}${extra}`;
 }
 
 /**

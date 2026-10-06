@@ -216,37 +216,34 @@ console.log('\n── ④ 事实出处的边界');
   check(one('获奖团队，从2015年开始服务。').length === 2, '中文：获奖 + 2015 年都报', JSON.stringify(one('获奖团队，从2015年开始服务。')));
 }
 
-console.log('\n── ④b（#1549 重开）description 长度按主语言：zh 50–80、en 70–155，同一段文字两个站各判各的；缺地点的 MUST 清单');
+console.log('\n── ④b（#1549 r4）description 长度只拦底线、按主语言：zh 20–200、en 40–300，同一段文字两个站各判各的；缺地点的 MUST 清单');
 {
   const d2 = (desc, extra = {}) => fired(seoProblems({ ...args({ ...goodPage(), description: desc }), targetKeyword: '', ...extra }), 2);
   const ZH = { locale: 'zh' };
-  // 中文：Chris 2026-10-05 site-db08942a 那种 54–63 字的正常中文描述，改前报「要 70–155」
-  const zh = (n) => '多伦多专业烫发染发沙龙韩国发型师当天预约价格实惠欢迎到店体验'.repeat(4).slice(0, n);
-  check([50, 54, 63, 80].every((n) => d2(zh(n), ZH).length === 0), '主语言 zh、中文 50 / 54 / 63 / 80 字：不报');
-  check(d2(zh(49), ZH)[0] === '[2 description] description 49 字，要 50–80 字', '主语言 zh、中文 49 字：报，区间写 50–80', JSON.stringify(d2(zh(49), ZH)));
-  check(d2(zh(81), ZH)[0] === '[2 description] description 81 字，要 50–80 字', '主语言 zh、中文 81 字：报', JSON.stringify(d2(zh(81), ZH)));
-  check(d2('', ZH)[0] === '[2 description] description 0 字，要 50–80 字', '主语言 zh、description 为空：报的是 50–80（r2 这里说成 70–155，QA1 小条 2）', JSON.stringify(d2('', ZH)));
-  // 英文：照旧
-  const en = (n) => 'Fast drain cleaning for Markham homeowners with licensed plumbers who arrive the same day. '.repeat(3).replace(/ /g, '_').slice(0, n); // 不留空格：str() 会剥掉结尾空格、少数一个
-  check(d2(en(60))[0] === '[2 description] description 60 字，要 70–155 字', '主语言 en、英文 60 字：照旧报 70–155', JSON.stringify(d2(en(60))));
-  check(d2(en(70)).length === 0 && d2(en(155)).length === 0 && d2(en(156)).length === 1, '主语言 en、英文 70 / 155 不报、156 报');
-  // 混排：区间只跟主语言走，跟这段文字哪种字多无关 —— r2 按「字母里 CJK 是否过半」判，跟提示词（按主语言）分叉，QA1 / QA2 两臂整站失败
+  // 中文：#1549 r4 —— 目标 50–80（提示词），检查只拦底线 20–200。site-f7a34357 14/14 页第一稿 24–49 字，改前全报「要 50–80」
+  const zh = (n) => '多伦多专业烫发染发沙龙韩国发型师当天预约价格实惠欢迎到店体验'.repeat(8).slice(0, n);
+  check([20, 24, 49, 50, 80, 81, 150, 200].every((n) => d2(zh(n), ZH).length === 0), '主语言 zh、中文 20 / 24 / 49 / 50 / 80 / 81 / 150 / 200 字：都不报（底线内）');
+  check(d2(zh(19), ZH)[0] === '[2 description] description 19 字，至少 20 字', '主语言 zh、中文 19 字：报，写底线下限 20', JSON.stringify(d2(zh(19), ZH)));
+  check(d2(zh(201), ZH)[0] === '[2 description] description 201 字，最多 200 字', '主语言 zh、中文 201 字：报（纯函数照判；建站里检查前已被裁掉）', JSON.stringify(d2(zh(201), ZH)));
+  check(d2('', ZH)[0] === '[2 description] description 0 字，至少 20 字', '主语言 zh、description 为空：报', JSON.stringify(d2('', ZH)));
+  // 英文：底线 40–300
+  const en = (n) => 'Fast drain cleaning for Markham homeowners with licensed plumbers who arrive the same day. '.repeat(5).replace(/ /g, '_').slice(0, n); // 不留空格：str() 会剥掉结尾空格、少数一个
+  check(d2(en(39))[0] === '[2 description] description 39 字，至少 40 字', '主语言 en、英文 39 字：报', JSON.stringify(d2(en(39))));
+  check([40, 60, 70, 155, 156, 300].every((n) => d2(en(n)).length === 0) && d2(en(301)).length === 1, '主语言 en、英文 40 / 60 / 70 / 155 / 156 / 300 不报、301 报');
+  // 混排：区间只跟主语言走，跟这段文字哪种字多无关
   const mixZh = 'Glamour Hair 位于多伦多市中心，韩国发型师提供烫发、染发、护理，当天可约，价格透明，欢迎到店体验。';
-  check(d2(mixZh, ZH).length === 0, `混排·中文为主（${[...mixZh].length} 字）、主语言 zh：按 50–80，不报`, JSON.stringify(d2(mixZh, ZH)));
-  // QA2 那段（中文站、英文品牌 + 英文目标词，拉丁字母过半；62 字）与 QA1 那段（中文站 + 长英文公司名）
+  check(d2(mixZh, ZH).length === 0, `混排·中文为主（${[...mixZh].length} 字）、主语言 zh：不报`, JSON.stringify(d2(mixZh, ZH)));
   const qa2 = 'Acme Drains 在 Markham 提供 drain cleaning 疏通服务，厨房浴室主管道，持牌技师当天上门。';
   const qa1 = 'Elite Immigration & Legal Services Toronto 提供移民签证与法律咨询，多伦多华人社区首选。';
-  check(d2(qa2, ZH).length === 0, `混排·拉丁字母过半（QA2 那段，${[...qa2].length} 字）、主语言 zh：按 50–80，不报（r2 报「要 70–155」）`, JSON.stringify(d2(qa2, ZH)));
-  check(d2(qa1, ZH).length === 0, `混排·长英文公司名（QA1 那段，${[...qa1].length} 字）、主语言 zh：不报`, JSON.stringify(d2(qa1, ZH)));
-  check(d2(qa2)[0] === `[2 description] description ${[...qa2].length} 字，要 70–155 字`, '对照：同一段 QA2 文字、主语言 en ⟹ 按 70–155 报', JSON.stringify(d2(qa2)));
-  const mixEn = 'Glamour Hair offers perms (烫发) and coloring in downtown Toronto with Korean-trained stylists, same-day booking.';
-  check(d2(mixEn).length === 0 && d2(mixEn.slice(0, 60)).length === 1, '混排·英文为主、主语言 en：按 70–155');
-  // 不变式：第 2 条报文里的区间 = 发给 AI 的提示词那个说法（同一个 descriptionRange(locale)）
-  const { descriptionSpec } = require('./description-fit');
+  check(d2(qa2, ZH).length === 0 && d2(qa1, ZH).length === 0, '混排·拉丁字母过半 / 长英文公司名、主语言 zh：不报');
+  const short = '多伦多烫发，当天可约。';
+  check(d2(short, ZH).length === 1 && d2(short).length === 1 && d2(qa2).length === 0, '同一段文字按主语言各判各的：11 字两边都低于底线；QA2 那段（62 字）在 en 底线 40 之上也不报');
+  // 不变式：检查用底线区间（descriptionAccept），提示词用目标区间（descriptionRange / descriptionSpec）—— 两者不再相同
+  const { descriptionSpec, descriptionAccept, descriptionRange } = require('./description-fit');
   check(['zh', 'zh-TW', 'ja', 'ko', 'en', 'fr'].every((l) => {
-    const m = (d2('短', { locale: l })[0] || '').match(/要 (\d+–\d+) 字/);
-    return m && `${m[1]} chars` === descriptionSpec(l);
-  }), '第 2 条报的区间 = descriptionSpec(locale)（提示词那个数），6 个 locale 逐个比');
+    const m = (d2('短', { locale: l })[0] || '').match(/至少 (\d+) 字/);
+    return m && Number(m[1]) === descriptionAccept(l).min && descriptionSpec(l).startsWith(`${descriptionRange(l).min}–${descriptionRange(l).max}`);
+  }), '第 2 条报的下限 = descriptionAccept(locale).min；提示词说的是 descriptionRange(locale)，6 个 locale 逐个比');
   // missingPhrases：重写提示词的 MUST 行与补地点都按它（跟第 1、2 条同一个谓词）
   const zhPayload = { ...PAYLOAD, location: 'Toronto, Ontario, Canada', locationLocalized: '多伦多, 安大略省, 加拿大' };
   const mp = (desc, title, kw = '烫发') => S.missingPhrases({ page: { ...goodPage(), slug: 'services/perming', title, description: desc }, targetKeyword: kw, payload: zhPayload, seo: {} });

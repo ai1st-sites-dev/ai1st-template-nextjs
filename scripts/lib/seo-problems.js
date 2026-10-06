@@ -28,7 +28,7 @@
 
 const { blocksOf, loadManifests } = require('./block-manifest');
 const { effectiveKnobs } = require('./block-knobs');
-const { descriptionRange, placeFits } = require('./description-fit');
+const { descriptionAccept, placeFits } = require('./description-fit');
 
 // ── 字与词 ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -432,9 +432,11 @@ function seoProblems({ page, pages = [], targetKeyword, brand, payload, locale, 
   {
     const desc = isHome ? str(s.siteDescription) : str(page.description);
     const n = charLen(desc);
-    // #1549 重开 —— 区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），跟提示词同一个函数（§description-fit.js descriptionRange）。
-    const { min, max } = descriptionRange(locale);
-    if (n < min || n > max) problems.push(`[2 description] description ${n} 字，要 ${min}–${max} 字`);
+    // #1549 r4 —— 只拦底线（§description-fit.js descriptionAccept：中 / 日 / 韩 20–200，其余 40–300）；提示词要的目标区间
+    //    （descriptionRange）是 AI 该往哪写，不是打回的线。超过底线上限的在检查前已被 fitPageDescriptions 裁掉。
+    const { min, max } = descriptionAccept(locale);
+    if (n < min) problems.push(`[2 description] description ${n} 字，至少 ${min} 字`);
+    else if (n > max) problems.push(`[2 description] description ${n} 字，最多 ${max} 字`);
     if (kw) {
       if (!hasPhrase(desc, kw)) problems.push(`[2 description] description 不含目标词「${kw}」`);
       // #1603 —— 「目标词 + 分隔符 + 地点」本身就超上限 ⟹ 地点那一半不判（§description-fit.js placeFits；create-site 打一行日志）。

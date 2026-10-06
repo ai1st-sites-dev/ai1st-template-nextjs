@@ -72,18 +72,21 @@ const word = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
 }
 // ⑤
 {
-  const seo = { siteDescription: `Home. ${word(60)}` };
+  // #1549 r4：只裁超过底线上限（300）的，裁到目标上限（155）—— 夹具都要 > 300
+  const seo = { siteDescription: `Home. ${word(80)}` };
   const pages = [
     { slug: 'home', description: 'ignored for home' },
     { slug: 'about', description: 'Fine and short enough to keep as is for the about page of the site here.' },
-    { slug: 'services/haircut', description: `Cut. ${word(60)}` },
+    { slug: 'services/haircut', description: `Cut. ${word(80)}` },
+    { slug: 'gallery', description: `Mid. ${word(50)}` }, // 155 < 长度 ≤ 300：底线内，不裁
     { slug: 'faq' }, // 没有 description
   ];
   const changed = fitPageDescriptions({ pages, seo });
   check('⑤ 首页改的是 seo.siteDescription', cp(seo.siteDescription) <= 155 && pages[0].description === 'ignored for home');
   check('⑤ 子页改 page.description', cp(pages[2].description) <= 155);
   check('⑤ 回执只有裁过的两页', changed.map((c) => c.slug).join(',') === 'home,services/haircut', JSON.stringify(changed));
-  check('⑤ 回执带前后长度', changed.every((c) => c.before > 155 && c.after <= 155));
+  check('⑤ 回执带前后长度', changed.every((c) => c.before > 300 && c.after <= 155));
+  check(`⑤ 155–300 之间的不裁（${cp(pages[3].description)} 字）`, cp(pages[3].description) > 155 && cp(pages[3].description) <= 300 && !changed.some((c) => c.slug === 'gallery'));
 }
 // ⑥ 当天真形状：三到四句英文、长度 157–168，裁完必 ≤ 155 且 ≥ 70
 {
@@ -109,9 +112,11 @@ const word = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
   }
   check('⑦ zh / zh-TW / ja / ko ⟹ 50–80；en / fr / 空 / 没传 ⟹ 70–155',
     ['zh', 'zh-TW', 'ja', 'ko'].every((l) => descriptionRange(l).max === 80) && ['en', 'fr', '', undefined].every((l) => descriptionRange(l).max === 155));
-  // r3 的不变式：提示词说的区间 = 检查用的区间（两者都只从 descriptionRange(locale) 来）
-  check('⑦ 提示词说法 = 检查区间（每个 locale）',
-    ['zh', 'zh-TW', 'ja', 'ko', 'en', 'fr', '', undefined].every((l) => descriptionSpec(l) === `${descriptionRange(l).min}–${descriptionRange(l).max} chars`));
+  // #1549 r4：提示词说的是目标区间（descriptionRange），单位按语言说；检查用的是底线区间（descriptionAccept），两者不再相同
+  check('⑦ 提示词说法 = 目标区间，单位按语言',
+    descriptionSpec('zh') === '50–80 个汉字 (Chinese characters)' && descriptionSpec('zh-TW').startsWith('50–80 个汉字')
+    && descriptionSpec('ja').startsWith('50–80 文字') && descriptionSpec('ko').startsWith('50–80자')
+    && ['en', 'fr', '', undefined].every((l) => descriptionSpec(l) === '70–155 characters'));
   check('⑦ 文字判档的旧导出不在了（只留一个取区间的入口）', DF.isMostlyCjk === undefined && DF.descriptionRangeForLocale === undefined && DF.DESCRIPTION_RANGES === undefined);
   // 中文超 80 由代码裁（改前这一句 ≤155 不裁）
   const long = '多伦多专业烫发染发沙龙，韩国发型师当天预约。价格实惠，欢迎到店体验！我们提供烫发、染发、头皮护理和造型设计，所有服务都由经验丰富的发型师完成，环境舒适安静，停车方便，周末也营业。';
@@ -119,8 +124,13 @@ const word = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
   const out = fitDescription(long, ZH);
   // 上限内最后一个句末（「！」在第 33 字）截完 < 50 ⟹ 退到逗号处
   check(`⑦ 中文 ${cp(long)} 字 ⟹ 裁到 ≤80 且 ≥50，结尾不留逗号`, cp(out) <= 80 && cp(out) >= 50 && !/[，、]$/.test(out), `${cp(out)} ${out}`);
-  const ch = fitPageDescriptions({ pages: [{ slug: 'services/perm', description: long }], seo: {}, locale: 'zh' });
-  check('⑦ fitPageDescriptions 主语言 zh 按 80 裁', ch.length === 1 && ch[0].after <= 80, JSON.stringify(ch));
+  // #1549 r4：89 字在底线（≤200）内 ⟹ 不裁；超过 200 才裁到 80
+  check('⑦ fitPageDescriptions 主语言 zh：89 字在底线内，不裁',
+    fitPageDescriptions({ pages: [{ slug: 'services/perm', description: long }], seo: {}, locale: 'zh' }).length === 0);
+  const veryLong = long + long + long;
+  check(`⑦ 夹具超底线上限（${cp(veryLong)} 字 > 200）`, cp(veryLong) > 200);
+  const ch = fitPageDescriptions({ pages: [{ slug: 'services/perm', description: veryLong }], seo: {}, locale: 'zh' });
+  check('⑦ fitPageDescriptions 主语言 zh 超 200 ⟹ 裁到 ≤80', ch.length === 1 && ch[0].after <= 80 && ch[0].after >= 50, JSON.stringify(ch));
   check('⑦ 对照：同一段、主语言 en 不裁（≤155）', fitPageDescriptions({ pages: [{ slug: 'services/perm', description: long }], seo: {}, locale: 'en' }).length === 0);
 }
 // ⑧ appendPlace

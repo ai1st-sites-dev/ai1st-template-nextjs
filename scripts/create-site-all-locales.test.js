@@ -570,8 +570,8 @@ check('修补提示词只带 description：没有这一页别的块的文案', (
   assert.deepStrictEqual(Object.keys(texts), ['description']);
   for (const other of ['染发：怎么做', '染发：常见问题', '现在预约', '需要预约吗', '告诉我们您想要的造型', '我们在多伦多为每一位顾客提供细致的护理']) assert.ok(!p.includes(other), other);
 });
-check('中文站提示词里的长度是 50–80 chars，不是 70–155', () => {
-  assert.ok(fixes[0].first.includes('50–80 chars') && !fixes[0].first.includes('70–155'));
+check('中文站提示词里的长度是 50–80 个汉字，不是 70–155', () => {
+  assert.ok(fixes[0].first.includes('50–80 个汉字') && !fixes[0].first.includes('70–155'));
 });
 check('修补后页面除 description 外逐字等于没修补的那一跑；description 是回包那一句', () => {
   const a = (D.pagesOf('zh') || {})['services/color'];

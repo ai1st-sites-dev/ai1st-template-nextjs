@@ -20,6 +20,13 @@
  *    r3：r2 曾让检查按「这段文字的字母里 CJK 是否过半」判、提示词按主语言给，两把尺在「中文描述夹英文目标词 / 品牌名」时
  *    分叉（提示词说 50–80，检查要 70–155，重写必不收敛 ⟹ 整站失败；QA1 / QA2 2026-10-05 两臂实测）。只查主语言的页，
  *    主语言就是这段文字该用的语言，所以按 locale 判是同一件事、且提示词写之前就知道。
+ *
+ * 🔴 #1549 r4（Chris 2026-10-06）：**提示词给目标，检查只拦底线** —— 两个区间。
+ *    目标区间（§descriptionRange，中日韩 50–80 / 其余 70–155）：写进提示词、裁的落点、补的落点。
+ *    底线区间（§descriptionAccept，中日韩 20–200 / 其余 40–300）：seo-problems.js 第 2 条只在它外面才报；超过它的上限才裁。
+ *    起因：同日两个真 AI 中文站第一稿 description 10/11、14/14 页落在 24–49 字，全部被打回修补一次 —— 这些都能用（Google
+ *    本来就截长、也常换成自己挑的正文），第一稿写 40 字对搜索结果没有区别；问题是检查跟提示词用了同一个区间。
+ *    Chris 原话：「你可以要求 AI 写 50 到 80 之间，然后你可以设置 validator 成 200 以内也没有问题」。
  */
 
 const SENTENCE_END = /[.!?。！？]/;
@@ -32,17 +39,28 @@ const codePoints = (s) => [...String(s || '')];
 
 const RANGE_LATIN = Object.freeze({ min: 70, max: 155 });
 const RANGE_CJK = Object.freeze({ min: 50, max: 80 });
+const ACCEPT_LATIN = Object.freeze({ min: 40, max: 300 });
+const ACCEPT_CJK = Object.freeze({ min: 20, max: 200 });
 const isCjkLocale = (locale) => /^(zh|ja|ko)\b/i.test(String(locale || ''));
 
-/** 主语言的 description 长度区间：中 / 日 / 韩 ⟹ 50–80，其余（含没传）⟹ 70–155。检查、裁、补、提示词共用这一个。 */
+/** 目标区间（按主语言）：中 / 日 / 韩 ⟹ 50–80，其余（含没传）⟹ 70–155。提示词、裁的落点、补的落点用它。 */
 function descriptionRange(locale) {
   return isCjkLocale(locale) ? RANGE_CJK : RANGE_LATIN;
 }
 
-/** 提示词里的说法：「70–155 chars」/「50–80 chars」。 */
+/** 底线区间（按主语言）：中 / 日 / 韩 ⟹ 20–200，其余 ⟹ 40–300。检查只在它外面才报；超过它的上限才裁（#1549 r4）。 */
+function descriptionAccept(locale) {
+  return isCjkLocale(locale) ? ACCEPT_CJK : ACCEPT_LATIN;
+}
+
+/** 提示词里的说法，单位按那种语言说：「50–80 个汉字」/「50–80 文字」/「50–80자」/「70–155 characters」。数字是目标区间。 */
 function descriptionSpec(locale) {
   const { min, max } = descriptionRange(locale);
-  return `${min}–${max} chars`;
+  const l = String(locale || '').toLowerCase();
+  if (/^zh\b/.test(l)) return `${min}–${max} 个汉字 (Chinese characters)`;
+  if (/^ja\b/.test(l)) return `${min}–${max} 文字 (characters)`;
+  if (/^ko\b/.test(l)) return `${min}–${max}자 (characters)`;
+  return `${min}–${max} characters`;
 }
 
 // ── 裁 ────────────────────────────────────────────────────────────────────────────────────────
@@ -79,9 +97,10 @@ function fitDescription(text, { locale, max, min } = {}) {
 
 /**
  * 就地裁一组页面的 description（首页的是 seo.siteDescription）。回裁过的 `[{ slug, before, after }]`，没裁的页不在里面。
+ * #1549 r4：只裁**超过底线上限**的（§descriptionAccept），裁到目标上限；目标上限与底线上限之间的照原样留着。
  */
 function fitPageDescriptions({ pages, seo, locale }) {
-  const { max } = descriptionRange(locale);
+  const { max } = descriptionAccept(locale);
   const changed = [];
   for (const page of pages || []) {
     if (!page || typeof page !== 'object') continue;
@@ -158,4 +177,4 @@ function placeFits(place, keyword, locale) {
   return codePoints(String(keyword || '').trim()).length + codePoints(`${placeSeparator(locale)}${p}`).length <= descriptionRange(locale).max;
 }
 
-module.exports = { fitDescription, fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionSpec };
+module.exports = { fitDescription, fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionAccept, descriptionSpec };
