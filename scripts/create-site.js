@@ -54,6 +54,8 @@ const {
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
 // #1471 —— 站级表单库（`site/<locale>/forms.json`）：默认两张的骨架 + 只收 AI 的文案。
 const { siteFormsFrom } = require('./lib/site-forms');
+// #1631 —— 代码兜底写的那几句（联系页 / 默认表单）按站的语言。
+const localeWords = require('./lib/locale-words');
 // #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
 const targetKw = require('./lib/target-keywords');
 // #1596 —— AI 那一步没给出能用的东西时代码拼的站级计划 / 骨架页（只用中性句式，事实只从 payload 取）。
@@ -1556,7 +1558,7 @@ async function main() {
         disabledBlocks,
         titleSpec: pageTitleSpec(content.brand.name[defaultLocale]),
         descriptionSpec: descriptionSpec(defaultLocale),
-        forms: siteFormsFrom(content.ai && content.ai.forms),
+        forms: siteFormsFrom(content.ai && content.ai.forms, undefined, defaultLocale),
         additionalContext,
         sitePrimaryKeyword: (targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }) || {}).keyword || '',
         ctaHref: (content.navigation && content.navigation.header && content.navigation.header.cta && content.navigation.header.cta.href) || '',
@@ -1918,7 +1920,7 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
     'navigation.json': secContent.navigation,
     'seo.json': secContent.seo,
     'services.json': secContent.services,
-    'forms.json': siteFormsFrom(secContent.forms, secContent.formsBase || undefined),
+    'forms.json': siteFormsFrom(secContent.forms, secContent.formsBase || undefined, secondaryLocale),
   };
   for (const [filename, data] of Object.entries(localeFiles)) {
     fs.writeFileSync(path.join(localeDir, filename), JSON.stringify(data, null, 2) + '\n');
@@ -2005,7 +2007,8 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
 
   // per-locale config files
   // #1471 —— 站级表单库：两张默认表单的骨架（id / fields / primary 钉死）+ AI 写的文案（`scripts/lib/site-forms.js` §siteFormsFrom）。
-  content.forms = siteFormsFrom(content.forms);
+  // #1631 —— AI 没给的那几句取主语言那一行（`locale-words.js`），不再是英文底稿。
+  content.forms = siteFormsFrom(content.forms, undefined, defaultLocale);
   const localeFiles = {
     'navigation.json': content.navigation,
     'seo.json': content.seo,
@@ -2932,6 +2935,13 @@ ${FACTS_ONLY_FROM_FORM_RULE}
         const base = rp.kind === 'home' ? { title: 'Home', navLabel: 'Home', navOrder: 0, changeFrequency: 'weekly', priority: 1 }
           : rp.kind === 'service' ? { title: name, navLabel: name, navOrder: svcOrder++, changeFrequency: 'monthly', priority: 0.8 }
             : { ...siteRecipe.PAGE_DEFAULTS[rp.kind] };
+        // #1631 —— 联系页的标题 / 导航名：站级回包没给时用主语言那一行（`locale-words.js`），不再是英文的 Contact Us / Contact。
+        //    AI 给了照样用 AI 的（下面那行 `for (const k of TEXT)` 盖在它上面）。
+        if (rp.kind === 'contact') {
+          const cw = localeWords.contactPageWords(locales.primary.code);
+          base.title = cw.title;
+          base.navLabel = cw.navLabel;
+        }
         const page = { slug: rp.slug, ...base };
         for (const k of TEXT) if (got[k] !== undefined && got[k] !== null && got[k] !== '') page[k] = got[k];
         if (!page.description) page.description = rp.kind === 'home' ? ((ai.seo && ai.seo.siteDescription) || companyName) : codeDesc(rp.slug, page.title);
@@ -2958,7 +2968,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     debug(`[resume] 跳过 pages 阶段（每页那几通）：存档里 ${ai.pages.length} 页都带着 sections`);
   } else {
     // ── ② 每页一次 ──────────────────────────────────────────────────────────────────────────────────
-    const forms = siteFormsFrom(ai.forms);
+    const forms = siteFormsFrom(ai.forms, undefined, defaultLocale);
     const pageKeywords = (() => {
       try { return pageTargetKeywords(ai) || {}; } catch (e) { debug(`[pages] 目标词算不出来（${e.message}），每页提示词不带目标词`); return {}; }
     })();
@@ -3757,7 +3767,7 @@ async function finishKeywordPages({
     debug(`[keyword-pages] AI 没给这些服务生成详情页，代码补上了：${detail.added.map((id) => `/services/${id}`).join(', ')}`);
     const addedSlugs = new Set(detail.added.map((id) => `services/${id}`));
     let fresh = content.pages.filter((p) => addedSlugs.has(p.slug));
-    const issues = validateBlocks({ pages: fresh, industry, disabledBlocks, forms: siteFormsFrom(content.ai && content.ai.forms), scope: 'edit' }).problems;
+    const issues = validateBlocks({ pages: fresh, industry, disabledBlocks, forms: siteFormsFrom(content.ai && content.ai.forms, undefined, locale), scope: 'edit' }).problems;
     if (issues.length) {
       // 过不了的那几张详情页拿掉，它们服务下的关键词页一起丢（父页不在就是 404）。问题归不到哪一页时当作全部不合格。
       let bad = fresh.filter((p) => issues.some((x) => x.startsWith(`${p.slug} `)));
@@ -4073,7 +4083,7 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
   }
 
   // 表单跟 Call 1 那道块校验用同一份（AI 写的文案 + 默认骨架，`siteFormsFrom`）；只比这一页修补前后的差集。
-  const forms = siteFormsFrom((content.ai && content.ai.forms) || content.forms);
+  const forms = siteFormsFrom((content.ai && content.ai.forms) || content.forms, undefined, locale);
   const blockProblemsOf = (pages, slug) => validateBlocks({ pages, industry, disabledBlocks, forms })
     .problems.filter((x) => x.startsWith(`${slug} `));
 

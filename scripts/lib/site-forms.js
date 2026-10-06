@@ -44,6 +44,8 @@ const DEFAULT_SITE_FORMS = [
 ];
 
 const { hrefAllowed } = require('./href-allowed');
+// #1631 —— 默认表单那几句按站的语言（AI 没给时的落点）。
+const { formWords } = require('./locale-words');
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -150,12 +152,16 @@ function pickForm(forms, id) {
  * 建站用：把 AI 写的文案叠到固定骨架上（做什么 3：「AI 按行业改文案，不改字段词表」）。
  * 骨架决定有哪几张、每张的 `id` / `fields` / `primary`（默认 = DEFAULT_SITE_FORMS；副语言传主语言那份，于是各语言
  * 结构按构造一致）；`copy` 里同 `id` 那张的 `name` / `buttonText` / `successMessage` 是非空字符串才拿来，别的键一律不认。
+ * #1631 —— `locale`：用默认骨架（没传 `base`）时，AI 没给的那几句取 `locale-words.js` 里这种语言的句子，不再是英文底稿。
+ *    优先级 AI > 字表 > 英文（字表里没有的语言）。传了 `base` 的调用（副语言拿主语言那份当底）语义一字不改：以 `base` 为底。
  */
 const COPY_CAPS = { name: 60, buttonText: 40, successMessage: 200 };
-function siteFormsFrom(copy, base = DEFAULT_SITE_FORMS) {
+function siteFormsFrom(copy, base, locale) {
   const given = new Map((Array.isArray(copy) ? copy : []).filter((f) => isObj(f) && typeof f.id === 'string').map((f) => [f.id, f]));
-  return (Array.isArray(base) ? base : DEFAULT_SITE_FORMS).map((b) => {
+  const useDefault = !Array.isArray(base);
+  return (useDefault ? DEFAULT_SITE_FORMS : base).map((b) => {
     const out = { ...b, fields: [...b.fields] };
+    if (useDefault && locale) Object.assign(out, formWords(locale, b.id) || {});
     const c = given.get(b.id);
     if (c) {
       for (const [k, cap] of Object.entries(COPY_CAPS)) {
