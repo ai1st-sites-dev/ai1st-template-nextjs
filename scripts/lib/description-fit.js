@@ -181,4 +181,4 @@ function placeFits(place, keyword, locale) {
   return codePoints(String(keyword || '').trim()).length + codePoints(`${placeSeparator(locale)}${p}`).length <= descriptionAccept(locale).max;
 }
 
-module.exports = { fitDescription, fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionAccept, descriptionSpec };
+module.exports = { fitDescription, fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionAccept, descriptionSpec, isCjkLocale };
