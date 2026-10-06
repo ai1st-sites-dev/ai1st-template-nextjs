@@ -58,6 +58,10 @@ const { siteFormsFrom } = require('./lib/site-forms');
 const targetKw = require('./lib/target-keywords');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
 const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace, hasPhrase } = require('./lib/seo-problems');
+// #1600 —— 建站报告（`site/build-report.json`）：各阶段往里记，结束时写盘；死链由 entrypoint 在 next build 之后并进来。
+const buildReportLib = require('./lib/build-report');
+// 这一次建站的那份报告（main 里建；seoPass 有两个调用点，都往这一份里记）。
+let buildReport = null;
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
 const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX } = require('./lib/image-slots');
@@ -890,6 +894,7 @@ async function main() {
 
   const rootDir = path.resolve(__dirname, '..');
   const siteDir = path.join(rootDir, 'site');
+  buildReport = buildReportLib.createReport({ path: input.skipAI ? 'skipAI' : 'ai' });
 
   // Clean up existing site dir if present (container re-runs)
   if (fs.existsSync(siteDir)) {
@@ -1185,6 +1190,8 @@ async function main() {
         fatal('Git commit failed: ' + (e.stderr?.toString()?.split('\n')[0] || e.message));
       }
     }
+    // #1600 —— skipAI 走不到关键词页和 SEO 检查 ⟹ seo / repair / keywordPages 三格是 null（那条路的正常态）。
+    finishBuildReport(siteDir);
     progress('Demo site generated, starting preview...', 85);
     return;
   }
@@ -1369,6 +1376,7 @@ async function main() {
     // #1550 —— 计划建的 = 全部选中词（含 Call 2 就没建成的），seoPass 据它打「关键词页 N/M」那行日志和 seo-check 事件。
     keywordPagesPlanned: kwPlan.pages.map((e) => ({ nestedSlug: e.path, keyword: e.keyword })),
   });
+  buildReportLib.recordSeo(buildReport, seoResult);
 
   // ── 关键词页收尾（#1550）：seoPass 之后才定的那几样 ─────────────────────────────────────────────────────
   if (kwPlan.pages.length > 0) {
@@ -1381,6 +1389,9 @@ async function main() {
         keywordPagesList: kwOk.map((r) => ({ nestedSlug: r.entry.path, keyword: r.entry.keyword })), siteType, keyword: leadKeyword,
       }),
     });
+  } else {
+    // #1600 —— 没选任何词的真 AI 站：关键词页这一格是真的 0/0（有来源），不是 null。
+    buildReportLib.recordKeywordPages(buildReport, kwReport);
   }
 
   progress('Writing configuration files...', 70);
@@ -1468,8 +1479,21 @@ async function main() {
     }
   }
 
+  finishBuildReport(siteDir);
   // Done — entrypoint.sh handles sync-config + the static preview (`next build` → `serve out`)
   progress('Site generated, starting preview...', 85);
+}
+
+// #1600 —— 写 `site/build-report.json`。耗时先记 create-site 自己这一段；entrypoint 跑完 next build + 死链检查之后
+// 用整次建站的墙钟时间覆盖它（scripts/finish-build-report.js）。写不成只记一行，不让建站失败 —— 报告是旁观者。
+function finishBuildReport(siteDir) {
+  if (!buildReport) return;
+  buildReport.durationSec = Math.round((Date.now() - startTime) / 1000);
+  try {
+    buildReportLib.writeReport(siteDir, buildReport);
+  } catch (e) {
+    debug(`[build-report] 写 ${buildReportLib.REPORT_FILE} 没成：${e.message}`);
+  }
 }
 
 // ─── TICKET-122b: Secondary Locale Generation ────────────────────────────────
@@ -3323,7 +3347,7 @@ async function finishKeywordPages({
     writeImageAlts({ pages: fresh, manifests: loadBlockManifests(), industry, targetKeywordOf: seoTargetOf });
     // 只把这几页交给 seoPass（第 5 条「站内唯一」用的整站页表在这里就是这几页：代码只在 slug 空着时才补，不会撞）。
     const sub = { ...content, pages: fresh };
-    await seoPass({ content: sub, payload, locale, industry, location, companyName, disabledBlocks });
+    buildReportLib.recordSeo(buildReport, await seoPass({ content: sub, payload, locale, industry, location, companyName, disabledBlocks }));
     for (const pg of sub.pages) {
       const i = content.pages.findIndex((p) => p.slug === pg.slug);
       if (i >= 0) content.pages[i] = pg;
@@ -3350,6 +3374,7 @@ async function finishKeywordPages({
   debug(`[keyword-pages] 关键词页 ${kwReport.ok}/${kwReport.total} 成功`);
   for (const f of kwReport.failed) debug(`[keyword-pages] ❌ 没成功：「${f.keyword}」（${f.slug}）—— ${f.problems.join('；')}`);
   emit('keyword-pages', kwReport);
+  buildReportLib.recordKeywordPages(buildReport, kwReport);
   return kwReport;
 }
 
@@ -3445,7 +3470,7 @@ async function rewritePageForSeo(args) {
 
 /**
  * 主语言每一页：检查 → 有问题重写一次 → 再查 → 处置。就地改 `content`（页、seo、页脚）。建站失败时 fatal()。
- * 回 `{ checked, rewritten, dropped, fatalPages }`（单测读它）。
+ * 回 `{ checked, rewritten, dropped, fatalPages, pages }`（单测读它）；`pages` 是逐页的首查 / 复查结果（#1600 建站报告读它）。
  */
 async function seoPass({ content, payload, locale, industry, location, companyName, disabledBlocks = [], keywordPagesPlanned = [] }) {
   const ctx = { content, payload, locale, industry, location, companyName };
@@ -3454,8 +3479,15 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
     debug(`[seo] 裁 description ${c.slug}：${c.before} → ${c.after} 字（代码裁，不叫 AI）`);
   }
   const failing = [];
+  // #1600 —— 逐页结果（首查 / 复查）给建站报告：只记录，不参与下面任何判断。
+  const perPage = new Map();
   for (const page of content.pages) {
     const problems = seoCheckPage({ page, ...ctx });
+    const kw = seoTargetOf(page);
+    perPage.set(page.slug, {
+      slug: page.slug, targetKeyword: kw || null, rules: seoRulesFor(kw),
+      first: problems, final: [], rewritten: false, outcome: problems.length ? 'fixed' : 'pass',
+    });
     if (problems.length) failing.push({ page, problems });
   }
 
@@ -3517,7 +3549,10 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
       debug(`[seo] 补地点 ${cur.slug}：「${place}」→ ${[...next].length} 字（代码补，不叫 AI）`);
     }
     const after = seoCheckPage({ page: cur, ...ctx, tag: '重写一次后' });
+    const entry = perPage.get(page.slug);
+    if (entry) { entry.final = after; entry.rewritten = cur !== page; }
     if (!after.length) continue;
+    if (entry) entry.outcome = cur.keywordPage === true ? 'dropped' : 'fatal';
     if (cur.keywordPage === true) {
       dropped.push({ slug: cur.slug, keyword: seoTargetOf(cur), problems: after });
       debug(`[seo] 丢掉 ${cur.slug}：${after.join(' · ')}`);
@@ -3552,7 +3587,7 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
   if (fatalPages.length) {
     fatal(`SEO check failed after one rewrite (#1549) —\n${fatalPages.map((f) => `  ${f.slug}:\n    ${f.problems.join('\n    ')}`).join('\n')}`);
   }
-  return { checked: content.pages.length + dropped.length, rewritten, dropped, fatalPages };
+  return { checked: content.pages.length + dropped.length, rewritten, dropped, fatalPages, pages: [...perPage.values()] };
 }
 
 // ─── Run ──────────────────────────────────────────────────────────────────────
