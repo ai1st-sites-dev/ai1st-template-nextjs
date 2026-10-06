@@ -430,6 +430,7 @@ console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
     const SITE_META_READERS = {
       'manager/theme.go': '§readSiteColorSchemeValue —— GET /theme 读 site_meta.json 的 colorScheme 当回落（#1523），只读',
       'dashboard/src/api/themes.ts': '注释里解释 colorScheme 的回落顺序（#1523），没有代码碰这个文件',
+      'manager/search_console_stats.go': '§gscRepoPages —— 列站仓页面时读 site_meta.json 的 defaultLocale / locales（#1606），走 §gscGitHubGet 只发 GET，只读',
     };
     const isTest = (f) => /(_test\.go|\.test\.[jt]sx?|\.spec\.[jt]sx?)$/.test(f);
     // 🔴 先校准尺子：拿同一把尺量一个**真存在**的东西。少了这一步，一个坏掉的 grep 会打出 0，
