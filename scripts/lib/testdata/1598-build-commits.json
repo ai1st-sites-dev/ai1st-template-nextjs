@@ -1,0 +1,25 @@
+{
+  "about": "#1598 —— 打桩建站（scripts/create-site-resume.test.js）留下的站仓提交标题，新的在前。complete = 从头建完；stoppedAtImages = 建到 images 被截断、还没续跑；resumedFromImages = 从那里续跑完。重出：cd templates/nextjs && RS_WRITE_FIXTURE=1 node scripts/create-site-resume.test.js",
+  "complete": [
+    "Generate site: rs159801 (phase: secondaryLocales 5/5)",
+    "Generate site: rs159801 (phase: keywordPages 4/5)",
+    "Generate site: rs159801 (phase: images 3/5)",
+    "Generate site: rs159801 (phase: pages 2/5)",
+    "Generate site: rs159801 (phase: plan 1/5)",
+    "Initial commit"
+  ],
+  "stoppedAtImages": [
+    "Generate site: rs159801 (phase: images 3/5)",
+    "Generate site: rs159801 (phase: pages 2/5)",
+    "Generate site: rs159801 (phase: plan 1/5)",
+    "Initial commit"
+  ],
+  "resumedFromImages": [
+    "Generate site: rs159801 (phase: secondaryLocales 5/5)",
+    "Generate site: rs159801 (phase: keywordPages 4/5)",
+    "Generate site: rs159801 (phase: images 3/5)",
+    "Generate site: rs159801 (phase: pages 2/5)",
+    "Generate site: rs159801 (phase: plan 1/5)",
+    "Initial commit"
+  ]
+}
