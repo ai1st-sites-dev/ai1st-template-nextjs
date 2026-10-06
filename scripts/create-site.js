@@ -458,7 +458,9 @@ async function callNanoBanana({ prompt, apiKey, timeoutMs = 30_000 }) {
 // TICKET-164: 5x normal usage default per memory feedback_scope_cap_5x_normal.md.
 // TICKET-166: changed const → let so caller can override via stdin payload
 // `input.maxImagesPerSite` (sourced from Admin Settings → ai1st.site.maxImagesPerSite).
-let photoHardCap = 100;
+// #1594 —— 100 → 30：每页新生成 ≤ 3 之后，正常站远不到 30；真建站读数 99 张那两个站按新规则都在 30 以内。
+//    manager 每次都把 Admin Settings 的值放进 payload，这个数只在没传时兜底，跟 `manager/admin.go` 的种子值同一个。
+let photoHardCap = 30;
 
 // TICKET-172 (hotfix): AI sometimes invents placeholder strings like
 // "gradient-about" / "tbd" for slots that exceed photoHardCap or fail Nano
@@ -1253,7 +1255,7 @@ async function main() {
     // 示例站（夹具 / 演示 / QA 取读数最常用的那几个站）的 hero 永远没有图，「块有图时长什么样」
     // 在这条路上一次都量不到。占位图用仓库自带的 `public/images/grid-pattern.svg`（模板自己的
     // 资源，不是外部链接）。
-    await fillImageSlots({
+    const demoImages = await fillImageSlots({
       pages: content.pages,
       manifests: loadBlockManifests(),
       industry,
@@ -1262,6 +1264,7 @@ async function main() {
       produce: async () => PLACEHOLDER_IMAGE_URL,
       log: (line) => debug(line),
     });
+    recordImageCounts(demoImages);
     // #1548 —— 同一个纯函数（`lib/target-keywords.js`）。demo 只有 5 页、一个服务、没有关键词页 ⟹ 这里能挂上词的只有首页，
     //    payload 的组全部对不上 demo-service（正常态，不失败）。
     applyTargetKeywords(content, targetKw.assignTargetKeywords({
@@ -1677,6 +1680,14 @@ async function main() {
   finishBuildReport(siteDir);
   // Done — entrypoint.sh handles sync-config + the static preview (`next build` → `serve out`)
   progress('Site generated, starting preview...', 85);
+}
+
+// #1594 —— 选图那一步的三个数：发一条 `images` 事件，同时写进建站报告的 `images` 格。真 AI / skipAI 两个调用点都调。
+function recordImageCounts(result) {
+  const images = result && result.images;
+  if (!images) return;
+  emit('images', images);
+  if (buildReport) buildReportLib.recordImages(buildReport, images);
 }
 
 // #1600 —— 写 `site/build-report.json`。耗时先记 create-site 自己这一段；entrypoint 跑完 next build + 死链检查之后
@@ -3364,7 +3375,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
   // collects every image slot (#1386 起按 manifest 现算，不再是写死的四个块名),
   // generates per-slot context-aware prompts, calls Nano
   // Banana, writes /public/photos/<key>.jpg, mutates ai.pages to fill imageUrl.
-  // Faces allowed per TICKET-164 user decision. Hard cap photoHardCap (100).
+  // Faces allowed per TICKET-164 user decision. Hard cap photoHardCap (#1594: 30; ≤ 3 new per page, gallery reuses service-page images).
   // Per-slot independent failure (build never blocks). Skipped when the user
   // uploaded their own photos (imagesInstruction already fed Claude → Claude
   // assigned imageUrl from uploadedImages).
@@ -3383,6 +3394,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
       emitFn: emit,
     });
     debug(`[nano-banana-photo] v2 slot-driven: ${result.success}/${result.attempted} succeeded (total slots ${result.totalSlots}, cap ${photoHardCap})`);
+    recordImageCounts(result);
   }
 
   // TICKET-172 (hotfix): scrub AI-invented placeholder strings (e.g. "gradient-about")

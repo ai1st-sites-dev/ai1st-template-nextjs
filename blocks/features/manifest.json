@@ -309,6 +309,7 @@
       "kind": "list",
       "required": true,
       "promptOptional": false,
+      "imageKnob": "itemImage",
       "minItems": 1,
       "maxItems": 8,
       "shape": "[{number?, icon?, image?: {imageUrl, alt}, title, text, bullets?: [string], link?: {label, href, style?: \"solid\" | \"outline\" | \"link\", icon?, arrow?}}]",

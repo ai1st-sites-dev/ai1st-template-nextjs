@@ -12,7 +12,8 @@
 //      degraded                     create-site.js 真 AI 路的 degradedSteps（#1596：那 11 处降级各一条）；真 AI 路没降级是 []，
 //                                   skipAI 走不到那 11 步 ⟹ null
 //      archive                      worker/entrypoint.sh 的 git push 结果（#1592 算的），经 finish-build-report.js 并进来（#1608）
-//      stages / images              T7 #1599 / T5 #1594 接上之前是 null
+//      images                       create-site.js 两条路都写（fillImageSlots 之后，#1594）；用户自己上传了照片那条路不选图 ⟹ null
+//      stages                       T7 #1599 接上之前是 null
 //
 // 📌 这份文件不进站仓（.gitignore），数据库 `site_build_reports` 那一行才是权威（manager 收 `build-report` 事件落库）。
 
@@ -144,6 +145,18 @@ function recordArchive(report, { archived, reason } = {}) {
   return report;
 }
 
+/**
+ * 图（#1594）：`fillImageSlots` 回的 `images` —— requested 要填的槽数（生成 + 复用）· generated 新生成成功的张数 ·
+ * reused 用服务详情页的图填上的槽数。🔴 三个键名逐字是这三个：admin 记分卡（BuildReportCard.tsx）按名字读。
+ * 两条路都调（真 AI / skipAI），所以 skipAI 下 generated 是 0 也是数过的 0，不是 null。
+ */
+function recordImages(report, images) {
+  if (!report || !images || typeof images !== 'object') return report;
+  const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  report.images = { requested: n(images.requested), generated: n(images.generated), reused: n(images.reused) };
+  return report;
+}
+
 /** 补齐九个键（读回来的旧文件 / 手改过的文件也照样九个键都在）。 */
 function normalize(report) {
   const r = report && typeof report === 'object' ? report : createReport();
@@ -173,5 +186,5 @@ function readReport(siteDir) {
 
 module.exports = {
   REPORT_VERSION, REPORT_KEYS, SEO_RULES, REPORT_FILE, DEAD_LIST_MAX,
-  createReport, ruleOf, pageChecks, recordSeo, recordKeywordPages, recordDeadLinks, recordDegraded, recordArchive, normalize, reportPath, writeReport, readReport,
+  createReport, ruleOf, pageChecks, recordSeo, recordKeywordPages, recordDeadLinks, recordDegraded, recordArchive, recordImages, normalize, reportPath, writeReport, readReport,
 };

@@ -135,6 +135,21 @@ check('传进来的不是数组 ⟹ 不动（留 null）；之后再往原数组
   assert.strictEqual(r.degraded.length, 1);
 });
 
+console.log('── ⑦ 图（#1594）');
+check('fillImageSlots 的 images ⟹ 三个键逐字是 requested / generated / reused（admin 卡按名字读），不带别的键', () => {
+  const r = br.createReport();
+  assert.strictEqual(r.images, null);
+  br.recordImages(r, { requested: 13, generated: 8, reused: 5, extra: 1 });
+  assert.deepStrictEqual(r.images, { requested: 13, generated: 8, reused: 5 });
+});
+check('skipAI 的 generated 0 记成 0（数过的零），传进来的不是对象 ⟹ 不动', () => {
+  const r = br.createReport();
+  br.recordImages(r, undefined);
+  assert.strictEqual(r.images, null);
+  br.recordImages(r, { requested: 0, generated: 0, reused: 0 });
+  assert.deepStrictEqual(r.images, { requested: 0, generated: 0, reused: 0 });
+});
+
 console.log('── ③ 死链');
 check('数与 dead-links 事件一致（deadCount），清单带 file / href', () => {
   const r = br.createReport();

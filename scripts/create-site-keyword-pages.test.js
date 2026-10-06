@@ -725,7 +725,9 @@ check('AC2：300 字节、没有连字符的 id ⟹ 硬截到正好上限（顶�
 // 生图那一通打桩回假图（cfg.images）。读数取 create-site 自己打的逐槽日志（`[photo-slot] 填上 / 没拿到图 —— 页面 <slug>`）
 // 和盘上的 public/photos/。改前（2cac58e30）同一份输入：这一页 success 0、每条原因 ENAMETOOLONG。
 console.log('── #1566：顶格 slug 的那一页，图片文件名放得下');
-const IMG_FEATURES = { type: 'features', data: { headline: 'Drain cleaning: why us', items: [{ title: 'Fast', text: 'Same day.' }, { title: 'Clear', text: 'Written price.' }, { title: 'Tidy', text: 'We clean up.' }] } };
+// 📌 #1594 —— `options.itemImage: 'top'`：条目图要这个旋钮打开才显示（features/Section.tsx），#1594 起建站也只为显示得出来的
+//    条目图求图。不写它 = none ⟹ 这一页 0 个图槽，下面「至少 3 个」那条防空线当场红。
+const IMG_FEATURES = { type: 'features', data: { headline: 'Drain cleaning: why us', options: { itemImage: 'top' }, items: [{ title: 'Fast', text: 'Same day.' }, { title: 'Clear', text: 'Written price.' }, { title: 'Tidy', text: 'We clean up.' }] } };
 function photoReport(R, slug) {
   const lines = R.stderr.split('\n');
   const mine = (tag) => lines.filter((l) => l.startsWith(`[photo-slot] ${tag} —— 页面 ${slug} · `));
@@ -807,11 +809,16 @@ console.log('── #1600 建站报告（G：两页重写救回、一页丢掉�
 const BR_KEYS = require('./lib/build-report').REPORT_KEYS;
 const brOf = (R) => JSON.parse(fs.readFileSync(path.join(R.work, 'site', 'build-report.json'), 'utf8'));
 const GR = brOf(G);
-check('#1600：site/build-report.json 九个键都在；path=ai；死链（entrypoint 才并进来）与没有生产者的三格是 null', () => {
+check('#1600：site/build-report.json 九个键都在；path=ai；死链（entrypoint 才并进来）与没有生产者的两格是 null', () => {
   assert.deepStrictEqual(BR_KEYS.filter((k) => !(k in GR)), []);
   assert.strictEqual(GR.path, 'ai');
-  for (const k of ['deadLinks', 'lighthouse', 'stages', 'images', 'archive']) assert.strictEqual(GR[k], null, k);
+  for (const k of ['deadLinks', 'lighthouse', 'stages', 'archive']) assert.strictEqual(GR[k], null, k);
   assert.ok(Number.isInteger(GR.durationSec) && GR.durationSec >= 0, String(GR.durationSec));
+});
+check('#1594：images 这一格有生产者了 —— 真 AI 路是 { requested, generated, reused }（不是 null），与同一次建站的 images 事件相同', () => {
+  const ev = G.events.filter((e) => e.event === 'images').map(({ requested, generated, reused }) => ({ requested, generated, reused }));
+  assert.strictEqual(ev.length, 1, JSON.stringify(ev));
+  assert.deepStrictEqual(GR.images, ev[0]);
 });
 check('#1596：degraded 这一格有生产者了 —— 真 AI 路是数组（不是 null），与同一次建站的 degraded 事件逐项相同（G 这一跑被 SEO 丢的是关键词页，不算降级 ⟹ []）', () => {
   assert.ok(Array.isArray(GR.degraded), JSON.stringify(GR.degraded));
