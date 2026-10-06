@@ -42,7 +42,7 @@ function serviceIdsFor(names) {
 }
 
 /**
- * 代码写的 meta description：落在 §descriptionRange(locale) 区间内（SEO 检查第 2 条的长度那一半），否则每页都要触发一次
+ * 代码写的 meta description：落在 §descriptionRange(locale) 目标区间内（#1549 r4 起检查只拦更宽的底线区间，目标区间必在其内），否则每页都要触发一次
  * SEO 修补、多记一条 `seo` 降级，把真正那条 `site-plan` 降级淹在建站报告的降级清单里（#1596 r4，PM 2026-10-06 C）。
  * 句子本身都长过拉丁下限 70；超了上限就按 §fitDescription 那套裁（中日韩 80）。
  */

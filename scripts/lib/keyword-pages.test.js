@@ -241,7 +241,7 @@ check('#1549：title 用调用方给的预算说法（缺省 max 60）、descrip
     sectionOptions: '1. "page-header"', titleSpec: spec });
   assert.ok(p.includes(`"title": "<Page Title with the keyword, ${spec}>"`), '预算');
   assert.ok(promptOf(markham).includes('"title": "<Page Title with the keyword, max 60 chars>"'), '缺省');
-  assert.ok(p.includes('70–155 chars') && !p.includes('max 155'), 'description');
+  assert.ok(p.includes('70–155 characters') && !p.includes('max 155'), 'description');
   assert.ok(p.includes('gets an "alt"'), 'alt');
 });
 

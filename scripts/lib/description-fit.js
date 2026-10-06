@@ -109,7 +109,9 @@ function fitPageDescriptions({ pages, seo, locale }) {
     if (typeof cur !== 'string') continue;
     const before = codePoints(cur.replace(/\s+/g, ' ').trim()).length;
     if (before <= max) continue;
-    const next = fitDescription(cur, { locale });
+    // 触发看底线上限（上面），落点是目标区间 —— 两个不同的数，显式传，不吃默认值（PM 2026-10-06 裁）
+    const { max: toMax, min: toMin } = descriptionRange(locale);
+    const next = fitDescription(cur, { locale, max: toMax, min: toMin });
     if (isHome) seo.siteDescription = next; else page.description = next;
     changed.push({ slug: page.slug, before, after: codePoints(next).length });
   }
@@ -119,7 +121,8 @@ function fitPageDescriptions({ pages, seo, locale }) {
 /**
  * description 末尾补上地点（#1549 重开：重写一次后仍缺地点时由代码补，跟长度一样是代码能补的）。
  * 中 / 日 / 韩主语言用「｜」，其余用「 | 」；正文结尾的句末标点先去掉。补完会超上限 ⟹ 先把正文裁短再补，地点永远不被裁掉。
- * 区间按主语言取（§descriptionRange，跟检查同一个）。已含地点由调用方判（它手上有跟检查同一把尺的 hasPhrase）。
+ * 区间按主语言取**底线区间**（§descriptionAccept，跟检查同一把尺；#1549 r4 PM 裁：用目标上限会把一段已经合格的 150 字描述
+ * 平白裁短）。已含地点由调用方判（它手上有跟检查同一把尺的 hasPhrase）。
  * 🔴 #1603：从尾部裁会把句末的目标词一起裁掉（中文把目标词放句末很自然；补地点前 fitPageDescriptions 刚把长度裁到贴着上限），
  *    补完第 2 条「含目标词」那一半就开火 ⟹ 首页 / 服务页整站 fatal。传 `keep`（这段文字还含不含目标词，调用方用跟检查同一个
  *    hasPhrase 造）⟹ 尾部裁会丢掉它时改成裁它**前面**的正文（§keepPhrase）。判定由调用方传进来，是因为 seo-problems.js 已经
@@ -133,7 +136,7 @@ function appendPlace(text, place, locale, { keep } = {}) {
   const tail = `${sep}${p}`;
   let head = strip(body);
   if (!head) return p;
-  const { max, min } = descriptionRange(locale);
+  const { max, min } = descriptionAccept(locale);
   const room = max - codePoints(tail).length;
   if (codePoints(head).length > room) {
     const lo = Math.max(min - codePoints(tail).length, 0);
@@ -174,7 +177,8 @@ function keepPhrase(head, keep, room, min, locale) {
 function placeFits(place, keyword, locale) {
   const p = String(place || '').trim();
   if (!p) return true;
-  return codePoints(String(keyword || '').trim()).length + codePoints(`${placeSeparator(locale)}${p}`).length <= descriptionRange(locale).max;
+  // #1549 r4：底线上限（§descriptionAccept）—— 判的是「塞不塞得进检查的上限」，跟检查同一把尺（PM 2026-10-06 裁）
+  return codePoints(String(keyword || '').trim()).length + codePoints(`${placeSeparator(locale)}${p}`).length <= descriptionAccept(locale).max;
 }
 
 module.exports = { fitDescription, fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionAccept, descriptionSpec };

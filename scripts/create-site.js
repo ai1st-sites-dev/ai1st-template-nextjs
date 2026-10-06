@@ -101,7 +101,7 @@ const { mostSimilarPages } = require('./lib/similarity');
 const { validateAiJson, saveRawResponse } = require('./lib/ai-json');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
 // #1549 重开 —— description 的长度区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），提示词与检查同一个函数；重写后仍缺地点由代码补。
-const { fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionSpec } = require('./lib/description-fit');
+const { fitPageDescriptions, appendPlace, placeFits, descriptionAccept, descriptionSpec } = require('./lib/description-fit');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
@@ -3771,7 +3771,7 @@ function seoCheckPage({ page, content, payload, locale, tag = '检查', who = '[
   const place = sitePlace(payload);
   if (tag === '检查' && kw && place && !placeFits(place, kw, locale)) {
     debug(`${who} 不补地点 ${page.slug}：目标词「${kw}」${[...kw].length} 字 + 分隔符 + 地点「${place}」${[...place].length} 字 `
-      + `已超过 description 上限 ${descriptionRange(locale).max} 字 ⟹ 第 2 条「含地点」那一半不判、建站不拦`);
+      + `已超过 description 底线上限 ${descriptionAccept(locale).max} 字 ⟹ 第 2 条「含地点」那一半不判、建站不拦`);
   }
   return problems;
 }

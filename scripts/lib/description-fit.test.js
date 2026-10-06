@@ -133,23 +133,25 @@ const word = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
   check('⑦ fitPageDescriptions 主语言 zh 超 200 ⟹ 裁到 ≤80', ch.length === 1 && ch[0].after <= 80 && ch[0].after >= 50, JSON.stringify(ch));
   check('⑦ 对照：同一段、主语言 en 不裁（≤155）', fitPageDescriptions({ pages: [{ slug: 'services/perm', description: long }], seo: {}, locale: 'en' }).length === 0);
 }
-// ⑧ appendPlace
+// ⑧ appendPlace —— #1549 r4：补地点按底线区间（中日韩 ≤200 / 其余 ≤300，PM 2026-10-06 裁），夹具按那个上限造
 {
   check('⑧ 中文：去句末标点、用「｜」接', appendPlace('专业烫发服务，韩国发型师当天可约。', '多伦多', 'zh') === '专业烫发服务，韩国发型师当天可约｜多伦多');
   check('⑧ 英文：用「 | 」接', appendPlace('Expert perms with Korean-trained stylists.', 'Toronto', 'en') === 'Expert perms with Korean-trained stylists | Toronto');
-  const zhLong = '专业烫发服务，韩国发型师当天可约，价格实惠，环境安静舒适，欢迎到店体验我们的烫发染发护理和造型设计服务，停车方便，周末也营业，节假日照常开门，期待您的光临。';
-  check(`⑧ 夹具：正文 ${cp(zhLong)} 字 + 「｜多伦多」4 字 > 80`, cp(zhLong) - 1 + 4 > 80);
+  const zhLong = '专业烫发服务，韩国发型师当天可约，价格实惠，环境安静舒适，欢迎到店体验我们的烫发染发护理和造型设计服务，停车方便，周末也营业，节假日照常开门，期待您的光临。'.repeat(3);
+  check(`⑧ 夹具：正文 ${cp(zhLong)} 字 + 「｜多伦多」4 字 > 200`, cp(zhLong) - 1 + 4 > 200);
   const z = appendPlace(zhLong, '多伦多', 'zh');
-  check(`⑧ 中文补完超 80 ⟹ 先裁正文，地点留在末尾（${cp(z)} 字）`, cp(z) <= 80 && z.endsWith('｜多伦多'), `${cp(zhLong)}→${cp(z)} ${z}`);
-  const zh78 = '专'.repeat(78);
-  const z2 = appendPlace(zh78, '多伦多', 'zh');
-  check(`⑧ 中文 78 字无断点 ⟹ 硬裁正文到 76，补完恰好 80`, cp(z2) === 80 && z2.endsWith('｜多伦多'), `${cp(z2)}`);
-  const enLong = `${'Expert perms and coloring with Korean-trained stylists, '.repeat(3)}book today.`; // >155
+  check(`⑧ 中文补完超 200 ⟹ 先裁正文，地点留在末尾（${cp(z)} 字）`, cp(z) <= 200 && z.endsWith('｜多伦多'), `${cp(zhLong)}→${cp(z)} ${z}`);
+  const zhMid = '专业烫发服务，韩国发型师当天可约，价格实惠，环境安静舒适，欢迎到店体验我们的烫发染发护理和造型设计服务，停车方便。';
+  check(`⑧ 中文 ${cp(zhMid)} 字（超目标 80、在底线 200 内）补完不裁正文`, appendPlace(zhMid, '多伦多', 'zh') === `${zhMid.replace(/。$/, '')}｜多伦多`);
+  const zh198 = '专'.repeat(198);
+  const z2 = appendPlace(zh198, '多伦多', 'zh');
+  check(`⑧ 中文 198 字无断点 ⟹ 硬裁正文到 196，补完恰好 200`, cp(z2) === 200 && z2.endsWith('｜多伦多'), `${cp(z2)}`);
+  const enLong = `${'Expert perms and coloring with Korean-trained stylists, '.repeat(6)}book today.`; // >300
   const e = appendPlace(enLong, 'Toronto', 'en');
-  check(`⑧ 英文超 155 ⟹ ≤155、末尾是「 | Toronto」（${cp(e)} 字）`, cp(e) <= 155 && e.endsWith(' | Toronto') && !/[,\s]\s\|/.test(e.replace(' | Toronto', ' |')), e);
+  check(`⑧ 英文超 300 ⟹ ≤300、末尾是「 | Toronto」（${cp(e)} 字）`, cp(e) <= 300 && e.endsWith(' | Toronto') && !/[,\s]\s\|/.test(e.replace(' | Toronto', ' |')), e);
   check('⑧ 地点为空 ⟹ 原样', appendPlace('Hello there.', '') === 'Hello there.');
   check('⑧ 正文为空 ⟹ 只有地点', appendPlace('', '多伦多', 'zh') === '多伦多');
-  check('⑧ 主语言 zh、正文是英文 ⟹ 仍用「｜」、按 80 封顶（分隔符和区间都跟着主语言）', appendPlace('Fast drain cleaning.', 'Markham', 'zh') === 'Fast drain cleaning｜Markham');
+  check('⑧ 主语言 zh、正文是英文 ⟹ 仍用「｜」（分隔符和区间都跟着主语言）', appendPlace('Fast drain cleaning.', 'Markham', 'zh') === 'Fast drain cleaning｜Markham');
   // QA1 2026-10-05：r2 下这段 50 字（CJK 档）补完 58 字翻成 latin 档、报「要 70–155」。区间只看主语言 ⟹ 补完不会换档
   const q1 = '我们为多伦多及周边社区提供专业下水道疏通与管道维修 Fast reliable drain clea';
   const q1o = appendPlace(q1, 'Toronto', 'zh');
@@ -172,7 +174,7 @@ const word = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
     ['zh', 'zh', '烫发设计', '多伦多', '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的'],
     ['en', 'en', 'hair salon', 'Toronto', 'Our experienced stylists craft looks that fit you, with care and attention at every visit to our '],
   ]) {
-    const { min, max } = descriptionRange(locale);
+    const { min, max } = DF.descriptionAccept(locale);
     const lost = []; const off = []; let fixtureBad = 0;
     for (let n = min; n <= max; n++) {
       const t = body(n, kw, filler);
@@ -186,21 +188,22 @@ const word = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
     check(`⑨ ${name}：补完每一档都在 ${min}–${max}、地点在末尾`, off.length === 0, off.join(' '));
   }
   // 补出来长什么样：裁的是目标词前面那段，用逗号接回去
-  const z = appendPlace(body(79, '烫发设计', '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的'), '多伦多', 'zh', { keep: (x) => hasPhrase(x, '烫发设计') });
-  check(`⑨ zh 79 字那档：${z}`, z.endsWith('，烫发设计｜多伦多') && cp(z) <= 80, z);
+  const z = appendPlace(body(199, '烫发设计', '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的'), '多伦多', 'zh', { keep: (x) => hasPhrase(x, '烫发设计') });
+  check(`⑨ zh 199 字那档：${cp(z)} 字，结尾「，烫发设计｜多伦多」`, z.endsWith('，烫发设计｜多伦多') && cp(z) <= 200, z);
   // 目标词在句中、尾部裁不碰它 ⟹ 跟没传 keep 时一模一样（只在会丢词时才换裁法）
-  const mid = '烫发设计' + '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的造型'.repeat(3);
-  check('⑨ 目标词在句首 ⟹ 跟不传 keep 时逐字相同', appendPlace(mid.slice(0, 79), '多伦多', 'zh', { keep: (x) => hasPhrase(x, '烫发设计') }) === appendPlace(mid.slice(0, 79), '多伦多', 'zh'));
+  const mid = '烫发设计' + '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的造型'.repeat(8);
+  check('⑨ 目标词在句首 ⟹ 跟不传 keep 时逐字相同', appendPlace(mid.slice(0, 199), '多伦多', 'zh', { keep: (x) => hasPhrase(x, '烫发设计') }) === appendPlace(mid.slice(0, 199), '多伦多', 'zh'));
 }
-// ⑩ placeFits
+// ⑩ placeFits —— #1549 r4：上限是底线上限（中日韩 200 / 其余 300），跟检查同一把尺
 {
   const { placeFits } = DF;
-  const addr = '多'.repeat(90); // QA3 在 #1549 量的那个角：90 字无逗号地址
-  check('⑩ 90 字无逗号地址 ⟹ 塞不进 80', placeFits(addr, '烫发', 'zh') === false);
+  const addr = '多'.repeat(210); // QA3 在 #1549 量的那个角（当时 90 字、上限 80），按新上限放大
+  check('⑩ 210 字无逗号地址 ⟹ 塞不进 200', placeFits(addr, '烫发', 'zh') === false);
+  check('⑩ 90 字无逗号地址 ⟹ 现在塞得进（≤200）', placeFits('多'.repeat(90), '烫发', 'zh') === true);
   check('⑩ 「烫发」+「｜多伦多」⟹ 塞得进', placeFits('多伦多', '烫发', 'zh') === true);
-  check('⑩ 边界：目标词 + 「｜」+ 地点恰好 80 ⟹ true，81 ⟹ false',
-    placeFits('多'.repeat(40), '发'.repeat(39), 'zh') === true && placeFits('多'.repeat(40), '发'.repeat(40), 'zh') === false);
-  check('⑩ 英文按 155、分隔符「 | 」3 字', placeFits('T'.repeat(100), 'k'.repeat(52), 'en') === true && placeFits('T'.repeat(100), 'k'.repeat(53), 'en') === false);
+  check('⑩ 边界：目标词 + 「｜」+ 地点恰好 200 ⟹ true，201 ⟹ false',
+    placeFits('多'.repeat(100), '发'.repeat(99), 'zh') === true && placeFits('多'.repeat(100), '发'.repeat(100), 'zh') === false);
+  check('⑩ 英文按 300、分隔符「 | 」3 字', placeFits('T'.repeat(200), 'k'.repeat(97), 'en') === true && placeFits('T'.repeat(200), 'k'.repeat(98), 'en') === false);
   check('⑩ 没有地点 ⟹ true', placeFits('', '烫发', 'zh') === true);
 }
 

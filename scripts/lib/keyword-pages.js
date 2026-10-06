@@ -17,6 +17,7 @@ const { keywordGroups, matchGroupsToServices } = require('./target-keywords');
 const { keywordSlug, assignKeywordSlugs, withDedupSuffix, SLUG_MAX_BYTES } = require('./keyword-slug');
 const { keywordMentions } = require('./keyword-service');
 const { collapseCjkSpaces } = require('./cjk-spaces');
+const { descriptionSpec: descriptionSpecFor } = require('./description-fit');
 
 // ── 多语言标签（建站时写进页面数据 / 导航，渲染期不再翻）──────────────────────────────────────────
 //    语言集合同 `src/lib/component-labels.ts`（14 种 + zh-tw）。缺的语言退英语。
@@ -316,8 +317,8 @@ function keywordPagePrompt({
   additionalContext = '', sectionOptions, factsRule = FACTS_RULE, sitePrimaryKeyword = '', detailPageExists = true,
   // #1549 —— 子页 title 的长度说法（create-site §pageTitleSpec：60 − 3 − 主语言品牌名），跟 seoProblems 第 1 条同一个数。
   titleSpec = 'max 60 chars',
-  // #1549 重开 —— meta description 的长度说法（description-fit.js §descriptionSpec：CJK 主语言 50–80，其余 70–155）。
-  descriptionSpec = '70–155 chars',
+  // #1549 —— meta description 的长度说法（description-fit.js §descriptionSpec，目标区间）。默认值也从那里取，不另写数字。
+  descriptionSpec = descriptionSpecFor('en'),
   // #1601 —— 站的行动按钮指哪一页（navigation.header.cta.href）。整站配方的站没有 /quote 页（按钮落点是 /contact），
   //    写死 "/quote" 就是让每张关键词页的 CTA 指一张不存在的页。不给时退回老说法。
   ctaHref = '',
