@@ -411,12 +411,12 @@ if (!ONLY || ONLY === 'E') {
   }
 }
 
-console.log('\n── F 主语言 zh：description 79 字、以目标词结尾、缺地点 ⟹ 代码补地点不裁掉目标词，建站成功');
+console.log('\n── F 主语言 zh：description 199 字、以目标词结尾、缺地点 ⟹ 代码补地点不裁掉目标词，建站成功（#1549 r4：补地点按底线上限 200，夹具贴着它造）');
 if (!ONLY || ONLY === 'F') {
   const KW = 'drain cleaning';
   const filler = '持牌技师为厨房、浴室和主管道提供疏通服务，当天上门，价格透明，不加收任何上门费，欢迎随时预约我们专业的';
-  const F_DESC = `${[...filler.repeat(2)].slice(0, 79 - KW.length - 1).join('')} ${KW}`;
-  check([...F_DESC].length === 79 && F_DESC.endsWith(KW) && !F_DESC.includes('Markham'), `夹具：${[...F_DESC].length} 字、以「${KW}」结尾、不含 Markham`);
+  const F_DESC = `${[...filler.repeat(5)].slice(0, 199 - KW.length - 1).join('')} ${KW}`;
+  check([...F_DESC].length === 199 && F_DESC.endsWith(KW) && !F_DESC.includes('Markham'), `夹具：${[...F_DESC].length} 字、以「${KW}」结尾、不含 Markham`);
   const F = run('F', {
     call1: call1({ drainDesc: F_DESC }), call2: call2(),
     rewrites: { 'services/drain-cleaning': 'echo', [KW_SLUGS[2]]: 'echo' },
@@ -431,13 +431,13 @@ if (!ONLY || ONLY === 'F') {
   if (F.rc === 0) {
     const pg = JSON.parse(fs.readFileSync(path.join(F.site, 'zh', 'pages', 'services', 'drain-cleaning.json'), 'utf-8'));
     const n = [...pg.description].length;
-    check(pg.description.endsWith(`，${KW}｜Markham`) && n >= 50 && n <= 80, `落盘的 description（${n} 字）以「，${KW}｜Markham」结尾`, JSON.stringify(pg.description));
+    check(pg.description.endsWith(`，${KW}｜Markham`) && n >= 20 && n <= 200, `落盘的 description（${n} 字）以「，${KW}｜Markham」结尾`, JSON.stringify(pg.description));
   }
 }
 
-console.log('\n── G 主语言 zh、地点 90 字无逗号：塞不进 80 ⟹ 第 2 条地点那一半不判、打一行日志、建站成功');
+console.log('\n── G 主语言 zh、地点 210 字无逗号：塞不进底线上限 200 ⟹ 第 2 条地点那一半不判、打一行日志、建站成功（#1549 r4 前是 90 字 / 80）');
 if (!ONLY || ONLY === 'G') {
-  const ADDR = [...'安大略省万锦市第七大道与肯尼迪路交叉口东北角商业广场二楼二零八室旁边的停车场入口处向北步行约五分钟即到我们的门店'.repeat(2)].slice(0, 90).join('');
+  const ADDR = [...'安大略省万锦市第七大道与肯尼迪路交叉口东北角商业广场二楼二零八室旁边的停车场入口处向北步行约五分钟即到我们的门店'.repeat(5)].slice(0, 210).join('');
   const NO_PLACE = '持牌技师为厨房、浴室和主管道提供 drain cleaning 疏通服务，当天上门，价格透明，不加收任何上门费，欢迎随时预约。';
   const G = run('G', {
     call1: call1({ drainDesc: NO_PLACE }), call2: call2(),
@@ -445,9 +445,9 @@ if (!ONLY || ONLY === 'G') {
   }, PAYLOAD({ language: 'zh', location: ADDR, address: ADDR }));
   const lines = seoLines(G.stderr);
   console.log(`  · rc=${G.rc}${G.rc ? ` · ${errorOf(G).split('\n').slice(0, 4).join(' / ')}` : ''}`);
-  check([...ADDR].length === 90 && !/[,，、]/.test(ADDR), '夹具：地点 90 字、没有逗号');
+  check([...ADDR].length === 210 && !/[,，、]/.test(ADDR), '夹具：地点 210 字、没有逗号');
   const skip = lines.filter((l) => l.startsWith('[seo] 不补地点 services/drain-cleaning：'));
-  check(skip.length === 1 && skip[0].includes('上限 80 字') && skip[0].includes('不判'), '日志恰好一行「不补地点 services/drain-cleaning：… 上限 80 字 ⟹ … 不判」', skip.join(' | ') || lines.slice(0, 5).join(' | '));
+  check(skip.length === 1 && skip[0].includes('底线上限 200 字') && skip[0].includes('不判'), '日志恰好一行「不补地点 services/drain-cleaning：… 底线上限 200 字 ⟹ … 不判」', skip.join(' | ') || lines.slice(0, 5).join(' | '));
   check(!G.stderr.includes('不含地点'), '没有任何一页报「不含地点」');
   check(G.rc === 0, `建站成功（rc=${G.rc}）`, `${errorOf(G)}`.slice(0, 600));
 }
