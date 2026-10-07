@@ -10,7 +10,10 @@
  * （`keyword-pages.js` §addRelatedBlocks）。升级不重新建站 ⟹ 升级的迁移那一步（`site-data-migration.js`）调同一个函数补上。
  *
  * 走的是升级真正跑的那个入口：`node scripts/upgrade-site-data.js --root <模板> --site <站>`（worker §runDataMigration 同一条命令形状）。
- * 夹具是「#1630 之前」的磁盘形状：#998 之后的 `blocks`（id / role / region / weight / data），外加一份 #998 之前的 `sections` 站。
+ * 夹具是「#1630 之前」的磁盘形状，两种都做（正文验收第 1 条，共四个夹具）：#998 之后的 `blocks`（id / role / region / weight / data）
+ * 一站、#998 之前的 `sections` 一站，各带甲（1 个关键词页、没有那一组）和乙（3 个、有那一组不带 withParent）。
+ * 每个夹具页跑完都断言顶层**仍然只有 `blocks` 或只有 `sections`**（`page-write.js` 对两个都在的页直接 fail）——
+ * `keyword-pages.js` 的 `sectionsOf` 在 `blocks` 页上会凭空建一个 `sections: []`，不做形状适配的实现在 `blocks` 那两个夹具上就红在这一格。
  */
 
 const fs = require('fs');
@@ -30,6 +33,7 @@ const check = (cond, m, extra) => {
 const SERVICES = [
   { id: 'brakes', name: 'Brake Repair', shortDescription: 'Pads and rotors.' },
   { id: 'tires', name: 'Tire Service', shortDescription: 'Swaps and storage.' },
+  { id: 'oil', name: 'Oil Change', shortDescription: 'Synthetic and conventional.' },
 ];
 
 // #998 之后写盘的块（同 blocks.js §pageWithBlocks 的键）。
@@ -77,6 +81,11 @@ const allPages = (dir) => {
   return out;
 };
 const listOf = (p) => (Array.isArray(p.blocks) ? p.blocks : p.sections);
+// 顶层恰好其一（同 `page-write.js` 那道 fail 的判据：看键在不在，不看是不是数组）。
+const onlyKey = (p, want) => {
+  const has = (k) => Object.prototype.hasOwnProperty.call(p, k);
+  return has(want) && !has(want === 'blocks' ? 'sections' : 'blocks');
+};
 // 这一页页尾那一组展开之后的条目（同构建：item-sources §pages），按 weight 排序后的最后一个 features 引用块。
 function expandedRelated(page, pages, services) {
   const list = listOf(page).map((b, i) => ({ b, w: typeof b.weight === 'number' ? b.weight : i * 10, i }))
@@ -89,25 +98,28 @@ function expandedRelated(page, pages, services) {
 }
 
 // ══ 甲 + 乙 + 丙：一站三种关键词页 ═════════════════════════════════════════════════════════════════
-console.log('① 甲（1 个关键词页、没有那一组）· 乙（3 个、有那一组不带 withParent）· 丙（只有指向别的服务那一组）');
+console.log('① blocks 形状：甲（1 个关键词页、没有那一组）· 乙（3 个、有那一组不带 withParent）· 丙（只有指向别的服务那一组）');
 const before = {
   'site_meta.json': { defaultLocale: 'en', locales: ['en'] },
   'en/services.json': SERVICES,
   'en/pages/home.json': { slug: 'home', title: 'Home', blocks: [blk('home', 'hero', 0, { headline: 'Hi' })] },
   'en/pages/services/brakes.json': detailPage('brakes'),
   'en/pages/services/tires.json': detailPage('tires'),
+  'en/pages/services/oil.json': detailPage('oil'),
   'en/pages/services/brakes/brake-pads-toronto.json': kwPage('services/brakes/brake-pads-toronto', 'Brake pads Toronto'),
   'en/pages/services/tires/winter-tires.json': kwPage('services/tires/winter-tires', 'Winter tires', [siblings('tires')]),
   'en/pages/services/tires/tire-storage.json': kwPage('services/tires/tire-storage', 'Tire storage', [siblings('tires')]),
-  'en/pages/services/tires/tire-rotation.json': kwPage('services/tires/tire-rotation', 'Tire rotation', [otherService]),
+  'en/pages/services/tires/tire-rotation.json': kwPage('services/tires/tire-rotation', 'Tire rotation', [siblings('tires')]),
+  'en/pages/services/oil/oil-change-toronto.json': kwPage('services/oil/oil-change-toronto', 'Oil change Toronto', [otherService]),
 };
 const A = makeSite(before);
-const otherBytesBefore = JSON.stringify(readJSON(path.join(A.siteDir, 'en/pages/services/tires/tire-rotation.json')).blocks.find((b) => b.data.items && b.data.items.under === 'services/brakes'));
+const otherBytesBefore = JSON.stringify(readJSON(path.join(A.siteDir, 'en/pages/services/oil/oil-change-toronto.json')).blocks.find((b) => b.data.items && b.data.items.under === 'services/brakes'));
 const r1 = upgrade(A.siteDir);
 check(r1.rc === 0 && r1.done, `升级跑完 rc=0（rc=${r1.rc}）`, r1.stderr);
 const pagesA = allPages(path.join(A.siteDir, 'en', 'pages'));
 const kw = pagesA.filter((p) => p.keywordPage);
-check(kw.length === 4, `四个关键词页都在（${kw.length}）`);
+check(kw.length === 5, `五个关键词页都在（${kw.length}）`);
+for (const p of pagesA) check(onlyKey(p, 'blocks'), `${p.slug}：顶层仍然只有 blocks，没多出 sections`, Object.keys(p).join(' '));
 for (const p of kw) {
   const id = p.slug.split('/')[1];
   const svc = SERVICES.find((s) => s.id === id);
@@ -123,17 +135,17 @@ check(added && added.id && added.role && added.region === 'content' && typeof ad
   && new Set(jia.blocks.map((b) => b.id)).size === jia.blocks.length,
   '甲：新补的块带齐 id / role / region / weight，id 不撞', JSON.stringify(added));
 check(added && added.data.headline === 'Related pages', '甲：标题是这种语言的「相关页面」', added && added.data.headline);
-const yi = pagesA.filter((p) => p.slug.startsWith('services/tires/') && p.slug !== 'services/tires/tire-rotation');
-check(yi.every((p) => p.blocks.filter((b) => b.type === 'features').length === 1 && p.blocks.find((b) => b.type === 'features').data.items.withParent === true),
-  '乙：原来那一组上补了 withParent，没有多出第二组');
-const bing = pagesA.find((p) => p.slug === 'services/tires/tire-rotation');
+const yi = pagesA.filter((p) => p.slug.startsWith('services/tires/'));
+check(yi.length === 3 && yi.every((p) => p.blocks.filter((b) => b.type === 'features').length === 1 && p.blocks.find((b) => b.type === 'features').data.items.withParent === true),
+  '乙：3 页都在原来那一组上补了 withParent，没有多出第二组');
+const bing = pagesA.find((p) => p.slug === 'services/oil/oil-change-toronto');
 const otherAfter = JSON.stringify(bing.blocks.find((b) => b.data.items && b.data.items.under === 'services/brakes'));
 check(otherAfter === otherBytesBefore, '丙：指向别的服务的那一组逐字节不变', otherAfter);
 check(bing.blocks.filter((b) => b.type === 'features').length === 2, '丙：另加了本服务那一组（同建站路的规则）');
 const det = readJSON(path.join(A.siteDir, 'en/pages/services/brakes.json'));
 check(JSON.stringify(det) === JSON.stringify(before['en/pages/services/brakes.json']), '服务详情页、首页这类非关键词页不动');
 const rel = (r1.plan && r1.plan.related || []).map((x) => x.slug).sort();
-check(rel.length === 4, `plan 事件的 related 点名了这四页（${rel.join(', ')}）`);
+check(rel.length === 5, `plan 事件的 related 点名了这五页（${rel.join(', ')}）`);
 
 // ══ ② 幂等 ═══════════════════════════════════════════════════════════════════════════════════════
 console.log('② 幂等：升级过的站再跑一次，所有文件逐字节不变');
@@ -159,19 +171,40 @@ const b0 = snap(B.siteDir);
 const rb = upgrade(B.siteDir);
 check(rb.rc === 0 && JSON.stringify(b0) === JSON.stringify(snap(B.siteDir)), '已经带 withParent 的新站数据：逐字节不变');
 
-// ══ ③ #998 之前的 sections 站 + 第二语言 ═════════════════════════════════════════════════════════
-console.log('③ 老 sections 形状 · 第二语言的标题');
+// ══ ③ #998 之前的 sections 站（甲 + 乙）+ 第二语言 ═══════════════════════════════════════════════
+console.log('③ sections 形状：甲（1 个关键词页、没有那一组）· 乙（3 个、有那一组不带 withParent）· 第二语言的标题');
+const sec = (slug, title, extra = []) => ({ slug, title, keywordPage: true,
+  sections: [{ type: 'page-header', data: { headline: title } }, ...extra.map((d) => ({ type: 'features', data: d })), { type: 'cta', data: { headline: '预约' } }] });
 const C = makeSite({
   'site_meta.json': { defaultLocale: 'en', locales: ['en', 'zh'] },
   'zh/services.json': SERVICES,
-  'zh/pages/services/brakes/shache.json': { slug: 'services/brakes/shache', title: '刹车', keywordPage: true,
-    sections: [{ type: 'page-header', data: { headline: '刹车' } }, { type: 'cta', data: { headline: '预约' } }] },
+  'zh/pages/services/brakes.json': { slug: 'services/brakes', title: '刹车', sections: [{ type: 'page-header', data: { headline: '刹车' } }] },
+  'zh/pages/services/tires.json': { slug: 'services/tires', title: '轮胎', sections: [{ type: 'page-header', data: { headline: '轮胎' } }] },
+  'zh/pages/services/brakes/shache.json': sec('services/brakes/shache', '刹车'),
+  'zh/pages/services/tires/dongtai.json': sec('services/tires/dongtai', '冬胎', [siblings('tires')]),
+  'zh/pages/services/tires/cunfang.json': sec('services/tires/cunfang', '存放', [siblings('tires')]),
+  'zh/pages/services/tires/huanwei.json': sec('services/tires/huanwei', '换位', [siblings('tires')]),
 });
 const rc = upgrade(C.siteDir);
-const zh = readJSON(path.join(C.siteDir, 'zh/pages/services/brakes/shache.json'));
-check(rc.rc === 0 && !zh.blocks && zh.sections.map((b) => b.type).join(',') === 'page-header,features,cta',
-  'sections 页：插在 cta 之前，没有凭空多出 blocks 键', JSON.stringify(zh.sections.map((b) => b.type)));
-check(zh.sections[1].data.headline === '相关页面' && zh.sections[1].data.items.withParent === true, 'zh 目录下的页标题是「相关页面」、带 withParent');
+check(rc.rc === 0 && rc.done, `升级跑完 rc=0（rc=${rc.rc}）`, rc.stderr);
+const pagesC = allPages(path.join(C.siteDir, 'zh', 'pages'));
+for (const p of pagesC) check(onlyKey(p, 'sections'), `${p.slug}：顶层仍然只有 sections，没多出 blocks`, Object.keys(p).join(' '));
+const kwC = pagesC.filter((p) => p.keywordPage);
+check(kwC.length === 4, `四个关键词页都在（${kwC.length}）`);
+for (const p of kwC) {
+  const id = p.slug.split('/')[1];
+  const svc = SERVICES.find((s) => s.id === id);
+  const { items } = expandedRelated(p, pagesC, SERVICES);
+  check(items.length > 0 && items[0].link.href === `/services/${id}` && items[0].title === svc.name,
+    `${p.slug}：页尾第一条指 /services/${id}，文字是服务名「${svc.name}」`, JSON.stringify(items[0]));
+  check(p.sections.map((b) => b.type).join(',') === 'page-header,features,cta',
+    `${p.slug}：那一组插在 cta 之前、只有一组`, JSON.stringify(p.sections.map((b) => b.type)));
+}
+const zh = pagesC.find((p) => p.slug === 'services/brakes/shache');
+check(zh.sections[1].data.headline === '相关页面' && zh.sections[1].data.items.withParent === true, '甲（zh）：补出来的那一组标题是「相关页面」、带 withParent');
+const yiC = kwC.filter((p) => p.slug.startsWith('services/tires/'));
+check(yiC.length === 3 && yiC.every((p) => p.sections[1].data.headline === 'Related pages' && p.sections[1].data.items.withParent === true),
+  '乙（sections）：3 页都在原来那一组上补了 withParent（标题是原来那句，没换成新的一组）');
 
 console.log(`\n══ upgrade-related-links.test.js: ${pass} 过 · ${fail} 失败 ══`);
 process.exit(fail ? 1 : 0);
