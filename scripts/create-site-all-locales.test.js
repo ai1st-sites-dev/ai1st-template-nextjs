@@ -16,6 +16,7 @@
 //                               只缺地点 ⟹ 零次修补；中文站提示词里是 50–80 chars
 //   AC5 并行 5                  单页调用挂起：同时在飞最多 5、且到过 5
 //   #1549 做什么 6           第二语言的 meta description 按它自己的目标区间说：① 读 AC1 真发出去的提示词（主 zh 次 en）② 直接拼 languagesPrompt（主 en 次 zh）
+//   AC7 修补不换语言          中文页、英文目标词：桩把 h1 改成纯英文、siteDescription 改成含目标词的中文 ⟹ h1 不采用、siteDescription 采用、日志一行；提示词写明原样嵌进中文句子
 //   AC6 四个数                  两次调用各 $0.03 / $0.05、一页字段级修补 ⟹ costUsd 0.08 · seoFixed 1 · pages = 主语言页数 · durationSec > 0
 'use strict';
 
@@ -92,6 +93,8 @@ function answer(req) {
     const how = (cfg.fix || {})[`${lang}:${slug}`];
     const out = { ...fields };
     if (how && how.description) for (const k of Object.keys(out)) if (k === 'description' || k === 'siteDescription') out[k] = how.description;
+    // how.fields = 按名字换掉回包里的那几格（AC7：把 h1 换成纯英文、把 siteDescription 换成含目标词的中文）
+    if (how && how.fields) for (const [k, v] of Object.entries(how.fields)) if (Object.prototype.hasOwnProperty.call(out, k)) out[k] = v;
     return { json: { fields: out }, out: (cfg.tokens || {}).fix || 0 };
   }
   throw new Error('桩不认识这一通调用：' + first.slice(0, 120));
@@ -595,6 +598,9 @@ check('修补提示词只带 description：没有这一页别的块的文案', (
 check('中文站提示词里的长度是 50–80 个汉字，不是 70–155', () => {
   assert.ok(fixes[0].first.includes('50–80 个汉字') && !fixes[0].first.includes('70–155'));
 });
+check('目标词跟页面同一种文字（中文「染发」）⟹ 提示词里没有「原样嵌进中文句子」那句（它只给拉丁字母的目标词）', () => {
+  assert.ok(!/embed "[^"]+" verbatim inside a sentence/.test(fixes[0].first), fixes[0].first);
+});
 check('修补后页面除 description 外逐字等于没修补的那一跑；description 是回包那一句', () => {
   const a = (D.pagesOf('zh') || {})['services/color'];
   const b = (D0.pagesOf('zh') || {})['services/color'];
@@ -609,6 +615,45 @@ check('description 只缺地点 ⟹ 零次修补调用（由 appendPlace 在检�
   assert.strictEqual(D2.calls.filter((c) => c.kind === 'seo-fix').length, 0);
   assert.ok(D2.stderr.includes('[seo] 补地点 services/color：「多伦多」'));
   assert.ok((D2.pagesOf('zh') || {})['services/color'].description.endsWith('｜多伦多'));
+});
+
+// ── AC7 ─────────────────────────────────────────────────────────────────────────────────────────
+// 做什么 4（缺陷 site-f764403b）：中文站、首页目标词是英文。修补回包把 h1 换成纯英文、把 siteDescription 换成含目标词的中文
+// ⟹ h1 不采用（仍是原来的中文）、siteDescription 采用新值、日志一行「换了语言，不采用」；提示词里写明把词原样嵌进中文句子。
+console.log('── AC7：修补不换语言（中文页、英文目标词）');
+const KW_EN = 'delivery';
+const H1_EN = 'Silky Hair Salon Delivery – Haircuts Brought to Your Door';
+const SD_ZH = fit(`${BRAND} 提供 ${KW_EN} 上门剪发：资深发型师为每一位顾客细致护理，预约简单，环境舒适安心。`, 50, 80);
+const LG = run('ac7', PAYLOAD({ ...ONE, keywords: { 剪发: [{ keyword: KW_EN, isPrimary: true, selected: true, goldIndex: 50, volume: 900 }], 染发: [{ keyword: '染发', isPrimary: true, selected: true, goldIndex: 20, volume: 300 }] } }),
+  { ...fixture({ secondary: [] }), fix: { 'zh:home': { fields: { h1: H1_EN, siteDescription: SD_ZH } } } });
+const homeFix = LG.calls.find((c) => c.kind === 'seo-fix' && c.slug === 'home');
+const gSeo = (() => { try { return JSON.parse(fs.readFileSync(path.join(LG.site, 'zh', 'seo.json'), 'utf8')); } catch (e) { return null; } })();
+const gHome = (LG.pagesOf('zh') || {}).home;
+check('建站成功；首页发出过一次修补，送出去的字段里有 h1 和 siteDescription（夹具确实走到了要量的那一步）', () => {
+  assert.strictEqual(LG.rc, 0, LG.stderr.slice(-800));
+  assert.ok(homeFix, LG.calls.map((c) => `${c.kind}:${c.slug}`).join(' '));
+  const texts = JSON.parse(homeFix.first.match(/TEXTS TO FIX:\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/)[1]);
+  assert.ok('h1' in texts && 'siteDescription' in texts, Object.keys(texts).join(' '));
+  assert.ok(CJK_RE.test(texts.h1), texts.h1);
+});
+check('写回后 h1 仍是原来的中文（回包那句纯英文没被采用）', () => {
+  const hero = blocksOf(gHome).find((b) => b.type === 'hero');
+  assert.ok(hero, JSON.stringify(gHome).slice(0, 300));
+  assert.strictEqual(hero.data.headline, '剪发');
+  assert.ok(!JSON.stringify(gHome).includes(H1_EN));
+});
+check('siteDescription 是回包那句新的中文（同一次回包里没换语言的字段照常采用）', () => {
+  assert.ok(gSeo, `${LG.site}/zh/seo.json 读不到`);
+  // 写回之后 appendPlace 会去掉句末「。」再接「｜多伦多」⟹ 比去掉句末标点的那一段
+  assert.ok(String(gSeo.siteDescription).startsWith(SD_ZH.replace(/。$/, '')), gSeo.siteDescription);
+});
+check('日志一行「[seo] 修补 home.h1 换了语言，不采用」，且 siteDescription 没有这一行', () => {
+  assert.ok(LG.stderr.includes('[seo] 修补 home.h1 换了语言，不采用'), LG.stderr.split('\n').filter((l) => l.startsWith('[seo]')).join('\n'));
+  assert.ok(!LG.stderr.includes('home.siteDescription 换了语言'));
+});
+check('提示词：目标词是拉丁字母、页面是中文 ⟹ 写明把「delivery」原样嵌进中文句子、别把字换成英文', () => {
+  assert.ok(homeFix.first.includes(`embed "${KW_EN}" verbatim inside a sentence that is still written in Chinese`), homeFix.first);
+  assert.ok(homeFix.first.includes('Never rewrite a text into the keyword\'s language'), homeFix.first);
 });
 
 // ── AC5 ─────────────────────────────────────────────────────────────────────────────────────────

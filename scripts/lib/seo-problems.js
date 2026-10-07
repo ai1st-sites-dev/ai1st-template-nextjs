@@ -502,6 +502,7 @@ function seoProblems({ page, pages = [], targetKeyword, brand, payload, locale, 
 
 module.exports = {
   seoProblems,
+  CJK,
   rulesFor,
   contentImagesOf,
   pageTitleBudget,

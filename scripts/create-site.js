@@ -62,7 +62,7 @@ const fallbackSite = require('./lib/fallback-site');
 const buildPhases = require('./lib/build-phases');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
 const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace, hasPhrase,
-  contentImagesOf, words: seoWords, NOT_TEXT: SEO_NOT_TEXT, H1_BLOCKS: SEO_H1_BLOCKS, H2_BLOCKS: SEO_H2_BLOCKS } = require('./lib/seo-problems');
+  contentImagesOf, words: seoWords, NOT_TEXT: SEO_NOT_TEXT, H1_BLOCKS: SEO_H1_BLOCKS, H2_BLOCKS: SEO_H2_BLOCKS, CJK: SEO_CJK } = require('./lib/seo-problems');
 // #1600 —— 建站报告（`site/build-report.json`）：各阶段往里记，结束时写盘；死链由 entrypoint 在 next build 之后并进来。
 const buildReportLib = require('./lib/build-report');
 // 这一次建站的那份报告（main 里建；seoPass 有两个**主语言**调用点，都往这一份里记；第二语言那一次不记，见 §seoPass 头注）。
@@ -102,7 +102,7 @@ const { validateAiJson, saveRawResponse } = require('./lib/ai-json');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
 // #1549 重开 —— description 的长度区间按主语言取；r4 拆成两个区间（都只在 description-fit.js 定义）：提示词给目标区间（中 / 日 / 韩 50–80，其余 70–155），
 //    检查只拦底线区间（20–200 / 40–300），超过底线上限由代码裁到目标上限；重写后仍缺地点由代码补。
-const { fitPageDescriptions, appendPlace, placeFits, descriptionAccept, descriptionSpec } = require('./lib/description-fit');
+const { fitPageDescriptions, appendPlace, placeFits, descriptionAccept, descriptionSpec, isCjkLocale } = require('./lib/description-fit');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
@@ -3911,6 +3911,11 @@ function seoFixPrompt({ page, problems, fields, content, payload, locale, indust
   if (has('h2').length) rules.push(`- ${has('h2').join(', ')}: the headings of the page's sections (H2s; an empty one is a heading not written yet — write it) — at least 2 of them contain "${kw}" (or its words).`);
   if (has('alt').length || has('alt-empty').length) rules.push(`- ${[...has('alt'), ...has('alt-empty')].join(', ')}: image alt texts — one plain sentence each saying what the photo shows (no "image of")${kw ? `; at least one contains "${kw}"` : ''}.`);
   if (has('fact').length) rules.push(`- ${has('fact').join(', ')}: remove the invented fact — keep only what the business details below say.`);
+  // #1593 做什么 4 —— 拉丁字母的目标词放在中日韩页上：「keep each text in its current language」跟「必须含目标词」打架时 AI 会整句换语言。
+  if (kw && isCjkLocale(locale) && !SEO_CJK.test(kw)) {
+    const lang = { zh: 'Chinese', ja: 'Japanese', ko: 'Korean' }[String(locale).slice(0, 2).toLowerCase()];
+    rules.push(`- "${kw}" is not written in ${lang}, but this page is: embed "${kw}" verbatim inside a sentence that is still written in ${lang} (e.g. "Delivery 外卖配送"). Never rewrite a text into the keyword's language to fit it in.`);
+  }
   const p = payload && typeof payload === 'object' ? payload : {};
   const facts = has('fact').length ? [
     ['USP', p.usp], ['Description', p.brandDescription], ['Address', p.address], ['Phone', p.phone], ['Hours', p.hours],
@@ -4018,7 +4023,12 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
   let rewritten = 0;
   for (const { page, fields, out } of fixes) {
     let fixedThis = false;
-    const written = fields.filter((f) => out && Object.prototype.hasOwnProperty.call(out, f.name));
+    // #1593 做什么 4 —— 中日韩站：原值有 CJK 字、新值一个都没有 ⟹ 换了语言，这个字段不采用（保留原值，这一页照 #1596 降级）。
+    const written = fields.filter((f) => out && Object.prototype.hasOwnProperty.call(out, f.name)).filter((f) => {
+      if (!isCjkLocale(locale) || !SEO_CJK.test(String(f.get() || '')) || SEO_CJK.test(out[f.name])) return true;
+      debug(`${who} 修补 ${page.slug}.${f.name} 换了语言，不采用`);
+      return false;
+    });
     if (written.length) {
       const before = new Set(blockProblemsOf(content.pages, page.slug));
       const old = written.map((f) => f.get());
