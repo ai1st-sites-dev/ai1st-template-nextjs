@@ -275,8 +275,10 @@ export interface DynamicPageConfig {
   parentService?: string;
   /** 建站脚本给关键词页打的标记（Call 2 生成的那些页）。 */
   keywordPage?: boolean;
-  /** #1548 —— 这一页为哪个搜索词而生。只有首页 / 服务详情页 / 关键词页有；第二语言的是翻译来的（translated: true）。 */
-  seo?: { targetKeyword: string; translated?: boolean };
+  /** #1548 —— 这一页为哪个搜索词而生。只有首页 / 服务详情页 / 关键词页有；第二语言的是翻译来的（translated: true）。
+   *  #1643 —— 骨架页（create-site.js §pageSkeleton，#1596）写的是 `placeholder: true`，按构造没有目标词 ⟹ targetKeyword 可选。
+   *  必填时，整站每一页都是骨架页的站在 config.ts 的 `pagesByLocale` 断言处过不了类型检查。 */
+  seo?: { targetKeyword?: string; translated?: boolean; placeholder?: boolean };
   blocks: BlockConfig[];
 }
 
