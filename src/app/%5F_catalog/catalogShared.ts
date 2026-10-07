@@ -113,8 +113,8 @@ const CATALOG_FIXTURE_PAGES: DynamicPageConfig[] = ['First', 'Second', 'Third'].
   blocks: [],
 }));
 
-// #1502 —— `page-header` 的面包屑按页面路径算（`src/lib/breadcrumbs.ts`），块自己不存。单格页拿下面这两页
-//    当「正在看的是哪一页」：夹具页 `brake-repair/north-york` 的中间一级查 `services/brake-repair` —— 它在，所以三级
+// #1502 —— 当初给 `page-header` 的面包屑用的夹具（#1630 删了面包屑，今天块不读 `pageSlug`，这两页只是还挂着）。
+//    单格页拿下面这两页当「正在看的是哪一页」：夹具页 `brake-repair/north-york` 的中间一级查 `services/brake-repair` —— 它在，所以三级
 //    都齐（Home → Brake Repair → 本页），跟真站一个服务下的关键词页同一种形状。挂在同一个 `CATALOG_LOCALE` 下，
 //    理由同上；`service-related-pages` 只筛 `sample-service/` 开头的，这两页它看不见。
 export const CATALOG_PAGE_HEADER_SLUG = 'brake-repair/north-york';

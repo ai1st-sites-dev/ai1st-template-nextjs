@@ -7,11 +7,9 @@
 //
 // 🔴 **h1 在这里**：标题（`headline`）渲染成 `<h1>`，一页只有这一个 h1。
 //
-// 🔴 **面包屑不是槽，块不读 `data.breadcrumbs`**（Chris 2026-09-30：内容和样子分开）。它按页面路径算
-//    （`src/lib/breadcrumbs.ts` §breadcrumbsFor，`SubPage` 出结构化数据用的是同一个函数），块只负责画：
-//    当前页的 slug 由 `SectionRenderer` 的 `pageSlug` 传进来（内页 = 真 slug；编辑器画布 = 正在编辑的那一页；
-//    单格页 = 夹具页）；没给（首页 / 不知道是哪一页）就不画那一行。
-//    🔴 **本块不出 `BreadcrumbList`**：结构化数据只由 `SubPage.tsx` 那一份出，块再出一份就是两段。
+// 📌 **不画面包屑**（#1630，Chris 2026-10-06）：#1502 起这里按页面路径画过一行「首页 / 当前页」，连同
+//    `src/lib/breadcrumbs.ts` 和 `BreadcrumbList` 结构化数据一起删了。关键词页回服务详情页改走页尾那一组
+//    （`scripts/lib/keyword-pages.js` §addRelatedBlocks）。
 //
 // 🔴 **一份 markup，三个旋钮**（headlinePosition / textAlign / image），五个预设各是一个形态目录。实际生效的旋钮 =
 //    形态对应的那个预设给底，`data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js` §effectiveKnobs）。
@@ -22,13 +20,10 @@
 // 🔴 **底色与字色**走 `scripts/lib/contrast.js` 那两个共用函数（§bgCss 写成 CSS、§toneForBg 按亮度反白）；
 //    `image=background` 一律按深底处理（照片 + 深色遮罩）。
 
-import Link from 'next/link';
 import { slotImg } from '@/lib/sections/blockMedia';
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
-import { breadcrumbsFor } from '@/lib/breadcrumbs';
-import { getLabels } from '@/lib/component-labels';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import Button from '@/components/Button';
 import manifest from './manifest.json';
@@ -63,7 +58,7 @@ const MAX_CTAS = 2;
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-export default function PageHeaderNewSection({ data, locale = 'en', block, pageSlug }: Props) {
+export default function PageHeaderNewSection({ data, block }: Props) {
   const d: PageHeaderNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: PageHeaderNewOptions = isObj(d.options) ? d.options : {};
@@ -71,9 +66,6 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
   const img: PageHeaderNewImage | null = k.image !== 'none' && isObj(d.image) && str(d.image.imageUrl) ? d.image : null;
   const cover = k.image === 'background' && !!img;
   const side = (k.image === 'left' || k.image === 'right') && !!img;
-
-  const crumbs = pageSlug && pageSlug !== 'home' ? breadcrumbsFor(pageSlug, locale) : [];
-  const homeLabel = getLabels(locale).home;
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 milestones / cta：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
@@ -102,21 +94,6 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
     >
       <div className="phn-outer">
         <div className="phn-text" data-part="text">
-          {crumbs.length ? (
-            <nav className="phn-crumbs" aria-label="Breadcrumb" data-part="breadcrumbs">
-              <ol className="breadcrumb text-sm mb-6">
-                {crumbs.map((c, i) => {
-                  const last = i === crumbs.length - 1;
-                  const label = i === 0 ? homeLabel : c.label;
-                  return last ? (
-                    <li key={i} className="breadcrumb-item active" aria-current="page">{label}</li>
-                  ) : (
-                    <li key={i} className="breadcrumb-item">{c.href ? <Link href={c.href}>{label}</Link> : label}</li>
-                  );
-                })}
-              </ol>
-            </nav>
-          ) : null}
           <div className="phn-inner">
             <div className="phn-head">
               {eyebrow && eyebrowStyle !== 'none' ? (

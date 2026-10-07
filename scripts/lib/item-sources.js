@@ -92,12 +92,13 @@ function learnMoreLink(ctx, slug) {
   return { label: str(ctx.learnMore) || 'Learn more', href: ctx.url(slug), style: 'link', arrow: true };
 }
 
-/** `params` 里的取值：`true` = 必填、非空字符串；`INDEX` = 选填、非负整数（门店下标）。 */
+/** `params` 里的取值：`true` = 必填、非空字符串；`INDEX` = 选填、非负整数（门店下标）；`BOOL` = 选填、true / false。 */
 const INDEX = 'index';
+const BOOL = 'bool';
 
 /**
  * 有哪些源。每个源：
- *   params   除 `source` 之外认的键 → `true`（必填，非空字符串）或 `INDEX`（选填，非负整数）
+ *   params   除 `source` 之外认的键 → `true`（必填，非空字符串）、`INDEX`（选填，非负整数）或 `BOOL`（选填，布尔）
  *   prompt   提示词里那一段写法（§dataLineFor 拼在槽的 shape 后面）
  *   expand   (ref, ctx) → 整槽换成的值（写法一的形状）—— 接在 `BLOCK_SLOTS` 上的源才有
  *   fact     (ref, ctx) → `{ icon, text, href? }` 或 null —— 按钮 / `ITEM_SLOTS` 的那一项用它
@@ -123,16 +124,26 @@ const SOURCES = {
   // 顺序同 pagesByLocale。不带图标。
   // #1550 —— 关键词页挂在 `services/<id>/<词>` 下，`under` 就是 `services/<id>`（服务详情页列它下面的全部关键词页，
   //    关键词页页尾列同服务的兄弟页）。正在画的这一页（`ctx.pageSlug`）不列自己。
+  // #1630 —— `withParent: true`：最前面多一条指向 `under` 那一页本身（关键词页页尾链回服务详情页；面包屑删了之后
+  //    这是唯一一条回去的路）。文字是服务目录里的服务名（`under` 是 `services/<id>` 时按 id 找），找不到才用那一页的
+  //    title。那一页不存在就不出这一条（不指向 404）。只有代码写它（`keyword-pages.js` §addRelatedBlocks），不进提示词。
   pages: {
-    params: { under: true },
+    params: { under: true, withParent: BOOL },
     prompt: '{source: "pages", under: "services/<service id>"}',
     expand(ref, ctx) {
       const under = str(ref.under);
       if (!under) return [];
-      return (Array.isArray(ctx.pages) ? ctx.pages : [])
-        .filter((p) => isObj(p) && typeof p.slug === 'string' && p.slug.startsWith(`${under}/`) && p.slug !== under)
+      const all = (Array.isArray(ctx.pages) ? ctx.pages : []).filter((p) => isObj(p) && typeof p.slug === 'string');
+      const children = all
+        .filter((p) => p.slug.startsWith(`${under}/`) && p.slug !== under)
         .filter((p) => p.slug !== ctx.pageSlug)
         .map((p) => ({ title: str(p.title), text: str(p.description), link: learnMoreLink(ctx, p.slug) }));
+      const parent = ref.withParent === true ? all.find((p) => p.slug === under) : null;
+      if (!parent || parent.slug === ctx.pageSlug) return children;
+      const m = under.match(/^services\/([^/]+)$/);
+      const svc = m ? (Array.isArray(ctx.services) ? ctx.services : []).find((s) => isObj(s) && s.id === m[1]) : null;
+      const title = (svc && str(svc.name)) || str(parent.title);
+      return [{ title, text: str(parent.description), link: learnMoreLink(ctx, under) }, ...children];
     },
   },
   // #1506 —— 联系方式。`location` 是门店下标（默认 0）；email 不分门店，但写了 `location` 也要那一家存在。
@@ -253,6 +264,10 @@ function refProblemsAt(at, allowed, v) {
     if (req === INDEX) {
       if (v[k] !== undefined && !(Number.isInteger(v[k]) && v[k] >= 0)) {
         out.push(`"${at}" 引用 source "${v.source}" 的 ${k} 是 ${JSON.stringify(v[k])} —— 只能是非负整数（0 = 第一家门店，可省）`);
+      }
+    } else if (req === BOOL) {
+      if (v[k] !== undefined && typeof v[k] !== 'boolean') {
+        out.push(`"${at}" 引用 source "${v.source}" 的 ${k} 是 ${JSON.stringify(v[k])} —— 只能是 true / false（可省）`);
       }
     } else if (req && !(typeof v[k] === 'string' && v[k].trim())) {
       out.push(`"${at}" 引用 source "${v.source}" 要带 ${k}（非空字符串）：${def.prompt}`);
@@ -448,7 +463,11 @@ function promptAlternatives(type, slot) {
 function describeRef(ref) {
   if (!isSourceRef(ref)) return '';
   if (ref.source === 'services') return "These items come from this website's services.";
-  if (ref.source === 'pages') return `These items are the pages under “${str(ref.under)}”.`;
+  if (ref.source === 'pages') {
+    return ref.withParent === true
+      ? `These items are “${str(ref.under)}” and the pages under it.`
+      : `These items are the pages under “${str(ref.under)}”.`;
+  }
   return `These items come from “${ref.source}”.`;
 }
 

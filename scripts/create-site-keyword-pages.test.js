@@ -309,10 +309,10 @@ check('AC2 / AC9：Call 1 没给详情页 ⟹ 两个详情页由代码补出，�
     assert.deepStrictEqual(pagesRefOf(d), [{ source: 'pages', under: `services/${s.id}` }]);
   }
 });
-check('AC2：每个关键词页页尾有同服务兄弟页那一组（under = 本服务）', () => {
+check('AC2：每个关键词页页尾有同服务兄弟页那一组（under = 本服务；#1630 起带 withParent，第一条链回服务详情页）', () => {
   for (const slug of A_KW) {
     const id = slug.split('/')[1];
-    assert.deepStrictEqual(pagesRefOf(A.page(slug)), [{ source: 'pages', under: `services/${id}` }], slug);
+    assert.deepStrictEqual(pagesRefOf(A.page(slug)), [{ source: 'pages', under: `services/${id}`, withParent: true }], slug);
   }
 });
 check('AC2：页脚含全部 6 页，每服务一栏、栏名是服务名', () => {
@@ -492,7 +492,7 @@ check('③ 页脚：两栏合计 = 留下来的 5 页', () => {
 check('④ 盘上 5 页每页都有兄弟页那一组（含被救回的两页，以及「唯一兄弟被救回」的那页）', () => {
   const onDisk = G.pageFiles.filter((x) => /^services\/[^/]+\/[^/]+$/.test(x)).sort();
   assert.deepStrictEqual(onDisk, G_KEPT);
-  for (const slug of G_KEPT) assert.deepStrictEqual(pagesRefOf(G.page(slug)), [{ source: 'pages', under: `services/${slug.split('/')[1]}` }], slug);
+  for (const slug of G_KEPT) assert.deepStrictEqual(pagesRefOf(G.page(slug)), [{ source: 'pages', under: `services/${slug.split('/')[1]}`, withParent: true }], slug);
 });
 check('⑤ seo-check 与 keyword-pages 两个事件说同一个数', () => {
   const ev = G.events.filter((e) => e.event === 'seo-check' && e.keywordPages && e.keywordPages.total);

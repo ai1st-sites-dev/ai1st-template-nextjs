@@ -214,8 +214,7 @@ const DEMO_CONTENT = {
 
 
   // #1502 —— Webpixels 那一版内页标题带：Northside Auto Care 的一个服务页（eyebrow + h1 + 副标题 + 按钮 + 图）。
-  //    🔴 **没有 breadcrumbs**：面包屑按页面路径算（`src/lib/breadcrumbs.ts`），不是块的数据；单格页给它一个夹具页的
-  //       slug（`catalogShared.ts` §CATALOG_PAGE_HEADER_SLUG，三级：Home → Brake Repair → 本页）。
+  //    📌 没有 breadcrumbs：#1502 起面包屑不是块的数据，#1630 起页头整个不画面包屑。
   //    🔴 `options` 留空、`ctas` 6 条、`introEyebrow.style` 写明，理由同下面 cta / features 那几条。
   'page-header': {
     options: {},

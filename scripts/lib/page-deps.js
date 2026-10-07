@@ -88,8 +88,6 @@ const ACCOUNTED = new Map([
   ['src/lib/sections/item-sources.ts', '引用写法的展开（items: {source: "services"}）—— 下面 filesFor 按页面数据里的引用算'],
   // #1552 —— 站根 `/llms.txt`（`src/app/llms.txt/route.ts` 调它）。它不是页面、不进 sitemap，没有哪一页的 <lastmod> 跟它走。
   ['src/lib/llms-txt.ts', '站根 /llms.txt 里那份服务清单 —— 不是页面、不进 sitemap，不算'],
-  // #1550 —— 关键词页 `services/<id>/<词>` 的面包屑中间级写的是服务名（服务改名，这一页的 HTML 跟着变）。
-  ['src/lib/breadcrumbs.ts', '关键词页面包屑中间级的服务名 —— 下面 filesFor 里 services/<id>/<词> 那条'],
 ]);
 
 // 服务详情页的判断 —— #1551 搬去了 ./service-detail-page.js（那份不碰 fs，关键词页的 Service 结构化数据
@@ -240,7 +238,8 @@ function createPageDeps({ localeDir, services }) {
         || (page.blocks || []).some((b) => services.types.has(b.type))
         // #1505 —— 块把服务目录引用进来了（`items: {source: "services"}`），渲染前展开成每个服务一条。
         || blocksUseSource(page.blocks, 'services')
-        // #1550 —— 挂在服务下的关键词页：面包屑中间级是服务目录里的名字（`src/lib/breadcrumbs.ts`）。
+        // #1550 / #1630 —— 挂在服务下的关键词页：页尾那组「相关页面」第一条链回服务详情页，文字是服务目录里的名字
+        //    （`scripts/lib/item-sources.js` §pages 的 `withParent`）。服务改名，这一页的 HTML 跟着变。
         || (typeof page.slug === 'string' && /^services\/[^/]+\/[^/]+$/.test(page.slug));
       if (usesServices) files.push(servicesPath);
 

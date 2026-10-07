@@ -1278,8 +1278,8 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         }
       }
 
-      // ⑩ #1502 —— 块按页面算的东西，不许写进 data（`computed`：键 → 为什么不写，page-header 的 breadcrumbs
-      //    按页面路径算）。判据从 manifest 读、不写块名单；下面「data 里没有这个槽」那条跳过这些键，只报这一条。
+      // ⑩ #1502 —— 块按页面算的东西，不许写进 data（`computed`：键 → 为什么不写；当初是给 page-header 的 breadcrumbs
+      //    加的，#1630 删了面包屑之后今天没有块声明它，机制留着）。判据从 manifest 读、不写块名单；下面「data 里没有这个槽」那条跳过这些键，只报这一条。
       const computed = m.computed && typeof m.computed === 'object' ? m.computed : {};
       for (const key of Object.keys(data)) {
         if (typeof computed[key] === 'string') flag(`${where}: data 里写了 "${key}" —— ${computed[key]}`);

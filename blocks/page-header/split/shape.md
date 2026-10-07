@@ -14,7 +14,7 @@ layout_intent:
 
 **预设名：** Split（`blocks/page-header/manifest.json` 的 `presets`）
 
-**长什么样：** ≥992 标题一列、副标题 + 按钮一列（各半、底边对齐），面包屑在两列之上；小屏上下排
+**长什么样：** ≥992 标题一列、副标题 + 按钮一列（各半、底边对齐）；小屏上下排
 
 **旋钮：** headlinePosition left · textAlign left · image none。这是一个**预设**，不是一份单独的 markup：形态目录只决定「旋钮从哪一组值起」，
 `options` 里写了的旋钮逐个覆盖它（`scripts/lib/block-knobs.js` §effectiveKnobs）；拧偏了编辑器显示 custom，

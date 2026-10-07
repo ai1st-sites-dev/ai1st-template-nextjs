@@ -203,7 +203,6 @@ const STUBS = {
     + "const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
   '@/lib/config': stub('config', 'module.exports={defaultLocale:"en",locales:["en"],siteId:"t",leadApi:"",getServices:()=>[],'
     + 'pagesByLocale:{en:[]},localeUrl:(s)=>s==="home"?"/":"/"+s,brand:{},getForms:()=>[]};\n'),
-  '@/lib/breadcrumbs': stub('crumbs', 'module.exports={breadcrumbsFor:()=>[]};\n'),
 };
 process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } });
 const sourceOverride = new Map();

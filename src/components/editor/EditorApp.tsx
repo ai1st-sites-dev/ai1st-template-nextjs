@@ -1049,7 +1049,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw, siteBlocks: siteBlocks || {}, sharedOwn: {} });
   // #1406 —— 「在 N 个页面上」那句话读的三样（context，见 SharedInfoContext）。
   const [sharedInfo, setSharedInfo] = useState<SharedInfo>({ siteBlocks: siteBlocks || {}, refs: refs || {}, slugs: slugs || [] });
-  // #1502 —— 画布上要按页面路径算东西的块（page-header 的面包屑）拿这一页的 slug；首页不传（首页没有面包屑）。
+  // #1502 —— 画布上要按页面路径算东西的块拿这一页的 slug；首页不传。当初是给 page-header 的面包屑用的（#1630 删了）。
   const config = useMemo(
     () => buildConfig(schema, locale, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms, page === 'home' ? undefined : page),
     [schema, locale, page],

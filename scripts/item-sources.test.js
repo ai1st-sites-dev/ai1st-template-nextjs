@@ -164,6 +164,11 @@ console.log('\n── AC3 pages 源');
   // #1550 —— 关键词页页尾那组兄弟页：正在画的那一页（ctx.pageSlug）不列它自己。
   const sib = lib.expandRef({ source: 'pages', under: 'water-heaters' }, { ...CTX, pageSlug: 'water-heaters/burnaby' });
   check(sib.map((x) => x.link.href).join(',') === '/water-heaters/coquitlam', `ctx.pageSlug = 自己 ⟹ 只剩兄弟页（${sib.map((x) => x.link.href).join(',')}）`);
+  // #1630 —— withParent：最前面多一条指向 under 那一页本身；那一页不存在 ⟹ 不出这一条。
+  const wp = lib.expandRef({ source: 'pages', under: 'water-heaters', withParent: true }, { ...CTX, pageSlug: 'water-heaters/burnaby' });
+  check(wp.map((x) => x.link.href).join(',') === '/water-heaters,/water-heaters/coquitlam', `withParent ⟹ 父页在最前、再是兄弟页（${wp.map((x) => x.link.href).join(',')}）`);
+  const wpNone = lib.expandRef({ source: 'pages', under: 'no-such-service', withParent: true }, CTX);
+  check(wpNone.length === 0, `withParent 但 under 那一页不存在 ⟹ 不出父页那条（${wpNone.length}）`);
   const empty = render(block({ source: 'pages', under: 'no-such-service' }));
   check(empty === '', 'under 下面没有页面 ⟹ 整块不渲染（HTML 里没有这个 section）', empty.slice(0, 80));
   check(/<section\b/.test(render(block({ source: 'pages', under: 'water-heaters' }))), '阳性对照：同一个块 under water-heaters ⟹ 有 section');
@@ -222,12 +227,15 @@ console.log('\n── AC7 validateSite');
     [{ source: 'pages' }, '{source:"pages"}（缺 under）'],
     [{ source: 'services', foo: 1 }, '{source:"services", foo:1}'],
     ['services', '"services"（字符串）'],
+    [{ source: 'pages', under: 'water-heaters', withParent: 'yes' }, '{source:"pages", under, withParent:"yes"}（#1630：只能是布尔）'],
+    [{ source: 'services', withParent: true }, '{source:"services", withParent:true}（#1630：只有 pages 认它）'],
   ]) {
     const p = v(items);
     check(p.length === 1, `${label} ⟹ 报一条（点名 items）`, p.join(' | ') || '0 条');
   }
   check(v({ source: 'services' }).length === 0, '{source:"services"} 放行');
   check(v({ source: 'pages', under: 'water-heaters' }).length === 0, '{source:"pages", under:"water-heaters"} 放行');
+  check(v({ source: 'pages', under: 'water-heaters', withParent: true }).length === 0, '#1630 {source:"pages", under, withParent:true} 放行');
   // 反向对照：别的块（不在登记表里）写同一个对象 ⟹ 照旧按「不是列表」拦。
   const other = manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'testimonials', data: { headline: 'H', items: { source: 'services' } } }] }], scope: 'edit' }).problems;
   check(other.some((p) => /不是列表/.test(p)), '反向对照：没登记的块（testimonials）写 {source:"services"} ⟹ 照旧报「不是列表」', other.join(' | '));
@@ -268,11 +276,11 @@ console.log('\n── page-deps：引用了服务目录的页面，sitemap 依�
   check(uses({ source: 'services' }) === true, 'about 页上 features 引用 services ⟹ 依赖 services.json');
   check(uses([{ title: 'a', text: 'b' }]) === false, '反向对照：同一页改成手写 ⟹ 不依赖');
   check(uses({ source: 'pages', under: 'x' }) === false, 'pages 源不读服务目录 ⟹ 不依赖 services.json');
-  // #1550 —— 关键词页挂在 `services/<id>/<词>` 下：面包屑中间级写的是服务名 ⟹ 依赖 services.json；
+  // #1550 / #1630 —— 关键词页挂在 `services/<id>/<词>` 下：页尾那组第一条链回服务详情页、文字是服务名 ⟹ 依赖 services.json；
   //    它也不是服务详情页（以前 `startsWith('services/')` 会把它当成详情页）。
   const kwDeps = (slug) => deps.filesFor({ slug, blocks: [] }, `/tmp/x/pages/${slug}.json`, []).usesServices;
-  check(kwDeps('services/drain/clogged') === true, '关键词页 services/<id>/<词> ⟹ 依赖 services.json（面包屑里的服务名）');
-  check(kwDeps('drain/clogged') === false, '反向对照：老形状 <服务slug>/<词> 的面包屑不读服务目录 ⟹ 不依赖');
+  check(kwDeps('services/drain/clogged') === true, '关键词页 services/<id>/<词> ⟹ 依赖 services.json（页尾父页那条的服务名）');
+  check(kwDeps('drain/clogged') === false, '反向对照：老形状 <服务slug>/<词> 不读服务目录 ⟹ 不依赖');
   check(pageDeps.isServiceDetailPage({ slug: 'services/drain' }) === true, 'services/<id> 是服务详情页');
   check(pageDeps.isServiceDetailPage({ slug: 'services/drain/clogged' }) === false, 'services/<id>/<词> 不是服务详情页（是挂在它下面的关键词页）');
 }

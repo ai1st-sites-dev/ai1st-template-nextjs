@@ -181,7 +181,7 @@ function fieldsOf(manifest) {
 /**
  * 列表槽项形状（`[{label, href, style: "solid" | "outline", icon?, …}]`）的**顶层**必填键名。
  * 嵌套的 `{…}` / `[…]` 和引号里的东西不算；带 `?` 的（可选）不算。形状不是**一个** `[{…}]` ⟹ []
- * （`page-header.breadcrumbs` 那种 `[{…}, {…}]` 是两项示例、不是项形状，不认）。
+ * （两项示例 `[{…}, {…}]` 不是项形状，不认 —— 当初的例子是 page-header 的 breadcrumbs 槽，#1630 随面包屑删了）。
  */
 function itemTopKeys(shape) {
   const m = /^\s*\[\s*\{([\s\S]*)\}\s*\]\s*$/.exec(typeof shape === 'string' ? shape : '');
