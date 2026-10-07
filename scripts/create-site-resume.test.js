@@ -604,5 +604,182 @@ check('git 报错里的 token 被换成 ***（阳性：那几行确实带着被�
   assert.ok(RI.stderr.includes('gone-***'), RI.stderr.split('\n').filter((l) => l.includes('推送失败')).slice(0, 1).join('\n'));
 });
 
+// ── K：#1613 阶段提交失败不再终止建站；「存进仓了没有」= push rc=0 且 site/ public/ 下没有没提交的东西 ────────────────
+// 手法同 create-site-call1-pages.test.js（#1596）：真 git 仓 + commit-msg 钩子只拒点名的那几个阶段。zh + en 的站 ⟹ 最后一个
+// 阶段（secondaryLocales）有自己的产物（site/en/**），「只拒最后一次」那一臂才量得到东西。
+// entrypoint.sh 那一半：把建站之后那一段（§unsaved_build_files + 推送 + archived 判定）原样从 worker/entrypoint.sh 里取出来，
+// 在建完的仓里用 bash 真跑（真 `git push origin main` 推到本地 bare）—— 不是第二份实现，文件一改这里跟着改。
+console.log('── K：#1613 阶段提交被拒（zh + en，commit-msg 钩子）');
+const EP_FILE = path.resolve(NEXT, '..', '..', 'worker', 'entrypoint.sh');
+const EP = fs.readFileSync(EP_FILE, 'utf8');
+const EP_FN = (EP.match(/^unsaved_build_files\(\) \{[\s\S]*?^\}$/m) || [])[0];
+const EP_PUSH = (EP.match(/^  echo '\{"event":"progress","message":"Saving site\.\.\."[^\n]*\n[\s\S]*?^  if \[ "\$PUSH_RC" -eq 0 \][^\n]*\n[\s\S]*?^  fi$/m) || [])[0];
+if (!EP_FN || !EP_PUSH) die(`从 ${EP_FILE} 取不出 unsaved_build_files / 推送那一段 —— 尺子坏了，不是被测的东西坏了`);
+const EP_GATE = '[ "$PUSH_RC" -eq 0 ] && [ -z "$UNSAVED_FILES" ]';
+/** 建完之后 entrypoint.sh 那一段：回 { rc, archived, warns, stderr }。`block` 换成别的就是对照臂。 */
+function entrypointTail(work, block = EP_PUSH) {
+  const script = `set -e\n${EP_FN}\nUNSAVED_FILES=$(unsaved_build_files)\n${block}\nprintf '\\nREADY_EXTRA=%s\\n' "$READY_EXTRA"\n`;
+  const r = cp.spawnSync('bash', ['-c', script], { cwd: work, encoding: 'utf8', env: { ...process.env, GIT_TOKEN: TOKEN } });
+  const out = r.stdout || '';
+  const ready = (out.match(/^READY_EXTRA=(.*)$/m) || [])[1];
+  const events = out.split('\n').filter((l) => l.startsWith('{')).map((l) => JSON.parse(l));
+  return { rc: r.status, stderr: r.stderr || '', ready, archived: ready === undefined ? undefined : JSON.parse(`{${ready.replace(/^,/, '')}}`).archived, warns: events.filter((e) => e.event === 'warn') };
+}
+/** 对照臂：只把「push rc=0 且没有没提交的东西」退回成今天 main 上的「push rc=0」。 */
+//    判定那一行找不到（或不止一处）⟹ 对照臂没改成，回 { notApplied }，由对照臂那一格读红（不在顶层抛，别的格照跑）。
+function withoutGateTail(work) {
+  if (EP_PUSH.split(EP_GATE).length !== 2) return { notApplied: `判定那一行 ${EP_GATE} 在 entrypoint.sh 里不是恰好一处 —— 对照臂没改成` };
+  return entrypointTail(work, EP_PUSH.replace(EP_GATE, '[ "$PUSH_RC" -eq 0 ]'));
+}
+/** 只拒 `phases` 里点名的那几个阶段的提交（正则的一段，如 'keywordPages'、'\\w+'）。 */
+function rejectCommits(work, phases) {
+  const hooks = path.join(path.dirname(work), 'hooks');
+  fs.mkdirSync(hooks, { recursive: true });
+  fs.writeFileSync(path.join(hooks, 'commit-msg'), `#!/bin/sh\nif grep -qE "\\(phase: (${phases}) " "$1"; then echo "rejected by test hook #1613" >&2; exit 1; fi\n`, { mode: 0o755 });
+  git(work, ['config', 'core.hooksPath', hooks]);
+}
+const commitDegraded = (R) => R.events.filter((e) => e.event === 'degraded' && e.step === 'git-commit');
+const anchorOf = (R) => R.events.filter((e) => e.event === 'chat-message' && e.content === 'Site created');
+const remoteFiles = (bare) => git(bare, ['ls-tree', '-r', '--name-only', 'main']).split('\n').filter(Boolean);
+const EN = PAYLOAD({ secondaryLocales: ['en'] });
+
+// K0 —— 什么都不弄坏（AC3）
+const K0 = freshRepo('k0-ok');
+const RK0 = run('k0-ok', K0.work, EN);
+const EK0 = entrypointTail(K0.work);
+check('AC3 正常那一跑：建站成功、仓里 5 个阶段提交、没有 git-commit 那条 degraded；工作区 site/ public/ 读空；archived:true、没有 warn', () => {
+  assertOk(RK0);
+  assert.deepStrictEqual(phaseCommits(K0.bare).map((c) => c.phase), PHASES);
+  assert.deepStrictEqual(commitDegraded(RK0), []);
+  assert.strictEqual(git(K0.work, ['status', '--porcelain', '--untracked-files=all', '--', 'site', 'public']), '');
+  assert.strictEqual(EK0.rc, 0, EK0.stderr.slice(-600));
+  assert.strictEqual(EK0.archived, true, EK0.ready);
+  assert.deepStrictEqual(EK0.warns, []);
+});
+
+// K1 —— 只拒 keywordPages 那一次（AC1 · AC8 ③）
+const K1 = freshRepo('k1-kw');
+rejectCommits(K1.work, 'keywordPages');
+const RK1 = run('k1-kw', K1.work, EN);
+const EK1 = entrypointTail(K1.work);
+check('AC1：一次阶段提交被拒 ⟹ 建站 rc 0、恰好一条 degraded（step git-commit · target keywordPages · reason 是 git 那一行）', () => {
+  assertOk(RK1);
+  const d = commitDegraded(RK1);
+  assert.strictEqual(d.length, 1, JSON.stringify(d));
+  assert.strictEqual(d[0].target, 'keywordPages');
+  assert.ok(d[0].reason.includes('rejected by test hook #1613'), d[0].reason);
+  assert.ok(d[0].step && d[0].target && d[0].reason);
+});
+check('AC1：五个阶段都走完（仓里 plan / pages / images / secondaryLocales 四个提交、HEAD 的 buildPhase = secondaryLocales），keywordPages 的产物进了后一次提交', () => {
+  assert.deepStrictEqual(phaseCommits(K1.bare).map((c) => c.phase), ['plan', 'pages', 'images', 'secondaryLocales']);
+  assert.strictEqual(showJson(K1.bare, 'main', 'site/site_meta.json').buildPhase, 'secondaryLocales');
+  const last = phaseCommits(K1.bare).pop().sha;
+  const touched = git(K1.bare, ['show', '--name-only', '--format=', last]).split('\n');
+  assert.ok(touched.includes('site/brand.json'), touched.join(' '));
+  assert.ok(touched.some((f) => f.startsWith('site/zh/pages/services/cut/')), '关键词页没进最后那次提交');
+  assert.ok(touched.some((f) => f.startsWith('site/en/')), '第二语言没进最后那次提交');
+});
+check('AC1 / AC3：前面一次失败、最后一次提交成功 ⟹ 工作区读空、archived:true、没有 warn', () => {
+  assert.strictEqual(EK1.archived, true, EK1.ready);
+  assert.deepStrictEqual(EK1.warns, []);
+});
+check('AC8 ③：只拒前四个阶段里的一次、最后一次放行 ⟹ 有「Site created」，commit_hash = 这一跑的 rev-parse --short HEAD', () => {
+  const a = anchorOf(RK1);
+  assert.strictEqual(a.length, 1, JSON.stringify(a));
+  assert.strictEqual(a[0].commit_hash, git(K1.work, ['rev-parse', '--short', 'HEAD']));
+});
+// AC1 对照臂：只把降级那一处退回 fatal(（改的是这个仓里自己那份 create-site.js —— 它不在 site/ public/ 下）
+const K1x = freshRepo('k1-fatal');
+{
+  const f = path.join(K1x.work, 'scripts', 'create-site.js');
+  const src = fs.readFileSync(f, 'utf8');
+  const was = "degrade('git-commit', phase, said || e.message || `exit ${e.status}`);";
+  assert.strictEqual(src.split(was).length, 2, '降级那一行没找到 —— 对照臂没改成');
+  // 退回成 #1613 之前那一行（拼出来写：这份测试自己不该算进 AC4 那个「全仓只剩 skipAI 那 1 处」的数）
+  fs.writeFileSync(f, src.replace(was, ['fatal(', "'Git commit failed: ' + (e.stderr?.toString()?.split('\\n')[0] || e.message));"].join('')));
+}
+rejectCommits(K1x.work, 'keywordPages');
+const RK1x = run('k1-fatal', K1x.work, EN);
+check('AC1 对照臂（只把那一处退回 fatal）：同一格 rc ≠ 0、错误以 Git commit failed 开头', () => {
+  assert.notStrictEqual(RK1x.rc, 0);
+  assert.ok(RK1x.error.startsWith('Git commit failed'), RK1x.error);
+});
+
+// K2 —— 拒掉全部 5 次（AC2 · AC8 ①）
+const K2 = freshRepo('k2-all');
+rejectCommits(K2.work, '\\w+');
+const RK2 = run('k2-all', K2.work, EN);
+const EK2 = entrypointTail(K2.work);
+const EK2x = withoutGateTail(K2.work);
+check('AC2：五次全拒 ⟹ 建站 rc 0、5 条 git-commit degraded，远端仓里只有 Initial commit', () => {
+  assertOk(RK2);
+  assert.deepStrictEqual(commitDegraded(RK2).map((d) => d.target), PHASES);
+  assert.deepStrictEqual(git(K2.bare, ['log', '--format=%s', 'main']).split('\n'), ['Initial commit']);
+});
+check('AC2：ready 那一格 archived:false ＋ 恰好一条 warn kind=unarchived（reason 说没提交上）', () => {
+  assert.strictEqual(EK2.rc, 0, EK2.stderr.slice(-600));
+  assert.strictEqual(EK2.archived, false, EK2.ready);
+  assert.strictEqual(EK2.warns.length, 1, JSON.stringify(EK2.warns));
+  assert.strictEqual(EK2.warns[0].kind, 'unarchived');
+  assert.ok(/never committed/.test(EK2.warns[0].reason), EK2.warns[0].reason);
+  assert.ok(EK2.warns[0].message.startsWith('Site built, but it was not saved to the repository: '), EK2.warns[0].message);
+});
+check('AC2 对照臂（判定退回只看 push rc）：同一个仓读 archived:true、没有 warn —— 推送是 Everything up-to-date、rc 0', () => {
+  assert.ok(!EK2x.notApplied, EK2x.notApplied);
+  assert.strictEqual(EK2x.archived, true, EK2x.ready);
+  assert.deepStrictEqual(EK2x.warns, []);
+  assert.ok(EK2x.stderr.includes('[push] Everything up-to-date'), EK2x.stderr.slice(-400));
+});
+check('AC8 ①：五次全拒 ⟹ 没有「Site created」锚点（repo 那条照发）', () => {
+  assert.deepStrictEqual(anchorOf(RK2), []);
+  assert.strictEqual(RK2.events.filter((e) => e.event === 'repo').length, 1);
+});
+
+// K3 —— 只拒 secondaryLocales 那一次（AC7 · AC8 ②）
+const K3 = freshRepo('k3-last');
+rejectCommits(K3.work, 'secondaryLocales');
+const RK3 = run('k3-last', K3.work, EN);
+const EK3 = entrypointTail(K3.work);
+const EK3x = withoutGateTail(K3.work);
+check('AC7：只拒最后一次 ⟹ 建站 rc 0、恰好一条 git-commit degraded（target secondaryLocales）；远端有前四个阶段、没有 site/en/ 下任何文件', () => {
+  assertOk(RK3);
+  assert.deepStrictEqual(commitDegraded(RK3).map((d) => d.target), ['secondaryLocales']);
+  assert.deepStrictEqual(phaseCommits(K3.bare).map((c) => c.phase), ['plan', 'pages', 'images', 'keywordPages']);
+  assert.deepStrictEqual(remoteFiles(K3.bare).filter((f) => f.startsWith('site/en/')), []);
+  assert.ok(fs.existsSync(path.join(K3.work, 'site', 'en', 'seo.json')), '阳性：第二语言确实建出来了，只是没进提交');
+});
+check('AC7：ready 那一格 archived:false ＋ 恰好一条 warn kind=unarchived', () => {
+  assert.strictEqual(EK3.archived, false, EK3.ready);
+  assert.strictEqual(EK3.warns.length, 1, JSON.stringify(EK3.warns));
+  assert.strictEqual(EK3.warns[0].kind, 'unarchived');
+});
+check('AC7 对照臂（判定退回只看 push rc）：同一个仓读 archived:true —— 推送是 Everything up-to-date、rc 0', () => {
+  assert.ok(!EK3x.notApplied, EK3x.notApplied);
+  assert.strictEqual(EK3x.archived, true, EK3x.ready);
+  assert.deepStrictEqual(EK3x.warns, []);
+  assert.ok(EK3x.stderr.includes('[push] Everything up-to-date'), EK3x.stderr.slice(-400));
+});
+check('AC8 ②：只拒最后一次 ⟹ 没有「Site created」锚点', () => {
+  assert.deepStrictEqual(anchorOf(RK3), []);
+});
+const EI = entrypointTail(I.work);
+check('AC6 推送失败那一支照旧：archived:false、一条 warn kind=unarchived，reason 是 git 打的最后一行（#1592 的规则，不是「没提交」那句），不带 token', () => {
+  assert.strictEqual(EI.archived, false, EI.ready);
+  assert.strictEqual(EI.warns.length, 1, JSON.stringify(EI.warns));
+  assert.strictEqual(EI.warns[0].kind, 'unarchived');
+  const pushed = EI.stderr.split('\n').filter((l) => l.startsWith('[push] ')).map((l) => l.slice(7).trim()).filter(Boolean);
+  assert.strictEqual(EI.warns[0].reason, pushed[pushed.length - 1], EI.stderr.slice(-600));
+  assert.ok(!/never committed/.test(EI.warns[0].reason), EI.warns[0].reason);
+  assert.ok(EI.stderr.includes('Git push FAILED (rc='), EI.stderr.slice(-400));
+  assert.ok(!(EI.stderr + JSON.stringify(EI.warns)).includes(TOKEN) && EI.stderr.includes('gone-***'), EI.stderr.slice(-600));
+});
+check('entrypoint.sh 里的顺序：create-site 退出 → 读 unsaved_build_files → sync-config → 推送', () => {
+  const create = EP.indexOf('node scripts/create-site.js < /tmp/input.json');
+  const read = EP.indexOf('UNSAVED_FILES=$(unsaved_build_files)', create);
+  const sync = EP.indexOf('node scripts/sync-config.js >&2', create);
+  const push = EP.indexOf(EP_PUSH, create);
+  assert.ok(create > 0 && read > create && sync > read && push > sync, JSON.stringify({ create, read, sync, push }));
+});
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

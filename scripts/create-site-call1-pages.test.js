@@ -176,6 +176,16 @@ class FakeAnthropic {
 }
 FakeAnthropic.default = FakeAnthropic;
 FakeAnthropic.Anthropic = FakeAnthropic;
+// #1613 —— cfg.failRevParse：「Site created」锚点读 HEAD 的那一次 `git rev-parse --short HEAD` 失败（下面 r2 那一格的触发器）。
+//    create-site.js 在加载时解构 `execSync` ⟹ 这里先换掉模块上那个属性。
+if (cfg.failRevParse) {
+  const childProcess = require('child_process');
+  const realExecSync = childProcess.execSync;
+  childProcess.execSync = function (cmd) {
+    if (String(cmd) === 'git rev-parse --short HEAD') { const e = new Error('rev-parse refused by test stub'); e.stderr = Buffer.from('fatal: rev-parse refused by test stub\n'); throw e; }
+    return realExecSync.apply(this, arguments);
+  };
+}
 const orig = Module._load;
 Module._load = function (request) {
   if (request === '@anthropic-ai/sdk') return FakeAnthropic;
@@ -414,23 +424,20 @@ check(`AC 重试：两次都失败 ⟹ 建站成功，那一页发骨架页 + �
   assert.deepStrictEqual((pg.blocks || pg.sections).map((b) => b.type), ['page-header', 'features', 'cta']);
   assert.strictEqual(pg.seo && pg.seo.placeholder, true);
 });
-// r2 那一格守的是 fatal() 退出前把 stdout 冲干净。#1596 之后「一页两次都失败」不再 fatal，换一个仍然会 fatal、而且
-// 在全部提示词发完之后才 fatal 的地方：`Git commit failed`。#1598 起每个阶段各提交一次，第一次（plan）在每页那几通之前
-// ⟹ 工作树做成真 git 仓，commit-msg 钩子只放行 plan 那一次，pages 阶段那次提交（全部 1 + N 份提示词都发完之后）被拒。
-const rejectAfterPlan = (work) => {
+// r2 那一格守的是 fatal() 退出前把 stdout 冲干净。要一个仍然会 fatal、而且在全部提示词发完之后才 fatal 的地方：
+// #1596 之后「一页两次都失败」不再 fatal，#1613 之后阶段提交失败也不再 fatal ⟹ 用最后那一处：五个阶段都提交完之后，
+// 「Site created」锚点读 HEAD 失败（`Reading the site commit failed`）。工作树做成真 git 仓（提交都放行），桩让那一次 rev-parse 失败。
+const gitRepo = (work) => {
   const git = (...a) => cp.execFileSync('git', a, { cwd: work, stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'stub@example.com');
   git('config', 'user.name', 'stub');
-  git('config', 'core.hooksPath', '.git/hooks');
-  fs.mkdirSync(path.join(work, '.git', 'hooks'), { recursive: true });
-  fs.writeFileSync(path.join(work, '.git', 'hooks', 'commit-msg'), '#!/bin/sh\ngrep -q "(phase: plan " "$1" || { echo "rejected by test hook" >&2; exit 1; }\n', { mode: 0o755 });
 };
-const Cx = run('flush', PAYLOAD({ repoUrl: 'https://github.com/test/not-a-repo.git' }), {}, rejectAfterPlan);
+const Cx = run('flush', PAYLOAD({ repoUrl: 'https://github.com/test/not-a-repo.git' }), { failRevParse: true }, gitRepo);
 check('r2：建站失败退出时 stdout 没丢尾巴 —— 全部 1 + N 份 Call 1 提示词都到了，最后一条事件就是 error', () => {
   // 失败前一口气发了 1 + N 份大提示词事件；stdout 不是阻塞写时 process.exit 会丢掉还没冲出去的尾巴（含 error 那条）。
   assert.notStrictEqual(Cx.rc, 0);
-  assert.ok(Cx.error.startsWith('Git commit failed'), Cx.error);
+  assert.ok(Cx.error.startsWith('Reading the site commit failed'), Cx.error);
   assert.strictEqual(call1Prompts(Cx.events).length, 1 + N, call1Prompts(Cx.events).map((p) => p.name).join(' · '));
   assert.strictEqual(Cx.events[Cx.events.length - 1].event, 'error');
 });

@@ -1414,6 +1414,10 @@ async function main() {
   // 🔴 推送失败不终止建站、也不回滚标记：没推上去的那个提交在别的克隆里连标记一起不存在，续跑按构造读不到「有标记没产物」。
   //    这里只打一行日志、不发 warn 事件 —— 「存进仓了没有」的权威读数仍是 entrypoint.sh 最后那一次前台推送（#1592）：
   //    它会把这里没推上去的阶段一起带上去，推不上去时由它发 warn kind=unarchived。
+  // 🔴 #1613 —— 提交失败也不终止建站（付了钱）：发一条 degraded（step=git-commit），往下建。`git add site/ public/` 是累积的 ⟹
+  //    前四个阶段漏下的由下一次提交带上；最后一个阶段之后没有下一次 ⟹ 那一次失败时它的产物只在工作区。所以 entrypoint.sh 判
+  //    「存进仓了没有」不再只看 push 的 rc，还看 site/ public/ 下有没有没提交的东西（§unsaved_build_files）。
+  //    返回这一次提交成没成 —— 最后一个阶段那次失败时不发「Site created」锚点（见下面那处）。
   // 🔴 token 只进这一条 git 命令的环境变量（克隆里 .git/config 的 credential helper 读 GIT_TOKEN，#1558），不进参数。
   const { repoUrl } = input;
   const checkpoint = (phase, state) => {
@@ -1423,9 +1427,10 @@ async function main() {
     buildPhases.writePhaseFiles(siteDir, phase, saved);
     if (!repoUrl) {
       debug(`[resume] 阶段 ${phase} 已存档（没有 repoUrl，不提交）`);
-      return;
+      return false;
     }
     const gitOpts = { cwd: rootDir, stdio: 'pipe' };
+    let committed = true;
     try {
       // TICKET-170: include public/ so AI-generated logo (159) + business photos
       // (161/164) persist into the per-site git repo. Without this, container
@@ -1433,8 +1438,11 @@ async function main() {
       execSync('git add site/ public/', gitOpts);
       execSync(`git commit -m "Generate site: ${siteId} (phase: ${buildPhases.phaseCommitLabel(phase)})"`, gitOpts);
     } catch (e) {
+      committed = false;
       debug('Git commit failed:', e.stderr?.toString() || e.message);
-      fatal('Git commit failed: ' + (e.stderr?.toString()?.split('\n')[0] || e.message));
+      // 原因取 git 说的第一行（「nothing to commit」那类在 stdout 上），都没有就取退出码。
+      const said = [e.stderr, e.stdout].map((b) => (b ? b.toString() : '')).join('\n').split('\n').map((l) => l.trim()).find(Boolean);
+      degrade('git-commit', phase, said || e.message || `exit ${e.status}`);
     }
     try {
       execSync('git push origin main', { ...gitOpts, timeout: 120000, env: { ...process.env, GIT_TOKEN: input.gitToken || '', GIT_TERMINAL_PROMPT: '0' } });
@@ -1446,6 +1454,7 @@ async function main() {
       if (input.gitToken) why = why.split(input.gitToken).join('***');
       debug(`[resume] ⚠️ 阶段 ${phase} 已提交、推送失败（建站照常往下走，entrypoint.sh 最后那一次推送会一起带上去）：${why}`);
     }
+    return committed;
   };
 
   // #1598 —— plan / pages / images 三个阶段都在 generateContent 里；images 已存档 ⟹ 整个 Call 1 跳过，content 就是存档里那份。
@@ -1712,14 +1721,22 @@ async function main() {
   // ─── Git Commit —— #1598 起它是最后一个阶段（secondaryLocales）的存档点：删掉存档、标记写成 secondaryLocales，提交、推送。
   //     entrypoint.sh 之后那一次前台推送仍是「存进仓了没有」的权威读数（#1592）。
   progress('Committing to git...', 80);
-  checkpoint('secondaryLocales', null);
+  const lastCommitted = checkpoint('secondaryLocales', null);
   if (repoUrl) {
     try {
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
       // TICKET-142: emit chat-message anchor for the initial commit so the
       // dashboard's first user edit can Revert back to the AI-generated site.
-      const initialCommitHash = execSync('git rev-parse --short HEAD', gitOpts).toString().trim();
-      emit('chat-message', { role: 'system', content: 'Site created', commit_hash: initialCommitHash });
+      // 🔴 #1613 —— 最后一个阶段那次提交失败时不发：HEAD 那时不是 AI 建好的那个站（全失败 = 站仓的 Initial commit，只这一次失败 =
+      //    少了第二语言），老板第一次编辑后点 Revert 会回到那里。宁可没有锚点：后端对「没有更早的提交」回 nil
+      //    （manager/db.go §storeGetPrevAssistantMessage），前端 rowCanRevert 要它非空 ⟹ Revert 入口不出现。
+      //    前四个阶段里失败、最后一次成功时照发 —— `git add site/ public/` 累积，那时 HEAD 就是完整的站。
+      if (lastCommitted) {
+        const initialCommitHash = execSync('git rev-parse --short HEAD', gitOpts).toString().trim();
+        emit('chat-message', { role: 'system', content: 'Site created', commit_hash: initialCommitHash });
+      } else {
+        debug('[#1613] 最后一个阶段没提交上 ⟹ 不发「Site created」锚点');
+      }
       const repoPageUrl = repoUrl.replace(/\.git$/, '');
       emit('repo', { url: repoPageUrl });
     } catch (e) {
