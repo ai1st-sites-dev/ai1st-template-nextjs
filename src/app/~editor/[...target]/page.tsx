@@ -119,7 +119,8 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       refs={src.refs}
       slugs={src.slugs}
       pages={editorPages(locales, pagesByLocale)}
-      forms={getForms(locale).map((f) => ({ id: f.id, name: f.name }))}
+      // #1634 —— 「Edit this form」面板要三句文字的现值（没写的键 = 用默认，面板里那格就是空的）。
+      forms={getForms(locale).map((f) => ({ id: f.id, name: f.name, ...(f.buttonText ? { buttonText: f.buttonText } : {}), ...(f.successMessage ? { successMessage: f.successMessage } : {}) }))}
     />
   );
 }

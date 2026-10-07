@@ -76,7 +76,7 @@ import {
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import BgPicker from '../BgPicker';
-import { formIdOptions } from '../../../scripts/lib/site-forms.js';
+import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { brand as siteBrand } from '@/lib/config';
 
@@ -295,8 +295,8 @@ function linkHrefField(label: string, sources: string[]): Field {
   } as unknown as Field;
 }
 
-/** 站级表单库里一张的摘要（编辑器只要下拉要用的两样）。 */
-export interface EditorFormChoice { id: string; name: string }
+// #1634 —— 表单库那一张的摘要搬到 FormCopyEditor.tsx（面板要三句文字的现值），这里照旧导出这个名字。
+export type { EditorFormChoice } from './FormCopyEditor';
 
 /** manifest 的一个槽位 → 一个 Puck 字段。控件由 `kind` 决定（editor-schema.js 文件头那张表）。
  *  #1471 —— `form` 槽的 `id`（选站级表单库里哪一张）画成下拉：选项 = 这个语言的表单名（`site-forms.js` §formIdOptions）。 */
@@ -350,8 +350,15 @@ function puckField(f: EditorField, forms: EditorFormChoice[] = []): Field {
       return {
         type: 'object',
         label: f.label,
+        // #1634 —— `form.id`：下拉（不止一张表单时）+「Edit this form」，表单库从 FormsContext 现取（改了表单名下拉跟着变）。
         objectFields: Object.fromEntries(f.subs.map((s) => [s.sub, f.slot === 'form' && s.sub === 'id'
-          ? ({ type: 'select', label: 'Form', options: formIdOptions(forms) } as Field)
+          ? ({
+            type: 'custom',
+            label: 'Form',
+            render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: string) => void; readOnly?: boolean }) => (
+              <FormIdField value={value} onChange={onChange} readOnly={readOnly} />
+            ),
+          } as unknown as Field)
           : subField(s)])),
       } as Field;
     case 'list':
@@ -1058,7 +1065,11 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   // （`editor-convert.js` §puckToPage 的 `moved`）。换一份新画布（open / external）时清空。
   const movedRef = useRef<Set<string>>(new Set());
   // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「还有没有要存的」要跟它比，不跟打开时比）。
-  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null } | null>(null);
+  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null; forms?: FormCopyEdit | null } | null>(null);
+  // #1634 —— 这个语言的表单库（存成功之后换成新的，下拉和面板读它）；面板开着的是哪一张；Done 了、还没交出去的那一笔。
+  const [formList, setFormList] = useState<EditorFormChoice[]>(forms);
+  const [formEditing, setFormEditing] = useState<string | null>(null);
+  const pendingFormRef = useRef<FormCopyEdit | null>(null);
   const [canvas, setCanvas] = useState<{ key: number; data: PuckLikeData }>({ key: 0, data: initialData });
   const dispatchRef = useRef<PuckDispatch | null>(null);
   const getPuckRef = useRef<GetPuck | null>(null);
@@ -1181,6 +1192,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
           // 原因（`text`）dashboard 已经在面板条的存盘状态里说了，这里不再抄一遍。
           answerLeave(pl.id, false, 'Your changes could not be saved, so the editor stayed on this page.');
         }
+        // #1634 —— 没存上的那笔表单文案不留着重发（被拒的话再发一百次也是同一句）：丢掉，原因已经在状态栏，老板重新打开面板再改。
+        if (d.ok !== true && sendingRef.current?.forms && pendingFormRef.current === sendingRef.current.forms) pendingFormRef.current = null;
         if (d.ok !== true) { sendingRef.current = null; reportPending(undefined); }
         return;
       }
@@ -1232,6 +1245,12 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         const sharedOwn = sent?.shared ? sharedOwnAfter({ initial: b.initial, own: b.sharedOwn, changes: sent.shared }) : b.sharedOwn;
         baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved, siteBlocks: lib, sharedOwn };
         if (sent?.shared) setSharedInfo((x) => ({ ...x, siteBlocks: lib }));
+        // #1634 —— 表单文案进了 forms.json：手上的表单库跟着换（下拉和面板下次打开读的是新的），等发的那一笔清掉。
+        if (sent?.forms) {
+          const edit = sent.forms;
+          setFormList((list) => applyFormCopyEdit(list, edit));
+          if (pendingFormRef.current === edit) pendingFormRef.current = null;
+        }
         sendingRef.current = null;
         // #1442 —— 画布上那份进了文件（没交页面 = 页面本来就跟文件一样），画布跟文件又是一份了。
         if (sent) setKept(null);
@@ -1370,8 +1389,10 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     const root = puckRootChanges({ initial: base.initial, now: data as never, schema });
     const pageChanged = !deepEqual(json, base.saved);
     const hasShared = Object.keys(shared).length > 0;
-    if (!pageChanged && Object.keys(root).length === 0 && !hasShared) return null;
-    return { base, json, shared, root, pageChanged, hasShared };
+    // #1634 —— 面板里 Done 了、还没交出去的表单文案：它自己就算一笔（只改表单的那一笔不带页面）。
+    const forms = pendingFormRef.current;
+    if (!pageChanged && Object.keys(root).length === 0 && !hasShared && !forms) return null;
+    return { base, json, shared, root, pageChanged, hasShared, forms };
   }
 
   /**
@@ -1399,9 +1420,9 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       if (keptRef.current && keptRef.current !== 'stale') setKept(null);
       return 'nothing';
     }
-    const { json, shared, root, pageChanged, hasShared } = plan;
+    const { json, shared, root, pageChanged, hasShared, forms } = plan;
     setStatus({ kind: 'saving', text: 'Saving…' });
-    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null };
+    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null, forms: forms || null };
     window.parent.postMessage({ type: 'ai1st:editor-save', ...saveFields(plan) }, trustedOrigin);
     reportPending(null);
     return 'sent';
@@ -1409,15 +1430,22 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
 
   /** 一笔存盘消息的正文（`ai1st:editor-save` 与 §reportPending 递的待存那份同一个形状）。 */
   function saveFields(plan: NonNullable<ReturnType<typeof planSave>>): Record<string, unknown> {
-    const { base, json, shared, root, pageChanged, hasShared } = plan;
+    const { base, json, shared, root, pageChanged, hasShared, forms } = plan;
     // #1454 —— 这一笔说人话，manager 拿它写 AI chat 里那条手改记录。🔴 算不出来也照存：它只是说明，不是存盘的一部分。
     let summary = '';
-    try {
+    // #1634 —— 只改了表单文案的那一笔没有页面 / 外壳 / 共用块可说：describeSave 会回一句通用话，那句不要。
+    if (pageChanged || Object.keys(root).length || hasShared) try {
       summary = describeSave({
         saved: base.saved, json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
         schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_FIELD_LABELS, shapeLabel: SHAPE_FIELD_LABEL,
       });
     } catch { /* 记录退回 manager 那句通用话 */ }
+    // #1634 —— 改了表单文案：说一句是哪张表单（只改了表单时它就是这一笔的全部说明）。
+    if (forms) {
+      const f = formList.find((x) => x.id === forms.id);
+      const what = `Form "${(f && f.name) || forms.id}"`;
+      summary = summary ? `${summary}; ${what}` : what;
+    }
     // 不带文件路径：写哪个文件由站里的脚本按 page/locale 自己算（`write-page.js` 文件头说为什么）。
     return {
       page,
@@ -1425,6 +1453,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       ...(pageChanged ? { json, baseHash: base.hash } : {}),
       ...(Object.keys(root).length ? { root } : {}),
       ...(hasShared ? { shared } : {}),
+      ...(forms ? { forms } : {}),
       ...(summary ? { summary } : {}),
     };
   }
@@ -1563,9 +1592,14 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
   };
 
+  // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
+  const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };
+  const editingForm = formEditing ? formList.find((f) => f.id === formEditing) : undefined;
+
   return (
     <SharedInfoContext.Provider value={sharedInfo}>
     <EditorUiContext.Provider value={ui}>
+    <FormsContext.Provider value={formsCtx}>
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
         key={canvas.key}
@@ -1579,7 +1613,21 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         permissions={locked ? LOCKED_PERMISSIONS : OPEN_PERMISSIONS}
         onPublish={() => { if (!locked) flushAutosave(); }}
       />
+      {editingForm && (
+        <FormCopyDialog
+          form={editingForm}
+          onCancel={() => setFormEditing(null)}
+          onDone={(edit) => {
+            setFormEditing(null);
+            if (!edit) return;
+            pendingFormRef.current = edit;
+            reportPending(undefined);
+            flushAutosave();
+          }}
+        />
+      )}
     </div>
+    </FormsContext.Provider>
     </EditorUiContext.Provider>
     </SharedInfoContext.Provider>
   );

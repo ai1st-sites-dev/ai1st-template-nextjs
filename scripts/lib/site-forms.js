@@ -175,4 +175,4 @@ function formIdOptions(forms) {
   return [{ label: `First form${first}`, value: '' }, ...list.map((f) => ({ label: f.name || f.id, value: f.id }))];
 }
 
-module.exports = { FORM_FIELDS, FORM_MODES, DEFAULT_SITE_FORMS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };
+module.exports = { FORM_FIELDS, FORM_MODES, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };
