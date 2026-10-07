@@ -190,7 +190,6 @@ function call1({ aboutBody = 'We started small and grew by word of mouth.', abou
       { id: 'water-heaters', name: 'Water Heaters', shortDescription: 'Repairs', fullDescription: 'We fix heaters.', icon: 'flame', features: ['b'], products: [] },
     ],
     forms: [
-      { id: 'quote', name: 'Get a quote', buttonText: 'Send', successMessage: 'Thanks!' },
       { id: 'contact', name: 'Contact us', buttonText: 'Send', successMessage: 'Thanks!' },
     ],
     pages: [

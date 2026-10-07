@@ -7,11 +7,11 @@
 // 同构、同目录），`sync-config.js` 读进 `config-data.ts`。hero / footer / contact / cta 的 `form`
 // 槽只有 `{ id? }`（选哪一张），露多少是旋钮 `data.options.form`（none | teaser | full）。
 //
-//   [ { id: "quote", name: "Get a free quote", fields: ["name","phone","service"], primary: "phone",
+//   [ { id: "contact", name: "Contact us", fields: ["name","phone","email","message"], primary: "phone",
 //       buttonText, successMessage, redirect? } ]
 //
 // 🔴 这一份被三处用：渲染（`src/components/BlockLeadForm.tsx` 选表单）、校验（`block-manifest.js §validateSite`）、
-//    建站（`create-site.js` 写默认那两张）。三处各写一份的话，分歧那天谁都不会红。
+//    建站（`create-site.js` 写默认那一张）。三处各写一份的话，分歧那天谁都不会红。
 // 🔴 `id` / `fields` / `primary` 各语言必须一致（`formsProblems`）：块里写的是 `id`，某个语言少一张 = 那个语言下指空。
 //    `name` / `buttonText` / `successMessage` 是给访客看的文字，各语言各自翻。
 
@@ -21,25 +21,21 @@ const FORM_FIELDS = ['name', 'phone', 'email', 'message', 'service'];
 const FORM_MODES = ['none', 'teaser', 'full'];
 
 /**
- * 新站默认的两张（做什么 3）：`quote` 在前 —— 块里 `form.id` 为空时取第一张。
+ * 新站默认的表单：#1635 起只有一张 `contact`（Chris 2026-10-06「一个 contact 就够了」）。块里 `form.id` 为空时取第一张，也就是它。
+ * 短版（teaser）只露 `primary` 那一格 = 电话 + 按钮，跟原来 `quote` 那张的「回电请求」一样；长版是整张四格。
+ * 「电话和邮箱至少填一个」由 BlockLeadForm.tsx §submit 管，两格都不是必填。
+ * 以前是两张（`quote`：姓名 / 电话 / 需求下拉，在前；`contact`：姓名 / 邮箱 / 留言）—— 从旧的 quote-form / contact-form 两个块搬来的。
+ * 「需求」下拉的选项来自服务清单，AI 建站时写不准，默认不再用；`service` 字段仍在 FORM_FIELDS 里（manager/form_channel.go 认它）。
  * 文字是英文底稿，建站提示词让 AI 按行业改文案、不改字段。
  */
 const DEFAULT_SITE_FORMS = [
   {
-    id: 'quote',
-    name: 'Get a free quote',
-    fields: ['name', 'phone', 'service'],
-    primary: 'phone',
-    buttonText: 'Get a free quote',
-    successMessage: "Thanks! We've got your details and will be in touch.",
-  },
-  {
     id: 'contact',
     name: 'Contact us',
-    fields: ['name', 'email', 'message'],
-    primary: 'email',
-    buttonText: 'Send message',
-    successMessage: 'Thanks for your message — we will get back to you shortly.',
+    fields: ['name', 'phone', 'email', 'message'],
+    primary: 'phone',
+    buttonText: 'Get in touch',
+    successMessage: 'Thanks — we will get back to you shortly.',
   },
 ];
 

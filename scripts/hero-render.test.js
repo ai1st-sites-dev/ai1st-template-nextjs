@@ -319,11 +319,11 @@ console.log('\n── r3 键写歪（validateSite）');
   // 改对之后放行 —— 同一份内容，键写到该写的地方。
   const fixed = {
     ...qa2, bg: '#0f172a', options: { textAlign: 'left', image: 'left', form: 'full' },
-    form: { id: 'quote' },
+    form: { id: 'contact' },
   };
   check(one(fixed).length === 0, '同一份内容改对（bg 顶层、options.form、form 只写 id）⟹ 0 条', JSON.stringify(one(fixed)));
-  check(one({ headline: 'H', options: { form: 'none' }, form: { id: 'quote' } }).length === 0, '明写 options.form: "none" ⟹ 不报（是明说不要）');
-  check(one({ headline: 'H', form: { id: 'quote' } }, 'lead-form').length === 0, '形态 lead-form 自带 full ⟹ 不写 options.form 也放行');
+  check(one({ headline: 'H', options: { form: 'none' }, form: { id: 'contact' } }).length === 0, '明写 options.form: "none" ⟹ 不报（是明说不要）');
+  check(one({ headline: 'H', form: { id: 'contact' } }, 'lead-form').length === 0, '形态 lead-form 自带 full ⟹ 不写 options.form 也放行');
   const retired = one({ headline: 'H', options: { align: 'left', reverse: true, image: 'normal' } });
   check(retired.some((p) => p.includes('"align"')) && retired.some((p) => p.includes('"reverse"')) && retired.some((p) => p.includes('options.image') && p.includes('"normal"')),
     '#1470 退役的写法各报一条：options.align / options.reverse / image: "normal"', JSON.stringify(retired));
@@ -408,8 +408,8 @@ console.log('\n── AC6 表单（提交）');
     const forms = require(path.join(NEXT, 'scripts', 'lib', 'demo-content')).DEMO_SITE.forms;
     const q = await run('teaser', forms);
     const qb = q.calls[0] ? JSON.parse(q.calls[0].init.body) : {};
-    check(JSON.stringify(q.ids) === JSON.stringify(['hro-phone']) && qb.phone === '416-555-0199' && qb.meta && qb.meta.formId === 'quote',
-      `表单库在 + form.id 空 ⟹ 用第一张 quote：teaser 露 phone、请求体 meta = ${JSON.stringify(qb.meta)}`);
+    check(JSON.stringify(q.ids) === JSON.stringify(['hro-phone']) && qb.phone === '416-555-0199' && qb.meta && qb.meta.formId === 'contact',
+      `表单库在 + form.id 空 ⟹ 用第一张（#1635 起唯一那张 contact）：teaser 露 phone、请求体 meta = ${JSON.stringify(qb.meta)}`);
     check(q.html.includes(forms[0].successMessage.replace(/'/g, '&#x27;')) || q.html.includes(forms[0].successMessage),
       '成功提示是站级那张表单的 successMessage');
     // #1510 —— 提交还带那张表单此刻的名字和露法（Conversations / Customers 据此显示表单名，Customers 据 teaser 标「回电请求」）。

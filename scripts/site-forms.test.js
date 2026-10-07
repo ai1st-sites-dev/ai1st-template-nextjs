@@ -6,10 +6,10 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 管哪几条：
- *   AC1 validateSite —— form.id 指空 / fields 词表外 / primary 不在 fields / 两个语言 quote.fields 不同，各报一条
- *   AC2 同一张 quote，四个块（hero / footer / contact / cta）：full 全部字段、teaser 只 phone + 按钮；
- *       改 quote.buttonText 一处，四个块的 HTML 都含新文案；form=none 没有 <form>（阳性对照：切回 teaser 就有）
- *   AC4 新建站（skipAI，真跑 create-site.js）：每个语言都有 forms.json、quote 在 contact 前；form.id 空 ⟹ quote 的按钮文字
+ *   AC1 validateSite —— form.id 指空 / fields 词表外 / primary 不在 fields / 两个语言 contact.fields 不同，各报一条
+ *   AC2 同一张（第一张 contact），四个块（hero / footer / contact / cta）：full 全部字段、teaser 只 phone + 按钮；
+ *       改 contact.buttonText 一处，四个块的 HTML 都含新文案；form=none 没有 <form>（阳性对照：切回 teaser 就有）
+ *   AC4 新建站（skipAI，真跑 create-site.js）：每个语言都有 forms.json、恰好一张 contact（#1635）；form.id 空 ⟹ 第一张的按钮文字
  *   AC5 老站（删掉 forms.json）跑真的 sync-config.js ⟹ 退出码 0，带表单的块画 BlockLeadForm 的内置默认字段
  *   AC7 page-deps：hero / contact / cta 都在 types 里、unaccounted 为空、BlockLeadForm 那条豁免不在了
  *   #1511 表单库补两条：fields 里 phone / email 都没有 ⟹ 报；redirect 不在 href-allowed.js 白名单 ⟹ 报（白名单只有一份）
@@ -83,28 +83,32 @@ try {
   ({ DEMO_CONTENT: DEMO, DEMO_SITE } = require(path.join(NEXT, 'scripts', 'lib', 'demo-content')));
   for (const b of ['hero', 'footer', 'contact', 'cta']) C[b] = require(path.join(NEXT, 'blocks', b, 'Section.tsx')).default;
 } catch (e) { die(`载入失败: ${e.stack || e.message}`); }
-if (!Array.isArray(DEMO_SITE.forms) || DEMO_SITE.forms[0].id !== 'quote') die('演示生意的表单库（DEMO_SITE.forms）不在或第一张不是 quote');
+if (!Array.isArray(DEMO_SITE.forms) || DEMO_SITE.forms[0].id !== 'contact') die('演示生意的表单库（DEMO_SITE.forms）不在或第一张不是 contact');
+// #1635 —— 演示生意（和新站默认）只剩一张 `contact`。下面测「表单库机制」的几段要两张才量得出来（按 id 取哪一张、
+//    选了另一张的块不跟着第一张变），用一份内联的两张：第一张就是演示那张 contact，第二张 `booking` 是旧 quote 的形状。
+const LIB = [clone(DEMO_SITE.forms[0]),
+  { id: 'booking', name: 'Book a visit', fields: ['name', 'phone', 'service'], primary: 'phone', buttonText: 'Book my visit', successMessage: 'Thanks! We will call you back.' }];
 
 // ══ AC1：validateSite ════════════════════════════════════════════════════════════════════════════
 console.log('── AC1 validateSite');
 {
   const page = (form) => [{ slug: 'home', blocks: [{ type: 'cta', data: { ...clone(DEMO['cta']), form, options: { form: 'teaser' } } }] }];
   const v = (pages, forms) => manifestLib.validateSite({ pages, forms, scope: 'edit' }).problems.filter((p) => /form\.id|forms\.json/.test(p));
-  const F = clone(DEMO_SITE.forms);
-  check(v(page({ id: 'quote' }), F).length === 0 && v(page({}), F).length === 0, '对照：form.id = quote / 留空 ⟹ 0 条');
+  const F = clone(LIB);
+  check(v(page({ id: 'contact' }), F).length === 0 && v(page({}), F).length === 0, '对照：form.id = contact / 留空 ⟹ 0 条');
   const dangling = v(page({ id: 'nope' }), F);
   check(dangling.length === 1 && /form\.id "nope"/.test(dangling[0]), 'form.id 指向不存在的表单 ⟹ 报一条', dangling.join(' | '));
   const vocab = clone(F); vocab[0].fields = ['name', 'phone', 'fax'];
   const vr = v(page({}), vocab);
   check(vr.length === 1 && /词表外/.test(vr[0]) && /fax/.test(vr[0]), 'fields 含词表外的值 ⟹ 报一条', vr.join(' | '));
-  const prim = clone(F); prim[0].primary = 'email';
+  const prim = clone(F); prim[0].primary = 'service'; // 词表里有、这一张没有（#1635 起 contact 带 email 了，改成 email 造不出「不在 fields」）
   const pr = v(page({}), prim);
   check(pr.length === 1 && /primary/.test(pr[0]), 'primary 不在 fields ⟹ 报一条', pr.join(' | '));
   const zh = clone(F); zh[0].fields = ['name', 'phone'];
   const lr = v(page({}), { en: F, zh });
-  check(lr.length === 1 && /quote/.test(lr[0]) && /en/.test(lr[0]) && /zh/.test(lr[0]), 'en 与 zh 两份 forms.json 的 quote.fields 不同 ⟹ 报一条', lr.join(' | '));
+  check(lr.length === 1 && /contact/.test(lr[0]) && /en/.test(lr[0]) && /zh/.test(lr[0]), 'en 与 zh 两份 forms.json 的 contact.fields 不同 ⟹ 报一条', lr.join(' | '));
   check(v(page({}), { en: F, zh: clone(F) }).length === 0, '对照：两份结构相同（文字可以不同）⟹ 0 条');
-  const old = v(page({ id: 'quote' }), []);
+  const old = v(page({ id: 'contact' }), []);
   check(old.length === 1, '站没有 forms.json（空库）+ 块里写了 form.id ⟹ 报一条（指空）', old.join(' | '));
   check(v(page({ id: 'nope' }), undefined).length === 0, '调用方没传 forms ⟹ 这一条不查（不是空库）');
   // build 那一档只说不拦：同一个毛病进 warnings、不进 problems。
@@ -115,17 +119,17 @@ console.log('── AC1 validateSite');
 // ══ #1511：表单要能联系到人 · redirect 只收安全地址 ══════════════════════════════════════════════════
 console.log('\n── #1511 formListProblems 补的两条');
 {
-  const page = [{ slug: 'home', blocks: [{ type: 'cta', data: { ...clone(DEMO['cta']), form: { id: 'quote' }, options: { form: 'teaser' } } }] }];
+  const page = [{ slug: 'home', blocks: [{ type: 'cta', data: { ...clone(DEMO['cta']), form: { id: 'contact' }, options: { form: 'teaser' } } }] }];
   const v = (forms, scope = 'edit') => manifestLib.validateSite({ pages: page, forms, scope });
   const mine = (r) => r.filter((p) => /phone 也没有 email|redirect/.test(p));
-  const F = clone(DEMO_SITE.forms);
-  check(mine(v(F).problems).length === 0, '对照：演示站的表单库（quote 有 phone、contact 有 email，都不带 redirect）⟹ 0 条');
-  check(siteForms.formListProblems(siteForms.DEFAULT_SITE_FORMS).length === 0, '对照：新站默认那两张 ⟹ 0 条（加这两条不会把建站打死）');
+  const F = clone(LIB);
+  check(mine(v(F).problems).length === 0, '对照：两张的表单库（contact 有 phone 和 email、booking 有 phone，都不带 redirect）⟹ 0 条');
+  check(siteForms.formListProblems(siteForms.DEFAULT_SITE_FORMS).length === 0, '对照：新站默认那一张 ⟹ 0 条（加这两条不会把建站打死）');
 
   // ① 联系得到人：phone / email 都没有 ⟹ 一条；单变量加回任一个 ⟹ 0 条。
   const noContact = clone(F); noContact[0].fields = ['name', 'message']; noContact[0].primary = 'name';
   const nc = mine(v(noContact).problems);
-  check(nc.length === 1 && /"quote"/.test(nc[0]), 'fields ["name","message"]（没有 phone 也没有 email）⟹ 报一条，点名 quote', nc.join(' | '));
+  check(nc.length === 1 && /"contact"/.test(nc[0]), 'fields ["name","message"]（没有 phone 也没有 email）⟹ 报一条，点名 contact', nc.join(' | '));
   for (const add of ['phone', 'email']) {
     const ok1 = clone(noContact); ok1[0].fields = ['name', 'message', add];
     check(mine(v(ok1).problems).length === 0, `对照：同一张加上 ${add} ⟹ 0 条`);
@@ -135,7 +139,7 @@ console.log('\n── #1511 formListProblems 补的两条');
   const withRedirect = (r) => { const x = clone(F); x[0].redirect = r; return x; };
   for (const r of ['javascript:alert(document.cookie)', '//evil.com', 'data:text/html,x', ' /thanks', 42]) {
     const got = mine(v(withRedirect(r)).problems);
-    check(got.length === 1 && /redirect/.test(got[0]) && /"quote"/.test(got[0]), `redirect ${JSON.stringify(r)} ⟹ 报一条`, got.join(' | '));
+    check(got.length === 1 && /redirect/.test(got[0]) && /"contact"/.test(got[0]), `redirect ${JSON.stringify(r)} ⟹ 报一条`, got.join(' | '));
   }
   for (const r of ['/thanks', 'https://example.com/thanks', 'tel:+19055550199', '', null]) {
     check(mine(v(withRedirect(r)).problems).length === 0, `对照：redirect ${JSON.stringify(r)} ⟹ 0 条`);
@@ -159,7 +163,7 @@ console.log('\n── #1511 formListProblems 补的两条');
   check(/\brequire\s*\(/.test(lhSrc), '反向对照：同一把尺在 link-href.js 上读到 require（证明这把尺会红）');
 }
 
-// ══ AC2：四个块、同一张 quote ═══════════════════════════════════════════════════════════════════
+// ══ AC2：四个块、同一张（第一张 contact） ═══════════════════════════════════════════════════════════════════
 console.log('\n── AC2 四个块共用站级那一张');
 const CELLS = {
   'hero': { shape: 'lead-form', prefix: 'hro' },
@@ -183,34 +187,34 @@ const html = (type, mode, formId) => {
 };
 const ids = (h, prefix) => Array.from(h.matchAll(new RegExp(`<(?:input|select|textarea)[^>]*\\bid="${prefix}-([a-z]+)"`, 'g'))).map((m) => m[1]).filter((x) => x !== 'hp');
 {
-  const F = clone(DEMO_SITE.forms);
+  const F = clone(LIB);
   globalThis.__SITE_FORMS__ = F;
   for (const [type, { prefix }] of Object.entries(CELLS)) {
-    const full = html(type, 'full', 'quote');
-    const teaser = html(type, 'teaser', 'quote');
-    check(JSON.stringify(ids(full, prefix)) === JSON.stringify(F[0].fields) && full.includes('data-form-id="quote"'),
-      `${type} · full：quote 的全部字段（${ids(full, prefix).join(' / ')}）`);
+    const full = html(type, 'full', 'contact');
+    const teaser = html(type, 'teaser', 'contact');
+    check(JSON.stringify(ids(full, prefix)) === JSON.stringify(F[0].fields) && full.includes('data-form-id="contact"'),
+      `${type} · full：contact 的全部字段（${ids(full, prefix).join(' / ')}）`);
     check(JSON.stringify(ids(teaser, prefix)) === JSON.stringify(['phone']) && /<button[^>]*type="submit"/.test(teaser),
       `${type} · teaser：只有 phone + 按钮（${ids(teaser, prefix).join(' / ')}）`);
-    const contact = html(type, 'full', 'contact');
-    check(JSON.stringify(ids(contact, prefix)) === JSON.stringify(F[1].fields) && contact.includes(F[1].buttonText),
-      `${type} · form.id = contact ⟹ 换成那一张（${ids(contact, prefix).join(' / ')}，按钮「${F[1].buttonText}」）`);
-    const none = html(type, 'none', 'quote');
+    const second = html(type, 'full', 'booking');
+    check(JSON.stringify(ids(second, prefix)) === JSON.stringify(F[1].fields) && second.includes(F[1].buttonText),
+      `${type} · form.id = booking ⟹ 换成那一张（${ids(second, prefix).join(' / ')}，按钮「${F[1].buttonText}」）`);
+    const none = html(type, 'none', 'contact');
     check(!/<form\b/.test(none) && (type !== 'footer' || !none.includes('data-footer-form')),
       `${type} · form=none：没有 <form>${type === 'footer' ? '、也没有 data-footer-form' : ''}`);
-    check(/<form\b/.test(html(type, 'teaser', 'quote')), `${type} · 阳性对照：同一份数据切回 teaser ⟹ <form> 出现`);
+    check(/<form\b/.test(html(type, 'teaser', 'contact')), `${type} · 阳性对照：同一份数据切回 teaser ⟹ <form> 出现`);
   }
-  // 改 quote.buttonText 一处 ⟹ 四个块都变。
+  // 改第一张（contact）的 buttonText 一处 ⟹ 四个块都变。
   const before = Object.keys(CELLS).map((t) => html(t, 'teaser'));
   const NEW = 'Book my free inspection';
   globalThis.__SITE_FORMS__ = clone(F); globalThis.__SITE_FORMS__[0].buttonText = NEW;
   const after = Object.keys(CELLS).map((t) => html(t, 'teaser'));
   const missing = Object.keys(CELLS).filter((t, i) => !after[i].includes(NEW) || before[i].includes(NEW));
-  check(missing.length === 0, `改 quote.buttonText 一处 ⟹ 四个块的 HTML 都含「${NEW}」`, `没变的：${missing.join(' · ')}`);
-  // 反向对照：块写了 form.id = contact ⟹ 改 quote 的文字它不跟着变（证明它真按 id 取，不是恒取第一张）。
-  check(!html('cta', 'teaser', 'contact').includes(NEW), '反向对照：选了 contact 的块不跟着 quote 变');
-  // AC4 ②：form.id 为空 ⟹ quote 的按钮文字。
-  check(Object.keys(CELLS).every((t) => html(t, 'full').includes(NEW)), 'form.id 为空 ⟹ 四个块用的都是第一张（quote）的按钮文字');
+  check(missing.length === 0, `改 contact.buttonText 一处 ⟹ 四个块的 HTML 都含「${NEW}」`, `没变的：${missing.join(' · ')}`);
+  // 反向对照：块写了 form.id = booking ⟹ 改 contact 的文字它不跟着变（证明它真按 id 取，不是恒取第一张）。
+  check(!html('cta', 'teaser', 'booking').includes(NEW), '反向对照：选了 booking 的块不跟着 contact 变');
+  // AC4 ②：form.id 为空 ⟹ 第一张的按钮文字。
+  check(Object.keys(CELLS).every((t) => html(t, 'full').includes(NEW)), 'form.id 为空 ⟹ 四个块用的都是第一张（contact）的按钮文字');
   // 没有表单库 ⟹ BlockLeadForm 的内置默认（AC5 的渲染那一半）。
   globalThis.__SITE_FORMS__ = [];
   const fallback = Object.entries(CELLS).filter(([t, { prefix }]) => {
@@ -258,15 +262,17 @@ console.log('\n── AC4 新建站 · AC5 老站兼容（真跑 create-site.js 
   const read = (loc) => { try { return JSON.parse(fs.readFileSync(path.join(site, loc, 'forms.json'), 'utf-8')); } catch (e) { return null; } };
   for (const loc of ['en', 'fr']) {
     const f = read(loc);
-    check(Array.isArray(f) && f.length >= 2 && f[0].id === 'quote' && f[1].id === 'contact',
-      `${loc}/forms.json 在、含 quote / contact、quote 在前（${f ? f.map((x) => x.id).join(', ') : '没有'}）`);
+    // #1635 —— 恰好一张 contact：姓名 / 电话 / 邮箱 / 留言，短版只露电话（故意把默认改回两张，这一格红）。
+    check(Array.isArray(f) && f.length === 1 && f[0].id === 'contact'
+      && JSON.stringify(f[0].fields) === JSON.stringify(['name', 'phone', 'email', 'message']) && f[0].primary === 'phone',
+      `${loc}/forms.json 在、恰好一张 contact（name / phone / email / message，primary phone）：${f ? JSON.stringify(f.map((x) => [x.id, x.fields, x.primary])) : '没有'}`);
   }
   check(siteForms.formsProblems({ en: read('en'), fr: read('fr') }).length === 0, '两个语言的表单库校验 0 条（结构一致）');
 
   const sync = () => cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'sync-config.js')], { cwd: work, encoding: 'utf8', timeout: 180000 });
   const s1 = sync();
   const data1 = fs.readFileSync(path.join(work, 'src', 'lib', 'config-data.ts'), 'utf-8');
-  check(s1.status === 0 && /export const formsByLocale = \{"en":\[\{"id":"quote"/.test(data1), `新站 sync-config rc=${s1.status}，config-data.ts 带着 formsByLocale（en 第一张是 quote）`);
+  check(s1.status === 0 && /export const formsByLocale = \{"en":\[\{"id":"contact"/.test(data1), `新站 sync-config rc=${s1.status}，config-data.ts 带着 formsByLocale（en 第一张是 contact）`);
 
   for (const loc of ['en', 'fr']) fs.rmSync(path.join(site, loc, 'forms.json'));
   const s2 = sync();
@@ -293,13 +299,13 @@ console.log('── #1631 表单文案与占位符按语言');
   const sf = require(path.join(NEXT, 'scripts', 'lib', 'site-forms.js'));
   const zh = sf.siteFormsFrom([], undefined, 'zh');
   const btn = Object.fromEntries(zh.map((f) => [f.id, f.buttonText]));
-  check(btn.quote === '免费获取报价' && btn.contact === '发送留言', 'siteFormsFrom([], undefined, "zh")：两张表的 buttonText 是中文', JSON.stringify(btn));
+  check(Object.keys(btn).join() === 'contact' && btn.contact === '与我们联系', 'siteFormsFrom([], undefined, "zh")：那一张 contact 的 buttonText 是中文', JSON.stringify(btn));
   check(zh.every((f) => /[一-鿿]/.test(f.name) && /[一-鿿]/.test(f.successMessage)), 'zh：name / successMessage 也是中文');
   check(JSON.stringify(zh.map((f) => [f.id, f.fields, f.primary])) === JSON.stringify(sf.DEFAULT_SITE_FORMS.map((f) => [f.id, f.fields, f.primary])),
     'zh：骨架（id / fields / primary）跟默认的一字不差（各语言必须一致，formsProblems 守着）');
   const ai = sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI 写的按钮' }], undefined, 'zh');
-  check(ai.find((f) => f.id === 'contact').buttonText === 'AI 写的按钮' && ai.find((f) => f.id === 'quote').buttonText === '免费获取报价',
-    'AI 给了的那句用 AI 的，没给的那句用字表（AI > 字表）');
+  check(ai[0].buttonText === 'AI 写的按钮' && ai[0].name === '联系我们' && ai[0].successMessage === '谢谢！我们会尽快与您联系。',
+    'AI 给了的那句用 AI 的，没给的那句用字表（AI > 字表）', JSON.stringify(ai[0]));
   // 第二语言那处的形状：`base` 是主语言（zh）那份，字全是中文，结构故意跟默认不一样（看得出结构真是从 base 来的）。
   const base = sf.siteFormsFrom([], undefined, 'zh').map((f) => ({ ...f, fields: [...f.fields].reverse(), name: `BASE ${f.id}` }));
   const enFromBase = sf.siteFormsFrom([], base, 'en');
@@ -308,21 +314,22 @@ console.log('── #1631 表单文案与占位符按语言');
   check(JSON.stringify(enFromBase.map((f) => [f.name, f.buttonText, f.successMessage])) === JSON.stringify(sf.DEFAULT_SITE_FORMS.map((f) => [f.name, f.buttonText, f.successMessage]))
     && !JSON.stringify(enFromBase).includes('BASE') && !/[一-鿿]/.test(JSON.stringify(enFromBase)),
     '给了 base + "en"：文字是字表英文那一行，base 的字（BASE… / 中文）一个都不出现', JSON.stringify(enFromBase.map((f) => f.buttonText)));
-  check(sf.siteFormsFrom([], base, 'fr')[1].buttonText === 'Envoyer le message' && sf.siteFormsFrom([], base, 'nl')[1].buttonText === 'Send message',
+  check(sf.siteFormsFrom([], base, 'fr')[0].buttonText === 'Prendre contact' && sf.siteFormsFrom([], base, 'nl')[0].buttonText === 'Get in touch',
     '给了 base：fr ⟹ 字表法语；nl（字表里没有）⟹ 英文，不是 base 的中文');
-  check(sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI button' }], base, 'en')[1].buttonText === 'AI button', '给了 base：AI 给的字仍然赢');
+  check(sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI button' }], base, 'en')[0].buttonText === 'AI button', '给了 base：AI 给的字仍然赢');
   check(JSON.stringify(sf.siteFormsFrom([], base)) === JSON.stringify(base), '给了 base、不传语言：跟改之前一样，连字一起继承（兼容）');
   check(JSON.stringify(sf.siteFormsFrom([])) === JSON.stringify(sf.DEFAULT_SITE_FORMS)
     && JSON.stringify(sf.siteFormsFrom([], undefined, 'en')) === JSON.stringify(sf.DEFAULT_SITE_FORMS),
     '不传语言 / 传 en：逐字等于改之前的英文默认（英文站产物不变）');
-  check(sf.siteFormsFrom([], undefined, 'nl')[1].buttonText === 'Send message', 'nl（字表里没有）：回英文');
+  check(sf.siteFormsFrom([], undefined, 'nl')[0].buttonText === 'Get in touch', 'nl（字表里没有）：回英文');
 
   delete require.cache[path.join(SRC, 'components', 'BlockLeadForm.tsx')];
   const Form = require(path.join(SRC, 'components', 'BlockLeadForm.tsx')).default;
-  // 两张表合起来正好五个字段（name · phone · service | name · email · message）。
+  // #1635 起默认只有 contact 一张（name · phone · email · message）；「需求」下拉（service）不在默认里了，但词表还认它
+  //    （老板以后自己配），它的占位符也得按语言 ⟹ 表单库里另放一张带 service 的（内联的 booking，同上面 F 那份）。
   const holders = (locale) => {
-    const forms = sf.siteFormsFrom([], undefined, locale);
-    const html = ['quote', 'contact'].map((formId) => renderToStaticMarkup(React.createElement(Form, { mode: 'full', formId, forms, locale }))).join('');
+    const forms = [...sf.siteFormsFrom([], undefined, locale), { id: 'booking', name: 'Book', fields: ['name', 'phone', 'service'], primary: 'phone', buttonText: 'Book', successMessage: 'Thanks' }];
+    const html = ['contact', 'booking'].map((formId) => renderToStaticMarkup(React.createElement(Form, { mode: 'full', formId, forms, locale }))).join('');
     const got = new Set();
     for (const m of html.matchAll(/(?:placeholder|aria-label)="([^"]*)"/g)) got.add(m[1]);
     for (const m of html.matchAll(/<option value="">([^<]*)<\/option>/g)) got.add(m[1]);
@@ -332,7 +339,7 @@ console.log('── #1631 表单文案与占位符按语言');
   const wantZh = ['姓名', '电话', '邮箱', '您需要什么服务？'];
   check(wantZh.every((w) => z.got.includes(w)) && !z.got.some((g) => /^(Name|Phone|Email|What do you need\?)$/.test(g)),
     'BlockLeadForm locale=zh：五个占位符（姓名 / 电话 / 邮箱 / 需求 ×2）都是中文，一个英文都没有', JSON.stringify(z.got));
-  check(/发送留言/.test(z.html) && /免费获取报价/.test(z.html), 'zh：按钮字跟着表单库走（发送留言 / 免费获取报价）');
+  check(/与我们联系/.test(z.html), 'zh：按钮字跟着表单库走（与我们联系）');
   const x = holders('xx');
   check(['Name', 'Phone', 'Email', 'What do you need?'].every((w) => x.got.includes(w)), 'locale=xx（表里没有）：占位符回英文', JSON.stringify(x.got));
 }

@@ -132,7 +132,7 @@ function fixture(lang, { words = null } = {}) {
     navigation: { ctaLabel: L.cta[0], ctaPage: 'quote', footerDescription: lang === 'zh' ? '多伦多的美发沙龙。' : 'A hair salon in Toronto.' },
     seo: { siteTitle: `${L.svc} | ${BRAND}`, siteDescription: L.desc(L.svc), areaServed: [{ type: 'City', name: 'Toronto' }], addresses: [], priceRange: '$$', offerCatalogName: L.ours },
     services: [{ id: 'cut', name: L.svcName, shortDescription: L.svcName, fullDescription: `${L.svcName}, Toronto.`, icon: 'scissors', features: ['x'], products: [] }],
-    forms: [{ id: 'quote', name: L.quote, buttonText: 'OK', successMessage: 'Thanks' }, { id: 'contact', name: 'Contact', buttonText: 'OK', successMessage: 'Thanks' }],
+    forms: [{ id: 'contact', name: 'Contact', buttonText: 'OK', successMessage: 'Thanks' }],
     pages: pages.map(([slug, t, k], i) => ({
       slug, title: k ? `${k} | ${t}` : t, description: L.desc(k || t), navLabel: t, navOrder: slug.startsWith('services/') ? 10 : i,
       changeFrequency: 'monthly', priority: 0.8, brief: `${t}.`,

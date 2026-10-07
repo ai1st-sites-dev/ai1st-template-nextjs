@@ -379,10 +379,12 @@ console.log('⑦e 颜色槽写渐变');
 console.log('⑦g form.id 下拉（站级表单库）');
 {
   const { formIdOptions } = require('./lib/site-forms.js');
-  const { DEMO_SITE } = require('./lib/demo-content');
-  const opts = formIdOptions(DEMO_SITE.forms);
-  check(opts[0].value === '' && opts.slice(1).map((o) => o.value).join(',') === 'quote,contact'
-    && opts.slice(1).map((o) => o.label).join(' | ') === DEMO_SITE.forms.map((x) => x.name).join(' | '),
+  // #1635 起新站默认（和演示生意）只有一张表单 ⟹ 「每张」要两张才量得出来：用一份内联的两张（老板自己加了第二张的站就是这个形状）。
+  const FORMS = [{ id: 'contact', name: 'Contact us', fields: ['name', 'phone', 'email', 'message'], primary: 'phone' },
+    { id: 'booking', name: 'Book a visit', fields: ['name', 'phone'], primary: 'phone' }];
+  const opts = formIdOptions(FORMS);
+  check(opts[0].value === '' && opts.slice(1).map((o) => o.value).join(',') === 'contact,booking'
+    && opts.slice(1).map((o) => o.label).join(' | ') === FORMS.map((x) => x.name).join(' | '),
     `下拉选项 = 「第一张」+ 每张表单的名字（${opts.map((o) => `${o.label}=${o.value || '∅'}`).join(' · ')}）`);
   check(formIdOptions([]).length === 1, '没有表单库 ⟹ 下拉只有「第一张」那一项');
   // EditorApp 把 form 槽的 id 子字段接到这份选项上（源码里那一处）。
@@ -404,11 +406,11 @@ console.log('⑦g form.id 下拉（站级表单库）');
   item.props.form = { ...(item.props.form || {}), id: opts[2].value };
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
   const blk = out.blocks.find((b) => b.type === 'cta');
-  check(blk.data.form && blk.data.form.id === 'contact', `选「${opts[2].label}」再存 ⟹ cta 的 data.form.id = ${JSON.stringify(blk.data.form)}`);
+  check(blk.data.form && blk.data.form.id === opts[2].value, `选「${opts[2].label}」再存 ⟹ cta 的 data.form.id = ${JSON.stringify(blk.data.form)}`);
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
   check(JSON.stringify(changed) === JSON.stringify(['cta']), '只有 cta 那一块变了', changed.join(' '));
   const re = openPage(out);
-  check(re.data.content.find((c) => c.type === 'cta').props.form.id === 'contact', '重开：下拉里读回 contact');
+  check(re.data.content.find((c) => c.type === 'cta').props.form.id === opts[2].value, `重开：下拉里读回 ${opts[2].value}`);
 }
 
 // ══ ⑦f #1483：pricing 在 Puck 里 —— 能拖、能改 plans、点预设 / 拧旋钮显示 Custom、点 Rainbow 颜色跟着变 ═══════

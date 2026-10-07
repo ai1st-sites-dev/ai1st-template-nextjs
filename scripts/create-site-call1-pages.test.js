@@ -196,7 +196,7 @@ function plan() {
     navigation: { ctaLabel: '立即预约', ctaPage: 'quote', footerDescription: '多伦多的美发沙龙。' },
     seo: { siteTitle: 'Silky Hair Salon 多伦多美发', siteDescription: DESC('多伦多美发'), areaServed: [{ type: 'City', name: 'Toronto' }], addresses: [], priceRange: '$$', offerCatalogName: '服务' },
     services: SERVICES.map(([id, name]) => ({ id, name, shortDescription: `${name}服务`, fullDescription: `${name}，在多伦多。`, icon: 'scissors', features: ['细致'], products: [] })),
-    forms: [{ id: 'quote', name: '预约', buttonText: '提交', successMessage: '谢谢' }, { id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
+    forms: [{ id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
     pages: [
       page('home', '首页', 0), page('services', '服务', 1), page('about', '关于我们', 2), page('quote', '预约', 3),
       ...SERVICES.map(([id, name], i) => page(`services/${id}`, name, 10 + i, { serviceDetailPage: true, parentService: id })),
@@ -683,6 +683,23 @@ check('#1636：勾 structure 那条路的站级提示词里不再把 "quote" 当
 check('AC4 反向读数：同一份 payload 不勾 structure ⟹ gallery 不出现（上一格不是恒绿）', () => {
   assert.strictEqual(R4n.rc, 0, `${R4n.error}\n${R4n.stderr.slice(-800)}`);
   assert.ok(!pagesOn(R4n.work).includes('gallery'), pagesOn(R4n.work).join(' '));
+});
+
+// #1635 AC3 —— 勾了「照抄参照站结构」时配方为空、不覆盖 ctaPage ⟹ 顶栏按钮靠两处：给 AI 的样例（e.g. …）和回包没写时的兜底（|| …）。
+//    两处都该是 contact。回包里删掉 ctaPage 才走得到兜底；不勾 structure 的正常建站今天就已是 /contact（配方覆盖），量不到这件事。
+const NO_CTA = (() => { const p = JSON.parse(JSON.stringify(FIFTEEN)); delete p.navigation.ctaPage; return p; })();
+const R4c = run('recipe-structure-no-cta', PAYLOAD(REF), { plan: NO_CTA });
+check('#1635 AC3：勾 structure + 回包没写 ctaPage ⟹ 顶栏按钮 header.cta.href 是 /contact', () => {
+  assert.strictEqual(R4c.rc, 0, `${R4c.error}\n${R4c.stderr.slice(-800)}`);
+  assert.ok(!('ctaPage' in NO_CTA.navigation), '夹具里 ctaPage 没删掉 —— 这一格量的不是兜底');
+  const nav = JSON.parse(fs.readFileSync(path.join(R4c.work, 'site', 'zh', 'navigation.json'), 'utf8'));
+  assert.strictEqual(nav.header.cta.href, '/contact');
+});
+check('#1635 AC3：同一跑的站级提示词里是 e.g. contact，没有 e.g. quote', () => {
+  const site = call1Prompts(R4c.events)[0].content;
+  assert.ok(site.includes('REFERENCE SITE NAVIGATION (HARD COPY'), '这一跑没走「照抄参照站结构」那条路');
+  assert.ok(site.includes('<slug of the CTA target page, e.g. contact>'), '提示词里没有 e.g. contact');
+  assert.ok(!site.includes('e.g. quote'), '提示词里还有 e.g. quote');
 });
 
 console.log('── #1601 AC5：只填 1 个服务');

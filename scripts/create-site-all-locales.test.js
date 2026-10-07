@@ -182,7 +182,7 @@ function fixture({ primary = 'zh', secondary = ['en'], descOf = {} } = {}) {
     navigation: { ctaLabel: '立即预约', ctaPage: 'quote', footerDescription: '多伦多的美发沙龙。' },
     seo: { siteTitle: `剪发｜${BRAND}`, siteDescription: DESC.zh('剪发'), areaServed: [{ type: 'City', name: 'Toronto' }], addresses: [], priceRange: '$$', offerCatalogName: '服务' },
     services: SERVICES.map(([id, zh]) => ({ id, name: zh, shortDescription: `${zh}服务`, fullDescription: `${zh}，在多伦多。`, icon: 'scissors', features: ['细致'], products: [] })),
-    forms: [{ id: 'quote', name: '预约', buttonText: '提交', successMessage: '谢谢' }, { id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
+    forms: [{ id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
     // #1633 —— 主语言不是英文 ⟹ 站级那一通也给主语言的「代码自己写的字」（首页、页脚第一栏标题、代码补的 contact 页）。
     //    不给的话 contact 退回英文、34 字过不了中文 description 50–80 字那条，每一跑多一次修补，下面数修补 / 花费的格子量的就不是本来的事了。
     ...(primary === 'zh' ? {
@@ -203,7 +203,7 @@ function fixture({ primary = 'zh', secondary = ['en'], descOf = {} } = {}) {
       copyright: `${BRAND}. All rights reserved.`,
       seo: { siteTitle: `Haircut | ${BRAND}`, siteDescription: DESC.en('haircut'), offerCatalogName: 'Services' },
       services: SERVICES.map(([id, , en]) => ({ id, name: en, shortDescription: `${en} service`, fullDescription: `${en} in Toronto.`, features: ['Careful'], products: [] })),
-      forms: [{ id: 'quote', name: 'Book', buttonText: 'Send', successMessage: 'Thanks' }, { id: 'contact', name: 'Contact', buttonText: 'Send', successMessage: 'Thanks' }],
+      forms: [{ id: 'contact', name: 'Contact', buttonText: 'Send', successMessage: 'Thanks' }],
       contactPage: { title: 'Contact us', navLabel: 'Contact', description: `Get in touch with ${BRAND}`, headline: 'Contact us', subheadline: 'Send us a message.', formHeadline: 'Get in touch', formBody: 'Leave your details.' },
     }]));
   }

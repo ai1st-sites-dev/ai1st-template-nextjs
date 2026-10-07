@@ -9,14 +9,15 @@
 //
 //   contactPage   代码补的联系页 7 句（形状同 #1633 那份 `contactPage`：title · navLabel · description ·
 //                 headline · subheadline · formHeadline · formBody）。`description` 是函数，吃品牌名。
-//   forms         两张默认表单（`site-forms.js` §DEFAULT_SITE_FORMS 的 `quote` / `contact`）的
+//   forms         默认那一张表单（`site-forms.js` §DEFAULT_SITE_FORMS 的 `contact`；#1635 起只有这一张）的
 //                 name · buttonText · successMessage。字段、`id` 不在这里 —— 那是骨架，各语言必须一致。
 //
 // 🔴 优先级：AI 给了 > 这张表 > 英文（表里没有的语言）。这张表只是「AI 没给」时的落点，**不覆盖 AI 的字**。
 // 🔴 语言集合同 `keyword-pages.js` 的 `LABELS`（15 种，含 zh-tw）；查不到先退到基础语言（pt-BR → pt），再退英文。
 //    渲染期的输入框占位符在另一张表（`src/lib/component-labels.ts`，14 种、**没有 zh-tw**）——
 //    所以繁体站联系页是繁体、输入框是英文，跟改之前一样，这是已知的，不当缺陷报（票面「做什么」3）。
-// 🔴 `en` 那一行逐字等于改之前的英文常量 —— 英文站的产物一个字节不变。
+// 🔴 `en` 那一行逐字等于改之前的英文常量 —— 英文站的产物一个字节不变。`forms.contact` 那一句逐字等于 `DEFAULT_SITE_FORMS`
+//    （#1635 换了默认表单的英文底稿，这一行跟着换；site-forms.test.js「传 en：逐字等于英文默认」守着）。
 
 const WORDS = {
   en: {
@@ -26,8 +27,7 @@ const WORDS = {
       formHeadline: 'Get in touch', formBody: 'Leave your details and we will reach out soon.',
     },
     forms: {
-      quote: { name: 'Get a free quote', buttonText: 'Get a free quote', successMessage: "Thanks! We've got your details and will be in touch." },
-      contact: { name: 'Contact us', buttonText: 'Send message', successMessage: 'Thanks for your message — we will get back to you shortly.' },
+      contact: { name: 'Contact us', buttonText: 'Get in touch', successMessage: 'Thanks — we will get back to you shortly.' },
     },
   },
   zh: {
@@ -37,8 +37,7 @@ const WORDS = {
       formHeadline: '与我们联系', formBody: '留下您的联系方式，我们会尽快与您联系。',
     },
     forms: {
-      quote: { name: '免费获取报价', buttonText: '免费获取报价', successMessage: '谢谢！我们已收到您的信息，会尽快与您联系。' },
-      contact: { name: '联系我们', buttonText: '发送留言', successMessage: '感谢您的留言，我们会尽快回复您。' },
+      contact: { name: '联系我们', buttonText: '与我们联系', successMessage: '谢谢！我们会尽快与您联系。' },
     },
   },
   'zh-tw': {
@@ -48,8 +47,7 @@ const WORDS = {
       formHeadline: '與我們聯絡', formBody: '留下您的聯絡方式，我們會盡快與您聯絡。',
     },
     forms: {
-      quote: { name: '免費取得報價', buttonText: '免費取得報價', successMessage: '謝謝！我們已收到您的資料，會盡快與您聯絡。' },
-      contact: { name: '聯絡我們', buttonText: '送出留言', successMessage: '感謝您的留言，我們會盡快回覆您。' },
+      contact: { name: '聯絡我們', buttonText: '與我們聯絡', successMessage: '謝謝！我們會盡快與您聯絡。' },
     },
   },
   fr: {
@@ -59,8 +57,7 @@ const WORDS = {
       formHeadline: 'Écrivez-nous', formBody: 'Laissez vos coordonnées et nous vous recontacterons bientôt.',
     },
     forms: {
-      quote: { name: 'Devis gratuit', buttonText: 'Obtenir un devis gratuit', successMessage: 'Merci ! Nous avons bien reçu vos coordonnées et vous recontacterons.' },
-      contact: { name: 'Nous contacter', buttonText: 'Envoyer le message', successMessage: 'Merci pour votre message — nous vous répondrons rapidement.' },
+      contact: { name: 'Nous contacter', buttonText: 'Prendre contact', successMessage: 'Merci — nous vous recontacterons rapidement.' },
     },
   },
   es: {
@@ -70,8 +67,7 @@ const WORDS = {
       formHeadline: 'Escríbanos', formBody: 'Déjenos sus datos y nos pondremos en contacto pronto.',
     },
     forms: {
-      quote: { name: 'Presupuesto gratis', buttonText: 'Pedir presupuesto gratis', successMessage: '¡Gracias! Hemos recibido sus datos y nos pondremos en contacto.' },
-      contact: { name: 'Contáctenos', buttonText: 'Enviar mensaje', successMessage: 'Gracias por su mensaje: le responderemos en breve.' },
+      contact: { name: 'Contáctenos', buttonText: 'Ponerse en contacto', successMessage: 'Gracias: nos pondremos en contacto con usted en breve.' },
     },
   },
   ja: {
@@ -81,8 +77,7 @@ const WORDS = {
       formHeadline: 'ご連絡ください', formBody: 'ご連絡先をご記入いただければ、こちらからご連絡いたします。',
     },
     forms: {
-      quote: { name: '無料お見積もり', buttonText: '無料で見積もりを依頼', successMessage: 'ありがとうございます。内容を確認のうえご連絡いたします。' },
-      contact: { name: 'お問い合わせ', buttonText: '送信する', successMessage: 'お問い合わせありがとうございます。折り返しご連絡いたします。' },
+      contact: { name: 'お問い合わせ', buttonText: '問い合わせる', successMessage: 'ありがとうございます。折り返しご連絡いたします。' },
     },
   },
   ko: {
@@ -92,8 +87,7 @@ const WORDS = {
       formHeadline: '연락 주세요', formBody: '연락처를 남겨 주시면 곧 연락드리겠습니다.',
     },
     forms: {
-      quote: { name: '무료 견적', buttonText: '무료 견적 받기', successMessage: '감사합니다! 정보를 받았으며 곧 연락드리겠습니다.' },
-      contact: { name: '문의하기', buttonText: '메시지 보내기', successMessage: '문의해 주셔서 감사합니다. 곧 답변드리겠습니다.' },
+      contact: { name: '문의하기', buttonText: '연락하기', successMessage: '감사합니다. 곧 연락드리겠습니다.' },
     },
   },
   de: {
@@ -103,8 +97,7 @@ const WORDS = {
       formHeadline: 'Schreiben Sie uns', formBody: 'Hinterlassen Sie Ihre Kontaktdaten und wir melden uns bald.',
     },
     forms: {
-      quote: { name: 'Kostenloses Angebot', buttonText: 'Kostenloses Angebot anfordern', successMessage: 'Danke! Wir haben Ihre Angaben erhalten und melden uns bei Ihnen.' },
-      contact: { name: 'Kontakt', buttonText: 'Nachricht senden', successMessage: 'Danke für Ihre Nachricht – wir melden uns in Kürze.' },
+      contact: { name: 'Kontakt', buttonText: 'Kontakt aufnehmen', successMessage: 'Danke – wir melden uns in Kürze.' },
     },
   },
   it: {
@@ -114,8 +107,7 @@ const WORDS = {
       formHeadline: 'Scrivici', formBody: 'Lasciaci i tuoi dati e ti ricontatteremo presto.',
     },
     forms: {
-      quote: { name: 'Preventivo gratuito', buttonText: 'Richiedi un preventivo gratuito', successMessage: 'Grazie! Abbiamo ricevuto i tuoi dati e ti ricontatteremo.' },
-      contact: { name: 'Contattaci', buttonText: 'Invia messaggio', successMessage: 'Grazie per il tuo messaggio: ti risponderemo a breve.' },
+      contact: { name: 'Contattaci', buttonText: 'Mettiti in contatto', successMessage: 'Grazie: ti ricontatteremo a breve.' },
     },
   },
   pt: {
@@ -125,8 +117,7 @@ const WORDS = {
       formHeadline: 'Entre em contato', formBody: 'Deixe seus dados e entraremos em contato em breve.',
     },
     forms: {
-      quote: { name: 'Orçamento grátis', buttonText: 'Pedir orçamento grátis', successMessage: 'Obrigado! Recebemos seus dados e entraremos em contato.' },
-      contact: { name: 'Fale conosco', buttonText: 'Enviar mensagem', successMessage: 'Obrigado pela sua mensagem — responderemos em breve.' },
+      contact: { name: 'Fale conosco', buttonText: 'Entrar em contato', successMessage: 'Obrigado — entraremos em contato em breve.' },
     },
   },
   ru: {
@@ -136,8 +127,7 @@ const WORDS = {
       formHeadline: 'Напишите нам', formBody: 'Оставьте свои контакты, и мы скоро с вами свяжемся.',
     },
     forms: {
-      quote: { name: 'Бесплатный расчёт', buttonText: 'Получить бесплатный расчёт', successMessage: 'Спасибо! Мы получили ваши данные и свяжемся с вами.' },
-      contact: { name: 'Связаться с нами', buttonText: 'Отправить сообщение', successMessage: 'Спасибо за сообщение — мы скоро ответим.' },
+      contact: { name: 'Связаться с нами', buttonText: 'Связаться', successMessage: 'Спасибо — мы скоро свяжемся с вами.' },
     },
   },
   vi: {
@@ -147,8 +137,7 @@ const WORDS = {
       formHeadline: 'Liên hệ ngay', formBody: 'Để lại thông tin, chúng tôi sẽ liên hệ với bạn sớm.',
     },
     forms: {
-      quote: { name: 'Báo giá miễn phí', buttonText: 'Nhận báo giá miễn phí', successMessage: 'Cảm ơn bạn! Chúng tôi đã nhận được thông tin và sẽ liên hệ sớm.' },
-      contact: { name: 'Liên hệ', buttonText: 'Gửi tin nhắn', successMessage: 'Cảm ơn tin nhắn của bạn — chúng tôi sẽ phản hồi sớm.' },
+      contact: { name: 'Liên hệ', buttonText: 'Liên hệ ngay', successMessage: 'Cảm ơn bạn — chúng tôi sẽ liên hệ lại sớm.' },
     },
   },
   ar: {
@@ -158,8 +147,7 @@ const WORDS = {
       formHeadline: 'تواصل معنا', formBody: 'اترك بياناتك وسنتواصل معك قريبًا.',
     },
     forms: {
-      quote: { name: 'عرض سعر مجاني', buttonText: 'احصل على عرض سعر مجاني', successMessage: 'شكرًا! استلمنا بياناتك وسنتواصل معك.' },
-      contact: { name: 'اتصل بنا', buttonText: 'إرسال الرسالة', successMessage: 'شكرًا على رسالتك — سنرد عليك قريبًا.' },
+      contact: { name: 'اتصل بنا', buttonText: 'تواصل معنا', successMessage: 'شكرًا — سنتواصل معك قريبًا.' },
     },
   },
   hi: {
@@ -169,8 +157,7 @@ const WORDS = {
       formHeadline: 'हमसे संपर्क करें', formBody: 'अपना विवरण छोड़ें, हम जल्द ही आपसे संपर्क करेंगे।',
     },
     forms: {
-      quote: { name: 'मुफ़्त कोटेशन', buttonText: 'मुफ़्त कोटेशन पाएँ', successMessage: 'धन्यवाद! हमें आपका विवरण मिल गया है, हम जल्द संपर्क करेंगे।' },
-      contact: { name: 'संपर्क करें', buttonText: 'संदेश भेजें', successMessage: 'आपके संदेश के लिए धन्यवाद — हम जल्द ही जवाब देंगे।' },
+      contact: { name: 'संपर्क करें', buttonText: 'हमसे संपर्क करें', successMessage: 'धन्यवाद — हम जल्द ही आपसे संपर्क करेंगे।' },
     },
   },
   th: {
@@ -180,8 +167,7 @@ const WORDS = {
       formHeadline: 'ติดต่อเรา', formBody: 'ฝากข้อมูลติดต่อไว้ แล้วเราจะติดต่อกลับโดยเร็ว',
     },
     forms: {
-      quote: { name: 'ขอใบเสนอราคาฟรี', buttonText: 'ขอใบเสนอราคาฟรี', successMessage: 'ขอบคุณ! เราได้รับข้อมูลของคุณแล้วและจะติดต่อกลับ' },
-      contact: { name: 'ติดต่อเรา', buttonText: 'ส่งข้อความ', successMessage: 'ขอบคุณสำหรับข้อความ เราจะตอบกลับโดยเร็ว' },
+      contact: { name: 'ติดต่อเรา', buttonText: 'ติดต่อเลย', successMessage: 'ขอบคุณ เราจะติดต่อกลับโดยเร็ว' },
     },
   },
 };
@@ -204,7 +190,7 @@ function contactPageWords(locale, brandName) {
   return { ...w, description: b ? w.description(b) : (row === WORDS.en ? w.description('us') : w.title) };
 }
 
-/** 一张默认表单（`quote` / `contact`）的 name · buttonText · successMessage；`id` 不认识 ⟹ null。 */
+/** 默认表单（`contact`）的 name · buttonText · successMessage；`id` 不认识 ⟹ null。 */
 function formWords(locale, id) {
   const f = wordsFor(locale).forms[id];
   return f ? { ...f } : null;

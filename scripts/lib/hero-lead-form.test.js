@@ -221,7 +221,7 @@ function fixture() {
 }
 // #1425（T3）—— 新做法是「合并进已有的 options / form」，所以要钉它不冲掉别的旋钮、不冲掉已选的表单 id。
 {
-  const mk = () => ({ pages: [{ slug: 'home', sections: [{ type: 'hero', data: { options: { textAlign: 'center', form: 'none' }, form: { id: 'quote' } } }] }] });
+  const mk = () => ({ pages: [{ slug: 'home', sections: [{ type: 'hero', data: { options: { textAlign: 'center', form: 'none' }, form: { id: 'contact' } } }] }] });
   const before = mk(); const after = mk();
   const r = applyHeroLeadForm({ content: after, industry: 'plumbing' });
   const d = diffJson(before, after);

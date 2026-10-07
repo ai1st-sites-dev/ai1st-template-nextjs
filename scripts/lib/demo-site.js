@@ -52,7 +52,7 @@ const PAGE_PLAN = {
   ],
   quote: [
     { type: 'page-header', at: { introEyebrow: { text: 'Get a Quote', style: 'pill' }, headline: 'Get a Free Quote', subheadline: 'Fill out the form below and we will get back to you within 24 hours' } },
-    // 表单选站级表单库里 `quote` 那一张（form.id 空 = 第一张 = quote）。
+    // 表单用站级表单库的第一张（form.id 空 = 第一张；#1635 起默认只有 contact 这一张）。
     { type: 'contact', at: { headline: 'Tell us about your project', form: {} } },
   ],
   contact: [
