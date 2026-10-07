@@ -39,6 +39,7 @@ import { useState } from 'react';
 import * as config from '@/lib/config';
 import type { SiteFormConfig } from '@/lib/types/config';
 import { FORM_FIELDS, pickForm } from '../../scripts/lib/site-forms.js';
+import { getLabels } from '@/lib/component-labels';
 
 export type LeadField = 'name' | 'phone' | 'email' | 'message' | 'service';
 export type LeadFormMode = 'teaser' | 'full';
@@ -57,13 +58,14 @@ function siteFormsFor(locale: string): SiteFormConfig[] {
   const get = (config as { getForms?: (l: string) => SiteFormConfig[] }).getForms;
   try { return typeof get === 'function' ? get(locale) || [] : []; } catch { return []; }
 }
-const PLACEHOLDER: Record<LeadField, string> = {
-  name: 'Name',
-  phone: 'Phone',
-  email: 'Email',
-  message: 'What do you need?',
-  service: 'What do you need?',
-};
+/**
+ * #1631 —— 输入框占位符按站的语言（`component-labels.ts` 的 `getLabels`，跟 not-found 页 / 博客页取界面字同一张表）。
+ * 那张表 14 种、没有 zh-tw ⟹ 繁体站这里回英文，跟改之前一样（已知，票面「做什么」3）。逐键回退英文。
+ */
+function placeholdersFor(locale: string): Record<LeadField, string> {
+  const l = getLabels(locale);
+  return { name: l.formName, phone: l.formPhone, email: l.formEmail, message: l.formNeed, service: l.formNeed };
+}
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -82,6 +84,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
   tone?: 'light' | 'dark' | 'brand';
 }) {
   const form = pickForm(forms ?? siteFormsFor(locale), formId) as SiteFormConfig | null;
+  const PLACEHOLDER = placeholdersFor(locale);
   const variant: 'inline' | 'stacked' = mode === 'teaser' ? 'inline' : 'stacked';
   const asked = form
     ? (mode === 'teaser' ? [form.primary] : form.fields).filter((f): f is LeadField => VOCAB.includes(f))
