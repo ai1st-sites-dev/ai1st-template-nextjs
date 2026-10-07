@@ -1916,6 +1916,7 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
 
   // Per-locale config files.
   // #1471 —— 表单库：结构跟主语言同一副骨架（各语言 id / fields / primary 按构造一致），文字用这个语言的。
+  // #1631 —— `formsBase` 只供结构；AI 没给这个语言的表单文案时取字表里这个语言那一行，不再继承主语言那份的字。
   const localeFiles = {
     'navigation.json': secContent.navigation,
     'seo.json': secContent.seo,

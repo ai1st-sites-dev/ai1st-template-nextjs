@@ -59,7 +59,7 @@ function siteFormsFor(locale: string): SiteFormConfig[] {
   try { return typeof get === 'function' ? get(locale) || [] : []; } catch { return []; }
 }
 /**
- * #1631 —— 输入框占位符按站的语言（`component-labels.ts` 的 `getLabels`，跟 page-header 的「首页」同一张表）。
+ * #1631 —— 输入框占位符按站的语言（`component-labels.ts` 的 `getLabels`，跟 not-found 页 / 博客页取界面字同一张表）。
  * 那张表 14 种、没有 zh-tw ⟹ 繁体站这里回英文，跟改之前一样（已知，票面「做什么」3）。逐键回退英文。
  */
 function placeholdersFor(locale: string): Record<LeadField, string> {

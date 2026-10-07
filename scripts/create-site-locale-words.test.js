@@ -11,7 +11,10 @@
 //         ⟹ 代码补出的 contact.json 7 句 = 字表 zh 那一行，description 含中文品牌名，没有英文那几句、没有 [object Object]
 //   D'    同一个夹具，桩给 contactPage 的 title 与 headline、其余五句不给 ⟹ 那两句是 AI 的，五句是字表
 //   fr/nl 同一个 D 夹具：fr ⟹ 法语那一行；nl（字表里没有）⟹ 英文，进程正常结束
-//   记录  zh 主语言 + en 第二语言：/en/contact 与 en/forms.json 现在是什么样（只打印，不断言 —— 正文最后一条）
+//   F2    第二语言的表单（做什么 4）：zh 主 + en 第二、AI 不给 locales.en.forms（主语言 forms 也不给）
+//         ⟹ en/forms.json 三句 = 字表 en、zh/forms.json = 字表 zh、两份 id / fields / primary 逐张相同；
+//         第二语言换 fr ⟹ 字表 fr；换 nl ⟹ 英文；AI 给了 locales.en.forms ⟹ 用 AI 的
+//   记录  zh 主语言 + en 第二语言：/en/contact 现在是什么样（只打印，不断言 —— 正文最后一条）
 // 「把 C / B / D 改回英文这一格红」是一次性对照，读数在交付留言里。
 'use strict';
 
@@ -80,8 +83,8 @@ function answer(req) {
     const title = (first.match(/\n- title: ([^\n]+)/) || [])[1] || slug;
     const sections = sectionsFor(slug, title, first);
     if (!cfg.bilingual) return { sections };
-    // 第二语言 en：每页一次调用里一起回（#1593 的形状）。字是假的英文，只为让第二语言那份落盘。
-    return { zh: { sections }, en: { title: `EN ${slug}`, navLabel: `EN ${slug}`, ...(['home', 'services/cut'].includes(slug) ? { targetKeyword: 'haircut' } : {}),
+    // 第二语言（默认 en）：每页一次调用里一起回（#1593 的形状）。字是假的英文，只为让第二语言那份落盘。
+    return { zh: { sections }, [cfg.second || 'en']: { title: `EN ${slug}`, navLabel: `EN ${slug}`, ...(['home', 'services/cut'].includes(slug) ? { targetKeyword: 'haircut' } : {}),
       description: `EN ${slug}: Silky Hair Salon gives every guest in Toronto careful styling, easy booking and expert advice in a calm place.`, sections } };
   }
   if (kind === 'seo-fix') {
@@ -240,23 +243,47 @@ check('nl（字表里没有）：进程正常结束，7 句回英文', () => {
   assert.strictEqual(s.title, 'Contact Us');
 });
 
-// ── 记录：zh 主语言 + en 第二语言（只打印，不断言）──
-console.log('── 记录（不断言）：zh 主语言 + en 第二语言，/en/contact 与 en/forms.json 现在是什么样');
-// 站级那一通给 en 的 locales，但【不给】forms 与 contactPage —— 记录的正是「第二语言 AI 没给这两样」时落盘的是什么。
-const BI_PLAN = { ...RECIPE_PLAN, locales: { en: {
+// ── F2：第二语言的表单（做什么 4）+ 记录 /en/contact ──
+// 站级那一通给第二语言的 locales，但【不给】forms 与 contactPage（`forms` 只在 AI 那一臂给）。
+const secondPlan = (code, forms) => ({ ...RECIPE_PLAN, locales: { [code]: {
   tagline: 'Silky-smooth hair', ctaLabel: 'Book now', footerDescription: 'A hair salon in Toronto.', homeLabel: 'Home', quickLinksTitle: 'Quick links',
   copyright: `${BRAND}. All rights reserved.`,
   seo: { siteTitle: `Haircut | ${BRAND}`, siteDescription: 'Haircut in Toronto: Silky Hair Salon gives every guest careful, friendly service and easy booking.', offerCatalogName: 'Services' },
   services: [{ id: 'cut', name: 'Haircut', shortDescription: 'Haircut service', fullDescription: 'Haircut in Toronto.', features: ['Careful'], products: [] }],
-} } };
-const BI = run('recipe-zh-en', PAYLOAD('zh', { secondaryLocales: ['en'] }), { plan: BI_PLAN, bilingual: true });
+  ...(forms ? { forms } : {}),
+} } });
+const runSecond = (code, forms) => run(`recipe-zh-${code}${forms ? '-ai' : ''}`, PAYLOAD('zh', { secondaryLocales: [code] }), { plan: secondPlan(code, forms), bilingual: true, second: code });
+const TEXT3 = ['name', 'buttonText', 'successMessage'];
+const textOf = (forms) => (forms || []).map((f) => [f.id, ...TEXT3.map((k) => f[k])]);
+const wordsRow = (lang) => ['quote', 'contact'].map((id) => [id, ...TEXT3.map((k) => W.formWords(lang, id)[k])]);
+const shapeOf = (forms) => JSON.stringify((forms || []).map((f) => [f.id, f.fields, f.primary]));
+
+console.log('── F2：第二语言的表单，zh 主 + en 第二，AI 不给 locales.en.forms（主语言的 forms 也不给）');
+const BI = runSecond('en');
 check('zh + en：建站成功', () => ok(BI));
+check('F2：en/forms.json 两张表的三句是字表【英文】那一行（不是主语言的中文）', () => {
+  assert.deepStrictEqual(textOf(BI.read('en/forms.json')), wordsRow('en'));
+});
+check('F2：zh/forms.json 是字表中文那一行', () => assert.deepStrictEqual(textOf(BI.read('zh/forms.json')), wordsRow('zh')));
+check('F2：两份的 id / fields / primary 逐张相同', () => {
+  const a = shapeOf(BI.read('zh/forms.json'));
+  assert.ok(a.includes('quote') && a.includes('contact'), a);
+  assert.strictEqual(shapeOf(BI.read('en/forms.json')), a);
+});
+const BF = runSecond('fr');
+check('F2：第二语言 fr ⟹ fr/forms.json 是字表法语那一行', () => { ok(BF); assert.deepStrictEqual(textOf(BF.read('fr/forms.json')), wordsRow('fr')); });
+const BN = runSecond('nl');
+check('F2：第二语言 nl（字表里没有）⟹ nl/forms.json 是英文那一行，不是中文', () => { ok(BN); assert.deepStrictEqual(textOf(BN.read('nl/forms.json')), wordsRow('en')); });
+const AI_FORMS = [{ id: 'quote', name: 'AI quote', buttonText: 'AI quote button', successMessage: 'AI quote thanks' },
+  { id: 'contact', name: 'AI contact', buttonText: 'AI contact button', successMessage: 'AI contact thanks' }];
+const BA = runSecond('en', AI_FORMS);
+check('F2：AI 给了 locales.en.forms ⟹ en/forms.json 用 AI 的', () => { ok(BA); assert.deepStrictEqual(textOf(BA.read('en/forms.json')), textOf(AI_FORMS)); });
+
+console.log('── 记录（不断言）：zh 主语言 + en 第二语言，/en/contact 现在是什么样');
 {
   const c = BI.read('en/pages/contact.json');
-  const f = BI.read('en/forms.json');
   for (const e of BI.events.filter((x) => x.event === 'secondary-locale-failed')) console.log(`  📋 secondary-locale-failed：${JSON.stringify(e).slice(0, 400)}`);
   console.log(`  📋 en/pages/contact.json：${c ? JSON.stringify(sevenOf(c)) : '（不存在）'}`);
-  console.log(`  📋 en/forms.json：${f ? JSON.stringify(f.map((x) => ({ id: x.id, name: x.name, buttonText: x.buttonText, successMessage: x.successMessage }))) : '（不存在）'}`);
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} #1631：${pass} 通过 · ${fail} 失败`);

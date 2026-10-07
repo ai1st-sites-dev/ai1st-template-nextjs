@@ -300,9 +300,18 @@ console.log('── #1631 表单文案与占位符按语言');
   const ai = sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI 写的按钮' }], undefined, 'zh');
   check(ai.find((f) => f.id === 'contact').buttonText === 'AI 写的按钮' && ai.find((f) => f.id === 'quote').buttonText === '免费获取报价',
     'AI 给了的那句用 AI 的，没给的那句用字表（AI > 字表）');
-  const base = clone(sf.DEFAULT_SITE_FORMS).map((f) => ({ ...f, buttonText: `BASE ${f.id}` }));
-  check(JSON.stringify(sf.siteFormsFrom([], base, 'zh')) === JSON.stringify(sf.siteFormsFrom([], base)),
-    '给了 base 时结果跟不传语言一样（副语言那处以 base 为底，语义不动）');
+  // 第二语言那处的形状：`base` 是主语言（zh）那份，字全是中文，结构故意跟默认不一样（看得出结构真是从 base 来的）。
+  const base = sf.siteFormsFrom([], undefined, 'zh').map((f) => ({ ...f, fields: [...f.fields].reverse(), name: `BASE ${f.id}` }));
+  const enFromBase = sf.siteFormsFrom([], base, 'en');
+  check(JSON.stringify(enFromBase.map((f) => [f.id, f.fields, f.primary])) === JSON.stringify(base.map((f) => [f.id, f.fields, f.primary])),
+    '给了 base + "en"：结构（id / fields / primary）等于 base', JSON.stringify(enFromBase.map((f) => f.fields)));
+  check(JSON.stringify(enFromBase.map((f) => [f.name, f.buttonText, f.successMessage])) === JSON.stringify(sf.DEFAULT_SITE_FORMS.map((f) => [f.name, f.buttonText, f.successMessage]))
+    && !JSON.stringify(enFromBase).includes('BASE') && !/[一-鿿]/.test(JSON.stringify(enFromBase)),
+    '给了 base + "en"：文字是字表英文那一行，base 的字（BASE… / 中文）一个都不出现', JSON.stringify(enFromBase.map((f) => f.buttonText)));
+  check(sf.siteFormsFrom([], base, 'fr')[1].buttonText === 'Envoyer le message' && sf.siteFormsFrom([], base, 'nl')[1].buttonText === 'Send message',
+    '给了 base：fr ⟹ 字表法语；nl（字表里没有）⟹ 英文，不是 base 的中文');
+  check(sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI button' }], base, 'en')[1].buttonText === 'AI button', '给了 base：AI 给的字仍然赢');
+  check(JSON.stringify(sf.siteFormsFrom([], base)) === JSON.stringify(base), '给了 base、不传语言：跟改之前一样，连字一起继承（兼容）');
   check(JSON.stringify(sf.siteFormsFrom([])) === JSON.stringify(sf.DEFAULT_SITE_FORMS)
     && JSON.stringify(sf.siteFormsFrom([], undefined, 'en')) === JSON.stringify(sf.DEFAULT_SITE_FORMS),
     '不传语言 / 传 en：逐字等于改之前的英文默认（英文站产物不变）');
