@@ -71,5 +71,17 @@ const mutated = { ...m.REF_SECTION_MAPPING, 'services': 'services-list' };
 const caught = Object.entries(mutated).filter(([, v]) => v !== null && !blocks.has(v));
 check(caught.length === 1 && caught[0][0] === 'services', '指向已删的 services-list 的那一条被谓词抓到', caught);
 
+console.log('\n⑤ 参照站导航：联系 / 预约 / 报价类的词全部指联系页（#1642 —— 已经没有 quote 页了）');
+// 这张表的值是页面原型的 slug，直接进「照抄参照站结构」那条路的站级提示词（`N. slug "<值>"`），AI 照着建页。
+const CONTACTISH = ['contact', 'contact-us', 'get-in-touch', 'book', 'booking', 'book-appointment', 'book-now', 'quote', 'get-a-quote'];
+const mapped = CONTACTISH.map((k) => [k, m.mapRefNav(k)]);
+check(mapped.every(([, v]) => v === 'contact'), `九个词（${CONTACTISH.join(' ')}）全部映射成 contact`, mapped);
+const quoteVals = Object.entries(m.REF_NAV_MAPPING).filter(([, v]) => v === 'quote');
+check(quoteVals.length === 0, '导航映射表里没有一个值是 quote', quoteVals);
+check(JSON.stringify(m.parseRefNavLinks(['Home', 'Services', 'Gallery', 'Contact'])) === '["services","gallery","contact"]',
+  "parseRefNavLinks(['Home','Services','Gallery','Contact']) → services · gallery · contact", m.parseRefNavLinks(['Home', 'Services', 'Gallery', 'Contact']));
+check(m.mapRefSection('quote') === 'content' && m.mapRefSection('quote-banner') === 'content',
+  '同名的【块】映射没跟着动：区块 quote / quote-banner 仍映射成 content 块', [m.mapRefSection('quote'), m.mapRefSection('quote-banner')]);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

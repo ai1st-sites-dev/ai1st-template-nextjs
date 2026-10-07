@@ -201,16 +201,17 @@ const REF_NAV_MAPPING = {
   'rates': 'pricing',
   'plans': 'pricing',
 
-  // Contact variants → quote page（页面原型的 slug，不是块名）
-  'contact': 'quote',
-  'contact-us': 'quote',
-  'get-in-touch': 'quote',
-  'book': 'quote',
-  'booking': 'quote',
-  'book-appointment': 'quote',
-  'book-now': 'quote',
-  'quote': 'quote',
-  'get-a-quote': 'quote',
+  // Contact variants → contact page（页面原型的 slug，不是块名）。#1642：原来全指 quote，可已经没有 quote 页了
+  //   （Chris 2026-10-06「把 quote 页也删掉」+「按钮最终都导到联系我们页面」）。
+  'contact': 'contact',
+  'contact-us': 'contact',
+  'get-in-touch': 'contact',
+  'book': 'contact',
+  'booking': 'contact',
+  'book-appointment': 'contact',
+  'book-now': 'contact',
+  'quote': 'contact',
+  'get-a-quote': 'contact',
 
   // Portfolio / case studies
   'projects': 'case-studies',

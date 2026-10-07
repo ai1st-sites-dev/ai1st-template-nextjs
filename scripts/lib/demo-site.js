@@ -50,11 +50,6 @@ const PAGE_PLAN = {
     { type: 'pricing' },
     { type: 'faq' },
   ],
-  quote: [
-    { type: 'page-header', at: { introEyebrow: { text: 'Get a Quote', style: 'pill' }, headline: 'Get a Free Quote', subheadline: 'Fill out the form below and we will get back to you within 24 hours' } },
-    // 表单用站级表单库的第一张（form.id 空 = 第一张；#1635 起默认只有 contact 这一张）。
-    { type: 'contact', at: { headline: 'Tell us about your project', form: {} } },
-  ],
   contact: [
     { type: 'page-header', at: { introEyebrow: { text: 'Contact', style: 'pill' }, headline: 'Contact Us', subheadline: "Send us a message and we'll get back to you shortly." } },
     // TICKET-268e：导航里点得进去的 Contact 页，表单 POST 到 /api/leads。

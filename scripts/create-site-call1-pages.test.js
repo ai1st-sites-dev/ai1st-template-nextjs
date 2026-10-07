@@ -115,6 +115,17 @@ function answer(req) {
   const slug = kind === 'page' || kind === 'keyword' ? (first.match(/- slug: "([^"]+)"/) || [])[1] : null;
   if (slug) seen[slug] = (seen[slug] || 0) + 1;
   fs.appendFileSync(process.env.C1_STUB_CALLS, JSON.stringify({ kind, slug, turns, max_tokens: req.max_tokens, first, last }) + '\n');
+  // cfg.planFromPrompt（#1642）：站级回包照提示词出页 —— 「照抄参照站结构」那段点名的 `N. slug "X"` 各一页，
+  //    按钮指清单最后一页（提示词说 CTA 页 navOrder 最大、排最后）；服务详情页照 cfg.plan。量的是「提示词要什么页，站上就有什么页」。
+  if (kind === 'site' && cfg.planFromPrompt) {
+    const slugs = [...first.matchAll(/^\d+\. slug "([^"]+)"$/gm)].map((x) => x[1]);
+    if (!slugs.length) throw new Error('planFromPrompt：站级提示词里一条 `N. slug "X"` 都没有');
+    const pg = (slug, navOrder) => ({ slug, title: slug, description: `${slug}：${BODY}`, navLabel: slug, navOrder, changeFrequency: 'monthly', priority: 0.8 });
+    const json = { ...cfg.plan,
+      pages: [pg('home', 0), ...slugs.map((slug, i) => pg(slug, i + 1)), ...cfg.plan.pages.filter((x) => x.serviceDetailPage)],
+      navigation: { ...cfg.plan.navigation, ctaPage: slugs[slugs.length - 1] } };
+    return { json, out: cfg.siteOut || 4000 };
+  }
   if (kind === 'site') return { json: cfg.plan, out: cfg.siteOut || 4000 };
   if (kind === 'page') {
     // failCalls[slug] = 这一页前几次调用回 400（不可重试的 API 错 ⟹ callAIWithRetry 当场抛）
@@ -700,6 +711,28 @@ check('#1635 AC3：同一跑的站级提示词里是 e.g. contact，没有 e.g. 
   assert.ok(site.includes('REFERENCE SITE NAVIGATION (HARD COPY'), '这一跑没走「照抄参照站结构」那条路');
   assert.ok(site.includes('<slug of the CTA target page, e.g. contact>'), '提示词里没有 e.g. contact');
   assert.ok(!site.includes('e.g. quote'), '提示词里还有 e.g. quote');
+});
+
+console.log('── #1642：「照抄参照站结构」的导航里有 Contact ⟹ 提示词要的是 contact 页，站上没有 quote 页');
+// 桩照提示词回包（cfg.planFromPrompt）：R4 用的是写死的 FIFTEEN 回包、自带 quote 页，量不到「提示词让 AI 建什么页」。
+const R4p = run('structure-follow-prompt', PAYLOAD(REF), { planFromPrompt: true, seoFixDesc: true });
+check('#1642：站级提示词的参照站导航清单是 services · gallery · contact —— slug "quote" 0 次、slug "contact" 1 次', () => {
+  assert.strictEqual(R4p.rc, 0, `${R4p.error}\n${R4p.stderr.slice(-800)}`);
+  const site = call1Prompts(R4p.events)[0].content;
+  assert.ok(site.includes('REFERENCE SITE NAVIGATION (HARD COPY'), '不是参照站那条路的提示词 —— 这一格量错了地方');
+  assert.deepStrictEqual([...site.matchAll(/^\d+\. slug "([^"]+)"$/gm)].map((x) => x[1]), ['services', 'gallery', 'contact']);
+  assert.strictEqual(site.split('slug "quote"').length - 1, 0, 'slug "quote" 还在');
+  assert.strictEqual(site.split('slug "contact"').length - 1, 1, 'slug "contact" 不是恰好 1 次');
+});
+check('#1642：照提示词建出来的站没有 quote 页，顶栏按钮指的那一页在页面集合里（活链）', () => {
+  assert.strictEqual(R4p.rc, 0, `${R4p.error}\n${R4p.stderr.slice(-800)}`);
+  const pages = pagesOn(R4p.work);
+  assert.ok(pages.includes('gallery'), `桩没照提示词出页（gallery 不在）：${pages.join(' ')}`);
+  assert.ok(!pages.includes('quote'), `有 quote 页：${pages.join(' ')}`);
+  const nav = JSON.parse(fs.readFileSync(path.join(R4p.work, 'site', 'zh', 'navigation.json'), 'utf8'));
+  const href = nav.header.cta.href;
+  assert.strictEqual(href, '/contact', `按钮 ${href}`);
+  assert.ok(pages.includes(href.replace(/^\//, '')), `${href} 不在 ${pages.join(' ')}`);
 });
 
 console.log('── #1601 AC5：只填 1 个服务');
