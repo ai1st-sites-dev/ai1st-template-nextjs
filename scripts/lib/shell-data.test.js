@@ -189,5 +189,41 @@ console.log('── ⑦ 副语言那一份：站内链接加 /<locale> 前缀，
   check(!before.every((h) => h === '/zh' || h.startsWith('/zh/')), '反向对照：不传 locale 时同一个判据读到「不在 /zh 下」');
 }
 
+console.log('── ⑧ #1632：关键词页栏从当前页面现算（columns.keywordGroups），不读 navigation.json 的 footer.columns[1..]');
+{
+  const KW = [
+    { slug: 'home' },
+    { slug: 'about' },
+    { slug: 'services/brakes' }, // 服务详情页：不是关键词页
+    { slug: 'services/brakes/brake-repair-toronto', title: 'Brake repair Toronto', navOrder: 51 },
+    { slug: 'services/brakes/cheap-brakes', title: 'Cheap brakes', navOrder: 50 },
+    { slug: 'services/tires/winter-tires', title: 'Winter tires', navOrder: 50 },
+  ];
+  const d8 = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: KW, year: 2026 });
+  const g = d8.footer.columns.keywordGroups || [];
+  check(JSON.stringify(g) === JSON.stringify([
+    { title: 'Brakes', links: [{ label: 'Cheap brakes', href: '/services/brakes/cheap-brakes' }, { label: 'Brake repair Toronto', href: '/services/brakes/brake-repair-toronto' }] },
+    { title: 'Tires', links: [{ label: 'Winter tires', href: '/services/tires/winter-tires' }] },
+  ]), `每个服务一栏、栏名取服务名、栏内按 navOrder、链接就是那几页：${JSON.stringify(g)}`);
+  const all = g.flatMap((x) => x.links.map((l) => l.href));
+  check(!all.includes('/brakes/pads'), 'navigation.json 第 1 栏里那条页面里没有的链接（/brakes/pads）不出现');
+  check(!all.some((h) => h === '/about' || h === '/' || h === '/services/brakes'), '首页、普通页、服务详情页都不进关键词栏（先去掉首页再 isKeywordPage）');
+  // 页面变了，栏跟着变 —— navigation.json 一个字节没改（建站之后增删页那条路）。
+  const after = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, year: 2026,
+    pages: KW.filter((p) => p.slug !== 'services/brakes/cheap-brakes').concat([{ slug: 'services/tires/all-season', title: 'All season', navOrder: 51 }]) });
+  const afterH = (after.footer.columns.keywordGroups || []).flatMap((x) => x.links.map((l) => l.href));
+  check(!afterH.includes('/services/brakes/cheap-brakes') && afterH.includes('/services/tires/all-season'), `删掉的那页没了、新加的那页出现了：${afterH.join(' ')}`);
+  // 副语言：链接加 /<locale> 前缀，栏名照服务名。
+  const zh8 = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: KW, locale: 'zh', defaultLocale: 'en', year: 2026 });
+  const zhH = (zh8.footer.columns.keywordGroups || []).flatMap((x) => x.links.map((l) => l.href));
+  check(zhH.length === 3 && zhH.every((h) => h.startsWith('/zh/services/')), `副语言（zh）关键词页链接都带 /zh：${zhH.join(' ')}`);
+  // 11 个关键词页：10 条，最后一条「全部 11 页 →」指向服务详情页。
+  const many = Array.from({ length: 11 }, (_, i) => ({ slug: `services/brakes/w${i}`, title: `W${i}`, navOrder: 50 + i }));
+  const g11 = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: many, year: 2026 }).footer.columns.keywordGroups[0].links;
+  check(g11.length === 10 && /11/.test(g11[9].label) && g11[9].href === '/services/brakes', `11 页 ⟹ 10 条，最后一条是「${g11[9].label}」→ ${g11[9].href}`);
+  // 没有关键词页：键不存在（不是空数组）。
+  check(!('keywordGroups' in d.footer.columns), `没有关键词页 ⟹ columns 里没有 keywordGroups 这个键（${Object.keys(d.footer.columns).join(',')}）`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);
