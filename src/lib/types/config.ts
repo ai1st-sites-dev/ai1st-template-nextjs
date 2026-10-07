@@ -189,6 +189,8 @@ export interface SiteFormConfig {
   buttonText?: string;
   successMessage?: string;
   redirect?: string;
+  /** #1637 —— 老板写的字段名（= 输入框占位符），只写这一个语言的；没有的字段用语言默认那句。 */
+  labels?: Partial<Record<'name' | 'phone' | 'email' | 'message' | 'service', string>>;
 }
 
 export interface ServiceConfig {

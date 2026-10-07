@@ -92,6 +92,11 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
     ? (mode === 'teaser' ? [form.primary] : form.fields).filter((f): f is LeadField => VOCAB.includes(f))
     : [];
   const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[mode]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
+  // #1637 —— 字段名：老板写的 `labels` > 语言默认（`PLACEHOLDER`，#1631 那一层）。只在这里叠一层，不动下面那一层。
+  const label = (f: LeadField) => {
+    const own = form?.labels?.[f];
+    return (typeof own === 'string' && own.trim()) || PLACEHOLDER[f];
+  };
   const buttonText = form?.buttonText || DEFAULT_BUTTON_TEXT(locale);
   const successMessage = form?.successMessage || DEFAULT_SUCCESS(locale);
   const redirect = form?.redirect;
@@ -147,17 +152,17 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
     const id = `${idPrefix}-${f}`;
     if (f === 'service') {
       return (
-        <select id={id} className={`${sz.select}${extra}`} aria-label={PLACEHOLDER.service} value={values.service || ''} onChange={set('service')}>
-          <option value="">{PLACEHOLDER.service}</option>
+        <select id={id} className={`${sz.select}${extra}`} aria-label={label('service')} value={values.service || ''} onChange={set('service')}>
+          <option value="">{label('service')}</option>
           {services.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>
       );
     }
     if (f === 'message') {
-      return <textarea id={id} className={`${sz.control}${extra}`} rows={3} placeholder={PLACEHOLDER.message} aria-label={PLACEHOLDER.message} value={values.message || ''} onChange={set('message')} maxLength={2000} />;
+      return <textarea id={id} className={`${sz.control}${extra}`} rows={3} placeholder={label('message')} aria-label={label('message')} value={values.message || ''} onChange={set('message')} maxLength={2000} />;
     }
     const type = f === 'phone' ? 'tel' : f === 'email' ? 'email' : 'text';
-    return <input id={id} className={`${sz.control}${extra}`} type={type} placeholder={PLACEHOLDER[f]} aria-label={PLACEHOLDER[f]} value={values[f] || ''} onChange={set(f)} maxLength={f === 'email' ? 320 : 200} />;
+    return <input id={id} className={`${sz.control}${extra}`} type={type} placeholder={label(f)} aria-label={label(f)} value={values[f] || ''} onChange={set(f)} maxLength={f === 'email' ? 320 : 200} />;
   };
 
   // 蜜罐：屏幕外，真人填不到。内联样式是有意的 —— 它不是外观，主题不许把它打开（同 HeroLeadForm）。
