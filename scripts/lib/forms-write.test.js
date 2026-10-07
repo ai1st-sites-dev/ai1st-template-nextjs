@@ -10,6 +10,7 @@
 //   ④ 只改表单的那一笔不带页面、不带 baseHash 也收（write-editor-save.js 那条「一样都没有」认 forms）
 //   ⑤ 单测 planFormsWrite：上限边界（40 过 / 41 拒）、不认识的键、找不到的表单、没改 ⟹ 空数组
 //   ⑥~⑩ #1637 字段：见各段标题（对应正文验收 1 / 2 / 3 / 4 / 5 与「各语言一致」那条检查）
+//   ⑬ #1644 结构的底稿 `forms.base`：AC7 各格（planFormsWrite）· AC5（整条脚本直发）· AC9（页面那种 10 不往 stdout 打话）
 'use strict';
 
 const assert = require('assert');
@@ -65,6 +66,11 @@ function snapshot() {
     }
   }(SITE));
   return out;
+}
+/** #1644 —— 改结构的那一笔要带的底稿：磁盘上这个语言里那张表单此刻的 fields / primary（= 编辑器手上那份没过时）。 */
+function baseOf(loc, id = 'contact') {
+  const f = read(loc).find((x) => x.id === id);
+  return { ...(f && 'fields' in f ? { fields: f.fields } : {}), ...(f && 'primary' in f ? { primary: f.primary } : {}) };
 }
 function save(stdin, locale = 'zh') {
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'write-editor-save.js'), JSON.stringify({ page: 'contact', locale })], {
@@ -192,7 +198,7 @@ console.log('── ⑥ en 下改字段 ⟹ 每个语言的 fields / primary 都
     assert.deepStrictEqual(enBefore.fields, ['name', 'phone', 'email', 'message']);
     assert.strictEqual(enBefore.primary, 'phone');
   });
-  const r = save({ forms: { id: 'contact', fields: ['message', 'phone', 'email'], primary: 'phone' } }, 'en');
+  const r = save({ forms: { id: 'contact', base: baseOf('en'), fields: ['message', 'phone', 'email'], primary: 'phone' } }, 'en');
   check('rc=0，回执写了 en 与 zh 两份 forms.json', () => {
     assert.strictEqual(r.rc, 0, r.stderr);
     assert.deepStrictEqual([...r.out.files].sort(), ['site/en/forms.json', 'site/zh/forms.json']);
@@ -215,7 +221,7 @@ console.log('── ⑥ en 下改字段 ⟹ 每个语言的 fields / primary 都
 console.log('── ⑦ zh 下加 name + labels.name ⟹ fields 两份一致，labels 只写 zh');
 {
   const enBefore = contactOf('en');
-  const r = save({ forms: { id: 'contact', fields: ['message', 'phone', 'email', 'name'], primary: 'phone', labels: { name: '  您的姓名 ' } } }, 'zh');
+  const r = save({ forms: { id: 'contact', base: baseOf('zh'), fields: ['message', 'phone', 'email', 'name'], primary: 'phone', labels: { name: '  您的姓名 ' } } }, 'zh');
   check('rc=0；zh.labels 是 { name: 「您的姓名」 }（去首尾空白），en 没有 labels', () => {
     assert.strictEqual(r.rc, 0, r.stderr);
     assert.deepStrictEqual(contactOf('zh').labels, { name: '您的姓名' });
@@ -245,7 +251,7 @@ console.log('── ⑧ 清空 labels.name');
 console.log('── ⑨ 删光 phone 与 email：exit 11，一个字节不写');
 {
   const before = snapshot();
-  const r = save({ forms: { id: 'contact', fields: ['name', 'message'] } }, 'zh');
+  const r = save({ forms: { id: 'contact', base: baseOf('zh'), fields: ['name', 'message'] } }, 'zh');
   check('exit 11，回执 ok:false，那句话是英文、说出 Phone / Email', () => {
     assert.strictEqual(r.rc, 11, r.stderr);
     assert.strictEqual(r.out.ok, false);
@@ -261,23 +267,23 @@ console.log('── ⑩ planFormsWrite：字段 / primary / labels');
   const contactIn = (writes, loc) => JSON.parse(writes.find((w) => w.file === path.join(SITE, loc, 'forms.json')).content).find((f) => f.id === 'contact');
   check('删掉的正好是 primary（phone）且没带 primary ⟹ 两个语言的 primary 都落到剩下的第一个（email）', () => {
     assert.strictEqual(contactOf('zh').primary, 'phone');
-    const w = fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['email', 'message'] } });
+    const w = fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), fields: ['email', 'message'] } });
     for (const loc of ['zh', 'en']) assert.strictEqual(contactIn(w, loc).primary, 'email', loc);
   });
   check('带了 primary 但它不在 fields 里 ⟹ 11（不许指空）；只带 primary 且在 fields 里 ⟹ 两个语言都改', () => {
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['phone', 'message'], primary: 'email' } }), 11);
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'service' } }), 11);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), fields: ['phone', 'message'], primary: 'email' } }), 11);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), primary: 'service' } }), 11);
     // r4 —— 在 fields 里但不是联系字段（teaser 只露这一格、提交要电话或邮箱）⟹ 同样 11。
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'message' } }), 11);
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['name', 'email'], primary: 'name' } }), 11);
-    const w = fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'email' } });
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), primary: 'message' } }), 11);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), fields: ['name', 'email'], primary: 'name' } }), 11);
+    const w = fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), primary: 'email' } });
     for (const loc of ['zh', 'en']) assert.strictEqual(contactIn(w, loc).primary, 'email', loc);
   });
   check('空 fields / 重复字段 / 词表外字段 ⟹ 11；fields 不是字符串数组 ⟹ 5', () => {
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: [] } }), 11);
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['email', 'email'] } }), 11);
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['email', 'company'] } }), 11);
-    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: 'email' } }), 5);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), fields: [] } }), 11);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), fields: ['email', 'email'] } }), 11);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), fields: ['email', 'company'] } }), 11);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf(target.locale), fields: 'email' } }), 5);
   });
   check('字段名 40 字放行、41 字拒收 11；词表外的字段 ⟹ 11；labels 不是对象 ⟹ 5', () => {
     assert.strictEqual(contactIn(fw.planFormsWrite({ target, forms: { id: 'contact', labels: { email: '邮'.repeat(40) } } }), 'zh').labels.email, '邮'.repeat(40));
@@ -319,7 +325,7 @@ console.log('── ⑪ en 的 booking.fields 顺序被人改得跟 zh 不一样
 console.log('── ⑫ 默认表单删 phone ⟹ primary 落到 email；直发 primary:name ⟹ exit 11、一个字节不写');
 {
   const DEFAULT = siteForms.DEFAULT_SITE_FORMS[0];
-  const reset = save({ forms: { id: 'contact', fields: [...DEFAULT.fields], primary: DEFAULT.primary } }, 'en');
+  const reset = save({ forms: { id: 'contact', base: baseOf('en'), fields: [...DEFAULT.fields], primary: DEFAULT.primary } }, 'en');
   check(`起点：contact 回到新站默认 ${JSON.stringify([DEFAULT.fields, DEFAULT.primary])}`, () => {
     assert.strictEqual(reset.rc, 0, reset.stderr);
     for (const loc of ['en', 'zh']) {
@@ -327,15 +333,15 @@ console.log('── ⑫ 默认表单删 phone ⟹ primary 落到 email；直发 
       assert.strictEqual(contactOf(loc).primary, 'phone', loc);
     }
   });
-  const r = save({ forms: { id: 'contact', fields: ['name', 'email', 'message'] } }, 'en');
+  const r = save({ forms: { id: 'contact', base: baseOf('en'), fields: ['name', 'email', 'message'] } }, 'en');
   check('只交 fields（删掉 phone）⟹ rc=0，两个语言的 primary 都是 email，不是 name', () => {
     assert.strictEqual(r.rc, 0, r.stderr);
     for (const loc of ['en', 'zh']) assert.strictEqual(contactOf(loc).primary, 'email', loc);
   });
-  const back = save({ forms: { id: 'contact', fields: [...DEFAULT.fields], primary: DEFAULT.primary } }, 'en');
+  const back = save({ forms: { id: 'contact', base: baseOf('en'), fields: [...DEFAULT.fields], primary: DEFAULT.primary } }, 'en');
   assert.strictEqual(back.rc, 0, back.stderr);
   const before = snapshot();
-  const dead = save({ forms: { id: 'contact', fields: ['name', 'email', 'message'], primary: 'name' } }, 'en');
+  const dead = save({ forms: { id: 'contact', base: baseOf('en'), fields: ['name', 'email', 'message'], primary: 'name' } }, 'en');
   check('直发 {"fields":["name","email","message"],"primary":"name"} ⟹ exit 11，回执是英文、说出 Phone / Email', () => {
     assert.strictEqual(dead.rc, 11, dead.stderr);
     assert.strictEqual(dead.out.ok, false);
@@ -348,6 +354,94 @@ console.log('── ⑫ 默认表单删 phone ⟹ primary 落到 email；直发 
     assert.strictEqual(p.length, 1, p.join(' | '));
     assert.match(p[0], /不是联系字段/);
   });
+}
+
+// ══ #1644 结构的底稿（`forms.base`）══
+// 编辑器手上那份结构是构建时烤进去的；重建那一分半里拿旧的再交一笔结构，会把上一笔悄悄改回去 ⟹ 底稿对不上就 10、不写。
+console.log('── ⑬ #1644 forms.base：对上 / 对不上 / 没带 / 只改文案不比 / 其余语言对不上');
+{
+  const STALE_RE = /^This form was changed after the editor opened/;
+  const staleBase = () => ({ ...baseOf('zh'), fields: [...baseOf('zh').fields].reverse() });
+  check('AC7 对上 ⟹ 收下（两个语言都写）', () => {
+    const w = fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf('zh'), fields: [...baseOf('zh').fields].reverse() } });
+    assert.deepStrictEqual(w.map((x) => path.relative(SITE, x.file)).sort(), [path.join('en', 'forms.json'), path.join('zh', 'forms.json')]);
+  });
+  check('AC7 这个语言对不上（fields 顺序不同）⟹ 10，那句话是英文、说的是 form；开发原话在 detail', () => {
+    const e = throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: staleBase(), fields: baseOf('zh').fields } }), 10);
+    assert.match(e.message, STALE_RE);
+    assert.ok(!hasCjk(e.message) && !/page/i.test(e.message), e.message);
+    assert.match(e.detail, /zh: fields 底稿/);
+  });
+  check('AC7 只差 primary ⟹ 10；底稿没有 primary 键而盘上有 ⟹ 10', () => {
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: { ...baseOf('zh'), primary: 'email' }, primary: 'email' } }), 10);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: { fields: baseOf('zh').fields }, primary: 'email' } }), 10);
+  });
+  check('AC7 两边都没有 primary 键 ⟹ 算对上（盘上两个语言都拿掉 primary，底稿也不带）', () => {
+    const raw = Object.fromEntries(['zh', 'en'].map((loc) => [loc, fs.readFileSync(path.join(SITE, loc, 'forms.json'))]));
+    try {
+      for (const loc of ['zh', 'en']) {
+        const list = read(loc);
+        delete list.find((f) => f.id === 'contact').primary;
+        fs.writeFileSync(path.join(SITE, loc, 'forms.json'), `${JSON.stringify(list, null, 2)}\n`);
+      }
+      assert.ok(!('primary' in baseOf('zh')));
+      assert.strictEqual(fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf('zh'), fields: [...baseOf('zh').fields].reverse() } }).length, 2);
+    } finally {
+      for (const loc of ['zh', 'en']) fs.writeFileSync(path.join(SITE, loc, 'forms.json'), raw[loc]);
+    }
+  });
+  check('AC7 / AC5 带了 fields（或只带 primary）却没带 base ⟹ 拒（5），不是悄悄跳过', () => {
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: baseOf('zh').fields } }), 5);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'email' } }), 5);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: ['name'], fields: baseOf('zh').fields } }), 5);
+  });
+  check('AC7 只改文案 / labels 根本不比：不带 base 收下；带一份过时的 base 也收下', () => {
+    assert.strictEqual(fw.planFormsWrite({ target, forms: { id: 'contact', buttonText: 'Send 1644' } }).length, 1);
+    assert.strictEqual(fw.planFormsWrite({ target, forms: { id: 'contact', labels: { phone: '电话 1644' } } }).length, 1);
+    assert.strictEqual(fw.planFormsWrite({ target, forms: { id: 'contact', base: staleBase(), buttonText: 'Send 1644' } }).length, 1);
+  });
+  check('AC7 其余语言那份对不上也拒：en 的 contact.fields 被人改了顺序、zh 的底稿对得上 ⟹ 10，detail 点名 en', () => {
+    const enFile = path.join(SITE, 'en', 'forms.json');
+    const enRaw = fs.readFileSync(enFile);
+    try {
+      const en = JSON.parse(enRaw);
+      const c = en.find((f) => f.id === 'contact');
+      c.fields = [...c.fields].reverse();
+      fs.writeFileSync(enFile, `${JSON.stringify(en, null, 2)}\n`);
+      const e = throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', base: baseOf('zh'), fields: [...baseOf('zh').fields].reverse() } }), 10);
+      assert.match(e.detail, /en: fields 底稿/);
+      assert.ok(!/zh: /.test(e.detail), e.detail);
+    } finally {
+      fs.writeFileSync(enFile, enRaw);
+    }
+  });
+
+  // AC5 —— 脚本直发（write-editor-save.js 整条）：对不上 ⟹ exit 10 + stdout 那一行；没带 base ⟹ 拒。两种 sha256 都不变。
+  const before = snapshot();
+  const stale = save({ forms: { id: 'contact', base: staleBase(), fields: baseOf('zh').fields } }, 'zh');
+  check('AC5 base 对不上 ⟹ exit 10，回执 {"ok":false,"message":…} 那句英文说的是 form', () => {
+    assert.strictEqual(stale.rc, 10, stale.stderr);
+    assert.strictEqual(stale.out && stale.out.ok, false, JSON.stringify(stale.out));
+    assert.match(stale.out.message, STALE_RE);
+    assert.ok(!hasCjk(stale.out.message), stale.out.message);
+    assert.match(stale.stderr, /zh: fields 底稿/);
+  });
+  const noBase = save({ forms: { id: 'contact', fields: [...baseOf('zh').fields].reverse() } }, 'zh');
+  check('AC5 带 fields 却不带 base ⟹ 拒（exit 5）', () => assert.strictEqual(noBase.rc, 5, noBase.stderr));
+  check('AC5 两种情况 site/ 下每一份 .json 的 sha256 都没变', () => assert.deepStrictEqual(snapshot(), before));
+
+  // AC9 —— 页面那半 baseHash 对不上也是 10，它的原话是中文开发话 ⟹ stdout 不许出现 {"ok":false,…}。
+  const pageFile = path.join(SITE, 'zh', 'pages', 'contact.json');
+  const r9 = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'write-editor-save.js'),
+    JSON.stringify({ page: 'contact', locale: 'zh', baseHash: 'a'.repeat(64) })], {
+    cwd: work, input: JSON.stringify({ page: JSON.parse(fs.readFileSync(pageFile, 'utf-8')), forms: { id: 'contact', buttonText: 'Send 1644' } }), encoding: 'utf8', timeout: 60000,
+  });
+  check('AC9 页面 baseHash 对不上 ⟹ exit 10，stdout 里没有 {"ok":false,…} 那一行（开发原话只进 stderr）', () => {
+    assert.strictEqual(r9.status, 10, r9.stderr);
+    assert.ok(!/"ok":false/.test(r9.stdout || ''), r9.stdout);
+    assert.ok(hasCjk(r9.stderr), r9.stderr);
+  });
+  check('AC9 那一笔一个字节都没写', () => assert.deepStrictEqual(snapshot(), before));
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} #1634 / #1637 forms-write：${pass} 通过 · ${fail} 失败`);

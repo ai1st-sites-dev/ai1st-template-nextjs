@@ -13,7 +13,12 @@
 //   `fields`：整列替换（顺序 = 表单里的上下顺序），词表内、不重复、至少一个、电话 / 邮箱至少有一个。
 //   `primary`：必须在（改后的）`fields` 里，且是联系字段（`site-forms.js` §primaryChoices，r4）。只带 `fields` 而原来的
 //   `primary` 不再可取 ⟹ 落到剩下的第一个联系字段。
-// 🔴 只认这七个键。别的键（`redirect` / 整张增删 / 改 `id` / …）**一律拒收**。
+//   `base`（#1644）：{ fields?, primary? } —— 编辑器打开这张表单时手上的结构（原样），只用来比、**不写进磁盘**。
+//   带了 `fields` 或 `primary` 就必须带它：跟磁盘上这张表单（这个语言那份 + 其余每个有这张表单的语言那份）的
+//   `fields` / `primary` 原值比，任一份对不上 ⟹ 退出码 10、一个字节不写。为什么：`fields` 是整份绝对值交的，而编辑器手上
+//   那份是构建时烤进静态页的；重建那一分半里换个语言 / 重开编辑器再交一笔结构，交上去的是旧的，会把上一笔悄悄改回去。
+//   只改文案 / `labels` 的那一笔不带也不比（它们逐键只交改过的那几格，陈旧时根本不进这一笔）。
+// 🔴 只认这八个键。别的键（`redirect` / 整张增删 / 改 `id` / …）**一律拒收**。
 // 🔴 写到哪儿：文案三键和 `labels` 是给访客看的字，只写**这个语言**那份 `forms.json`；`fields` / `primary` 是结构，
 //    各语言必须一致（`site-forms.js` §formsConsistencyProblems）⟹ 写进**每个语言**那份的同一张表单。
 // 🔴 上限：文案是 `site-forms.js` §COPY_CAPS，字段名是 §LABEL_CAP。拒收的话全是给老板看的英文（原样进编辑器状态栏）。
@@ -23,6 +28,7 @@
 //
 // 失败抛 `FormsWriteError`（带退出码，意思同 write-editor-save.js 文件头）：
 //   4 这个语言没有表单库 / 没有这张表单   5 形状不对
+//  10 结构的底稿（`base`）跟磁盘上的对不上 —— 编辑器打开之后这张表单的字段变过了（#1644）。那句话也给老板看
 //  11 拒收：超过上限 / 带了不许改的键 / 字段组合不成立 / 改完的表单库过不了检查
 
 const fs = require('fs');
@@ -30,8 +36,12 @@ const path = require('path');
 const { COPY_CAPS, FORM_FIELDS, LABEL_CAP, lacksContactField, primaryChoices, formsProblems } = require('./site-forms.js');
 
 const REFUSED = 11;
+const STALE = 10;
 const TEXT_KEYS = Object.keys(COPY_CAPS); // name · buttonText · successMessage
 const FIELD_KEYS = ['fields', 'primary', 'labels'];
+const BASE_KEY = 'base';
+const STALE_MSG = 'This form was changed after the editor opened, so your edit was not saved (saving it would have undone that change). '
+  + 'Close the editor and open it again in a minute or two to edit the latest version.';
 const LABEL = { name: 'Form name', buttonText: 'Button text', successMessage: 'Success message' };
 const NOT_SAVED = 'Nothing was saved.';
 
@@ -59,6 +69,17 @@ function textValue(v, cap, what) {
   if (!t) return undefined;
   if ([...t].length > cap) fail(REFUSED, `${what} can be at most ${cap} characters (this one has ${[...t].length}). ${NOT_SAVED}`);
   return t;
+}
+
+/** #1644 —— 结构的一格（`fields` / `primary`）两边是否相同：两边都没有这个键算相同；`fields` 逐项、按顺序比。 */
+function sameStructureKey(a, b, k) {
+  if (!has(a, k) || !has(b, k)) return !has(a, k) && !has(b, k);
+  if (k !== 'fields') return a[k] === b[k];
+  return Array.isArray(a[k]) && Array.isArray(b[k]) && a[k].length === b[k].length && a[k].every((x, j) => x === b[k][j]);
+}
+/** #1644 —— 底稿跟磁盘上这张表单不一样的那几格（`[]` = 对得上）。 */
+function staleKeys(base, onDisk) {
+  return ['fields', 'primary'].filter((k) => !sameStructureKey(base, onDisk, k));
 }
 
 /** `fields` / `primary` 改动的结果（没带这两样 ⟹ null）。只判字段组合，不碰磁盘。 */
@@ -90,6 +111,13 @@ function nextStructure(form, forms) {
   return { fields, primary };
 }
 
+/** 这个站除 `target` 那个语言之外的每个语言目录（平铺站 = 没有）：[{ loc, dir }]。 */
+function otherLocales(target) {
+  if (target.shape && target.shape.flat) return [];
+  const siteDir = path.dirname(target.localeDir);
+  return ((target.shape && target.shape.locales) || []).filter((loc) => loc !== target.locale).map((loc) => ({ loc, dir: path.join(siteDir, loc) }));
+}
+
 /**
  * 判 + 算出要写的那几份 `forms.json`，**不落盘**（落盘归 `lib/page-write.js` §commitWrites，跟页面那一半一起）。
  * @param {object} a
@@ -99,17 +127,38 @@ function nextStructure(form, forms) {
  */
 function planFormsWrite({ target, forms }) {
   if (!isObj(forms)) fail(5, 'forms 必须是一个对象 { id, name?, buttonText?, successMessage?, fields?, primary?, labels? }');
-  const extra = Object.keys(forms).filter((k) => k !== 'id' && !TEXT_KEYS.includes(k) && !FIELD_KEYS.includes(k));
+  const extra = Object.keys(forms).filter((k) => k !== 'id' && k !== BASE_KEY && !TEXT_KEYS.includes(k) && !FIELD_KEYS.includes(k));
   if (extra.length) {
     fail(REFUSED, `Only the fields, field names, button text, success message and form name can be changed here (not ${extra.join(', ')}). ${NOT_SAVED}`);
   }
   if (typeof forms.id !== 'string' || !forms.id.trim()) fail(5, 'forms.id 必须是非空字符串');
   if (has(forms, 'labels') && !isObj(forms.labels)) fail(5, 'forms.labels 必须是对象 { 字段: 字段名 }');
+  // #1644 —— 带了结构就必须带底稿（这道检查不许因为漏带就跳过，同 write-page.js 的 baseHash）。
+  const touchesStructure = has(forms, 'fields') || has(forms, 'primary');
+  if (has(forms, BASE_KEY) && !isObj(forms[BASE_KEY])) fail(5, 'forms.base 必须是对象 { fields?, primary? }');
+  if (touchesStructure && !has(forms, BASE_KEY)) fail(5, '改了 fields / primary 的那一笔必须带 forms.base（编辑器打开时的 fields / primary）');
 
   const list = readForms(target.localeDir);
   if (!Array.isArray(list)) fail(4, `这个语言没有表单库：${path.basename(target.localeDir)}/forms.json`);
   const i = list.findIndex((f) => isObj(f) && f.id === forms.id);
   if (i < 0) fail(4, `表单库里没有这张表单：${JSON.stringify(forms.id)}`);
+  const others = otherLocales(target);
+  // #1644 —— 底稿跟各语言磁盘上的这张表单比（结构各语言一致，这一笔本来就要写进每个语言），在算新结构之前。
+  //    任一份对不上 ⟹ 10、不写。只带文案 / labels 的那一笔不比。
+  if (touchesStructure) {
+    const stale = [];
+    const check = (loc, f) => {
+      const keys = staleKeys(forms[BASE_KEY], f);
+      if (keys.length) stale.push(`${loc}: ${keys.map((k) => `${k} 底稿 ${JSON.stringify(forms[BASE_KEY][k])} ≠ 磁盘 ${JSON.stringify(f[k])}`).join('；')}`);
+    };
+    check(target.locale || 'default', list[i]);
+    for (const { loc, dir } of others) {
+      const other = readForms(dir);
+      const same = Array.isArray(other) ? other.find((f) => isObj(f) && f.id === forms.id) : null;
+      if (same) check(loc, same);
+    }
+    if (stale.length) fail(STALE, STALE_MSG, `表单 ${JSON.stringify(forms.id)} 的结构在编辑器打开之后变过了：\n${stale.join('\n')}`);
+  }
 
   // ── 这个语言：文案 + 字段名 + 结构 ──
   const next = list.map((f) => (isObj(f) ? { ...f } : f));
@@ -134,16 +183,11 @@ function planFormsWrite({ target, forms }) {
   // ── 其余语言：磁盘上那几份；改了结构就把同一张表单的 fields / primary 换成同一份（文字一个字不动）──
   const byLocale = { [target.locale || 'default']: next };
   const dirs = { [target.locale || 'default']: target.localeDir };
-  if (!target.shape || !target.shape.flat) {
-    const siteDir = path.dirname(target.localeDir);
-    for (const loc of (target.shape && target.shape.locales) || []) {
-      if (loc === target.locale) continue;
-      const dir = path.join(siteDir, loc);
-      const other = readForms(dir);
-      if (!Array.isArray(other)) continue;
-      byLocale[loc] = !structure ? other : other.map((f) => (isObj(f) && f.id === forms.id ? { ...f, ...structure } : f));
-      dirs[loc] = dir;
-    }
+  for (const { loc, dir } of others) {
+    const other = readForms(dir);
+    if (!Array.isArray(other)) continue;
+    byLocale[loc] = !structure ? other : other.map((f) => (isObj(f) && f.id === forms.id ? { ...f, ...structure } : f));
+    dirs[loc] = dir;
   }
 
   const problems = formsProblems(byLocale);
@@ -165,4 +209,4 @@ function planFormsWrite({ target, forms }) {
   return out;
 }
 
-module.exports = { FormsWriteError, REFUSED, TEXT_KEYS, FIELD_KEYS, planFormsWrite };
+module.exports = { FormsWriteError, REFUSED, STALE, TEXT_KEYS, FIELD_KEYS, planFormsWrite };

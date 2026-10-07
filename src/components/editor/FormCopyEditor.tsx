@@ -27,10 +27,13 @@ export interface EditorFormChoice {
   fields?: FormField[]; primary?: FormField; labels?: Labels;
 }
 
-/** 面板交出来的一笔：只带改过的键；空串 = 删掉这个键。改了字段就连 `primary` 一起带（各语言一致，存盘写到每个语言）。 */
+/** 面板交出来的一笔：只带改过的键；空串 = 删掉这个键。改了字段就连 `primary` 一起带（各语言一致，存盘写到每个语言）。
+ *  #1644 —— 带了 `fields` 就带 `base`：面板打开时这张表单的 `fields` / `primary`（原样）。存盘那一侧拿它跟磁盘比，
+ *  对不上 ⟹ 编辑器手上那份结构是旧的（重建前烤进去的），这一笔会把别处那次改动改回去 ⟹ 退出码 10、不写。 */
 export interface FormCopyEdit {
   id: string; name?: string; buttonText?: string; successMessage?: string;
   fields?: FormField[]; primary?: FormField; labels?: Labels;
+  base?: { fields?: FormField[]; primary?: FormField };
 }
 
 type CopyKey = 'name' | 'buttonText' | 'successMessage';
@@ -142,11 +145,15 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
     if (fields.length && (!sameList(fields, startFields) || primary !== form.primary)) {
       edit.fields = fields;
       edit.primary = shownPrimary;
+      edit.base = { fields: form.fields, primary: form.primary };
     }
     // 字段名：只交变了的那几格（只写这个语言）；空串 = 回到默认。
     const changed: Labels = {};
     for (const f of VOCAB) {
       const next = (labels[f] || '').trim();
+      // #1644 —— 超限、而这个字段已经删掉了：这串字是这次刚打的、从没存过，面板上也没有它那一行（Done 的闸只看还在的
+      //    字段，老板看不见也改不了）⟹ 不交。交上去会被整笔拒收，连删字段那一步也存不上。
+      if (!fields.includes(f) && Array.from(next).length > LABEL_CAP) continue;
       if (next !== ((form.labels && form.labels[f]) || '').trim()) changed[f] = next;
     }
     if (Object.keys(changed).length) edit.labels = changed;

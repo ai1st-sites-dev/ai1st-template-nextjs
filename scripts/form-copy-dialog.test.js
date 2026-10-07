@@ -11,6 +11,9 @@
  * 存盘那一侧（`forms-write.test.js` ⑫）拒收这种表单；这一份盯的是面板自己：下拉只给联系字段、删掉 primary 落到联系字段，
  * 于是老板按 Done 交出去的那一笔本来就是对的，不会撞上一个看不懂的拒收。
  *
+ * #1644 加了 ⑥~⑧：改了结构的那一笔带 `base`（面板打开时的 fields / primary，原样）；只改文字不带；
+ * 超限的字段名所在字段被删掉 ⟹ 那一格不交（不然整笔被拒，连删字段也存不上）。
+ *
  * 怎么测：happy-dom 里真挂上面板（hero-render.test.js AC6 同一做法），真点删除、真点 Done，读 onDone 交出来的那一笔。
  */
 
@@ -73,7 +76,14 @@ async function mount(form) {
   const options = () => [...host.querySelectorAll('[data-editor-form-primary] option')].map((o) => o.getAttribute('value'));
   const primaryValue = () => q('[data-editor-form-primary]').value;
   const unmount = async () => { await act(async () => { root.unmount(); }); };
-  return { got, q, click, options, primaryValue, unmount };
+  /** 往一格里打字（React 认的那种：原型上的 value setter + input 事件）。 */
+  const type = async (sel, val) => {
+    const el = q(sel);
+    if (!el) throw new Error(`页面上没有 ${sel}`);
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, val);
+    await act(async () => { el.dispatchEvent(new win.Event('input', { bubbles: true })); });
+  };
+  return { got, q, click, type, options, primaryValue, unmount };
 }
 
 (async () => {
@@ -134,6 +144,63 @@ async function mount(form) {
       await p.click('[data-editor-form-cancel]');
       check(p.got.cancelled === true && p.got.done === undefined, 'Cancel ⟹ onCancel 被调，onDone 一次都没调');
       await p.unmount();
+    }
+
+    // ── #1644 ──
+    console.log('── ⑥ #1644 改了结构 ⟹ 那一笔带 base = 面板打开时的 fields / primary（原样，不规整）');
+    {
+      // 磁盘上带一个词表外的字段（面板不显示它）、primary 不合格 —— base 照样原样交，存盘那一侧拿它跟磁盘原值比。
+      const opened = { id: 'contact', name: 'Contact us', fields: ['name', 'phone', 'email', 'message', 'fax'], primary: 'name' };
+      const p = await mount({ ...opened, fields: [...opened.fields] });
+      await p.click('[data-editor-form-remove="name"]');
+      await p.click('[data-editor-form-done]');
+      const e = p.got.done;
+      check(!!e && JSON.stringify(e.base) === JSON.stringify({ fields: opened.fields, primary: opened.primary }),
+        `base 是打开时的原样（读到 ${JSON.stringify(e && e.base)}）`);
+      await p.unmount();
+      const q = await mount({ ...DEFAULT, fields: [...DEFAULT.fields] });
+      await q.click('[data-editor-form-remove="name"]');
+      await q.click('[data-editor-form-done]');
+      check(q.got.done && JSON.stringify(q.got.done.base) === JSON.stringify({ fields: DEFAULT.fields, primary: DEFAULT.primary }),
+        `默认表单删 name ⟹ base 是 ${JSON.stringify({ fields: DEFAULT.fields, primary: DEFAULT.primary })}（读到 ${JSON.stringify(q.got.done && q.got.done.base)}）`);
+      await q.unmount();
+    }
+
+    console.log('── ⑦ #1644 只改按钮文字 / 字段名 ⟹ 那一笔不带 base（也不带 fields）');
+    {
+      const p = await mount({ ...DEFAULT, fields: [...DEFAULT.fields] });
+      await p.type('[data-editor-form-input="buttonText"]', 'Send 1644');
+      await p.type('[data-editor-form-label="phone"]', 'Mobile');
+      await p.click('[data-editor-form-done]');
+      const e = p.got.done;
+      check(!!e && e.buttonText === 'Send 1644' && e.labels && e.labels.phone === 'Mobile' && !('base' in e) && !('fields' in e),
+        `交出 { buttonText, labels }，没有 base / fields（读到 ${JSON.stringify(e)}）`);
+      await p.unmount();
+    }
+
+    console.log('── ⑧ #1644 AC6：给 phone 填 41 字再删掉 phone ⟹ Done 能点，那一笔里没有 phone 这个 label 键');
+    {
+      const long = 'x'.repeat(41);
+      const p = await mount({ ...DEFAULT, fields: [...DEFAULT.fields] });
+      await p.type('[data-editor-form-label="phone"]', long);
+      check(p.q('[data-editor-form-done]').disabled === true, '填了 41 字、phone 还在 ⟹ Done 是灰的');
+      await p.click('[data-editor-form-remove="phone"]');
+      check(p.q('[data-editor-form-done]').disabled === false, '删掉 phone 之后 Done 能点');
+      await p.click('[data-editor-form-done]');
+      const e = p.got.done;
+      check(!!e && JSON.stringify(e.fields) === JSON.stringify(['name', 'email', 'message']) && !(e.labels && 'phone' in e.labels),
+        `交出删字段那一笔、labels 里没有 phone（读到 ${JSON.stringify(e)}）`);
+      await p.unmount();
+      // 反向对照：41 字填在一个仍然留着的字段上 ⟹ Done 灰着、面板说是字段名超了；点了也不交。
+      const q = await mount({ ...DEFAULT, fields: [...DEFAULT.fields] });
+      await q.type('[data-editor-form-label="email"]', long);
+      await q.click('[data-editor-form-remove="phone"]');
+      check(q.q('[data-editor-form-done]').disabled === true, '反向对照：41 字在留着的 email 上 ⟹ Done 还是灰的');
+      check(/A field name can be at most 40 characters/.test(q.q('[data-editor-form-dialog]').textContent), '反向对照：面板写着「A field name can be at most 40 characters」');
+      check(q.q('[data-editor-form-label="email"]').value === long, '反向对照：超了的那一格就是 email 那一行（它还在面板上，老板改得到）');
+      await q.click('[data-editor-form-done]');
+      check(q.got.done === undefined, '反向对照：点 Done 什么都没交');
+      await q.unmount();
     }
   } catch (e) {
     fail += 1;

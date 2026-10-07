@@ -63,6 +63,8 @@ const FORMS = {
   fields: ['message', 'email', 'phone'],
   primary: 'email',
   labels: { name: '您的姓名', email: '' },
+  // #1644 —— 结构的底稿（只比不写）也要原样过这一跳，少了它存盘那一侧会拒收这一笔。
+  base: { fields: ['name', 'phone', 'email', 'message'], primary: 'phone' },
   name: 'Contact us',
   buttonText: 'Send',
   successMessage: '',
@@ -77,7 +79,7 @@ const src = extractFunction(panelJs, 'saveFieldsFrom');
 if (!src) die('VisualEditorPanel.tsx 里找不到 function saveFieldsFrom（改名了就改这里）');
 // eslint-disable-next-line no-new-func
 const saveFieldsFrom = new Function(`${src}\nreturn saveFieldsFrom;`)();
-check('只带 forms（不带页面 / root / shared）的一笔也收，forms 七个键原样出来', () => {
+check('只带 forms（不带页面 / root / shared）的一笔也收，forms 八个键原样出来（#1644 加了 base）', () => {
   const out = saveFieldsFrom({ type: 'ai1st:editor-save', page: 'contact', locale: 'zh', forms: FORMS });
   assert.ok(out, 'saveFieldsFrom 回了 null —— 只改表单的那一笔会被丢掉');
   assert.deepStrictEqual(out.forms, FORMS);

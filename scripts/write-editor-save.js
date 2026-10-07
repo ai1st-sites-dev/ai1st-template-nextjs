@@ -22,6 +22,8 @@
 // 退出码：
 //   0 成功   4 找不到那一页 / 那种语言   5 参数或内容的形状不对
 //   9 写进去这个站就建不出来了 —— 不写     10 这一页在编辑器打开之后被别处改过了（baseHash）—— 不写
+//     （#1644：或者表单那一笔带的结构底稿 `forms.base` 跟磁盘上的对不上 —— 只有这一种 10 也在 stdout 打
+//     {"ok":false,"message":…}，那句是给老板的英文；页面那种 10 的原话是给开发的，只进 stderr，worker 用自己那句）
 //  11 **拒收**：这个组合构建不收（带公告条的布局 + 透明浮层顶栏 / 某种语言缺公告条文字 / 布局自带页脚时改页脚），
 //     或者老板填的链接不是能用的地址（#1416：页面里块的链接 / 公告条链接；#1427：共用块里的链接 ——
 //     `lib/page-write.js` §commitWrites 对这次每一份写入都判一遍，判据在 `lib/link-href.js`），
@@ -120,7 +122,10 @@ try {
   if ((e instanceof editorRoot.RootWriteError && e.code === editorRoot.REFUSED)
     || (e instanceof pageWrite.PageWriteError && e.code === pageWrite.REFUSED)
     || (e instanceof sharedWrite.SharedWriteError && e.code === sharedWrite.REFUSED)
-    || (e instanceof formsWrite.FormsWriteError && e.code === formsWrite.REFUSED)) {
+    || (e instanceof formsWrite.FormsWriteError && e.code === formsWrite.REFUSED)
+    // #1644 —— 表单结构底稿过时的那种 10 也带话（它是给老板的英文）。🔴 只开这一种：页面 baseHash 那种 10 的
+    //    message 是中文开发原话，worker 的 refusalSentence 不挑语言，放宽了就会推到老板的状态栏上。
+    || (e instanceof formsWrite.FormsWriteError && e.code === formsWrite.STALE)) {
     process.stdout.write(`${JSON.stringify({ ok: false, message: e.message })}\n`);
     // #1637 —— 给开发看的原话（`forms-write.js` 兜底那条）只进 stderr，状态栏只出上面那句。
     die(e.code, e.detail ? `${e.message}\n${e.detail}` : e.message);
