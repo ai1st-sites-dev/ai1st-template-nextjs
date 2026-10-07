@@ -2095,7 +2095,7 @@ function getDemoConfig(siteId, siteUrl) {
           { label: 'About', href: '/about' },
           { label: 'Services', href: '/services' },
         ],
-        cta: { label: 'Get a Quote', href: '/quote' },
+        cta: { label: 'Get a Quote', href: '/contact' }, // #1636：只改 href（没有 quote 页了），label 留着
       },
       footer: {
         description: 'Demo Company — Your trusted local business.',
@@ -2120,10 +2120,10 @@ function getDemoConfig(siteId, siteUrl) {
       {
         slug: 'home', title: 'Home', description: 'Welcome to Demo Company', navLabel: 'Home', navOrder: 0, changeFrequency: 'weekly', priority: 1,
         sections: [
-          { type: 'hero', data: { headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctas: [{ label: 'Get Started', href: '/quote', style: 'solid' }, { label: 'Learn More', href: '/about', style: 'outline' }] } },
+          { type: 'hero', data: { headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctas: [{ label: 'Get Started', href: '/contact', style: 'solid' }, { label: 'Learn More', href: '/about', style: 'outline' }] } },
           // #1425（T3）—— 服务那一格用引用写法（#1505）：条目来自 services.json，不抄进来。
           { type: 'features', data: { headline: 'Why Choose Us', body: 'What sets us apart from the rest', items: { source: 'services' } } },
-          { type: 'cta', data: { headline: 'Ready to get started?', body: 'Contact us today for a free consultation.', ctas: [{ label: 'Contact Us', href: '/quote', style: 'solid' }] } },
+          { type: 'cta', data: { headline: 'Ready to get started?', body: 'Contact us today for a free consultation.', ctas: [{ label: 'Contact Us', href: '/contact', style: 'solid' }] } },
           { type: 'contact', data: { headline: 'Contact us', body: "Leave your details and we'll get back to you shortly.", form: { id: 'contact' }, options: { form: 'full' } } }, // TICKET-268b
         ],
       },
@@ -2139,13 +2139,6 @@ function getDemoConfig(siteId, siteUrl) {
         sections: [
           { type: 'page-header', data: { headline: 'Our Services', subheadline: 'Discover what we can do for you' } },
           { type: 'features', data: { headline: 'What we do', items: { source: 'services' } } },
-        ],
-      },
-      {
-        slug: 'quote', title: 'Get a Quote', description: 'Request a free quote from Demo Company', navLabel: 'Get a Quote', navOrder: 3, changeFrequency: 'monthly', priority: 0.7,
-        sections: [
-          { type: 'page-header', data: { headline: 'Get a Free Quote', subheadline: 'Fill out the form below and we will get back to you within 24 hours' } },
-          { type: 'contact', data: { headline: 'Tell us about your project', body: 'We will get back to you within 24 hours.', form: {}, options: { form: 'full' } } },
         ],
       },
       {
@@ -2312,9 +2305,6 @@ async function generateContent(opts) {
     const services = keepBlocks(['page-header', 'features', 'cta']);
     if (services.length) lines.push(`- SERVICES pages must include: ${quotedList(services)}`);
     if (!blockOff.has('features')) lines.push('  features on a SERVICES page: write "items": {"source": "services"} (the list comes from this website\'s services) — never type the services out');
-    // 报价页原来是 quote-form（旧块）：新库里表单住在 contact 块上（槽 `form`，站级表单库 #1471）。
-    const quote = keepBlocks(['page-header', 'contact']);
-    if (quote.length) lines.push(`- QUOTE pages must include: ${quotedList(quote)}`);
     return lines.join('\n');
   })();
   // ══ #1346 r3 —— CRITICAL RULES 那一段里的块名，同样一个都不许写死 ══════════════════════════
@@ -2559,7 +2549,7 @@ The header navigation MUST have EXACTLY these ${mappedNav.length} page archetype
 ${mappedNav.map((slug, i) => `${i + 1}. slug "${slug}"`).join('\n')}
 
 For each archetype, generate one entry in the "pages" array with:
-- slug = exactly the archetype name (e.g., "pricing", "gallery", "quote")
+- slug = exactly the archetype name (e.g., "pricing", "gallery")
 - navLabel = a friendly label appropriate for the ${industry} industry (e.g., "Pricing" or "Our Prices" or "Rates" — choose one that fits)
 - navOrder = position in the list (1, 2, 3, ... matching the order above)
 - title / description / sections = appropriate for this page archetype

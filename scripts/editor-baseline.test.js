@@ -167,7 +167,8 @@ console.log('③ 共用块、子目录页面、老扁平 sections 站（ember-12
   about.blocks.push({ ref: 'shared-faq' });
   writeJSON(path.join(en, 'pages', 'about.json'), about);
   fs.mkdirSync(path.join(en, 'pages', 'services'), { recursive: true });
-  const sub = readJSON(path.join(en, 'pages', 'quote.json'));
+  // #1636 —— 示例站没有 quote 页了，子目录页的料改取同形状（page-header + contact）的 contact 页。
+  const sub = readJSON(path.join(en, 'pages', 'contact.json'));
   delete sub.slug;
   writeJSON(path.join(en, 'pages', 'services', 'brakes.json'), sub);
   const c = compare(multi, false);

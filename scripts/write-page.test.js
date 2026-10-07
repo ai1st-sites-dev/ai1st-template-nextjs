@@ -142,7 +142,8 @@ console.log('④ 子目录页面');
 {
   const dir = path.join(multi, 'site', 'en', 'pages', 'services');
   fs.mkdirSync(dir, { recursive: true });
-  const src = read(path.join(multi, 'site', 'en', 'pages', 'quote.json'));
+  // #1636 —— 示例站没有 quote 页了，子目录页的料改取同形状（page-header + contact）的 contact 页。
+  const src = read(path.join(multi, 'site', 'en', 'pages', 'contact.json'));
   delete src.slug;
   fs.writeFileSync(path.join(dir, 'brakes.json'), `${JSON.stringify(src, null, 2)}\n`);
   const page = { ...src, title: 'Brakes (edited)' };

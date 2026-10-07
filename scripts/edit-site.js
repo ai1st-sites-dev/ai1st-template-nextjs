@@ -1080,7 +1080,7 @@ The site is defined by JSON configuration files:
   every service in it — so when the owner adds, removes or renames a service, change services.json and do
   not go and edit those pages.
 - **pages/home.json** — Homepage sections
-- **pages/{slug}.json** — Other pages (about, services, quote, menu, gallery, faq, etc.)
+- **pages/{slug}.json** — Other pages (about, services, contact, menu, gallery, faq, etc.)
 - **navigation.json** — **partly yours to edit.** You MAY change the header button (header.cta — its
   label and href; it is the button at the top of every page and in the mobile menu), the footer
   copyright, the footer description, the footer column titles, and the topbar. You MAY also add, change or

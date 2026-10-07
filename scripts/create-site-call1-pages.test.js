@@ -674,6 +674,12 @@ check('AC4：勾 structure ⟹ 页面清单仍来自参照站那条老路（gall
   assert.ok(call1Prompts(R4.events)[0].content.includes('REFERENCE SITE NAVIGATION (HARD COPY'));
   assert.ok(!call1Prompts(R4.events)[0].content.includes('PAGES OF THIS WEBSITE (fixed'));
 });
+check('#1636：勾 structure 那条路的站级提示词里不再把 "quote" 当页面类型例子，也没有 QUOTE pages 那一行', () => {
+  const site = call1Prompts(R4.events)[0].content;
+  assert.ok(site.includes('- slug = exactly the archetype name (e.g., "pricing", "gallery")'), '页面类型例子那一行不在 —— 这一格量错了地方');
+  assert.ok(!/archetype name \(e\.g\.[^)]*"quote"/.test(site), '页面类型例子里还有 "quote"');
+  assert.ok(!site.includes('QUOTE pages must include'), '还有 QUOTE pages must include');
+});
 check('AC4 反向读数：同一份 payload 不勾 structure ⟹ gallery 不出现（上一格不是恒绿）', () => {
   assert.strictEqual(R4n.rc, 0, `${R4n.error}\n${R4n.stderr.slice(-800)}`);
   assert.ok(!pagesOn(R4n.work).includes('gallery'), pagesOn(R4n.work).join(' '));

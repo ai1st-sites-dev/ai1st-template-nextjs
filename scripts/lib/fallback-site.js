@@ -54,7 +54,7 @@ function fittedDescription(text, locale) {
 
 /**
  * 站级计划的页面清单。`services` = `[{ id, name }]`（AI 回包里的服务，或 payload 拼出来的）。
- * 链接只指向这份清单里有的页：没有 about / quote，按钮一律指 /contact。
+ * 链接只指向这份清单里有的页：没有 about（也没有报价页，#1636），按钮一律指 /contact。
  * `location`（payload 的地点）有就写进 description，`locale` 是站的主语言（定 description 的长度区间）。
  */
 function fallbackPages({ companyName, services, location, locale }) {
@@ -112,12 +112,12 @@ function fallbackSitePlan({ companyName, services, location, address, phone, ema
 }
 
 /**
- * 本站页面清单里第一个存在的联系页（contact → quote → 站的 CTA 页），都没有就回首页。
+ * 本站页面清单里第一个存在的联系页（contact → 站的 CTA 页），都没有就回首页。#1636 起报价页不再算联系页。
  * #1623 —— 命中的是 `home` 时路径是 `/`（首页的真实路由），不是 `/home`：配方关掉 contact 时 ctaPage 就是 `home`。
  */
 function contactHrefOf(sitePages, ctaPage) {
   const slugs = new Set((Array.isArray(sitePages) ? sitePages : []).map((p) => p && p.slug));
-  for (const s of ['contact', 'quote', str(ctaPage)]) if (s && slugs.has(s)) return s === 'home' ? '/' : `/${s}`;
+  for (const s of ['contact', str(ctaPage)]) if (s && slugs.has(s)) return s === 'home' ? '/' : `/${s}`;
   return '/';
 }
 
@@ -126,7 +126,7 @@ function contactHrefOf(sitePages, ctaPage) {
  *   首页            hero · features（服务引用）· cta · contact —— 不走首页配方（配方的开场块有 reviews / team / pricing 这类
  *                   按构造没有中性内容可填的块）
  *   服务详情页      page-header · features（服务引用）· cta
- *   contact / quote page-header · contact
+ *   contact         page-header · contact
  *   其他页          page-header · content · cta
  * page-header 用这一页在站级计划里的 title / description；content 用 brief，没有就一句通用话。关掉的块不出现。
  */
@@ -148,8 +148,8 @@ function skeletonSections(page, { companyName, sitePages, ctaPage, disabledBlock
     ];
   } else if (page.serviceDetailPage === true) {
     blocks = [header, services('What we do'), cta];
-  } else if (page.slug === 'contact' || page.slug === 'quote') {
-    blocks = [header, contact(page.slug === 'quote' ? {} : { id: 'contact' })];
+  } else if (page.slug === 'contact') {
+    blocks = [header, contact({ id: 'contact' })];
   } else {
     blocks = [header, { type: 'content', data: { body: str(page.brief) || `Get in touch with ${companyName} to learn more.`, options: { textStyle: 'article' } } }, cta];
   }

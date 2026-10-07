@@ -178,7 +178,7 @@ console.log('① 底稿里的 refs / slugs');
   reset();
   const { b } = open('home');
   check(JSON.stringify(b.refs) === JSON.stringify({ badge: ['about', 'home', 'services'], promo: ['home'] }), 'refs = 每个共用块被哪几页 ref（读全部页面现算）', JSON.stringify(b.refs));
-  check(Array.isArray(b.slugs) && ['home', 'about', 'services', 'contact', 'quote'].every((s) => b.slugs.includes(s)), 'slugs = 这种语言的全部页面', JSON.stringify(b.slugs));
+  check(Array.isArray(b.slugs) && ['home', 'about', 'services', 'contact'].every((s) => b.slugs.includes(s)), 'slugs = 这种语言的全部页面', JSON.stringify(b.slugs));
   // 子目录页面也算进去（PM 三审「技术须知」：走 readPagesRecursive，slug 取路径定的那个）
   fs.mkdirSync(path.join(SITE, 'en', 'pages', 'services'), { recursive: true });
   writeJSON(path.join(SITE, 'en', 'pages', 'services', 'brakes.json'), { slug: 'whatever', title: 'Brakes', blocks: [{ ref: 'badge' }] });
