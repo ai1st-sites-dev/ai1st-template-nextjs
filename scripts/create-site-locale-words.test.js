@@ -2,7 +2,8 @@
 // #1631 —— 非英文主语言的站：代码兜底写的字（配方联系页的标题 / 导航名、默认表单文案、代码补的联系页）按主语言写。
 //
 // 真 create-site.js 进程，只把 `@anthropic-ai/sdk` 换成按提示词回放的桩（同 create-site-call1-pages.test.js /
-// create-site-primary-locale-words.test.js）；`fetch` 一律离线。🔴 不是 skipAI（skipAI 走不到这几处，见正文「不做」）。🔴 不调真 AI（#1499）。
+// create-site-primary-locale-words.test.js）；`fetch` 一律离线。🔴 不调真 AI（#1499）。
+// 除 F2-skipAI 那一格走 skipAI 示例站（下面格子表里那一行）外，其余各格都是上面那条打桩的普通配方路径（#1641 改：原来这里有一句跟 F2-skipAI 矛盾的话）。
 //
 // 格子对应正文验收：
 //   C+B   普通配方路径，zh：站级回包里 contact 页不带 title / navLabel、整份回包不带 forms
