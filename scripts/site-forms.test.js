@@ -12,6 +12,7 @@
  *   AC4 新建站（skipAI，真跑 create-site.js）：每个语言都有 forms.json、恰好一张 contact（#1635）；form.id 空 ⟹ 第一张的按钮文字
  *   AC5 老站（删掉 forms.json）跑真的 sync-config.js ⟹ 退出码 0，带表单的块画 BlockLeadForm 的内置默认字段
  *   AC7 page-deps：hero / contact / cta 都在 types 里、unaccounted 为空、BlockLeadForm 那条豁免不在了
+ *   #1637 字段按 fields 的顺序画；占位符 labels > 语言默认；formListProblems 认 labels
  *   #1511 表单库补两条：fields 里 phone / email 都没有 ⟹ 报；redirect 不在 href-allowed.js 白名单 ⟹ 报（白名单只有一份）
  * 提交带 meta.formId（AC3 的前端那一半）在 hero-render.test.js 的 happy-dom 段；落库那一半要真 manager + 库，见票上实测。
  *
@@ -222,6 +223,33 @@ const ids = (h, prefix) => Array.from(h.matchAll(new RegExp(`<(?:input|select|te
     return JSON.stringify(ids(h, prefix)) !== JSON.stringify(['name', 'phone', 'service']) || h.includes('data-form-id=') || !h.includes('Get a free quote');
   }).map(([t]) => t);
   check(fallback.length === 0, '站没有表单库 ⟹ 四个块都画内置默认（name / phone / service，按钮 Get a free quote，不挂 data-form-id）', `不对的：${fallback.join(' · ')}`);
+}
+
+// ══ #1637：字段顺序 / 字段名（labels）══════════════════════════════════════════════════════════════
+console.log('\n── #1637 字段顺序照 fields、占位符 labels > 语言默认');
+{
+  const F = clone(DEMO_SITE.forms);
+  const c = F.findIndex((f) => f.id === 'contact');
+  F[c].fields = ['message', 'email', 'phone', 'name', 'service'];
+  F[c].primary = 'email';
+  globalThis.__SITE_FORMS__ = F;
+  const plain = html('contact', 'full', 'contact');
+  check(JSON.stringify(ids(plain, 'ct')) === JSON.stringify(F[c].fields), `full：输入框按 fields 的顺序画（${ids(plain, 'ct').join(' / ')}）`);
+  check(/placeholder="Name"/.test(plain) && /placeholder="Email"/.test(plain), '对照：没有 labels ⟹ 占位符是语言默认（Name / Email）');
+  F[c].labels = { name: '您的姓名', email: 'Your work email', service: 'Pick a service' };
+  const named = html('contact', 'full', 'contact');
+  check(/placeholder="您的姓名"/.test(named) && !/placeholder="Name"/.test(named), 'labels.name ⟹ 姓名框占位符是它，不再是 Name');
+  check(/<option value=""[^>]*>Pick a service<\/option>/.test(named), 'labels.service ⟹ 需求下拉的空选项是它');
+  check(/placeholder="Phone"/.test(named), '没写 labels 的字段（phone）仍是语言默认');
+  check(/placeholder="Your work email"/.test(html('contact', 'teaser', 'contact')), 'teaser 只露 primary（email），占位符同样取 labels');
+  F[c].labels = { name: '   ' };
+  check(/placeholder="Name"/.test(html('contact', 'full', 'contact')), '只有空白的 label ⟹ 回到语言默认');
+
+  // formListProblems 认 labels（可缺；键在词表里；值 1~LABEL_CAP 字）
+  const L = (labels) => siteForms.formListProblems([{ ...clone(F[c]), labels }]).filter((p) => /labels/.test(p));
+  check(L(undefined).length === 0 && L({ name: 'x'.repeat(siteForms.LABEL_CAP) }).length === 0, `对照：不写 labels / ${siteForms.LABEL_CAP} 字 ⟹ 0 条`);
+  check(L({ name: 'x'.repeat(siteForms.LABEL_CAP + 1) }).length === 1, `labels.name ${siteForms.LABEL_CAP + 1} 字 ⟹ 报一条`);
+  check(L({ fax: 'Fax' }).length === 1 && L('Name').length === 1 && L({ name: '' }).length === 1, '词表外的键 / 不是对象 / 空串 ⟹ 各报一条');
 }
 
 // ══ AC7：page-deps 归属 ═══════════════════════════════════════════════════════════════════════════

@@ -8,7 +8,7 @@
 // 用法：
 //   node scripts/write-editor-save.js '{"page":"<页面 slug>","locale":"<语言，可空>","baseHash":"<sha256，带页面时必填>"}'
 //   stdin：{ "page": <整份页面 JSON，可缺>, "root": { <改过的 root 字段> }, "shared": { <共用块的改动>，#1406 },
-//           "forms": { <一张表单的文案改动>，#1634 } }
+//           "forms": { <一张表单的改动：文案 #1634 / 字段 #1637> } }
 //   （四样都可缺，但不能一样都没有；`shared` 的形状与判据见 `lib/shared-blocks-write.js` 文件头，`forms` 见 `lib/forms-write.js`）
 //
 // 成功时 stdout 打**一行** JSON：{"ok":true,"files":["site/en/pages/home.json","site/theme.json",…],"hash":"<sha256>"}
@@ -26,7 +26,7 @@
 //     或者老板填的链接不是能用的地址（#1416：页面里块的链接 / 公告条链接；#1427：共用块里的链接 ——
 //     `lib/page-write.js` §commitWrites 对这次每一份写入都判一遍，判据在 `lib/link-href.js`），
 //     或者（#1406）要从这一页删一个「所有页面」上的共用块，
-//     或者（#1634）表单文案超过上限 / 带了文案以外的键（改字段是 #1637 的事），
+//     或者（#1634 / #1637）表单文案或字段名超过上限 / 带了不认识的键 / 字段组合不成立（如电话邮箱都删了），
 //     那句话原样进编辑器状态栏（worker 从 stdout 那一行取 `message`）—— 不写
 //
 // 🔴 所有校验在所有写入之前（票正文做什么 6）：页面判过了、外壳被拒 ⟹ 页面也一个字节不写。判与写分开
@@ -102,8 +102,8 @@ try {
   }
   if (s) writes.push(s);
   // #1634 —— 表单那一半同样只判、算字节，跟别的几半一起交给 commitWrites（被拒 ⟹ 页面 / 外壳 / 共用块一个字节都不写）。
-  const f = forms ? formsWrite.planFormsWrite({ target, forms }) : null;
-  if (f) writes.push(f);
+  // #1637 —— 改了字段时每个语言那份 forms.json 都要写 ⟹ 回的是一组。
+  if (forms) writes.push(...formsWrite.planFormsWrite({ target, forms }));
   writes.push(...editorRoot.planRootWrite({
     siteDir: path.join(ROOT, 'site'),
     localeDir: target.localeDir,
@@ -122,7 +122,8 @@ try {
     || (e instanceof sharedWrite.SharedWriteError && e.code === sharedWrite.REFUSED)
     || (e instanceof formsWrite.FormsWriteError && e.code === formsWrite.REFUSED)) {
     process.stdout.write(`${JSON.stringify({ ok: false, message: e.message })}\n`);
-    die(e.code, e.message);
+    // #1637 —— 给开发看的原话（`forms-write.js` 兜底那条）只进 stderr，状态栏只出上面那句。
+    die(e.code, e.detail ? `${e.message}\n${e.detail}` : e.message);
   }
   if (e instanceof pageWrite.PageWriteError || e instanceof editorRoot.RootWriteError || e instanceof sharedWrite.SharedWriteError
     || e instanceof formsWrite.FormsWriteError) die(e.code, e.message);

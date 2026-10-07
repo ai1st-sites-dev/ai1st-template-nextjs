@@ -13,10 +13,12 @@
 // 🔴 这一份被三处用：渲染（`src/components/BlockLeadForm.tsx` 选表单）、校验（`block-manifest.js §validateSite`）、
 //    建站（`create-site.js` 写默认那一张）。三处各写一份的话，分歧那天谁都不会红。
 // 🔴 `id` / `fields` / `primary` 各语言必须一致（`formsProblems`）：块里写的是 `id`，某个语言少一张 = 那个语言下指空。
-//    `name` / `buttonText` / `successMessage` 是给访客看的文字，各语言各自翻。
+//    `name` / `buttonText` / `successMessage` / `labels`（#1637，字段名 = 输入框占位符）是给访客看的文字，各语言各自翻。
 
 /** 字段词表 —— 每个字段对应客户记录（Customers）的一列（对照表见 BlockLeadForm.tsx 头注释）。本票不扩。 */
 const FORM_FIELDS = ['name', 'phone', 'email', 'message', 'service'];
+/** #1637 —— `labels`（老板写的字段名）每条的上限。 */
+const LABEL_CAP = 40;
 /** 旋钮 `form` 的取值（四个块的 manifest 里同一串）。 */
 const FORM_MODES = ['none', 'teaser', 'full'];
 
@@ -46,6 +48,12 @@ const { formWords } = require('./locale-words');
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /**
+ * #1511 —— 提交前要求「电话和邮箱至少填一个」（BlockLeadForm.tsx §submit）⟹ 两个框都没有的表单永远提交不了。
+ * #1637 —— 抽成一个函数：这里的校验、存盘（`forms-write.js`）和编辑器里那颗删除按钮（`FormCopyEditor.tsx`）用同一个判据。
+ */
+const lacksContactField = (fields) => !fields.includes('phone') && !fields.includes('email');
+
+/**
  * 一个语言那份表单库的毛病（`where` 是报文前缀，如 `forms.json [en]`）。不改数据，只说。
  */
 function formListProblems(forms, where = 'forms.json') {
@@ -70,9 +78,19 @@ function formListProblems(forms, where = 'forms.json') {
       if (!f.fields.includes(f.primary)) {
         out.push(`${me}: primary ${JSON.stringify(f.primary)} 不在 fields 里 —— teaser 只露这一个字段，它得是表单里有的那一格`);
       }
-      // #1511 —— 提交前要求「电话和邮箱至少填一个」（BlockLeadForm.tsx §submit）⟹ 两个框都没有的表单永远提交不了。
-      if (!f.fields.includes('phone') && !f.fields.includes('email')) {
+      if (lacksContactField(f.fields)) {
         out.push(`${me}: fields 里既没有 phone 也没有 email —— 访客提交时这两样至少要填一个，否则永远提交不了；加上其中一个`);
+      }
+    }
+    // #1637 —— `labels`：{ 字段: 非空字符串 ≤ LABEL_CAP }，可缺。键只能是词表里的（不要求在 fields 里：删掉的字段再加回来，名字还在）。
+    if (f.labels !== undefined) {
+      if (!isObj(f.labels)) {
+        out.push(`${me}: labels 必须是对象 { 字段: 字段名 }`);
+      } else {
+        for (const [k, v] of Object.entries(f.labels)) {
+          if (!FORM_FIELDS.includes(k)) out.push(`${me}: labels 里有词表外的字段 ${JSON.stringify(k)}`);
+          else if (typeof v !== 'string' || !v.trim() || [...v].length > LABEL_CAP) out.push(`${me}: labels.${k} 必须是 1~${LABEL_CAP} 字的字符串`);
+        }
       }
     }
     // #1511 —— 提交成功后 BlockLeadForm 直接 `window.location.assign(redirect)`：判据跟块里的按钮链接同一份（href-allowed.js）。
@@ -178,4 +196,4 @@ function formIdOptions(forms) {
   return [{ label: `First form${first}`, value: '' }, ...list.map((f) => ({ label: f.name || f.id, value: f.id }))];
 }
 
-module.exports = { FORM_FIELDS, FORM_MODES, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };
+module.exports = { FORM_FIELDS, FORM_MODES, LABEL_CAP, lacksContactField, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };
