@@ -1,6 +1,6 @@
 {
   "type": "blog",
-  "displayName": "Blog (Webpixels)",
+  "displayName": "Blog",
   "category": "blog",
   "roleDefault": "optional",
   "skin": "site-css",

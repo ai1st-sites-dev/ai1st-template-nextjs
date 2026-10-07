@@ -148,9 +148,9 @@ console.log('⑩ #1526：按钮列表、导航列表、对象槽里的按钮');
   const one = (h) => [{ type: 'logos', data: { introCta: { label: 'Call', href: h } } }];
   const mL = rej('page', list('javascript:alert(1)'), list('/contact'));
   const mO = rej('page', one('javascript:alert(1)'), one('/contact'));
-  check(typeof mL === 'string' && /"Button 2"/.test(mL) && /Hero \(Webpixels\) block/.test(mL) && /\(item 2\)/.test(mL),
+  check(typeof mL === 'string' && /"Button 2"/.test(mL) && /Hero block/.test(mL) && /\(item 2\)/.test(mL),
     '判据 1：列表项被拒，话里点名按钮字、块名、第 2 项', mL);
-  check(typeof mO === 'string' && /"Call"/.test(mO) && /Logos \(Webpixels\) block/.test(mO) && !/\(item/.test(mO),
+  check(typeof mO === 'string' && /"Call"/.test(mO) && /Logos block/.test(mO) && !/\(item/.test(mO),
     '判据 1：单个槽照旧被拒（不带「第几项」）', mO);
 
   // 判据 2：引用照旧放行（六个列表 × phone / email × 三种 kind）；反向对照：同样的位置 javascript: 全拒
@@ -251,7 +251,7 @@ console.log('⑥ 老数据：不碰它照常存，碰到它被拒并点名');
   const before = [fs.readFileSync(home, 'utf-8')];
   const r2 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, homeWith('data:text/html,x', 1));
   expectRefused('页面：把那个坏链接改成另一个坏的', r2, [home], before);
-  check(/"Book now"/.test((r2.line && r2.line.message) || '') && /Hero \(Webpixels\)/.test((r2.line && r2.line.message) || ''), '拒收的话点名了是哪个按钮、哪个块', r2.line && r2.line.message);
+  check(/"Book now"/.test((r2.line && r2.line.message) || '') && /Hero/.test((r2.line && r2.line.message) || ''), '拒收的话点名了是哪个按钮、哪个块', r2.line && r2.line.message);
   const r3 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, homeWith('/contact', 1));
   check(r3.rc === 0, '页面：把它改成合法的 → rc=0', `rc=${r3.rc}`);
 

@@ -1,6 +1,6 @@
 {
   "type": "header",
-  "displayName": "Site Header (Webpixels)",
+  "displayName": "Site Header",
   "category": "region",
   "region": true,
   "skin": "site-css",

@@ -1,6 +1,6 @@
 {
   "type": "gallery",
-  "displayName": "Gallery (Webpixels)",
+  "displayName": "Gallery",
   "category": "gallery",
   "roleDefault": "optional",
   "skin": "site-css",

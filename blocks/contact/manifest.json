@@ -1,6 +1,6 @@
 {
   "type": "contact",
-  "displayName": "Contact (Webpixels)",
+  "displayName": "Contact",
   "category": "contact",
   "roleDefault": "essential",
   "skin": "site-css",

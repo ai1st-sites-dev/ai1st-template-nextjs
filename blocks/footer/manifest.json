@@ -1,6 +1,6 @@
 {
   "type": "footer",
-  "displayName": "Site Footer (Webpixels)",
+  "displayName": "Site Footer",
   "category": "region",
   "region": true,
   "skin": "site-css",

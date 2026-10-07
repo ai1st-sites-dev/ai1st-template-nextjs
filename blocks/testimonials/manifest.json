@@ -1,6 +1,6 @@
 {
   "type": "testimonials",
-  "displayName": "Testimonials (Webpixels)",
+  "displayName": "Testimonials",
   "category": "testimonial",
   "roleDefault": "optional",
   "skin": "site-css",

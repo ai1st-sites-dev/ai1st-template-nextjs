@@ -1,6 +1,6 @@
 {
   "type": "cta",
-  "displayName": "Call to action (Webpixels)",
+  "displayName": "Call to action",
   "category": "cta",
   "roleDefault": "optional",
   "skin": "site-css",
