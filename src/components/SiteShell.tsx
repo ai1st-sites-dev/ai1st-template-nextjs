@@ -59,7 +59,8 @@ function shellBlockData(region: 'header' | 'footer', locale: string): Record<str
   return ((b && b.data) || {}) as Record<string, unknown>;
 }
 
-export default function SiteShell({ locale, page, shell, children }: { locale: string; page?: string; shell?: ShellOverride; children: React.ReactNode }) {
+// #1628 —— `notFound`：只有 app/not-found.tsx 传，交给语言开关（404 页上一律回目标语言首页）。
+export default function SiteShell({ locale, page, shell, notFound, children }: { locale: string; page?: string; shell?: ShellOverride; notFound?: boolean; children: React.ReactNode }) {
   const regions = shell ? shell.layout.regions : pageLayout.regions;
   const repeatVariants = (shell ? shell.layout.repeatVariants : pageLayout.repeatVariants) || {};
 
@@ -92,7 +93,7 @@ export default function SiteShell({ locale, page, shell, children }: { locale: s
                 {locales.length > 1 ? (
                   <div className="bg-body border-bottom">
                     <div className="container d-flex justify-content-end py-1">
-                      <LanguageSwitcher currentLocale={locale} />
+                      <LanguageSwitcher currentLocale={locale} notFound={notFound} />
                     </div>
                   </div>
                 ) : null}

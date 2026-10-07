@@ -11,7 +11,7 @@ import { getLabels } from '@/lib/component-labels';
 export default function NotFound() {
   const labels = getLabels(defaultLocale);
   return (
-    <SiteShell locale={defaultLocale}>
+    <SiteShell locale={defaultLocale} notFound>
       <section className="py-16 py-lg-24" data-not-found="">
         <div className="container">
           <div className="text-center mx-auto mw-read">

@@ -17,6 +17,8 @@ import {
   regions as _regions,
   pageLayout as _pageLayout,
 } from './config-data';
+// #1628 —— 语言开关指向哪儿的那条规则（纯函数，test:scripts 直接测）。
+import { switchLocaleHref as switchLocaleHrefFrom } from '../../scripts/lib/locale-switch.js';
 
 export const brand = _brand as BrandConfig;
 // TICKET-268b: tenant id + lead API base for the ContactFormSection (POST /api/leads).
@@ -135,6 +137,17 @@ export function localeUrl(
   if (kind === 'blogPost') return `${prefix}/blog/${slug}`;
   if (slug === 'home') return prefix || '/';
   return `${prefix}/${slug}`;
+}
+
+// #1628: where the language switcher sends you — the same page in `target` if `target` has it, else `target`'s home
+// (a link to a page that was never built is a dead link, and dead links block publishing, #1553). `path` has its
+// locale prefix removed. The rule lives in scripts/lib/locale-switch.js so test:scripts can test it; this passes it
+// the real indexes — slugToLocales, the same one getAlternateLanguages uses.
+const blogSlugsByLocale: Record<string, string[]> = Object.fromEntries(
+  locales.map((l) => [l, (blogPostsByLocale[l] ?? []).map((p) => p.slug)])
+);
+export function switchLocaleHref(path: string, target: string): string {
+  return switchLocaleHrefFrom(path, target, { defaultLocale, slugToLocales, blogSlugsByLocale });
 }
 
 // Returns hreflang locale → absolute URL map for a given page slug. Returns {}
