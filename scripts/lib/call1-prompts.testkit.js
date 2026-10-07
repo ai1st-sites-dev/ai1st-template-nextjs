@@ -32,7 +32,7 @@ function stubMain() {
       navigation: { ctaLabel: 'Get a quote', ctaPage: 'quote', footerDescription: 'Test footer' },
       seo: { siteTitle: 'Test', siteDescription: 'Test site', areaServed: [], addresses: [], priceRange: '$$', offerCatalogName: 'Services' },
       services,
-      forms: [{ id: 'quote', name: 'Quote', buttonText: 'Send', successMessage: 'Thanks' }, { id: 'contact', name: 'Contact', buttonText: 'Send', successMessage: 'Thanks' }],
+      forms: [{ id: 'contact', name: 'Contact', buttonText: 'Send', successMessage: 'Thanks' }],
       pages: [
         page('home', 'Home', 0), page('services', 'Services', 1), page('about', 'About', 2), page('quote', 'Quote', 3),
         ...(services.length >= 3 ? services.map((s, i) => page(`services/${s.id}`, s.name, 10 + i, { serviceDetailPage: true, parentService: s.id })) : []),

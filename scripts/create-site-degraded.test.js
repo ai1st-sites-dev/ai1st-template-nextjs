@@ -236,7 +236,7 @@ function plan(place = '多伦多', city = 'Toronto') {
     navigation: { ctaLabel: '立即预约', ctaPage: 'contact', footerDescription: `${place}的美发沙龙。` },
     seo: { siteTitle: `Silky Hair Salon ${place}美发`, siteDescription: DESC(`${place}美发`), areaServed: [{ type: 'City', name: city }], addresses: [], offerCatalogName: '服务' },
     services: SERVICES.map(([id, name]) => ({ id, name, shortDescription: `${name}服务`, fullDescription: `${name}，在${place}。`, icon: 'scissors', features: ['细致'], products: [] })),
-    forms: [{ id: 'quote', name: '预约', buttonText: '提交', successMessage: '谢谢' }, { id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
+    forms: [{ id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
     pages: [
       page('home', '首页', 0), page('services', '服务', 1), page('about', '关于我们', 2), page('contact', '联系我们', 3),
       ...SERVICES.map(([id, name], i) => page(`services/${id}`, name, 10 + i, { serviceDetailPage: true, parentService: id })),

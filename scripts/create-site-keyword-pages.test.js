@@ -231,7 +231,7 @@ function call1(services, extraPages = []) {
     navigation: { ctaLabel: 'Get a quote', ctaPage: 'quote', footerDescription: 'Plumbing in Toronto' },
     seo: { domain: 'https://brightpipes.test', siteTitle: 'Bright Pipes', siteDescription: 'Plumbing in Toronto', areaServed: [{ type: 'City', name: 'Toronto' }], addresses: [], openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '09:00', closes: '17:00' }, priceRange: '$$', offerCatalogName: 'Services' },
     services: services.map((s) => ({ id: s.id, name: s.name, shortDescription: `${s.name} done right`, fullDescription: `${s.name} across Toronto.`, icon: 'droplet', features: ['a'], products: [] })),
-    forms: [{ id: 'quote', name: 'Get a quote', buttonText: 'Send', successMessage: 'Thanks' }, { id: 'contact', name: 'Contact', buttonText: 'Send', successMessage: 'Thanks' }],
+    forms: [{ id: 'contact', name: 'Contact', buttonText: 'Send', successMessage: 'Thanks' }],
     pages: [...demoPages(), ...extraPages],
   };
 }

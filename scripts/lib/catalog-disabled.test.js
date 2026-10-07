@@ -515,8 +515,8 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   const nameRe = (t) => new RegExp(`(^|[^a-z-])${t}([^A-Za-z-]|$)`);
   const EXEMPT = [
     { t: 'content', line: /^- Include location names naturally in content\.$/, why: '「把地名自然地写进内容里」—— 英文词 content，不是 content 块' },
-    { t: 'contact', line: /^- "forms" are the site's two lead forms/, why: '站级表单库（#1471）那一行：`"contact"` 是**表单的 id**（name / email / message 那张），不是 contact 块；关掉 contact 块不删那张表单（hero 也用它）' },
-    { t: 'contact', line: /^- Any block with a "form" slot uses one of the site's two forms/, why: '#1568 每页那份里的表单那一行（原来是上一行的后半句）：`"contact"` 同样是**表单的 id**，不是 contact 块' },
+    { t: 'contact', line: /^- "forms" is the site's one lead form/, why: '站级表单库（#1471；#1635 起只剩一张）那一行：`"contact"` 是**表单的 id**（name / phone / email / message 那张），不是 contact 块；关掉 contact 块不删那张表单（hero 也用它）' },
+    { t: 'contact', line: /^- Any block with a "form" slot uses the site's one form/, why: '#1568 每页那份里的表单那一行（原来是上一行的后半句）：`"contact"` 同样是**表单的 id**，不是 contact 块' },
   ];
   const exempt = (t, l) => EXEMPT.some((e) => e.t === t && e.line.test(l.trim()));
   const linesNaming = (t, section) => section.split('\n').filter((l) => nameRe(t).test(l) && !exempt(t, l));

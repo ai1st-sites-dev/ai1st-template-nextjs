@@ -2730,7 +2730,7 @@ Generate a JSON object with this EXACT structure:
   },
   "navigation": {
     "ctaLabel": "<CTA button text, max 25 chars>",
-    "ctaPage": "${recipePlan ? recipePlan.ctaPage : '<slug of the CTA target page, e.g. quote>'}",
+    "ctaPage": "${recipePlan ? recipePlan.ctaPage : '<slug of the CTA target page, e.g. contact>'}",
     "footerDescription": "<1 sentence with location + primary keyword>"
   },
 ${primaryWordsShape}  "seo": {
@@ -2753,7 +2753,6 @@ ${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens"
     }
   ],
   "forms": [
-    { "id": "quote", "name": "<form name, max 60 chars>", "buttonText": "<submit button, max 40 chars>", "successMessage": "<thank-you line, max 200 chars>" },
     { "id": "contact", "name": "<form name, max 60 chars>", "buttonText": "<submit button, max 40 chars>", "successMessage": "<thank-you line, max 200 chars>" }
   ],
   "pages": [
@@ -2794,7 +2793,7 @@ ${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens"
 
 CRITICAL RULES:
 - "services" array must contain EXACTLY the services listed above: ${servicesList.join(', ')}. Do NOT add or remove any.
-- "forms" are the site's two lead forms (#1471): "quote" (asks for name, phone and which service) and "contact" (name, email, message). Their fields are FIXED — write only the visitor-facing words (name, buttonText, successMessage) to fit this business.
+- "forms" is the site's one lead form (#1635): "contact" (name, phone, email, message). Its fields are FIXED — write only the visitor-facing words (name, buttonText, successMessage) to fit this business.
 - "pages" is an ARRAY of page objects, each with slug, title, description, navLabel, navOrder, changeFrequency, priority, and brief.
 - Every page's "brief": 2-3 sentences, in the site's language, saying what that page must cover — its main points, specific to this business. The page's sections are written later from it: do NOT write "sections".
 - navOrder determines the order in the navigation. Home is always 0. Assign sequential numbers (1, 2, 3...) to other pages.
@@ -3020,7 +3019,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       ].filter((l) => l !== null).join('\n');
       const rules = [
         '- Return {"sections": [ ... ]}: this page\'s sections in order, each { "type": "<section type>", "data": { ... } } as described under AVAILABLE SECTION TYPES.',
-        '- Any block with a "form" slot uses one of the site\'s two forms: leave "form": {} (= the first form, "quote") or set "form": { "id": "contact" }.',
+        '- Any block with a "form" slot uses the site\'s one form: leave "form": {} (= that form, "contact").',
         ...(isHome ? [
           `- There are ${offeredTypeCount} section types. USE THIS VARIETY. Each site should feel different.`,
           varySectionOrderRule,
@@ -3493,7 +3492,8 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     debug(`[sanitize-image-urls] dropped ${droppedPlaceholders} invalid imageUrl placeholder(s) — template will render gradient fallback`);
   }
 
-  const ctaPage = ai.navigation.ctaPage || 'quote';
+  // #1635 —— 只有「照抄参照站结构」那条路走得到这个兜底（配方那条路在上面整个覆盖成配方的 ctaPage）。
+  const ctaPage = ai.navigation.ctaPage || 'contact';
   // #1601 —— 配方在 contact 被后台关掉时让按钮指首页（lib/site-recipe.js §sitePagesFor）。
   const ctaSlug = ctaPage === 'home' ? '/' : `/${ctaPage}`;
 

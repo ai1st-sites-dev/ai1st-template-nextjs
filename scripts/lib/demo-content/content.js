@@ -715,24 +715,17 @@ const FEATURES_NEW_STEPS = {
  * `geo` 是 2150 Yonge St 附近的坐标（夹具，不是查出来的；真站由 `scripts/lib/geocode.js` 建站时查一次）。
  */
 const DEMO_SITE = {
-  // #1471 —— 演示生意的站级表单库（`site/<locale>/forms.json` 的形状，`scripts/lib/site-forms.js`）。quote 在前：块里 `form.id`
+  // #1471 —— 演示生意的站级表单库（`site/<locale>/forms.json` 的形状，`scripts/lib/site-forms.js`）。块里 `form.id`
   //    为空时取第一张。四个块的 render 测试按 `formId` 从这里取字段。
+  //    #1635 —— 跟新站默认一样只有一张 `contact`（姓名 / 电话 / 邮箱 / 留言，短版只露电话）。
   forms: [
-    {
-      id: 'quote',
-      name: 'Get a free estimate',
-      fields: ['name', 'phone', 'service'],
-      primary: 'phone',
-      buttonText: 'Get my estimate',
-      successMessage: "Thanks! A technician will call you back within the hour.",
-    },
     {
       id: 'contact',
       name: 'Ask the shop',
-      fields: ['name', 'email', 'message'],
-      primary: 'email',
+      fields: ['name', 'phone', 'email', 'message'],
+      primary: 'phone',
       buttonText: 'Send to the shop',
-      successMessage: 'Got it — we reply to every email the same business day.',
+      successMessage: 'Got it — we will call or email you back the same business day.',
     },
   ],
   // #1505 —— 演示生意的服务目录（形状 = 真站 `services.json` 的一条，只留 features 引用写法要读的那几样）。
