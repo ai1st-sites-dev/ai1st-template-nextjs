@@ -17,7 +17,7 @@
 'use strict';
 
 const { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, FEATURES_NEW_FROM_SERVICES, DEMO_SITE, DEMO_BLOG_POSTS, DEMO_BLOG_POST_RICH } = require('./content');
-const { IMAGES, imageUrl } = require('./images');
+const { IMAGES, imageUrl, DEMO_IMAGE_BASE, rebaseDemoImages } = require('./images');
 
 /**
  * 这个槽是不是一份列表 —— **两把尺的并集**，不是任选一把。
@@ -150,6 +150,8 @@ module.exports = {
   SITE,
   IMAGES,
   imageUrl,
+  DEMO_IMAGE_BASE,
+  rebaseDemoImages,
   demoContentFor,
   demoDataFor,
   isListSlot,

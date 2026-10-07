@@ -213,8 +213,12 @@ function demoPages() {
   });
   const dir = path.join(work, 'site', 'en', 'pages');
   if (!fs.existsSync(dir)) die(`示例站没建出来：\n${(r.stderr || '').slice(-600)}`);
+  // #1620 —— 示例站的块从演示内容包来，文案里带那家演示生意的事实；其中「licensed」是 SEO 检查第 8 条
+  //    （事实出处）认的一类事实，而这里的桩表格里没有它 ⟹ 真 AI 路会把 about / services 记成 seo 降级，
+  //    G 那一跑的「degraded = []」就不再成立。这里只要「过块库校验的页」，所以把这一个词换成不算事实的说法。
+  const neutral = (txt) => txt.replace(/\b([Ll])icensed\b/g, (m, l) => (l === 'L' ? 'Experienced' : 'experienced'));
   demoPagesCache = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => {
-    const { blocks, ...rest } = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    const { blocks, ...rest } = JSON.parse(neutral(fs.readFileSync(path.join(dir, f), 'utf8')));
     return { ...rest, sections: blocks };
   });
   return demoPagesCache;
