@@ -47,9 +47,10 @@ console.log('AC1 contactHrefOf 三格');
   check(got === '/', `③ 三个候选都不在 ⟹ /（读到 ${JSON.stringify(got)}）`);
 }
 {
-  // 老站（#1601 之前建的）清单里真有 quote 页：查找顺序不变，quote 仍排在 ctaPage 前面。
+  // #1636 —— 报价页不再算联系页：清单里就算有一张 quote 页（参照站那条路上 AI 真建过的），也不从它这儿取，
+  //    跟后面的 ctaPage 走（这里 ctaPage='home' ⟹ /）。故意把候选改回含 'quote'，这一格读成 /quote、变红。
   const got = contactHrefOf(pagesOf('home', 'quote'), 'home');
-  check(got === '/quote', `顺序不变：没有 contact、有 quote ⟹ /quote（读到 ${JSON.stringify(got)}）`);
+  check(got === '/', `没有 contact、有 quote ⟹ 不取 quote，走 ctaPage（home ⟹ /）（读到 ${JSON.stringify(got)}）`);
 }
 
 console.log('AC2 配方 → contactHrefOf 接起来');

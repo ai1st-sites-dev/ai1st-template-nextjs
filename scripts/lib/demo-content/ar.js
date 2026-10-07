@@ -38,8 +38,6 @@ const AR_STRINGS = {
   'Professional services by Demo Company': 'خدمات احترافية من شركتنا',
   'Discover what we can do for you': 'اكتشف ما يمكننا تقديمه لك',
   'What we do': 'ماذا نقدم',
-  'Request a free quote from Demo Company': 'اطلب عرض سعر مجانيًا',
-  'Get a Free Quote': 'احصل على عرض سعر مجاني',
   'Fill out the form below and we will get back to you within 24 hours': 'املأ النموذج أدناه وسنرد عليك خلال 24 ساعة',
   'Tell us about your project': 'أخبرنا عن مشروعك',
   'We will get back to you within 24 hours.': 'سنرد عليك خلال 24 ساعة.',

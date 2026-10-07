@@ -299,17 +299,13 @@ const pNone = promptFrom(work, basePayload());
     : bad(`反向臂失败：不关也 0 命中 —— ${t} 本来就不在提示词里，换一个块`);
 }
 {
-  // 写死的那两行页面规则。#1425（T3）：QUOTE 页 = page-header + contact（原来是 quote-form）；原来「quote-form 那行 data
-  // 形状」的位置，今天是 SERVICES 那行底下那句「features 写引用」—— 关掉 features 它整条不印。
+  // 写死的页面规则。#1425（T3）：原来「quote-form 那行 data 形状」的位置，今天是 SERVICES 那行底下那句「features 写引用」
+  // —— 关掉 features 它整条不印。#1636：QUOTE 页那一行随报价页一起删了（代码里不再有报价页）⟹ 关不关 contact 都不该有它。
   const p = promptFrom(work, basePayload({ disabledBlocks: ['contact'] }));
-  const quoteLine = p.split('\n').find((l) => l.startsWith('- QUOTE pages must include:')) || '';
-  const quoteOn = pNone.split('\n').find((l) => l.startsWith('- QUOTE pages must include:')) || '';
-  quoteLine.includes('"page-header"') && !quoteLine.includes('"contact"')
-    ? ok(`关掉 contact ⟹ QUOTE 那行只剩 page-header：${quoteLine.trim()}`)
-    : bad(`QUOTE 那行不对：${JSON.stringify(quoteLine)}`);
-  quoteOn.includes('"contact"')
-    ? ok(`反向臂：不关的时候 QUOTE 那行有 contact：${quoteOn.trim()}`)
-    : bad(`反向臂失败：不关也没有 contact：${JSON.stringify(quoteOn)}`);
+  const quoteLines = [p, pNone].map((src) => src.split('\n').filter((l) => l.startsWith('- QUOTE pages must include:')).length);
+  quoteLines.every((n) => n === 0)
+    ? ok('#1636：关掉 contact / 不关 ⟹ 提示词里都没有 QUOTE pages 那一行')
+    : bad(`#1636：QUOTE pages 那一行还在（关掉 contact ${quoteLines[0]} 行 · 不关 ${quoteLines[1]} 行）`);
   const pf = promptFrom(work, basePayload({ disabledBlocks: ['features'] }));
   const svc = (src) => src.split('\n').find((l) => l.startsWith('- SERVICES pages must include:')) || '';
   const refLine = /^\s+features on a SERVICES page: /m;

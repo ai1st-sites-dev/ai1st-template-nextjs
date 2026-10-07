@@ -147,7 +147,7 @@ console.log('\n── AC3 富文本');
   const js = render('article', { body: '[x](javascript:alert(1))' });
   check(bodyOf(js) === '<p>x</p>' && !/javascript:/.test(js), 'javascript: 链接 ⟹ 没有 <a>、只剩文字 x', bodyOf(js));
   const demo = bodyOf(render('article', clone(DEMO)));
-  check(count(demo, '<p>') === 2 && count(demo, '<li>') === 3 && count(demo, '<strong>') === 1 && count(demo, '<a href="/quote">') === 1,
+  check(count(demo, '<p>') === 2 && count(demo, '<li>') === 3 && count(demo, '<strong>') === 1 && count(demo, '<a href="/contact">') === 1,
     `演示内容：两段话 + 三条列表 + 一处加粗 + 一个站内链接（p ${count(demo, '<p>')} · li ${count(demo, '<li>')} · strong ${count(demo, '<strong>')}）`);
   // 反向对照：组件直接把 body 当一段字画（像旧 text-block 那样）⟹ 上面那格分得开。
   const Raw = loadSection(fs.readFileSync(SECTION, 'utf-8').replace('const body = parseRichtext(d.body);', "const body = [{ t: 'p', c: [{ t: 'text', v: str(d.body) }] }] as ReturnType<typeof parseRichtext>;"));

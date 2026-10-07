@@ -320,7 +320,7 @@ function keywordPagePrompt({
   // #1549 —— meta description 的长度说法（description-fit.js §descriptionSpec，目标区间）。默认值也从那里取，不另写数字。
   descriptionSpec = descriptionSpecFor('en'),
   // #1601 —— 站的行动按钮指哪一页（navigation.header.cta.href）。整站配方的站没有 /quote 页（按钮落点是 /contact），
-  //    写死 "/quote" 就是让每张关键词页的 CTA 指一张不存在的页。不给时退回老说法。
+  //    写死 "/quote" 就是让每张关键词页的 CTA 指一张不存在的页。不给时指联系页（#1636：代码里不再有报价页）。
   ctaHref = '',
 }) {
   const m = material;
@@ -380,7 +380,7 @@ function keywordPagePrompt({
     '- FAQ answers 2-3 sentences each.',
     ctaHref
       ? `- CTA href points to "${ctaHref}"${detailPageExists ? ` or to /services/${page.serviceId}` : ''} — no other page of this website takes enquiries.`
-      : `- CTA href points to "/quote" or the contact page${detailPageExists ? `, or to /services/${page.serviceId}` : ''}.`,
+      : `- CTA href points to the contact page "/contact"${detailPageExists ? `, or to /services/${page.serviceId}` : ''}.`,
     '- navOrder 50+ (keyword pages sort after regular pages).',
   ];
   return lines.filter((l, i, a) => l !== '' || (i > 0 && a[i - 1] !== '')).join('\n').replace(/\n{3,}/g, '\n\n').trim();

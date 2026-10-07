@@ -183,6 +183,11 @@ check('含地址、电话原文；含带地名那条评价原文；含本组问�
     assert.ok(p.includes(needle), `少了：${needle}`);
   }
 });
+check('#1636：没给 ctaHref ⟹ CTA 落点写的是联系页 /contact，提示词里没有 /quote（代码里不再有报价页）', () => {
+  const p = promptOf(markham);
+  assert.ok(p.includes('- CTA href points to the contact page "/contact"'), 'CTA 那一行不是 /contact');
+  assert.ok(!p.includes('/quote'), '提示词里还有 /quote');
+});
 check('不含：不带地名的评价、另一服务组的问题 / 联想词', () => {
   const p = promptOf(markham);
   for (const needle of [PAYLOAD.reviews[1].text, 'How long do water heaters last?', 'hot water tank']) assert.ok(!p.includes(needle), `多了：${needle}`);

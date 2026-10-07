@@ -77,7 +77,7 @@ const DEMO_CONTENT = {
     subheadline: 'Written estimates before we touch anything and a two-year warranty on every repair. '
       + 'Most jobs are back on the road by closing.',
     ctas: [
-      { label: 'Book a service', href: '/quote', style: 'solid', icon: 'calendar-check' },
+      { label: 'Book a service', href: '/contact', style: 'solid', icon: 'calendar-check' },
       // #1506 —— 电话按钮写成引用：号码不抄进块里，渲染前从站点数据（单格页是 DEMO_SITE.brand）填。
       { label: '{phone}', href: { source: 'phone' }, style: 'outline', icon: 'telephone' },
       { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
@@ -196,12 +196,12 @@ const DEMO_CONTENT = {
     body: 'Northside Auto Care started with one bay and a rule: **tell people the price before you touch the car**. '
       + 'Fifteen years later we have six bays, and the rule has not changed.\n\n'
       + 'Every technician on the team is licensed and on our payroll — we never hand your car to a subcontractor. '
-      + 'That is why the same faces keep showing up when you [book a service](/quote).\n\n'
+      + 'That is why the same faces keep showing up when you [book a service](/contact).\n\n'
       + '- Written quotes before any work starts\n'
       + '- Two-year warranty on parts and labour\n'
       + '- Same-day service when you drop off before noon',
     ctas: [
-      { label: 'Book a service', href: '/quote', style: 'solid' },
+      { label: 'Book a service', href: '/contact', style: 'solid' },
       { label: 'Meet the team', href: '/about', style: 'outline' },
       { label: 'Read our warranty in full before you book', href: '/warranty', style: 'link', arrow: true },
       { label: 'Services', href: '/services', style: 'link' },
@@ -222,7 +222,7 @@ const DEMO_CONTENT = {
     headline: 'Brake repair in North York',
     subheadline: 'Measured, quoted and warrantied — pads, rotors and callipers, usually finished the same afternoon. You see the worn parts and the written price before we start.',
     ctas: [
-      { label: 'Book a brake check', href: '/quote', style: 'solid' },
+      { label: 'Book a brake check', href: '/contact', style: 'solid' },
       { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
       { label: 'See what we charge for pads, rotors and a full brake-fluid flush', href: '/services', style: 'link', arrow: true },
       { label: 'Directions', href: '/contact', style: 'link' },
@@ -246,7 +246,7 @@ const DEMO_CONTENT = {
     headline: 'Car making a noise you do not like?',
     body: 'Bring it in and we will tell you what it is and what it costs before any work starts.',
     ctas: [
-      { label: 'Book a free check', href: '/quote', style: 'solid' },
+      { label: 'Book a free check', href: '/contact', style: 'solid' },
       // #1506 —— 同 hero：电话按钮写成引用。
       { label: 'Call {phone}', href: { source: 'phone' }, style: 'outline' },
       { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
@@ -272,7 +272,7 @@ const DEMO_CONTENT = {
     headline: 'Honest car care that keeps your family moving',
     body: 'Licensed technicians, factory-grade parts and a written quote before any work starts.',
     introCtas: [
-      { label: 'Book a service', href: '/quote', style: 'solid' },
+      { label: 'Book a service', href: '/contact', style: 'solid' },
       { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline', icon: 'telephone' },
       { label: 'See every service we offer and what each one costs', href: '/services', style: 'link', arrow: true },
       { label: 'Warranty', href: '/warranty', style: 'link' },
@@ -318,7 +318,7 @@ const DEMO_CONTENT = {
     headline: 'Trusted by drivers across Northside',
     body: 'Fifteen years of honest repairs, written quotes and a two-year warranty on every job.',
     introCtas: [
-      { label: 'Book a service', href: '/quote', style: 'solid' },
+      { label: 'Book a service', href: '/contact', style: 'solid' },
       { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline', icon: 'telephone' },
       { label: 'Read what our customers say about their repairs', href: '/reviews', style: 'link', arrow: true },
       { label: 'Warranty', href: '/warranty', style: 'link' },
@@ -376,7 +376,7 @@ const DEMO_CONTENT = {
         period: '/ month',
         description: 'Oil changes and a check-up, done on time.',
         features: ['Two synthetic oil changes a year', 'Multi-point inspection', '10% off repairs'],
-        cta: { label: 'Choose Essential', href: '/quote' },
+        cta: { label: 'Choose Essential', href: '/contact' },
       },
       {
         name: 'Complete',
@@ -384,7 +384,7 @@ const DEMO_CONTENT = {
         period: '/ month',
         description: 'Everything a daily driver needs, with priority booking.',
         features: ['Everything in Essential', 'Seasonal tire swap and storage', 'Brake inspection twice a year', 'Priority same-day booking', '15% off repairs'],
-        cta: { label: 'Choose Complete', href: '/quote' },
+        cta: { label: 'Choose Complete', href: '/contact' },
         featured: true,
         badge: 'Most popular',
       },
@@ -394,7 +394,7 @@ const DEMO_CONTENT = {
         period: '/ month',
         description: 'For drivers who put on serious kilometres every year and want a loaner car while theirs is in the shop.',
         features: ['Everything in Complete', 'Free loaner car', 'Free towing within 25 km', '20% off repairs'],
-        cta: { label: 'Choose Premium', href: '/quote' },
+        cta: { label: 'Choose Premium', href: '/contact' },
       },
       {
         name: 'Fleet',
@@ -410,7 +410,7 @@ const DEMO_CONTENT = {
         period: '/ month',
         description: 'Seasonal care for a car that sleeps all winter.',
         features: ['Spring wake-up service', 'Fall storage prep'],
-        cta: { label: 'Choose Classic', href: '/quote' },
+        cta: { label: 'Choose Classic', href: '/contact' },
       },
       {
         name: 'EV',
@@ -418,7 +418,7 @@ const DEMO_CONTENT = {
         period: '/ month',
         description: 'Brakes, tires and cabin filters.',
         features: ['Tire rotation', 'Cabin filter'],
-        cta: { label: 'Choose EV', href: '/quote' },
+        cta: { label: 'Choose EV', href: '/contact' },
       },
     ],
     bg: null,
@@ -606,13 +606,13 @@ const DEMO_CONTENT = {
       { label: 'About the shop', href: '/about', icon: 'shop', show: 'both' },
       { label: 'Contact', href: '/contact', icon: 'envelope', show: 'icon' },
     ],
-    ctaPrimary: { label: 'Book a service', href: '/quote', style: 'solid' },
+    ctaPrimary: { label: 'Book a service', href: '/contact', style: 'solid' },
     // #1506 —— 电话 / 地址写成引用（`scripts/lib/item-sources.js`），渲染前从站点数据（单格页是 DEMO_SITE.brand）填；
     //    营业时间不是联系方式的源（正文「不做」），照旧手写。
     ctaSecondary: { label: 'Call us', href: { source: 'phone' }, style: 'outline' },
     topbar: {
       // #1528 —— 一句话公告（带链接文字的那种写法，老公告条的形状派生过来就是这样）。
-      message: { text: 'Free brake inspection with every oil change this month.', href: '/quote', label: 'Book now' },
+      message: { text: 'Free brake inspection with every oil change this month.', href: '/contact', label: 'Book now' },
       contact: [
         { source: 'phone' },
         { icon: 'clock', text: 'Mon–Sat 8am–6pm' },
@@ -682,7 +682,7 @@ const DEMO_CONTENT = {
       title: 'Car making a noise you do not like?',
       subtitle: 'Book a free 15-minute check. We tell you what it is and what it costs before any work starts.',
       buttons: [
-        { label: 'Book a free check', href: '/quote', style: 'solid' },
+        { label: 'Book a free check', href: '/contact', style: 'solid' },
         { label: 'Call {phone}', href: { source: 'phone' }, style: 'outline' },
       ],
     },
