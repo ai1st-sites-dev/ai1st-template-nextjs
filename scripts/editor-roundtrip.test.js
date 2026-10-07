@@ -387,8 +387,10 @@ console.log('⑦g form.id 下拉（站级表单库）');
   check(formIdOptions([]).length === 1, '没有表单库 ⟹ 下拉只有「第一张」那一项');
   // EditorApp 把 form 槽的 id 子字段接到这份选项上（源码里那一处）。
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'editor', 'EditorApp.tsx'), 'utf8');
-  check(/f\.slot === 'form' && s\.sub === 'id'[\s\S]{0,80}type: 'select'[\s\S]{0,40}formIdOptions\(forms\)/.test(app),
-    'EditorApp：form 槽的 id 画成 select、选项来自 formIdOptions(forms)（🔴 弱判据：只证源码接上了）');
+  // #1634 —— 那一格从 Puck 的 select 换成自定义字段 FormIdField（下拉 + 「Edit this form」），选项仍取 formIdOptions(forms)。
+  const formField = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'editor', 'FormCopyEditor.tsx'), 'utf8');
+  check(/f\.slot === 'form' && s\.sub === 'id'[\s\S]{0,400}<FormIdField /.test(app) && /<select[\s\S]{0,400}formIdOptions\(forms\)/.test(formField),
+    'EditorApp：form 槽的 id 画成 FormIdField，它的下拉选项来自 formIdOptions(forms)（🔴 弱判据：只证源码接上了）');
   for (const type of ['hero', 'footer', 'contact', 'cta']) {
     const c = compOf(type);
     if (!c) { if (type === 'footer') continue; bad(`${type} 不在组件清单里`); continue; }
