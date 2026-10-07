@@ -1323,7 +1323,10 @@ async function main() {
         seo: { ...secSeo, locale: localeMapForBcp47(secLocale) },
         services: content.services,
         navigation: content.navigation,
-        forms: content.forms,
+        // #1631 —— 第二语言没有任何人写过表单文字（skipAI 不调 AI），所以传空：文字按 siteFormsFrom 取这个语言那一行字表。
+        //    别传 `content.forms` —— 它此刻已被 writeSiteConfig 原地改成主语言那一行（中文主语言就是中文），当「AI 给的」传进去会赢过字表，
+        //    英文第二语言的表单就成了中文。`formsBase` 只供结构。
+        forms: [],
         formsBase: content.forms,
         pages: content.pages.map((pg) => (pg.seo && pg.seo.targetKeyword ? { ...pg, seo: { ...pg.seo, translated: true } } : pg)),
         tierDistribution: { 1: 0, 2: 0, 3: content.pages.length },

@@ -14,6 +14,7 @@
 //   F2    第二语言的表单（做什么 4）：zh 主 + en 第二、AI 不给 locales.en.forms（主语言 forms 也不给）
 //         ⟹ en/forms.json 三句 = 字表 en、zh/forms.json = 字表 zh、两份 id / fields / primary 逐张相同；
 //         第二语言换 fr ⟹ 字表 fr；换 nl ⟹ 英文；AI 给了 locales.en.forms ⟹ 用 AI 的
+//   F2-skipAI  同一件事走 skipAI 示例站那条路（第二语言内容是就地手搓的那一处）⟹ en/forms.json = 字表 en
 //   记录  zh 主语言 + en 第二语言：/en/contact 现在是什么样（只打印，不断言 —— 正文最后一条）
 // 「把 C / B / D 改回英文这一格红」是一次性对照，读数在交付留言里。
 'use strict';
@@ -278,6 +279,16 @@ const AI_FORMS = [{ id: 'quote', name: 'AI quote', buttonText: 'AI quote button'
   { id: 'contact', name: 'AI contact', buttonText: 'AI contact button', successMessage: 'AI contact thanks' }];
 const BA = runSecond('en', AI_FORMS);
 check('F2：AI 给了 locales.en.forms ⟹ en/forms.json 用 AI 的', () => { ok(BA); assert.deepStrictEqual(textOf(BA.read('en/forms.json')), textOf(AI_FORMS)); });
+
+// skipAI 示例站那条路（create-site.js 里就地手搓第二语言内容的那一处）：第二语言的表单也要用它自己那一行字表。
+console.log('── F2-skipAI：zh 主 + en 第二，skipAI（示例站），不调 AI');
+const SK = run('skipai-zh-en', PAYLOAD('zh', { skipAI: true, secondaryLocales: ['en'] }), { plan: {} });
+check('F2-skipAI：建站成功', () => ok(SK));
+check('F2-skipAI：en/forms.json 三句是字表英文那一行（不是主语言的中文）', () => assert.deepStrictEqual(textOf(SK.read('en/forms.json')), wordsRow('en')));
+check('F2-skipAI：zh/forms.json 是字表中文那一行；两份 id / fields / primary 逐张相同', () => {
+  assert.deepStrictEqual(textOf(SK.read('zh/forms.json')), wordsRow('zh'));
+  assert.strictEqual(shapeOf(SK.read('en/forms.json')), shapeOf(SK.read('zh/forms.json')));
+});
 
 console.log('── 记录（不断言）：zh 主语言 + en 第二语言，/en/contact 现在是什么样');
 {
