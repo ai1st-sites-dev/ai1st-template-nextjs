@@ -359,10 +359,15 @@ const slotsOf = (pages) => {
     await fillImageSlots({ pages: bare, manifests: real, industry: 'plumbing', primaryColor: '#123456', themeWord: 'x', produce });
     check(p6(bare[0], KW).some((x) => x.includes('没有一张含目标词')), '　反向对照：生产侧不拿目标词 ⟹ 第 6 条报「没有一张含目标词」');
     // 反向对照：求不到图 ⟹ 没有 imageUrl，不写 alt（没图的槽不出 <img>）
+    // #1638：gallery 那 2 项（= minItems）不再被删光，而是垫上占位图留下 —— 它们真出 <img>，所以算内容图、照常写 alt；
+    //    「没图的槽」这一半由 page-header 守（它没有 imageUrl，alt 也不许被写上）。
     const none = altPages();
     await fillImageSlots({ pages: none, manifests: real, industry: 'plumbing', primaryColor: '#123456', themeWord: 'x', produce: async () => null,
       targetKeywordOf: () => KW });
-    check(contentImagesOf(none[0], real).length === 0 && none[0].sections[0].data.image.alt === undefined, '　反向对照：求不到图的槽不算内容图，也不写 alt');
+    const noneImgs = contentImagesOf(none[0], real);
+    check(noneImgs.length === 2 && noneImgs.every((x) => x.img.imageUrl === ims.PLACEHOLDER_IMAGE_URL)
+      && !none[0].sections[0].data.image.imageUrl && none[0].sections[0].data.image.alt === undefined,
+      `　反向对照：求不到图的槽不算内容图，也不写 alt（内容图只剩 gallery 垫底的 ${noneImgs.length} 张占位图：${JSON.stringify(noneImgs.map((x) => x.img.imageUrl))}）`);
   }
 
   // ⑩ #1566 —— 图片文件名放得下：顶格 slug 拼出来的 key 收进上限，截了也唯一，短 slug 一个字节都不动。
@@ -717,6 +722,57 @@ const slotsOf = (pages) => {
       const items = pages[0].blocks[0].data.items;
       check(st.n <= 3 && items.length >= 2 && items.every((it) => urlOf(it.image)),
         `E⑤ cap 3 ⟹ 桩被调 ${st.n} 次（≤ 3）、gallery ${items.length} 项全有图（images ${JSON.stringify(r.images)}）`);
+    }
+
+    // ⑥ #1638 —— 生成失败这一支也不少于 minItems：删到够数就停，留下的项文字不动、垫占位图（不是留空）
+    {
+      const { PLACEHOLDER_IMAGE_URL: PH } = ims;
+      const allFail = async () => { throw new Error('Nano Banana 503'); };
+      const before = (k) => Array.from({ length: k }, (_, j) => ({ title: `G${j}`, caption: `cap ${j}` }));
+      // ⑥a gallery 6 项、桩恒抛错 ⟹ 留 2 项（= minItems）、文字逐字相同、都是占位图；正常返回，failures 是那 6 个槽
+      {
+        const pages = [{ slug: 'home', blocks: [gallery(6)] }];
+        const lines = [];
+        let r = null; let threw = null;
+        try { r = await fillImageSlots(opts(pages, { produce: allFail, log: (l) => lines.push(l) })); } catch (e) { threw = e; }
+        const items = pages[0].blocks[0].data.items;
+        check(!threw && r, `E⑥a 函数正常返回（${threw ? '抛了：' + threw.message : 'ok'}）`);
+        check(items.length === 2 && titlesOk(items, [0, 1]),
+          `E⑥a gallery 6 项全失败 ⟹ 留 ${items.length} 项（要 2 = minItems）、文字跟填之前逐字相同（${JSON.stringify(items.map((it) => [it.title, it.caption]))}，填之前 ${JSON.stringify(before(2).map((it) => [it.title, it.caption]))}）`);
+        check(items.length > 0 && items.every((it) => urlOf(it.image) === PH),
+          `E⑥a 每项的 image.imageUrl 都是占位图 ${PH}（读到 ${JSON.stringify(items.map((it) => urlOf(it.image)))}）`);
+        const fs = (r && r.failures) || [];
+        check(fs.length === 6 && fs.every((f) => f.slot.secType === 'gallery') && fs.map((f) => f.slot.itemIdx).sort().join() === '0,1,2,3,4,5',
+          `E⑥a failures 是那 6 个 gallery 槽（读到 ${fs.length} 条：${fs.map((f) => f.slot.secType + '#' + f.slot.itemIdx).join(' ')}）`);
+        check(lines.some((l) => /删掉 4 个图生成失败的项（留 2 项）/.test(l)) && lines.some((l) => /留下 2 个图生成失败的项、垫上占位图/.test(l)),
+          `E⑥a 日志分得出「删了 4 项」和「垫底留下 2 项」（${lines.filter((l) => /生成失败的项/.test(l)).join(' / ')}）`);
+        const vs = bm.validateSite({ pages: pages.map((p) => ({ slug: p.slug, blocks: p.blocks })), scope: 'edit' });
+        const probs = vs.problems || [];
+        check(probs.length === 0, `E⑥a 这一页过 validateSite：problems ${probs.length}${probs.length ? '：' + probs.join(' / ') : ''}`);
+      }
+      // ⑥b gallery 恰好 2 项、全失败 ⟹ 仍 2 项、文字不变、都是占位图
+      {
+        const pages = [{ slug: 'home', blocks: [gallery(2)] }];
+        await fillImageSlots(opts(pages, { produce: allFail }));
+        const items = pages[0].blocks[0].data.items;
+        check(items.length === 2 && titlesOk(items, [0, 1]) && items.every((it) => urlOf(it.image) === PH),
+          `E⑥b gallery 2 项全失败 ⟹ 留 ${items.length} 项、文字不变、占位图（${JSON.stringify(items.map((it) => urlOf(it.image)))}）`);
+      }
+      // ⑥c gallery 6 项、只有 2 项失败 ⟹ 留 4 项，都带真图（不是占位图）—— 够数时不垫底
+      {
+        const pages = [{ slug: 'home', blocks: [gallery(6)] }];
+        let n = 0;
+        await fillImageSlots(opts(pages, {
+          produce: async ({ slot, key }) => {
+            n += 1;
+            if (slot.secType === 'gallery' && (slot.itemIdx === 1 || slot.itemIdx === 4)) throw new Error('Nano Banana 503');
+            return `/photos/${key}-n${n}.jpg`;
+          },
+        }));
+        const items = pages[0].blocks[0].data.items;
+        check(items.length === 4 && titlesOk(items, [0, 2, 3, 5]) && items.every((it) => /^\/photos\//.test(urlOf(it.image))),
+          `E⑥c 6 项里 2 项失败 ⟹ 留 ${items.length} 项（要 4）、是 ${items.map((it) => it.title).join(',')}、都是真图（${JSON.stringify(items.map((it) => urlOf(it.image)))}）`);
+      }
     }
 
     // F. 4 路并行

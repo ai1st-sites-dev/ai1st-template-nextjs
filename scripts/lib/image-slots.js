@@ -83,6 +83,10 @@ function collectImageSlots(pages, manifests) {
   return out;
 }
 
+// 占位图 —— 模板自己带的资源（`public/images/grid-pattern.svg`），不调外部图库。两处用：skipAI 建站给每个图槽填它
+// （`create-site.js`，#1386），以及下面 gallery 生成失败时垫底留下的项（#1638）。只此一份，create-site 从这里取。
+const PLACEHOLDER_IMAGE_URL = '/images/grid-pattern.svg';
+
 // ── 图片文件名的长度上限（#1566）──────────────────────────────────────────────────────────────────
 // 图片落盘是 `public/photos/<slotKey>.jpg`，slotKey 拿整条 pageSlug 当前缀。SLUG_MAX_BYTES 只按【页面文件】的后缀推过，
 // 图片是另一个 sink：前缀之后还要接 `-s<i>-<块>-<槽>[-i<j>]` 和 `.jpg` ⟹ 顶格的 slug 拼出来的文件名放不下，写盘抛
@@ -428,15 +432,24 @@ async function fillImageSlots({ pages, manifests, industry, primaryColor, themeW
   await runPool(galleryJobs.length, concurrency, (i) => generate(galleryJobs[i]));
 
   // 没图的 gallery 项删掉（站上限截掉的、生成失败的）—— 从后往前删，下标不乱。
+  // #1638 —— 生成失败这一支也不少于 minItems（截断那一支上面已经保过）：删到够数就停，失败的项按原顺序留前几项、
+  //    垫上占位图（留空 / 没有 image 键 validateSite 照样报「每一项都要有图」）；它们的 title / caption 一个字不动。
+  //    不往 `filled` 里记 ⟹ 不算成功、`failures` 里照旧有它们。
   for (const g of galleries) {
     const page = (pages || []).find((p) => p && p.slug === g.pageSlug);
     const section = page && blocksOf(page)[g.secIdx];
     const items = section && section.data && section.data[g.slotName];
     if (!Array.isArray(items)) continue;
     const gone = g.slots.filter((s) => !filled.has(s));
-    const failed = gone.filter((s) => !cut.has(s)).length;
-    for (const j of gone.map((s) => s.itemIdx).sort((a, b) => b - a)) items.splice(j, 1);
-    if (failed) say(`[photo-slot] ${g.secType}：页面 ${g.pageSlug} 删掉 ${failed} 个图生成失败的项（留 ${items.length} 项）`);
+    const failedSlots = gone.filter((s) => !cut.has(s));
+    const withImage = items.length - gone.length;
+    const padded = failedSlots.slice(0, Math.max(0, g.minItems - withImage));
+    for (const s of padded) setSlotImageUrl(pages, s, PLACEHOLDER_IMAGE_URL);
+    const drop = gone.filter((s) => !padded.includes(s));
+    for (const j of drop.map((s) => s.itemIdx).sort((a, b) => b - a)) items.splice(j, 1);
+    const deleted = failedSlots.length - padded.length;
+    if (deleted) say(`[photo-slot] ${g.secType}：页面 ${g.pageSlug} 删掉 ${deleted} 个图生成失败的项（留 ${items.length} 项）`);
+    if (padded.length) say(`[photo-slot] ${g.secType}：页面 ${g.pageSlug} 留下 ${padded.length} 个图生成失败的项、垫上占位图 ${PLACEHOLDER_IMAGE_URL}（不少于 minItems ${g.minItems}，留 ${items.length} 项）`);
   }
 
   const images = { requested: calls + reused, generated, reused };
@@ -511,6 +524,7 @@ module.exports = {
   IMAGE_CONCURRENCY,
   slotKey,
   IMAGE_FILE_SUFFIX,
+  PLACEHOLDER_IMAGE_URL,
   SLOT_KEY_MAX_BYTES,
   slotWhere,
   logFilled,

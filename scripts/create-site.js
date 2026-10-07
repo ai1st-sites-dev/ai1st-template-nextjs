@@ -72,12 +72,11 @@ const buildReportLib = require('./lib/build-report');
 let buildReport = null;
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
-const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX } = require('./lib/image-slots');
+// PLACEHOLDER_IMAGE_URL：skipAI 那条路给图槽填的那张图（#1386）—— 那个文件里也拿它给 gallery 垫底（#1638），所以只住那一处。
+const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX, PLACEHOLDER_IMAGE_URL } = require('./lib/image-slots');
 // #1620 —— skipAI 示例站的页面块与图（`lib/demo-site.js` 排页，`lib/demo-content/images.js` 定图的地址前缀）。
 const demoSite = require('./lib/demo-site');
 const { normalizeDemoImageBase, rebaseDemoImages } = require('./lib/demo-content/images');
-// skipAI 那条路给图槽填的那张图 —— 模板自己带的资源，不调外部图库（#1386）。
-const PLACEHOLDER_IMAGE_URL = '/images/grid-pattern.svg';
 // #1034 — 每个站一份首页开场配方（开头四块 + 两个必须出现的块 + 候选清单的印刷顺序）。
 // 治的是「6 个真实站 100% 以 announcement-bar → hero 开场」那件事，理由整段在那个文件头上。
 const {
