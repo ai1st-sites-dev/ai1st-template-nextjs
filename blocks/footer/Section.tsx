@@ -48,6 +48,7 @@ import SiteLink from '@/components/SiteLink';
 import { buttonClass, resolveButtonStyle } from '@/components/Button';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { defaultLocale, getServices } from '@/lib/config';
+import { getLabels } from '@/lib/component-labels';
 import type { BlockConfig } from '@/lib/types/config';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
@@ -122,8 +123,11 @@ function servicesFor(locale: string): { id: string; name: string }[] {
   try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
 }
 
-/** 列的固定语义（`columns` 排布专用）。标题是图册的英文演示；T3 接站时跟着站的语言走。 */
-const COLUMN_TITLES = { services: 'Services', areas: 'Service areas', pages: 'Pages', contact: 'Contact' };
+/** 列的固定语义（`columns` 排布专用）。#1640 —— 标题跟着站的语言走（`getLabels` 逐键回落英文，图册没有站的语言 ⟹ 英文演示）。 */
+function columnTitles(locale: string) {
+  const t = getLabels(locale);
+  return { services: t.footerServices, areas: t.footerServiceAreas, pages: t.footerPages, contact: t.footerContact };
+}
 
 interface Props {
   data?: FooterNewData;
@@ -139,6 +143,7 @@ interface Props {
 
 export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = defaultLocale, homeHref = '/' }: Props) {
   const opts = data.options || {};
+  const titles = columnTitles(locale);
   const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
   const { layout, cta: ctaKind } = knobs;
   const brandSide = knobs.brand;
@@ -339,12 +344,12 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
       </div>
       <div className="col-12 col-md-8">
         <div className="row gy-8">
-          {services.length ? linkCol('services', COLUMN_TITLES.services, services) : null}
-          {areas.length ? linkCol('areas', COLUMN_TITLES.areas, areas) : null}
-          {nav.length ? linkCol('pages', COLUMN_TITLES.pages, nav) : null}
+          {services.length ? linkCol('services', titles.services, services) : null}
+          {areas.length ? linkCol('areas', titles.areas, areas) : null}
+          {nav.length ? linkCol('pages', titles.pages, nav) : null}
           {showContactCol ? (
             <div className="col-6 col-lg" data-footer-col="contact">
-              <div className={`fw-semibold mb-3 ${headTone}`}>{COLUMN_TITLES.contact}</div>
+              <div className={`fw-semibold mb-3 ${headTone}`}>{titles.contact}</div>
               <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`}>
                 {contactItems.map((c) => (
                   <li key={c.key} className="d-flex gap-2">

@@ -363,5 +363,35 @@ console.log('\n⑦ row 底栏的城市（#1530）');
   }
 }
 
+// ══ ⑧ #1640：四个栏名跟着站的语言走（getLabels），表里没有的语言回英文 ══════════════════════════════
+console.log('\n⑧ 栏名跟着 locale 走（#1640）');
+{
+  // 四栏都要在：夹具补一栏 areas（演示内容没有），其余照旧。
+  const full = { ...base, columns: { ...(base.columns || {}), areas: [{ label: 'Downtown', href: '/areas/downtown' }] } };
+  const KEYS = ['services', 'areas', 'pages', 'contact'];
+  const titlesOf = (h) => Object.fromEntries(KEYS.map((k) => {
+    const m = h.match(new RegExp(`data-footer-col="${k}"><div class="[^"]*">([^<]*)</div>`));
+    return [k, m ? m[1] : null];
+  }));
+  const at = (locale, Comp = C) => titlesOf(renderToStaticMarkup(React.createElement(Comp, { shape: 'columns', data: full, iconTable: ICONS, locale })));
+  const EN = { services: 'Services', areas: 'Service areas', pages: 'Pages', contact: 'Contact' };
+  const ZH = { services: '服务', areas: '服务区域', pages: '页面', contact: '联系方式' };
+  const zh = at('zh');
+  check(JSON.stringify(zh) === JSON.stringify(ZH), `locale=zh ⟹ 四个栏名是中文（${JSON.stringify(zh)}）`);
+  const en = at('en');
+  check(JSON.stringify(en) === JSON.stringify(EN), `locale=en ⟹ 与原 COLUMN_TITLES 逐字相同（${JSON.stringify(en)}）`);
+  const xx = at('xx');
+  check(JSON.stringify(xx) === JSON.stringify(EN), `locale=xx（表里没有）⟹ 回英文（${JSON.stringify(xx)}）`);
+  // 反向对照：任一栏改回英文常量，zh 那一格必须红 —— 四栏各改一次。
+  const src = fs.readFileSync(SECTION, 'utf-8');
+  for (const k of KEYS) {
+    const broken = src.replace(`titles.${k}`, JSON.stringify(EN[k]));
+    if (broken === src) { bad(`反向对照（${k}）没改到源码（锚点找不到）—— 这一格什么都没证明`); continue; }
+    const got = at('zh', loadSection(broken).default);
+    check(got[k] === EN[k] && JSON.stringify(got) !== JSON.stringify(ZH), `反向对照：${k} 改回常量 ⟹ zh 那一栏读成 ${got[k]}，上面那格会红`);
+  }
+  loadSection();
+}
+
 console.log(`\n${fail ? '🔴' : '✅'} footer-render: ${pass} 过 / ${fail} 不过`);
 process.exit(fail ? 1 : 0);
