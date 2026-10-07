@@ -50,8 +50,9 @@ const DEFAULT_FIELDS: Record<LeadFormMode, LeadField[]> = {
   teaser: ['phone'],
   full: ['name', 'phone', 'service'],
 };
-const DEFAULT_BUTTON_TEXT = 'Get a free quote';
-const DEFAULT_SUCCESS = "Thanks! We've got your details and will be in touch.";
+// #1641 —— 表单库里这张表没有按钮字 / 成功提示时的兜底（#1634 老板清空 = 删键 = 走到这里），按站的语言取。
+const DEFAULT_BUTTON_TEXT = (locale: string) => getLabels(locale).formSubmit;
+const DEFAULT_SUCCESS = (locale: string) => getLabels(locale).formThanks;
 
 /** 这个语言的站级表单库。`@/lib/config` 在单测里是替身，可能没有 `getForms` ⟹ 当成空库。 */
 function siteFormsFor(locale: string): SiteFormConfig[] {
@@ -85,13 +86,14 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
 }) {
   const form = pickForm(forms ?? siteFormsFor(locale), formId) as SiteFormConfig | null;
   const PLACEHOLDER = placeholdersFor(locale);
+  const L = getLabels(locale);
   const variant: 'inline' | 'stacked' = mode === 'teaser' ? 'inline' : 'stacked';
   const asked = form
     ? (mode === 'teaser' ? [form.primary] : form.fields).filter((f): f is LeadField => VOCAB.includes(f))
     : [];
   const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[mode]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
-  const buttonText = form?.buttonText || DEFAULT_BUTTON_TEXT;
-  const successMessage = form?.successMessage || DEFAULT_SUCCESS;
+  const buttonText = form?.buttonText || DEFAULT_BUTTON_TEXT(locale);
+  const successMessage = form?.successMessage || DEFAULT_SUCCESS(locale);
   const redirect = form?.redirect;
   const place = align === 'right' ? ' ms-auto' : (center || align === 'center') ? ' mx-auto' : '';
 
@@ -108,7 +110,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
     const email = (values.email || '').trim();
     const phone = (values.phone || '').trim();
     if (!email && !phone) {
-      setError(fields.includes('email') && !fields.includes('phone') ? 'Please enter your email.' : 'Please enter your phone number.');
+      setError(fields.includes('email') && !fields.includes('phone') ? L.formNeedEmail : L.formNeedPhone);
       return;
     }
     const parts: string[] = [];
@@ -129,7 +131,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
       setState('success');
     } catch {
       setState('error');
-      setError('Something went wrong. Please try again or call us.');
+      setError(L.formFailed);
     }
   };
 
@@ -174,7 +176,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
   const formAttr = form ? { 'data-form-id': form.id } : {};
   const button = (cls: string) => (
     <button className={cls} type="submit" disabled={state === 'submitting'}>
-      {state === 'submitting' ? 'Sending…' : buttonText}
+      {state === 'submitting' ? L.formSending : buttonText}
     </button>
   );
 
