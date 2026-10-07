@@ -183,6 +183,13 @@ function fixture({ primary = 'zh', secondary = ['en'], descOf = {} } = {}) {
     seo: { siteTitle: `剪发｜${BRAND}`, siteDescription: DESC.zh('剪发'), areaServed: [{ type: 'City', name: 'Toronto' }], addresses: [], priceRange: '$$', offerCatalogName: '服务' },
     services: SERVICES.map(([id, zh]) => ({ id, name: zh, shortDescription: `${zh}服务`, fullDescription: `${zh}，在多伦多。`, icon: 'scissors', features: ['细致'], products: [] })),
     forms: [{ id: 'quote', name: '预约', buttonText: '提交', successMessage: '谢谢' }, { id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
+    // #1633 —— 主语言不是英文 ⟹ 站级那一通也给主语言的「代码自己写的字」（首页、页脚第一栏标题、代码补的 contact 页）。
+    //    不给的话 contact 退回英文、34 字过不了中文 description 50–80 字那条，每一跑多一次修补，下面数修补 / 花费的格子量的就不是本来的事了。
+    ...(primary === 'zh' ? {
+      homeLabel: '首页', quickLinksTitle: '快速链接',
+      contactPage: { title: '联系我们', navLabel: '联系', description: fit(`欢迎联系 ${BRAND}：我们在多伦多为每一位顾客提供细致贴心的美发服务，留下电话或邮件，我们会尽快回复您的预约与问题。`, 50, 80),
+        headline: '联系我们', subheadline: '给我们留言，我们会尽快回复。', formHeadline: '与我们取得联系', formBody: '留下您的联系方式，我们会尽快联系您。' },
+    } : {}),
     pages: PAGES.map((p, i) => {
       const z = pageOf('zh', p);
       return { slug: p[0], title: z.title, description: z.description, navLabel: z.navLabel, navOrder: p[0].startsWith('services/') ? 10 + i : i,
@@ -545,7 +552,7 @@ check('#1600 报告：services/color 记的是主语言那一页（pass，没被
   assert.strictEqual(pg.outcome, 'pass', JSON.stringify(pg));
   assert.strictEqual(pg.rewritten, false);
   assert.strictEqual(rep.repair.rewritten, 0, JSON.stringify(rep.repair));
-  // repair.pages 是过了 SEO 检查的主语言页数（#1600 的口径 = seo-check 事件 pages 之和）；写盘时代码插的 Contact 页不经检查。
+  // repair.pages 是过了 SEO 检查的主语言页数（#1600 的口径 = seo-check 事件 pages 之和）；#1633 起代码插的 Contact 页也单独过一次检查、算在里面。
   assert.strictEqual(rep.repair.pages, C.events.filter((e) => e.event === 'seo-check').reduce((a, e) => a + e.pages, 0), JSON.stringify(rep.repair));
 });
 
@@ -692,8 +699,8 @@ check('#1600 报告：costUsd 0.08（顶层）· repair.rewritten = seoFixed 1 �
   const rep = reportOf(F);
   assert.strictEqual(rep.costUsd, 0.08, JSON.stringify(rep));
   assert.strictEqual(rep.repair.rewritten, stats.seoFixed);
-  // repair.pages = 过了 SEO 检查的页数（#1600 口径）；stats.pages 是写盘时的主语言页数，多出的那一页是 §writeSiteConfig
-  // 由代码插的 Contact 页（不经 AI、不过检查）。修补率按前者算：没过检查的页不可能被修补。
+  // repair.pages = 过了 SEO 检查的页数（#1600 口径）；stats.pages 是写盘时的主语言页数。#1633 之前多出的那一页是写盘时
+  // 由代码插的 Contact 页（不过检查）；之后它也单独过一次检查，两个数相等。修补率按前者算：没过检查的页不可能被修补。
   const checked = F.events.filter((e) => e.event === 'seo-check').reduce((a, e) => a + e.pages, 0);
   assert.strictEqual(rep.repair.pages, checked);
   assert.ok(stats.pages - checked <= 1, `${stats.pages} vs ${checked}`);

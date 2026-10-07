@@ -214,6 +214,9 @@ function call1({ aboutBody = 'We started small and grew by word of mouth.', abou
     ],
   };
 }
+// #1633 —— 代码补的 contact 页的修补回包：把那句 29 字的英文兜底（`Get in touch with Acme Drains`）写长到合格（同真 AI 照规矩修）。
+//    用 replace 不用 midDescription：后者要从修补提示词里读区间，提示词措辞一变它就抛错，那一格量的就成了措辞。
+const CONTACT_FIX = { replace: ['Get in touch with ', 'Send us a message about drain cleaning or water heater repair and get in touch with '] };
 // #1550 起关键词页挂在 `services/<服务 id>/<词>` 下（URL 由代码定，AI 照抄）。
 const KW_SLUGS = ['services/drain-cleaning/drain-cleaning-markham', 'services/drain-cleaning/clogged-drain-repair', 'services/water-heaters/tankless-water-heater'];
 function call2() {
@@ -283,7 +286,8 @@ const A = run('A', {
   check(A.rc === 0, `建站成功（rc=${A.rc}）`, `${errorOf(A)}\n${A.stderr.slice(-1500)}`);
   const lines = seoLines(A.stderr);
   const checked = lines.filter((l) => l.startsWith('[seo] 检查 ')).map((l) => l.split(' ')[2]);
-  const primaryPages = ['home', 'about', 'quote', 'services/drain-cleaning', ...KW_SLUGS];
+  // #1633 —— 代码补的 contact 页从此也单独过一次 SEO 检查（以前它在写盘那一步才插，没有任何检查看得到它）。
+  const primaryPages = ['home', 'about', 'quote', 'services/drain-cleaning', ...KW_SLUGS, 'contact'];
   check(checked.length === primaryPages.length && primaryPages.every((s) => checked.includes(s)),
     `主语言每页各一行「[seo] 检查」：${checked.length} 行 = 主语言 ${primaryPages.length} 页`, checked.join(' '));
   const aboutLine = lines.find((l) => l.startsWith('[seo] 检查 about ')) || '';
@@ -308,8 +312,8 @@ const A = run('A', {
   // 双语（#1593）：第二语言跟主语言同一次调用写回来，按它自己的 locale 也查一遍，日志前缀 `[seo zh]`，不混进主语言那组
   check(fs.existsSync(path.join(A.site, 'zh', 'pages', 'about.json')), '次语言 zh 的页生成了');
   const zhChecked = A.stderr.split('\n').filter((l) => l.startsWith('[seo zh] 检查 ')).map((l) => l.split(' ')[3]);
-  // 第二语言在写盘时才查 ⟹ 也查到写盘那一步代码插的 contact 页（主语言的 seoPass 跑在它之前）
-  const zhPrimary = [...primaryPages.filter((x) => x !== KW_SLUGS[2]), 'contact'];
+  // 第二语言在写盘时才查 ⟹ 也查到代码插的 contact 页（#1633 起主语言那组也有它，primaryPages 里已经带着）
+  const zhPrimary = primaryPages.filter((x) => x !== KW_SLUGS[2]);
   check(zhChecked.length === zhPrimary.length && zhPrimary.every((x) => zhChecked.includes(x)),
     `第二语言每页各一行「[seo zh] 检查」：${zhChecked.length} 行 = 主语言留下来的页 + contact（丢掉那页不在第二语言里）`, zhChecked.join(' '));
   check(!lines.some((l) => /\bzh\b|\/zh\//.test(l)) && checked.length === primaryPages.length, '主语言那组 [seo] 行里没有第二语言的页（检查行数 = 主语言页数）');
@@ -330,7 +334,8 @@ const A = run('A', {
 
 console.log('\n── A\' 反向对照：about 的修补不修 ⟹ about 照发 + 一条 degraded（#1596）');
 if (!ONLY) {
-  const R = run('A2', { call1: call1({ aboutBody: 'Serving Markham since 2015, we grew by word of mouth.' }), call2: call2(), rewrites: { about: 'echo', [KW_SLUGS[2]]: 'echo' } }, PAYLOAD());
+  // #1633 —— 代码补的 contact 页也过 SEO 检查了：它那句英文 description 太短，修补一次照规矩写好（同真 AI），不让它的降级混进「恰好一条」。
+  const R = run('A2', { call1: call1({ aboutBody: 'Serving Markham since 2015, we grew by word of mouth.' }), call2: call2(), rewrites: { about: 'echo', [KW_SLUGS[2]]: 'echo', contact: CONTACT_FIX } }, PAYLOAD());
   const d = seoDegraded(R);
   check(R.rc === 0 && !errorOf(R), `建站成功（rc=${R.rc}）`, errorOf(R).slice(0, 400));
   check(d.length === 1 && d[0].target === 'about' && d[0].reason.includes('[8 事实出处]'), '恰好一条 step=seo 的 degraded，指向 about、写明第 8 条', JSON.stringify(d).slice(0, 400));
@@ -339,7 +344,7 @@ if (!ONLY) {
 
 console.log('\n── B about 两次都出两个 H1 ⟹ about 照发 + 一条 degraded，不是丢掉 about（#1596）');
 if (!ONLY) {
-  const B = run('B', { call1: call1({ aboutTwoH1: true }), call2: call2(), rewrites: { about: 'echo', [KW_SLUGS[2]]: 'echo' } }, PAYLOAD());
+  const B = run('B', { call1: call1({ aboutTwoH1: true }), call2: call2(), rewrites: { about: 'echo', [KW_SLUGS[2]]: 'echo', contact: CONTACT_FIX } }, PAYLOAD());
   const d = seoDegraded(B);
   check(B.rc === 0 && !errorOf(B), `建站成功（rc=${B.rc}）`, errorOf(B).slice(0, 400));
   check(d.length === 1 && d[0].target === 'about' && d[0].reason.includes('[3 H1] 要恰好一个 H1'), '恰好一条 step=seo 的 degraded，写明 about 页和「恰好一个 H1」那一条', JSON.stringify(d).slice(0, 400));
