@@ -556,6 +556,7 @@ for (const [arm, what, cfg, want] of GALLERY_ARMS) {
   const recipeSlugs = require('./lib/site-recipe').sitePagesFor('photography', { services: plan().services }).pages.map((p) => p.slug);
   const all = Object.fromEntries(recipeSlugs.map((slug) => [slug, 2]));
   const R = run('sitefix-G', PAYLOAD({ industry: 'photography' }), { failCalls: all, siteFix: 'obeys' });
+  TYPECHECK.push(['r5 G（每一页都是骨架页，#1643）', R]);
   check('G：建站成功；没有补的那一通；每页一条 page 降级 + 一条 site-blocks:gallery；首页仍是骨架页', () => {
     assertOk(R);
     assert.deepStrictEqual(fixCalls(R), []);
@@ -563,6 +564,16 @@ for (const [arm, what, cfg, want] of GALLERY_ARMS) {
     assert.deepStrictEqual(degradedOf(R, 'site-blocks').map((d) => d.target), ['gallery']);
     assert.deepStrictEqual(typesOf(readPage(R, 'home')), SKELETON_HOME);
     assert.ok(R.stderr.includes('每一页都是骨架页 ⟹ 不补'), R.stderr.split('\n').filter((l) => l.startsWith('[blocks]')).join('\n'));
+  });
+  // #1643 —— 这一格也进「构建得出来」那段：每一页都是骨架页 ⟹ 产物里没有一页带 targetKeyword。下面这条前提守着它，
+  //    免得哪天骨架页带上了目标词、那一格的类型检查就成了空尺子（部分降级的对照是第 6 条那格）。
+  check('G：每一页都是 seo.placeholder: true，没有一页带 seo.targetKeyword（「全降级」那一臂的前提）', () => {
+    const slugs = pageSlugs(R.work);
+    assert.strictEqual(slugs.length, recipeSlugs.length, slugs.join(' · '));
+    for (const slug of slugs) {
+      const seo = readPage(R, slug).seo || {};
+      assert.ok(seo.placeholder === true && !('targetKeyword' in seo), `${slug}：${JSON.stringify(seo)}`);
+    }
   });
 }
 
