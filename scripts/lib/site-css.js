@@ -129,12 +129,42 @@ const BTN_PRIMARY_INK = [
  * 后来的赢。所以这一条必须写在 `/site.css` 这一侧（跟 §BTN_PRIMARY_INK 同一个理由）。
  * 写的是 Webpixels 自己那个变量，不是 `border-radius` 本身：`.btn-sm` / `.btn-lg` 也是改它，排在 `@import` 之后的这一条把三种尺寸
  * 一起收住。变量缺席（不经 globals.css 的页面）⟹ 落回 Webpixels 自己的值，等于改前。
- * 📌 只到按钮为止（Chris 2026-10-05 定）：卡片、图片的圆角是块自己写死的；按钮自己再挂 `rounded-pill` / `rounded-circle` 的
- *    （电话圆钮、月付 / 年付切换）带 `!important`，照旧压过这一条。
+ * 📌 按钮和表单字段（#1645 把表单字段接进来，见下一条 §FORM_RADIUS）；卡片、图片的圆角仍是块自己写死的（Chris 2026-10-05 定）。
+ *    按钮自己再挂 `rounded-pill` / `rounded-circle` 的（电话圆钮、月付 / 年付切换）带 `!important`，照旧压过这一条。
  */
 const BTN_RADIUS = [
   '.btn {',
   '  --x-btn-border-radius: var(--radius-button, var(--x-border-radius));',
+  '}',
+  '',
+].join('\n');
+
+/**
+ * #1645 —— 网站表单字段（`BlockLeadForm` 的 `.form-control` / `.form-select`，含 -sm / -lg）的圆角跟按钮同一档（Chris 2026-10-07：
+ * 「按钮是直角的，那 form 的 field 也应该是直角的」）。改前 Webpixels 写死 `border-radius: var(--x-border-radius[-lg|-sm])`，
+ * 不读 `--radius-button` ⟹ 首屏 / cta / 联系页的字段永远 16px、页脚（`size="sm"`）永远 8px。
+ * 字段的 `border-radius` 是直接写的（不像 `.btn` 有一个组件变量可改），所以三种尺寸各一条，退路各取 Webpixels 自己那个值 ⟹
+ * 变量缺席时单行字段 / 下拉框等于改前。-sm / -lg 跟不带尺寸那条特异度相同（0-1-0），排在它后面 ⟹ 后来的赢，跟 Webpixels 同一个次序。
+ * 留言框（`textarea.form-control`，0-1-1）封顶 0.5rem：胶囊档下多行框做成胶囊会变形 ⟹ 取「按钮的值」和 0.5rem 小的那个。
+ *    `compileSiteCss` 编的时候不知道客户选了哪一档（档位是浏览器里从 `--radius-button` 读的），所以只能是 CSS 的 `min()`。
+ *    代价：变量缺席时 -lg 留言框是 0.5rem 而不是 1rem —— 网站页面都经 globals.css（默认 0.5rem），走不到。
+ * 🔒 `scripts/lib/site-css.test.js` 走 compile + purge 两步读这几条（purge 是最容易静默删掉一条规则的那一步）。
+ */
+const FORM_RADIUS = [
+  '.form-control,',
+  '.form-select {',
+  '  border-radius: var(--radius-button, var(--x-border-radius));',
+  '}',
+  '.form-control-lg,',
+  '.form-select-lg {',
+  '  border-radius: var(--radius-button, var(--x-border-radius-lg));',
+  '}',
+  '.form-control-sm,',
+  '.form-select-sm {',
+  '  border-radius: var(--radius-button, var(--x-border-radius-sm));',
+  '}',
+  'textarea.form-control {',
+  '  border-radius: min(var(--radius-button, var(--x-border-radius)), 0.5rem);',
   '}',
   '',
 ].join('\n');
@@ -367,6 +397,7 @@ function siteScss(primary) {
     ON_DEEP_MUTED,
     ON_DEEP_FORM,
     BTN_RADIUS,
+    FORM_RADIUS,
     BTN_PRIMARY_INK,
     BTN_OUTLINE_HOVER_INK,
     SCHEME_SURFACES,
@@ -450,6 +481,6 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr' }) {
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_RADIUS, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
+  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_RADIUS, FORM_RADIUS, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
   DEEP_COMMON, DEEP_COMMON_CSS, DEEP_TONES,
 };
