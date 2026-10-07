@@ -38,7 +38,7 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{services: [{label, href}], areas: [{label, href}], contact: bool}"
+      "shape": "{services: [{label, href}], areas: [{label, href}], contact: bool, keywordGroups: [{title, links: [{label, href}]}]}"
     },
     "contact": {
       "kind": "object",

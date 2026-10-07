@@ -67,7 +67,9 @@ export interface FooterLink { label: string; href: string; icon?: string }
 export interface FooterButton { label: string; href: string; style?: BtnStyle }
 /** #1530 —— `city`：`row` 底栏露「电话 + 城市」读它（`{source: "brand"}` 从 `brand.locations[].city` 展开）；没有就那一格不画，不从地址串猜。 */
 export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string; city?: string }
-export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean }
+/** #1632 —— 关键词页按服务分组的那几栏（构建从当前页面现算，`scripts/lib/shell-data.js`）；只有 `layout=columns` 画。 */
+export interface FooterKeywordGroup { title: string; links: FooterLink[] }
+export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean; keywordGroups?: FooterKeywordGroup[] }
 export interface FooterCta { title?: string; subtitle?: string; buttons?: FooterButton[] }
 /** #1471 —— 块只选一张站级表单（空 = 第一张）；露多少是旋钮 `options.form`。 */
 export interface FooterForm { id?: string }
@@ -312,6 +314,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const services = list(data.columns?.services);
   const areas = list(data.columns?.areas);
   const showContactCol = data.columns?.contact === true && contactItems.length > 0;
+  const keywordGroups = list(data.columns?.keywordGroups).filter((g) => g.title && list(g.links).length);
   const linkCol = (key: string, title: string, items: FooterLink[]) => (
     <div className="col-6 col-lg" key={key} data-footer-col={key}>
       <div className={`fw-semibold mb-3 ${headTone}`}>{title}</div>
@@ -354,6 +357,23 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
           ) : null}
         </div>
       </div>
+      {/* #1632 —— 关键词页栏：现有那行栏下面另起一行，每组一栏。没有就整行不出（不留空行）。 */}
+      {keywordGroups.length ? (
+        <div className="col-12" data-footer-keywords="">
+          <div className="row gy-8">
+            {keywordGroups.map((g, i) => (
+              <div className="col-6 col-md-4 col-lg-3" key={i} data-footer-col={`kw-${i}`}>
+                <div className={`fw-semibold mb-3 ${headTone}`}>{g.title}</div>
+                <ul className="list-unstyled vstack gap-2 mb-0">
+                  {list(g.links).map((l, j) => (
+                    <li key={j}><SiteLink className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</SiteLink></li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 
