@@ -57,6 +57,8 @@ emit({
   blockers: plan.blockers.map((b) => ({
     file: path.relative(rootDir, b.file), index: b.index, id: b.id, type: b.type, reason: b.reason,
   })),
+  // #1639 —— 补了页尾那一组回服务详情页链接的关键词页（不是块改名，所以不进 changes）。
+  related: plan.related.map((r) => ({ file: path.relative(rootDir, r.file), slug: r.slug })),
 });
 
 if (plan.blockers.length) {

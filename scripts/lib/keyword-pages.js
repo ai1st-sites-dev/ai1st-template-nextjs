@@ -489,16 +489,49 @@ function addRelatedBlocks(kwPages, locale, disabledBlocks = []) {
     const id = serviceIdOfKeywordPath(p.slug);
     if (!id) continue;
     // AI 自己已经写了一组本服务的页面列表：不再加第二组，给它补上父页那一条（指向别的服务的那种不算，照加）。
-    const own = sectionsOf(p).filter((b) => b && b.type === 'features' && b.data && isPagesRef(b.data.items)
+    const own = blockListOf(p).filter((b) => b && b.type === 'features' && b.data && isPagesRef(b.data.items)
       && b.data.items.under === `services/${id}`);
     if (own.length) {
       for (const b of own) b.data.items = { ...b.data.items, withParent: true };
       continue;
     }
-    insertBeforeTrailingCta(sectionsOf(p), { type: 'features', data: { headline: label, items: pagesRef(id, { withParent: true }) } });
+    insertRelated(p, { type: 'features', data: { headline: label, items: pagesRef(id, { withParent: true }) } });
     n += 1;
   }
   return n;
+}
+
+// #1639 —— 「更新网站」那条路（`site-data-migration.js`）也调 §addRelatedBlocks，而它传进来的是**磁盘上的**页面：
+//    #998 之后是 `blocks` 形状（建站写盘时 `blocks.js` §pageWithBlocks 转的），#998 之前的站仍是 `sections`。
+//    建站这条路传进来的永远是 `sections`，下面两个函数对它跟原来一字不差。
+//    🔴 不改 `sectionsOf`：它在 `blocks` 形状的页上会凭空建一个 `sections: []`，别的函数还靠它那个行为。
+const blockListOf = (p) => (Array.isArray(p.blocks) ? p.blocks : sectionsOf(p));
+
+/**
+ * 把页尾那一组放进页面。`sections` 形状照旧插在最后一个 cta 之前（数组位置就是顺序）。
+ * `blocks` 形状的顺序看 `weight`（`blocks.js` §effectiveWeight，没写就是位置 × 10）⟹ 新块补齐 `id / role / region / weight`
+ * （同 §pageWithBlocks 写的那几个键），`weight` 取排在最后的 cta 与它前一块的中点；最后一块不是 cta 就排到最后。
+ */
+function insertRelated(p, block) {
+  if (!Array.isArray(p.blocks)) {
+    insertBeforeTrailingCta(sectionsOf(p), block);
+    return;
+  }
+  const { effectiveWeight, roleFor, generatedBlockId } = require('../blocks');
+  const list = p.blocks;
+  const order = list.map((b, i) => ({ b, i, w: effectiveWeight(b || {}, i) })).sort((x, y) => (x.w - y.w) || (x.i - y.i));
+  const last = order[order.length - 1];
+  const beforeCta = !!(last && last.b && last.b.type === 'cta');
+  let weight;
+  if (!last) weight = 0;
+  else if (!beforeCta) weight = last.w + 10;
+  else weight = order.length > 1 ? (order[order.length - 2].w + last.w) / 2 : last.w - 10;
+  const ids = new Set(list.map((b) => b && b.id));
+  let k = list.length;
+  while (ids.has(generatedBlockId(p.slug, block.type, k))) k += 1;
+  const full = { id: generatedBlockId(p.slug, block.type, k), type: block.type, role: roleFor(block.type), region: 'content', weight, data: block.data };
+  if (beforeCta) list.splice(last.i, 0, full);
+  else list.push(full);
 }
 
 /** `services/<id>/<词>` → id；别的形状 → null。 */

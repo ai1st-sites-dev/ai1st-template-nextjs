@@ -51,6 +51,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { addRelatedBlocks, serviceIdOfKeywordPath } = require('./keyword-pages');
 
 // LEGACY_BLOCK_TYPES —— 这条升级路自己带的迁移表。
 //
@@ -224,6 +225,7 @@ function migrateShapeBlock(block, rule, roleWanted) {
 // 返回 { blockers, changes, files }：
 //   blockers  [{ file, index, id, type }]  —— 非空就不许写
 //   changes   [{ file, index, id, from, to, renamed, roleAdded }]
+//   related   [{ file, slug }]                —— #1639：补了页尾那一组回服务详情页链接的关键词页
 //   files     [{ file, doc, changed }]     —— applyPlan 要写的那些
 function planSiteMigration(siteDir, options = {}) {
   const rootDir = options.rootDir || path.resolve(siteDir, '..');
@@ -231,6 +233,7 @@ function planSiteMigration(siteDir, options = {}) {
   const known = options.knownTypes || new Set(Object.keys(roles));
   const blockers = [];
   const changes = [];
+  const related = [];
   const files = [];
 
   for (const file of options.files || siteDataFiles(siteDir)) {
@@ -285,9 +288,39 @@ function planSiteMigration(siteDir, options = {}) {
         blockers.push({ file, index, id: block.id || null, type: block.type, reason: 'unknown block type' });
       }
     });
+    // #1639 —— 关键词页页尾那一组回服务详情页的链接（#1630 把面包屑删了，回去只剩这一条）。建站那条路由
+    //    `keyword-pages.js` §addRelatedBlocks 写；升级不重新建站 ⟹ 这里调**同一个函数**补上，不另写规则。
+    //    它幂等（已经带 `withParent` 的不动），所以「改了没有」按改前改后的 JSON 比，不按它的返回值。
+    if (isKeywordPage(doc)) {
+      const before = JSON.stringify(doc);
+      addRelatedBlocks([doc], localeOfPageFile(siteDir, file), []);
+      if (JSON.stringify(doc) !== before) {
+        related.push({ file, slug: doc.slug });
+        changed = true;
+      }
+    }
     files.push({ file, doc, changed });
   }
-  return { blockers, changes, files };
+  return { blockers, changes, related, files };
+}
+
+// 关键词页 = slug 是 `services/<id>/<词>` 的页面（同 §addRelatedBlocks 自己那一道判据；老形状 `<服务slug>/<词>` 不算）。
+function isKeywordPage(doc) {
+  return !!doc && typeof doc === 'object' && !Array.isArray(doc)
+    && (Array.isArray(doc.blocks) || Array.isArray(doc.sections))
+    && serviceIdOfKeywordPath(doc.slug) !== null;
+}
+
+// 页尾那一组的标题用哪种语言：`<siteDir>/<语言>/pages/…` 取那一段；没有语言目录的老站（`<siteDir>/pages/…`）
+// 读 site_meta.json 的 defaultLocale，没有就 en（同 sync-config.js 的老站兜底）。
+function localeOfPageFile(siteDir, file) {
+  const rel = path.relative(siteDir, file).split(path.sep);
+  if (rel.length > 2 && rel[1] === 'pages') return rel[0];
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(siteDir, 'site_meta.json'), 'utf-8'));
+    if (meta && typeof meta.defaultLocale === 'string' && meta.defaultLocale) return meta.defaultLocale;
+  } catch { /* 老站没有这份文件 */ }
+  return 'en';
 }
 
 // applyPlan —— 把改过的文件写回去。计划里有 blocker 时它拒绝动手（第二道，第一道是调用方）。
