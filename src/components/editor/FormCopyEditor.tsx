@@ -10,12 +10,13 @@
 //    上限 §LABEL_CAP）、快速表单露哪一格（`primary`）。不加 / 删整张表单、不改 id、不改跳转。
 // 🔴 字段词表是封闭的（§FORM_FIELDS）；「加 xxx」只给还没用上的。删到既没有电话也没有邮箱 ⟹ 删除按钮不可用并写出原因，
 //    判据是 §lacksContactField（站里校验、存盘用的同一个），不另写一份。
-// 🔴 删掉的字段正好是 `primary` ⟹ `primary` 落到剩下的第一个（存盘那一侧 `forms-write.js` 也这么落）。
+// 🔴 `primary`（快速表单露的那一格）只能是联系字段：下拉只列 §primaryChoices，删掉的正好是 `primary` ⟹ 落到剩下的
+//    第一个联系字段（r4；存盘那一侧 `forms-write.js` 用同一个函数落、同一个函数拒）。
 // 🔴 清空一格 = 交一个空串 = 站里删掉这个键、回到默认那句（`BlockLeadForm` 自己的默认 / 语言默认）。
 // 🔴 站里只有一张表单时不画下拉（选不了别的），只留按钮。
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { COPY_CAPS, FORM_FIELDS, LABEL_CAP, formIdOptions, lacksContactField } from '../../../scripts/lib/site-forms.js';
+import { COPY_CAPS, FORM_FIELDS, LABEL_CAP, formIdOptions, lacksContactField, primaryChoices } from '../../../scripts/lib/site-forms.js';
 
 export type FormField = 'name' | 'phone' | 'email' | 'message' | 'service';
 type Labels = Partial<Record<FormField, string>>;
@@ -112,15 +113,18 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
     if (!rest.length) return WHY_LAST;
     return lacksContactField(rest) ? WHY_CONTACT : null;
   };
+  /** `primary` 现在能取哪些 / 实际是哪个（磁盘上的不合格时按落位规则读）。 */
+  const choices = primaryChoices(fields) as FormField[];
+  const shownPrimary = primary && choices.includes(primary) ? primary : choices[0];
   const remove = (f: FormField) => {
     if (whyKeep(f)) return;
     const rest = fields.filter((x) => x !== f);
     setFields(rest);
-    if (primary === f || !primary || !rest.includes(primary)) setPrimary(rest[0]);
+    const left = primaryChoices(rest) as FormField[];
+    if (!primary || !left.includes(primary)) setPrimary(left[0]);
   };
   const add = (f: FormField) => {
     setFields((list) => (list.includes(f) ? list : [...list, f]));
-    if (!primary) setPrimary(f);
   };
   const move = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= fields.length || to >= fields.length) return;
@@ -137,7 +141,7 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
     // 字段 / primary：任一变了就两样一起交（存盘那一侧按「各语言一致」写进每个语言）。
     if (fields.length && (!sameList(fields, startFields) || primary !== form.primary)) {
       edit.fields = fields;
-      edit.primary = primary && fields.includes(primary) ? primary : fields[0];
+      edit.primary = shownPrimary;
     }
     // 字段名：只交变了的那几格（只写这个语言）；空串 = 回到默认。
     const changed: Labels = {};
@@ -211,12 +215,12 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
             )}
             <label style={{ display: 'block' }}>
               <span style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Quick form field</span>
-              <select data-editor-form-primary value={primary && fields.includes(primary) ? primary : fields[0]}
+              <select data-editor-form-primary value={shownPrimary}
                 onChange={(e) => setPrimary(e.target.value as FormField)}
                 style={{ width: '100%', padding: 6, border: '1px solid #d0d5dd', borderRadius: 6 }}>
-                {fields.map((f) => <option key={f} value={f}>{(labels[f] || '').trim() || KIND[f]}</option>)}
+                {choices.map((f) => <option key={f} value={f}>{(labels[f] || '').trim() || KIND[f]}</option>)}
               </select>
-              <span style={{ display: 'block', fontSize: 12, color: '#667085', marginTop: 4 }}>The short version of this form shows only this one box.</span>
+              <span style={{ display: 'block', fontSize: 12, color: '#667085', marginTop: 4 }}>The short version of this form shows only this one box — Phone or Email, so visitors can always send it.</span>
             </label>
           </div>
         )}

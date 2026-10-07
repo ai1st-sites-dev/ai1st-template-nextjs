@@ -150,6 +150,7 @@ console.log('── ⑤ planFormsWrite');
 const fw = require(path.join(work, 'scripts', 'lib', 'forms-write.js'));
 const siteShape = require(path.join(work, 'scripts', 'lib', 'site-shape.js'));
 const pageWrite = require(path.join(work, 'scripts', 'lib', 'page-write.js'));
+const siteForms = require(path.join(work, 'scripts', 'lib', 'site-forms.js'));
 const target = pageWrite.resolveTarget(work, siteShape, 'zh');
 const throwsCode = (fn, code) => { try { fn(); } catch (e) { assert.ok(e instanceof fw.FormsWriteError, e.message); assert.strictEqual(e.code, code, e.message); return e; } assert.fail(`没有抛（要 ${code}）`); };
 check('40 字正好放行（边界）', () => assert.strictEqual(fw.planFormsWrite({ target, forms: { id: 'contact', buttonText: 'z'.repeat(40) } }).length, 1));
@@ -266,6 +267,9 @@ console.log('── ⑩ planFormsWrite：字段 / primary / labels');
   check('带了 primary 但它不在 fields 里 ⟹ 11（不许指空）；只带 primary 且在 fields 里 ⟹ 两个语言都改', () => {
     throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['phone', 'message'], primary: 'email' } }), 11);
     throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'service' } }), 11);
+    // r4 —— 在 fields 里但不是联系字段（teaser 只露这一格、提交要电话或邮箱）⟹ 同样 11。
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'message' } }), 11);
+    throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['name', 'email'], primary: 'name' } }), 11);
     const w = fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'email' } });
     for (const loc of ['zh', 'en']) assert.strictEqual(contactIn(w, loc).primary, 'email', loc);
   });
@@ -289,13 +293,14 @@ console.log('── ⑩ planFormsWrite：字段 / primary / labels');
 
 // ── ⑪ 各语言一致那条检查：磁盘上本来就不一致 ⟹ 拒收，状态栏是英文人话，原话进 stderr ──
 // 🔴 这一格盯的是 `formsProblems` 里那条 `formsConsistencyProblems`：去掉它，这一笔会被收下，这一格红。
-console.log('── ⑪ en 的 booking.primary 被人改得跟 zh 不一样，再改 contact 文案 ⟹ exit 11');
+console.log('── ⑪ en 的 booking.fields 顺序被人改得跟 zh 不一样，再改 contact 文案 ⟹ exit 11');
 {
   const enFile = path.join(SITE, 'en', 'forms.json');
   const enRaw = fs.readFileSync(enFile);
   const en = JSON.parse(enRaw);
   const q = en.find((f) => f.id === 'booking');
-  q.primary = q.fields.find((x) => x !== q.primary);
+  // r4 —— 只动顺序（primary 仍是 phone）：改 primary 的话会同时撞上「primary 只能是联系字段」，这一格就不只盯一致性了。
+  q.fields = [...q.fields].reverse();
   fs.writeFileSync(enFile, `${JSON.stringify(en, null, 2)}\n`);
   const before = snapshot();
   const r = save({ forms: { id: 'contact', buttonText: '发送' } }, 'zh');
@@ -307,6 +312,42 @@ console.log('── ⑪ en 的 booking.primary 被人改得跟 zh 不一样，�
   });
   check('site/ 下每一份 .json 的 sha256 都没变', () => assert.deepStrictEqual(snapshot(), before));
   fs.writeFileSync(enFile, enRaw);
+}
+
+// ── ⑫ r4 验收「一次删除不再造出死表单」：primary 只能是联系字段（`site-forms.js` §primaryChoices）──
+// 🔴 这一格在 r3 上是红的：那时只带 fields 删掉 phone，primary 落到「剩下的第一个」= name；直发 primary:name 也被收下。
+console.log('── ⑫ 默认表单删 phone ⟹ primary 落到 email；直发 primary:name ⟹ exit 11、一个字节不写');
+{
+  const DEFAULT = siteForms.DEFAULT_SITE_FORMS[0];
+  const reset = save({ forms: { id: 'contact', fields: [...DEFAULT.fields], primary: DEFAULT.primary } }, 'en');
+  check(`起点：contact 回到新站默认 ${JSON.stringify([DEFAULT.fields, DEFAULT.primary])}`, () => {
+    assert.strictEqual(reset.rc, 0, reset.stderr);
+    for (const loc of ['en', 'zh']) {
+      assert.deepStrictEqual(contactOf(loc).fields, ['name', 'phone', 'email', 'message'], loc);
+      assert.strictEqual(contactOf(loc).primary, 'phone', loc);
+    }
+  });
+  const r = save({ forms: { id: 'contact', fields: ['name', 'email', 'message'] } }, 'en');
+  check('只交 fields（删掉 phone）⟹ rc=0，两个语言的 primary 都是 email，不是 name', () => {
+    assert.strictEqual(r.rc, 0, r.stderr);
+    for (const loc of ['en', 'zh']) assert.strictEqual(contactOf(loc).primary, 'email', loc);
+  });
+  const back = save({ forms: { id: 'contact', fields: [...DEFAULT.fields], primary: DEFAULT.primary } }, 'en');
+  assert.strictEqual(back.rc, 0, back.stderr);
+  const before = snapshot();
+  const dead = save({ forms: { id: 'contact', fields: ['name', 'email', 'message'], primary: 'name' } }, 'en');
+  check('直发 {"fields":["name","email","message"],"primary":"name"} ⟹ exit 11，回执是英文、说出 Phone / Email', () => {
+    assert.strictEqual(dead.rc, 11, dead.stderr);
+    assert.strictEqual(dead.out.ok, false);
+    assert.match(dead.out.message, /Phone or Email/);
+    assert.ok(!hasCjk(dead.out.message), dead.out.message);
+  });
+  check('site/ 下每一份 .json 的 sha256 都没变', () => assert.deepStrictEqual(snapshot(), before));
+  check('校验层同一判据：formListProblems 对 primary 是 name 的表单报一条「不是联系字段」', () => {
+    const p = siteForms.formListProblems([{ ...DEFAULT, fields: ['name', 'email', 'message'], primary: 'name' }]);
+    assert.strictEqual(p.length, 1, p.join(' | '));
+    assert.match(p[0], /不是联系字段/);
+  });
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} #1634 / #1637 forms-write：${pass} 通过 · ${fail} 失败`);

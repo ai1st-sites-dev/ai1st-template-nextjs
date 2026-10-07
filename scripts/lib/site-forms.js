@@ -51,7 +51,16 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
  * #1511 —— 提交前要求「电话和邮箱至少填一个」（BlockLeadForm.tsx §submit）⟹ 两个框都没有的表单永远提交不了。
  * #1637 —— 抽成一个函数：这里的校验、存盘（`forms-write.js`）和编辑器里那颗删除按钮（`FormCopyEditor.tsx`）用同一个判据。
  */
-const lacksContactField = (fields) => !fields.includes('phone') && !fields.includes('email');
+const CONTACT_FIELDS = ['phone', 'email'];
+const lacksContactField = (fields) => !fields.some((f) => CONTACT_FIELDS.includes(f));
+
+/**
+ * #1637 r4 —— `primary` 能取哪些：`fields` 里的联系字段，按 `fields` 的顺序；第一个就是「`primary` 失效时落到哪」。
+ * 快速表单（旋钮 `teaser`）只画 `primary` 那一格，而提交要电话或邮箱（同上 #1511）⟹ `primary` 落在 name / message /
+ * service 上，teaser 那张脸永远提交不了。校验（下面 §formListProblems）、存盘（`forms-write.js`）、编辑器的下拉与落位
+ * （`FormCopyEditor.tsx`）用这一个。过了 §lacksContactField 的 `fields` 这里按构造至少有一项。
+ */
+const primaryChoices = (fields) => (Array.isArray(fields) ? fields : []).filter((f) => CONTACT_FIELDS.includes(f));
 
 /**
  * 一个语言那份表单库的毛病（`where` 是报文前缀，如 `forms.json [en]`）。不改数据，只说。
@@ -77,6 +86,8 @@ function formListProblems(forms, where = 'forms.json') {
       if (bad.length) out.push(`${me}: fields 里有词表外的值 ${JSON.stringify(bad)} —— 只能是 ${FORM_FIELDS.join(' / ')}`);
       if (!f.fields.includes(f.primary)) {
         out.push(`${me}: primary ${JSON.stringify(f.primary)} 不在 fields 里 —— teaser 只露这一个字段，它得是表单里有的那一格`);
+      } else if (!primaryChoices(f.fields).includes(f.primary)) {
+        out.push(`${me}: primary ${JSON.stringify(f.primary)} 不是联系字段 —— teaser 只露这一格，而访客提交要电话或邮箱，只能是 ${CONTACT_FIELDS.join(' / ')}`);
       }
       if (lacksContactField(f.fields)) {
         out.push(`${me}: fields 里既没有 phone 也没有 email —— 访客提交时这两样至少要填一个，否则永远提交不了；加上其中一个`);
@@ -196,4 +207,4 @@ function formIdOptions(forms) {
   return [{ label: `First form${first}`, value: '' }, ...list.map((f) => ({ label: f.name || f.id, value: f.id }))];
 }
 
-module.exports = { FORM_FIELDS, FORM_MODES, LABEL_CAP, lacksContactField, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };
+module.exports = { FORM_FIELDS, FORM_MODES, LABEL_CAP, CONTACT_FIELDS, lacksContactField, primaryChoices, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };

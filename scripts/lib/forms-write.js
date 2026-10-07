@@ -11,7 +11,8 @@
 //   文案三键：带了且是非空字符串 ⟹ 写成它（去掉首尾空白）；空串或 null ⟹ **删掉这个键**，回到默认；没带 ⟹ 原样。
 //   `labels`：按字段逐条，规则同上（只动带了的那几个字段；删空了整个 `labels` 键也删掉）。
 //   `fields`：整列替换（顺序 = 表单里的上下顺序），词表内、不重复、至少一个、电话 / 邮箱至少有一个。
-//   `primary`：必须在（改后的）`fields` 里。只带 `fields` 而原来的 `primary` 被删掉了 ⟹ 落到剩下的第一个字段。
+//   `primary`：必须在（改后的）`fields` 里，且是联系字段（`site-forms.js` §primaryChoices，r4）。只带 `fields` 而原来的
+//   `primary` 不再可取 ⟹ 落到剩下的第一个联系字段。
 // 🔴 只认这七个键。别的键（`redirect` / 整张增删 / 改 `id` / …）**一律拒收**。
 // 🔴 写到哪儿：文案三键和 `labels` 是给访客看的字，只写**这个语言**那份 `forms.json`；`fields` / `primary` 是结构，
 //    各语言必须一致（`site-forms.js` §formsConsistencyProblems）⟹ 写进**每个语言**那份的同一张表单。
@@ -26,7 +27,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { COPY_CAPS, FORM_FIELDS, LABEL_CAP, lacksContactField, formsProblems } = require('./site-forms.js');
+const { COPY_CAPS, FORM_FIELDS, LABEL_CAP, lacksContactField, primaryChoices, formsProblems } = require('./site-forms.js');
 
 const REFUSED = 11;
 const TEXT_KEYS = Object.keys(COPY_CAPS); // name · buttonText · successMessage
@@ -79,9 +80,12 @@ function nextStructure(form, forms) {
   if (has(forms, 'primary')) {
     if (typeof forms.primary !== 'string') fail(5, 'forms.primary 必须是字符串');
     if (!fields.includes(forms.primary)) fail(REFUSED, `The quick form field must be one of this form's fields. ${NOT_SAVED}`);
+    if (!primaryChoices(fields).includes(forms.primary)) {
+      fail(REFUSED, `The quick form field must be Phone or Email — the short form shows only that box, and visitors must leave one of them to send it. ${NOT_SAVED}`);
+    }
     primary = forms.primary;
-  } else if (!fields.includes(primary)) {
-    primary = fields[0]; // 做什么 2：删掉的正好是 primary ⟹ 落到剩下的第一个字段
+  } else if (!primaryChoices(fields).includes(primary)) {
+    primary = primaryChoices(fields)[0]; // 做什么 2：删掉的正好是 primary ⟹ 落到剩下的第一个联系字段
   }
   return { fields, primary };
 }
