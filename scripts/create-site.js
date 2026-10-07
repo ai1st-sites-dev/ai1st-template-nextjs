@@ -52,7 +52,7 @@ const {
   BLOCKS_DIR: BLOCK_MANIFEST_DIR,
 } = require('./lib/block-manifest');
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
-// #1471 —— 站级表单库（`site/<locale>/forms.json`）：默认两张的骨架 + 只收 AI 的文案。
+// #1471 —— 站级表单库（`site/<locale>/forms.json`）：默认表单的骨架（#1635 起只有 contact 一张）+ 只收 AI 的文案。
 const { siteFormsFrom } = require('./lib/site-forms');
 // #1631 —— 代码兜底写的那几句（联系页 / 默认表单）按站的语言。
 const localeWords = require('./lib/locale-words');
@@ -2013,7 +2013,7 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   );
 
   // per-locale config files
-  // #1471 —— 站级表单库：两张默认表单的骨架（id / fields / primary 钉死）+ AI 写的文案（`scripts/lib/site-forms.js` §siteFormsFrom）。
+  // #1471 —— 站级表单库：默认表单的骨架（#1635 起只有 contact 一张；id / fields / primary 钉死）+ AI 写的文案（`scripts/lib/site-forms.js` §siteFormsFrom）。
   // #1631 —— AI 没给的那几句取主语言那一行（`locale-words.js`），不再是英文底稿。
   content.forms = siteFormsFrom(content.forms, undefined, defaultLocale);
   const localeFiles = {

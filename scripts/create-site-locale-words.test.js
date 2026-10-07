@@ -6,7 +6,7 @@
 //
 // 格子对应正文验收：
 //   C+B   普通配方路径，zh：站级回包里 contact 页不带 title / navLabel、整份回包不带 forms
-//         ⟹ contact.json 的 title / navLabel、forms.json 两张表的 name / buttonText / successMessage = 字表 zh 那一行
+//         ⟹ contact.json 的 title / navLabel、forms.json 那一张表（#1635 起只有 contact）的 name / buttonText / successMessage = 字表 zh 那一行
 //   D     参考站照抄结构（refPrefs: ['structure']）+ 不含 Contact 的 navLinks，桩不给 contactPage
 //         ⟹ 代码补出的 contact.json 7 句 = 字表 zh 那一行，description 含中文品牌名，没有英文那几句、没有 [object Object]
 //   D'    同一个夹具，桩给 contactPage 的 title 与 headline、其余五句不给 ⟹ 那两句是 AI 的，五句是字表
@@ -195,9 +195,9 @@ check('C：zh/pages/contact.json 的 title / navLabel 是字表 zh 那一行', (
   assert.strictEqual(c.title, zh.title);
   assert.strictEqual(c.navLabel, zh.navLabel);
 });
-check('B：zh/forms.json 两张表的 name / buttonText / successMessage 是字表 zh 那一行', () => {
+check('B：zh/forms.json 那一张表（contact）的 name / buttonText / successMessage 是字表 zh 那一行', () => {
   const forms = CB.read('zh/forms.json');
-  assert.ok(Array.isArray(forms) && forms.length === 2, JSON.stringify(forms));
+  assert.ok(Array.isArray(forms) && forms.length === 1 && forms[0].id === 'contact', JSON.stringify(forms));
   for (const f of forms) {
     const want = W.formWords('zh', f.id);
     for (const k of ['name', 'buttonText', 'successMessage']) assert.strictEqual(f[k], want[k], `${f.id}.${k}`);
@@ -256,27 +256,26 @@ const secondPlan = (code, forms) => ({ ...RECIPE_PLAN, locales: { [code]: {
 const runSecond = (code, forms) => run(`recipe-zh-${code}${forms ? '-ai' : ''}`, PAYLOAD('zh', { secondaryLocales: [code] }), { plan: secondPlan(code, forms), bilingual: true, second: code });
 const TEXT3 = ['name', 'buttonText', 'successMessage'];
 const textOf = (forms) => (forms || []).map((f) => [f.id, ...TEXT3.map((k) => f[k])]);
-const wordsRow = (lang) => ['quote', 'contact'].map((id) => [id, ...TEXT3.map((k) => W.formWords(lang, id)[k])]);
+const wordsRow = (lang) => ['contact'].map((id) => [id, ...TEXT3.map((k) => W.formWords(lang, id)[k])]);
 const shapeOf = (forms) => JSON.stringify((forms || []).map((f) => [f.id, f.fields, f.primary]));
 
 console.log('── F2：第二语言的表单，zh 主 + en 第二，AI 不给 locales.en.forms（主语言的 forms 也不给）');
 const BI = runSecond('en');
 check('zh + en：建站成功', () => ok(BI));
-check('F2：en/forms.json 两张表的三句是字表【英文】那一行（不是主语言的中文）', () => {
+check('F2：en/forms.json 那一张表的三句是字表【英文】那一行（不是主语言的中文）', () => {
   assert.deepStrictEqual(textOf(BI.read('en/forms.json')), wordsRow('en'));
 });
 check('F2：zh/forms.json 是字表中文那一行', () => assert.deepStrictEqual(textOf(BI.read('zh/forms.json')), wordsRow('zh')));
 check('F2：两份的 id / fields / primary 逐张相同', () => {
   const a = shapeOf(BI.read('zh/forms.json'));
-  assert.ok(a.includes('quote') && a.includes('contact'), a);
+  assert.strictEqual(a, JSON.stringify([['contact', ['name', 'phone', 'email', 'message'], 'phone']]));
   assert.strictEqual(shapeOf(BI.read('en/forms.json')), a);
 });
 const BF = runSecond('fr');
 check('F2：第二语言 fr ⟹ fr/forms.json 是字表法语那一行', () => { ok(BF); assert.deepStrictEqual(textOf(BF.read('fr/forms.json')), wordsRow('fr')); });
 const BN = runSecond('nl');
 check('F2：第二语言 nl（字表里没有）⟹ nl/forms.json 是英文那一行，不是中文', () => { ok(BN); assert.deepStrictEqual(textOf(BN.read('nl/forms.json')), wordsRow('en')); });
-const AI_FORMS = [{ id: 'quote', name: 'AI quote', buttonText: 'AI quote button', successMessage: 'AI quote thanks' },
-  { id: 'contact', name: 'AI contact', buttonText: 'AI contact button', successMessage: 'AI contact thanks' }];
+const AI_FORMS = [{ id: 'contact', name: 'AI contact', buttonText: 'AI contact button', successMessage: 'AI contact thanks' }];
 const BA = runSecond('en', AI_FORMS);
 check('F2：AI 给了 locales.en.forms ⟹ en/forms.json 用 AI 的', () => { ok(BA); assert.deepStrictEqual(textOf(BA.read('en/forms.json')), textOf(AI_FORMS)); });
 

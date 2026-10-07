@@ -3,7 +3,7 @@
 //
 // 夹具：skipAI 建一个中文 + 英文双语站（真 create-site 进程，不调 AI），在它的 site/ 上跑。
 // 格子对应正文验收：
-//   ① 改按钮（zh）：只有 site/zh/forms.json 变；contact 别的键、quote 整张逐字不变；site/en/forms.json sha256 不变
+//   ① 改按钮（zh）：只有 site/zh/forms.json 变；contact 别的键、另一张（booking）整张逐字不变；site/en/forms.json sha256 不变
 //   ② 清空成功提示：contact 里没有 successMessage 这个键
 //   ③ 直发两笔各自 exit 11（buttonText 41 字 / 带 fields），站里所有 forms.json 与页面文件 sha256 不变
 //   ④ 只改表单的那一笔不带页面、不带 baseHash 也收（write-editor-save.js 那条「一样都没有」认 forms）
@@ -44,6 +44,14 @@ if (made.status !== 0 || !fs.existsSync(path.join(SITE, 'zh', 'forms.json')) || 
 }
 
 const read = (loc) => JSON.parse(fs.readFileSync(path.join(SITE, loc, 'forms.json'), 'utf-8'));
+// #1635 —— 新站默认只剩一张 contact。「改 contact 不碰别的那张」要有另一张才量得出来 ⟹ 两个语言各补一张内联的
+//    booking（结构两边一致，formsProblems 不报），放在 contact 后面。
+for (const loc of ['zh', 'en']) {
+  const list = read(loc);
+  if (list.length !== 1 || list[0].id !== 'contact') die(`夹具前提变了：${loc}/forms.json 不是恰好一张 contact（${JSON.stringify(list.map((f) => f.id))}）`);
+  list.push({ id: 'booking', name: loc === 'zh' ? '预约' : 'Book', fields: ['name', 'phone'], primary: 'phone', buttonText: 'OK', successMessage: 'Thanks' });
+  fs.writeFileSync(path.join(SITE, loc, 'forms.json'), `${JSON.stringify(list, null, 2)}\n`);
+}
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 /** site/ 下每一份 .json 的 sha256（forms.json 与页面文件都在里面）。 */
 function snapshot() {
@@ -78,13 +86,14 @@ check('rc=0，回执只写了 site/zh/forms.json', () => {
   assert.strictEqual(r1.rc, 0, r1.stderr);
   assert.deepStrictEqual(r1.out.files, ['site/zh/forms.json']);
 });
-check('zh：contact.buttonText 是「提交」，contact 别的键、quote 整张逐字不变', () => {
+check('zh：contact.buttonText 是「提交」，contact 别的键、booking 整张逐字不变', () => {
   const zh1 = read('zh');
   const c0 = zh0.find((f) => f.id === 'contact');
   const c1 = zh1.find((f) => f.id === 'contact');
   assert.strictEqual(c1.buttonText, '提交');
   assert.deepStrictEqual({ ...c1, buttonText: c0.buttonText }, c0);
-  assert.deepStrictEqual(zh1.find((f) => f.id === 'quote'), zh0.find((f) => f.id === 'quote'));
+  assert.ok(zh0.find((f) => f.id === 'booking'), '夹具里没有 booking ⟹ 下一句恒真');
+  assert.deepStrictEqual(zh1.find((f) => f.id === 'booking'), zh0.find((f) => f.id === 'booking'));
 });
 check('en/forms.json 改前改后 sha256 相同；除 zh/forms.json 外 site/ 下没有一份 .json 变了', () => {
   assert.strictEqual(sha(path.join(SITE, 'en', 'forms.json')), en0sha);

@@ -299,13 +299,13 @@ console.log('── #1631 表单文案与占位符按语言');
   const sf = require(path.join(NEXT, 'scripts', 'lib', 'site-forms.js'));
   const zh = sf.siteFormsFrom([], undefined, 'zh');
   const btn = Object.fromEntries(zh.map((f) => [f.id, f.buttonText]));
-  check(btn.quote === '免费获取报价' && btn.contact === '发送留言', 'siteFormsFrom([], undefined, "zh")：两张表的 buttonText 是中文', JSON.stringify(btn));
+  check(Object.keys(btn).join() === 'contact' && btn.contact === '与我们联系', 'siteFormsFrom([], undefined, "zh")：那一张 contact 的 buttonText 是中文', JSON.stringify(btn));
   check(zh.every((f) => /[一-鿿]/.test(f.name) && /[一-鿿]/.test(f.successMessage)), 'zh：name / successMessage 也是中文');
   check(JSON.stringify(zh.map((f) => [f.id, f.fields, f.primary])) === JSON.stringify(sf.DEFAULT_SITE_FORMS.map((f) => [f.id, f.fields, f.primary])),
     'zh：骨架（id / fields / primary）跟默认的一字不差（各语言必须一致，formsProblems 守着）');
   const ai = sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI 写的按钮' }], undefined, 'zh');
-  check(ai.find((f) => f.id === 'contact').buttonText === 'AI 写的按钮' && ai.find((f) => f.id === 'quote').buttonText === '免费获取报价',
-    'AI 给了的那句用 AI 的，没给的那句用字表（AI > 字表）');
+  check(ai[0].buttonText === 'AI 写的按钮' && ai[0].name === '联系我们' && ai[0].successMessage === '谢谢！我们会尽快与您联系。',
+    'AI 给了的那句用 AI 的，没给的那句用字表（AI > 字表）', JSON.stringify(ai[0]));
   // 第二语言那处的形状：`base` 是主语言（zh）那份，字全是中文，结构故意跟默认不一样（看得出结构真是从 base 来的）。
   const base = sf.siteFormsFrom([], undefined, 'zh').map((f) => ({ ...f, fields: [...f.fields].reverse(), name: `BASE ${f.id}` }));
   const enFromBase = sf.siteFormsFrom([], base, 'en');
@@ -314,21 +314,22 @@ console.log('── #1631 表单文案与占位符按语言');
   check(JSON.stringify(enFromBase.map((f) => [f.name, f.buttonText, f.successMessage])) === JSON.stringify(sf.DEFAULT_SITE_FORMS.map((f) => [f.name, f.buttonText, f.successMessage]))
     && !JSON.stringify(enFromBase).includes('BASE') && !/[一-鿿]/.test(JSON.stringify(enFromBase)),
     '给了 base + "en"：文字是字表英文那一行，base 的字（BASE… / 中文）一个都不出现', JSON.stringify(enFromBase.map((f) => f.buttonText)));
-  check(sf.siteFormsFrom([], base, 'fr')[1].buttonText === 'Envoyer le message' && sf.siteFormsFrom([], base, 'nl')[1].buttonText === 'Send message',
+  check(sf.siteFormsFrom([], base, 'fr')[0].buttonText === 'Prendre contact' && sf.siteFormsFrom([], base, 'nl')[0].buttonText === 'Get in touch',
     '给了 base：fr ⟹ 字表法语；nl（字表里没有）⟹ 英文，不是 base 的中文');
-  check(sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI button' }], base, 'en')[1].buttonText === 'AI button', '给了 base：AI 给的字仍然赢');
+  check(sf.siteFormsFrom([{ id: 'contact', buttonText: 'AI button' }], base, 'en')[0].buttonText === 'AI button', '给了 base：AI 给的字仍然赢');
   check(JSON.stringify(sf.siteFormsFrom([], base)) === JSON.stringify(base), '给了 base、不传语言：跟改之前一样，连字一起继承（兼容）');
   check(JSON.stringify(sf.siteFormsFrom([])) === JSON.stringify(sf.DEFAULT_SITE_FORMS)
     && JSON.stringify(sf.siteFormsFrom([], undefined, 'en')) === JSON.stringify(sf.DEFAULT_SITE_FORMS),
     '不传语言 / 传 en：逐字等于改之前的英文默认（英文站产物不变）');
-  check(sf.siteFormsFrom([], undefined, 'nl')[1].buttonText === 'Send message', 'nl（字表里没有）：回英文');
+  check(sf.siteFormsFrom([], undefined, 'nl')[0].buttonText === 'Get in touch', 'nl（字表里没有）：回英文');
 
   delete require.cache[path.join(SRC, 'components', 'BlockLeadForm.tsx')];
   const Form = require(path.join(SRC, 'components', 'BlockLeadForm.tsx')).default;
-  // 两张表合起来正好五个字段（name · phone · service | name · email · message）。
+  // #1635 起默认只有 contact 一张（name · phone · email · message）；「需求」下拉（service）不在默认里了，但词表还认它
+  //    （老板以后自己配），它的占位符也得按语言 ⟹ 表单库里另放一张带 service 的（内联的 booking，同上面 F 那份）。
   const holders = (locale) => {
-    const forms = sf.siteFormsFrom([], undefined, locale);
-    const html = ['quote', 'contact'].map((formId) => renderToStaticMarkup(React.createElement(Form, { mode: 'full', formId, forms, locale }))).join('');
+    const forms = [...sf.siteFormsFrom([], undefined, locale), { id: 'booking', name: 'Book', fields: ['name', 'phone', 'service'], primary: 'phone', buttonText: 'Book', successMessage: 'Thanks' }];
+    const html = ['contact', 'booking'].map((formId) => renderToStaticMarkup(React.createElement(Form, { mode: 'full', formId, forms, locale }))).join('');
     const got = new Set();
     for (const m of html.matchAll(/(?:placeholder|aria-label)="([^"]*)"/g)) got.add(m[1]);
     for (const m of html.matchAll(/<option value="">([^<]*)<\/option>/g)) got.add(m[1]);
@@ -338,7 +339,7 @@ console.log('── #1631 表单文案与占位符按语言');
   const wantZh = ['姓名', '电话', '邮箱', '您需要什么服务？'];
   check(wantZh.every((w) => z.got.includes(w)) && !z.got.some((g) => /^(Name|Phone|Email|What do you need\?)$/.test(g)),
     'BlockLeadForm locale=zh：五个占位符（姓名 / 电话 / 邮箱 / 需求 ×2）都是中文，一个英文都没有', JSON.stringify(z.got));
-  check(/发送留言/.test(z.html) && /免费获取报价/.test(z.html), 'zh：按钮字跟着表单库走（发送留言 / 免费获取报价）');
+  check(/与我们联系/.test(z.html), 'zh：按钮字跟着表单库走（与我们联系）');
   const x = holders('xx');
   check(['Name', 'Phone', 'Email', 'What do you need?'].every((w) => x.got.includes(w)), 'locale=xx（表里没有）：占位符回英文', JSON.stringify(x.got));
 }
