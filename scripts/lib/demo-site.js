@@ -21,7 +21,7 @@ const { DEMO_CONTENT, SITE, DEMO_BLOG_POSTS } = require('./demo-content');
 const SHELL_BLOCKS = new Set(['header', 'footer']);
 
 /**
- * 哪一块放哪一页（getDemoConfig 那 5 页的 slug）。`preset` 是显示开关照哪个预设开（不写 = 打开填了的槽最多的那个，§showFilledSlots）；`at` 是页面块的 data 覆盖（只改标题这类给人读的话，
+ * 哪一块放哪一页（getDemoConfig 那 5 页的 slug）。`preset` 是显示开关照哪个预设开、并钉成这块的形态（不写 = 打开填了的槽最多的那个，§showFilledSlots）；`at` 是页面块的 data 覆盖（只改标题这类给人读的话，
  * 用的是 getDemoConfig 原来那几句 —— `ar.js` 的译文表认的就是它们）。
  */
 const PAGE_PLAN = {
@@ -65,11 +65,11 @@ const PAGE_PLAN = {
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
 /**
- * 一块的 data：演示内容那一份 + 这一页的覆盖，去掉值为 `null` 的顶层键。
+ * 一块 `{ type, shape?, data }`。data 是演示内容那一份 + 这一页的覆盖，去掉值为 `null` 的顶层键。
  * 🔴 `null` 不进真站：演示内容里 `bg: null` 是「这一格不上底色」，而编辑器存盘时把「没有底色」写成**没有这个键** ——
  *    带着 null 写进去，老板打开编辑器、什么都不改再存一次，页面 JSON 就变了（`editor-ai-history.test.js` 量到的就是这个）。
  */
-function blockData(type, at, manifest, preset) {
+function demoBlock(type, at, manifest, preset) {
   const out = { ...clone(DEMO_CONTENT[type]), ...clone(at || {}) };
   for (const k of Object.keys(out)) if (out[k] === null) delete out[k];
   // 列表槽按块自己声明的上限截（pricing 的 plans / highlights 是 4）：演示内容为了图册的「≥ 6 项」守卫给了 6 条，
@@ -79,8 +79,8 @@ function blockData(type, at, manifest, preset) {
       out[slot] = out[slot].slice(0, spec.maxItems);
     }
   }
-  showFilledSlots(out, manifest, preset);
-  return out;
+  const shape = showFilledSlots(out, manifest, preset);
+  return shape ? { type, shape, data: out } : { type, data: out };
 }
 
 /**
@@ -91,8 +91,12 @@ function blockData(type, at, manifest, preset) {
  *    cta 同时开了 image + form，文字那一栏在窄屏被挤成 0px 宽；hero 开了 form，按钮那一排整个让给了表单
  *    （theme-css 那道检查两处都量出来了）。所以：用 `preset`（PAGE_PLAN 点名的）或「打开填了的槽最多的那个预设」，
  *    它打开的写进 `options`，它不打开的那几格内容删掉。
- * 只写这几个**显示开关**；别的旋钮（对齐、列数、卡片样式 …）一个不写，由主题选的形态决定 —— 钉死它们会压过主题，
- * 换主题时版式就不跟着换了（`image-slots.js` §collectImageSlots 同一条理由）。
+ * 🔴 **开了槽就把那个预设钉进块的 `shape`**（回它的形态名；一格都没开回 null，那块照旧由主题定）。r1 只写开关、
+ *    其余旋钮交给主题选的形态 —— 而主题的形态叠上这个开关未必是任何一个预设：azure-29 给 cta 的是 Inline
+ *    （`layout: inline`），叠上 Photo 的 `image: left`，1440 宽下文字那一栏被挤到 94px、标题一行一个词（#1620 r1 QA2
+ *    量到；ember-12 给的是 Boxed，看起来是好的）。块自己的 `shape` 是形态三级取值的第 ① 级（`block-shape.js`
+ *    §shapeForBlock；编辑器的 Layout 下拉钉一个形态也是写它），渲染时 `effectiveKnobs` 拿它当旋钮的底 ⟹ 换哪套主题
+ *    都是那个预设。代价：开了槽的这几块不再随主题换形态，跟老板在编辑器里钉了一个 Layout 一样。
  */
 function showFilledSlots(data, manifest, presetShape) {
   const slots = (manifest && manifest.slots) || {};
@@ -100,19 +104,21 @@ function showFilledSlots(data, manifest, presetShape) {
     .filter((k) => k && k.name in slots && Array.isArray(k.values) && k.values.includes('none'));
   const opts = data.options && typeof data.options === 'object' ? data.options : {};
   const filled = knobs.filter((k) => data[k.name] !== undefined && data[k.name] !== null && opts[k.name] === undefined);
-  if (!filled.length) return;
+  if (!filled.length) return null;
   const presets = (manifest && manifest.presets) || [];
   const shows = (p) => filled.filter((k) => p && p.knobs && p.knobs[k.name] && p.knobs[k.name] !== 'none').length;
   let preset = presetShape ? presets.find((p) => p && p.shape === presetShape) : null;
   if (presetShape && !preset) throw new Error(`demo-site: ${manifest.type} 没有叫 "${presetShape}" 的预设`);
   if (!preset) preset = presets.reduce((best, p) => (shows(p) > shows(best) ? p : best), presets[0]);
   const next = { ...opts };
+  let opened = 0;
   for (const k of filled) {
     const v = preset && preset.knobs && preset.knobs[k.name];
-    if (v && v !== 'none') next[k.name] = v;
+    if (v && v !== 'none') { next[k.name] = v; opened += 1; }
     else delete data[k.name];
   }
   if (Object.keys(next).length) data.options = next;
+  return opened && preset.shape ? preset.shape : null;
 }
 
 /**
@@ -134,7 +140,7 @@ function demoSitePages(pages, manifests) {
       .filter((p) => pageTypes.includes(p.type))
       .map((p) => {
         planned.add(p.type);
-        return { type: p.type, data: blockData(p.type, p.at, manifests.get(p.type), p.preset) };
+        return demoBlock(p.type, p.at, manifests.get(p.type), p.preset);
       });
   }
   const appended = pageTypes.filter((t) => !planned.has(t));
@@ -142,7 +148,7 @@ function demoSitePages(pages, manifests) {
   if (home && appended.length) {
     // 放在首页最后一块（cta）之前，别把收尾那一块挤到中间。
     const tail = home.sections.length && home.sections[home.sections.length - 1].type === 'cta' ? [home.sections.pop()] : [];
-    for (const t of appended) home.sections.push({ type: t, data: blockData(t, null, manifests.get(t)) });
+    for (const t of appended) home.sections.push(demoBlock(t, null, manifests.get(t)));
     home.sections.push(...tail);
   }
   return { placed: [...planned], appended };

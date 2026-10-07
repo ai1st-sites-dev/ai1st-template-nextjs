@@ -632,6 +632,9 @@ function pageWithBlocks(page) {
       region: s.region || 'content',
       weight: typeof s.weight === 'number' ? s.weight : i * 10,
     };
+    // #1620 r2 —— 块自己点名的形态（`block-shape.js` §shapeForBlock 第 ① 级）跟着写盘。skipAI 示例站开了某个预设的
+    // 显示开关就钉住那个预设（`lib/demo-site.js` §showFilledSlots）；漏掉它，形态回到主题给的，叠起来不是任何预设。
+    if (typeof s.shape === 'string' && s.shape) b.shape = s.shape;
     b.data = s.data || {};
     return b;
   });
