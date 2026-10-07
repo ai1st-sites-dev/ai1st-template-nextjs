@@ -181,32 +181,32 @@ check('首尾空白去掉；只有空白 = 清空（删键）', () => {
 const contactOf = (loc) => read(loc).find((f) => f.id === 'contact');
 const hasCjk = (t) => /[㐀-鿿]/.test(t);
 
-// ── ⑥ 验收 1：删 name、把 message 拖到第一、加 phone（在 en 下改）──
+// ── ⑥ 验收 1：删 name、把 message 拖到第一（在 en 下改）。#1635 落地后默认已含 phone，「加」那一步由 ⑦ 的加回 name 量 ──
 console.log('── ⑥ en 下改字段 ⟹ 每个语言的 fields / primary 都是新的那份，文字一个不动');
 {
   const zhBefore = contactOf('zh');
   const enBefore = contactOf('en');
-  const quoteBefore = { zh: read('zh').find((f) => f.id === 'quote'), en: read('en').find((f) => f.id === 'quote') };
-  check('起点是今天的默认 ["name","email","message"] / primary email（#1635 没落地）', () => {
-    assert.deepStrictEqual(enBefore.fields, ['name', 'email', 'message']);
-    assert.strictEqual(enBefore.primary, 'email');
+  const bookingBefore = { zh: read('zh').find((f) => f.id === 'booking'), en: read('en').find((f) => f.id === 'booking') };
+  check('起点是 #1635 之后的默认 ["name","phone","email","message"] / primary phone', () => {
+    assert.deepStrictEqual(enBefore.fields, ['name', 'phone', 'email', 'message']);
+    assert.strictEqual(enBefore.primary, 'phone');
   });
-  const r = save({ forms: { id: 'contact', fields: ['message', 'email', 'phone'], primary: 'email' } }, 'en');
+  const r = save({ forms: { id: 'contact', fields: ['message', 'phone', 'email'], primary: 'phone' } }, 'en');
   check('rc=0，回执写了 en 与 zh 两份 forms.json', () => {
     assert.strictEqual(r.rc, 0, r.stderr);
     assert.deepStrictEqual([...r.out.files].sort(), ['site/en/forms.json', 'site/zh/forms.json']);
   });
-  check('en 与 zh 的 contact.fields 逐字是 ["message","email","phone"]，primary 都是 email', () => {
+  check('en 与 zh 的 contact.fields 逐字是 ["message","phone","email"]，primary 都是 phone', () => {
     for (const loc of ['en', 'zh']) {
-      assert.deepStrictEqual(contactOf(loc).fields, ['message', 'email', 'phone'], loc);
-      assert.strictEqual(contactOf(loc).primary, 'email', loc);
+      assert.deepStrictEqual(contactOf(loc).fields, ['message', 'phone', 'email'], loc);
+      assert.strictEqual(contactOf(loc).primary, 'phone', loc);
     }
   });
-  check('除 fields 外两份 contact 逐字不变（zh 的按钮还是「提交」），quote 两份逐字不变', () => {
+  check('除 fields 外两份 contact 逐字不变（zh 的按钮还是「提交」），booking 两份逐字不变', () => {
     assert.deepStrictEqual({ ...contactOf('zh'), fields: zhBefore.fields }, zhBefore);
     assert.deepStrictEqual({ ...contactOf('en'), fields: enBefore.fields }, enBefore);
-    assert.deepStrictEqual(read('zh').find((f) => f.id === 'quote'), quoteBefore.zh);
-    assert.deepStrictEqual(read('en').find((f) => f.id === 'quote'), quoteBefore.en);
+    assert.deepStrictEqual(read('zh').find((f) => f.id === 'booking'), bookingBefore.zh);
+    assert.deepStrictEqual(read('en').find((f) => f.id === 'booking'), bookingBefore.en);
   });
 }
 
@@ -214,7 +214,7 @@ console.log('── ⑥ en 下改字段 ⟹ 每个语言的 fields / primary 都
 console.log('── ⑦ zh 下加 name + labels.name ⟹ fields 两份一致，labels 只写 zh');
 {
   const enBefore = contactOf('en');
-  const r = save({ forms: { id: 'contact', fields: ['message', 'email', 'phone', 'name'], primary: 'email', labels: { name: '  您的姓名 ' } } }, 'zh');
+  const r = save({ forms: { id: 'contact', fields: ['message', 'phone', 'email', 'name'], primary: 'phone', labels: { name: '  您的姓名 ' } } }, 'zh');
   check('rc=0；zh.labels 是 { name: 「您的姓名」 }（去首尾空白），en 没有 labels', () => {
     assert.strictEqual(r.rc, 0, r.stderr);
     assert.deepStrictEqual(contactOf('zh').labels, { name: '您的姓名' });
@@ -258,16 +258,16 @@ console.log('── ⑨ 删光 phone 与 email：exit 11，一个字节不写');
 console.log('── ⑩ planFormsWrite：字段 / primary / labels');
 {
   const contactIn = (writes, loc) => JSON.parse(writes.find((w) => w.file === path.join(SITE, loc, 'forms.json')).content).find((f) => f.id === 'contact');
-  check('删掉的正好是 primary（email）且没带 primary ⟹ 两个语言的 primary 都落到剩下的第一个（phone）', () => {
-    assert.strictEqual(contactOf('zh').primary, 'email');
-    const w = fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['phone', 'message'] } });
-    for (const loc of ['zh', 'en']) assert.strictEqual(contactIn(w, loc).primary, 'phone', loc);
+  check('删掉的正好是 primary（phone）且没带 primary ⟹ 两个语言的 primary 都落到剩下的第一个（email）', () => {
+    assert.strictEqual(contactOf('zh').primary, 'phone');
+    const w = fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['email', 'message'] } });
+    for (const loc of ['zh', 'en']) assert.strictEqual(contactIn(w, loc).primary, 'email', loc);
   });
   check('带了 primary 但它不在 fields 里 ⟹ 11（不许指空）；只带 primary 且在 fields 里 ⟹ 两个语言都改', () => {
     throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: ['phone', 'message'], primary: 'email' } }), 11);
     throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'service' } }), 11);
-    const w = fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'phone' } });
-    for (const loc of ['zh', 'en']) assert.strictEqual(contactIn(w, loc).primary, 'phone', loc);
+    const w = fw.planFormsWrite({ target, forms: { id: 'contact', primary: 'email' } });
+    for (const loc of ['zh', 'en']) assert.strictEqual(contactIn(w, loc).primary, 'email', loc);
   });
   check('空 fields / 重复字段 / 词表外字段 ⟹ 11；fields 不是字符串数组 ⟹ 5', () => {
     throwsCode(() => fw.planFormsWrite({ target, forms: { id: 'contact', fields: [] } }), 11);
@@ -289,12 +289,12 @@ console.log('── ⑩ planFormsWrite：字段 / primary / labels');
 
 // ── ⑪ 各语言一致那条检查：磁盘上本来就不一致 ⟹ 拒收，状态栏是英文人话，原话进 stderr ──
 // 🔴 这一格盯的是 `formsProblems` 里那条 `formsConsistencyProblems`：去掉它，这一笔会被收下，这一格红。
-console.log('── ⑪ en 的 quote.primary 被人改得跟 zh 不一样，再改 contact 文案 ⟹ exit 11');
+console.log('── ⑪ en 的 booking.primary 被人改得跟 zh 不一样，再改 contact 文案 ⟹ exit 11');
 {
   const enFile = path.join(SITE, 'en', 'forms.json');
   const enRaw = fs.readFileSync(enFile);
   const en = JSON.parse(enRaw);
-  const q = en.find((f) => f.id === 'quote');
+  const q = en.find((f) => f.id === 'booking');
   q.primary = q.fields.find((x) => x !== q.primary);
   fs.writeFileSync(enFile, `${JSON.stringify(en, null, 2)}\n`);
   const before = snapshot();
@@ -303,7 +303,7 @@ console.log('── ⑪ en 的 quote.primary 被人改得跟 zh 不一样，再�
     assert.strictEqual(r.rc, 11, r.stderr);
     assert.strictEqual(r.out.ok, false);
     assert.ok(!hasCjk(r.out.message), r.out.message);
-    assert.match(r.stderr, /"quote" 的 fields \/ primary 在 zh 与 en 不一样/);
+    assert.match(r.stderr, /"booking" 的 fields \/ primary 在 zh 与 en 不一样/);
   });
   check('site/ 下每一份 .json 的 sha256 都没变', () => assert.deepStrictEqual(snapshot(), before));
   fs.writeFileSync(enFile, enRaw);
