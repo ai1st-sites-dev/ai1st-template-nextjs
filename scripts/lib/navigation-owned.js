@@ -157,8 +157,8 @@ const SIDE_EFFECTS = [
  * 形态（= 预设名）决定排版。所以「这一格在这种形态下画不画」= 「这个字段派生进了哪个槽」×「这个预设的排版
  * 画不画那个槽」：
  *   header.cta              → header.ctaPrimary   7 个顶栏预设都画（`blocks/header/Section.tsx` 的 ctas）
- *   footer.copyright        → footer.copyright    6 个页脚预设都画（三种 layout 的底栏都有版权行）
- *   footer.description      → footer.tagline      只有 layout = stacked / columns 的四个预设画（row 那一种没有）
+ *   footer.copyright        → footer.copyright    3 个页脚预设都画（三种 layout 的底栏都有版权行）
+ *   footer.description      → footer.tagline      只有 layout = stacked / columns 的两个预设画（row 那一种没有）
  *   footer.columns[].title  → **没有槽**          新页脚的栏目标题是组件自己的字（Services / Pages …），不读它
  *   footer.columns[>0].links→ **没有槽**          按服务分组的关键词页链接栏，新页脚不画（shell-data.js 文件头的能力差）
  *   topbar                  → header.topbar.message   只有 topbar / topbar-stacked 两个预设画（#1528 接回；#1425 时没有槽）
@@ -202,7 +202,7 @@ const PAGE_READS = [
   {
     key: 'footer.copyright',
     region: 'footer',
-    renderedBy: ['slim-row', 'stacked', 'columns', 'cta-row', 'cta-stacked', 'cta-columns'],
+    renderedBy: ['slim-row', 'stacked', 'columns'],
     slot: 'copyright',
     what: 'the copyright line at the bottom of every page',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.copyright : undefined),
@@ -210,7 +210,7 @@ const PAGE_READS = [
   {
     key: 'footer.description',
     region: 'footer',
-    renderedBy: ['stacked', 'columns', 'cta-stacked', 'cta-columns'],
+    renderedBy: ['stacked', 'columns'],
     slot: 'tagline',
     what: 'the short blurb in the footer',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.description : undefined),
@@ -227,9 +227,9 @@ const PAGE_READS = [
     },
   },
   {
-    // #1529 —— 下面三格是老板能写进 navigation.json、构建派生进外壳 data 的（`lib/shell-data.js`）。
+    // #1529 —— 下面两格是老板能写进 navigation.json、构建派生进外壳 data 的（`lib/shell-data.js`）。
     //    `renderedBy` 由 ⑫ 拿真组件逐个预设渲染出来两向核过：顶栏副按钮 7 个预设的桌面那格都画（topbar 两个预设只是
-    //    手机抽屉里不放它，`blocks/header/Section.tsx` 的 drawer-cta）；CTA 条只在旋钮 cta ≠ none 的三个页脚预设画。
+    //    手机抽屉里不放它，`blocks/header/Section.tsx` 的 drawer-cta）。
     key: 'header.ctaSecondary',
     region: 'header',
     renderedBy: ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'topbar', 'stacked', 'topbar-stacked'],
@@ -240,18 +240,10 @@ const PAGE_READS = [
   {
     key: 'footer.legal',
     region: 'footer',
-    renderedBy: ['slim-row', 'stacked', 'columns', 'cta-row', 'cta-stacked', 'cta-columns'],
+    renderedBy: ['slim-row', 'stacked', 'columns'],
     slot: 'legal',
     what: 'the legal links at the bottom of the footer (privacy, terms …)',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.legal : undefined),
-  },
-  {
-    key: 'footer.cta',
-    region: 'footer',
-    renderedBy: ['cta-row', 'cta-stacked', 'cta-columns'],
-    slot: 'cta',
-    what: 'the call-to-action band in the footer',
-    read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.cta : undefined),
   },
   {
     // 🔴 `read` 从**第二栏起**取，第一栏不在这里:`footer.columns[0].links` 归 `OWNED`（构建每次
@@ -576,20 +568,7 @@ const FOOTER_COLUMN = {
   kind: 'object',
   fields: { title: { kind: 'string' }, links: { kind: 'array', of: NAV_LINK } },
 };
-// #1529 —— 三格可选的（`NavigationConfig` 里都是 `?:`）。
-const NAV_BUTTON = {
-  kind: 'object',
-  fields: { label: { kind: 'string' }, href: { kind: 'string' }, style: { kind: 'string', optional: true } },
-};
-const FOOTER_CTA = {
-  kind: 'object',
-  optional: true,
-  fields: {
-    title: { kind: 'string' },
-    subtitle: { kind: 'string', optional: true },
-    buttons: { kind: 'array', optional: true, of: NAV_BUTTON },
-  },
-};
+// #1529 —— `header.ctaSecondary` / `footer.legal` 两格是可选的（`NavigationConfig` 里都是 `?:`），写在下面各自那一行。
 const NAV_SHAPE = {
   kind: 'object',
   fields: {
@@ -608,7 +587,6 @@ const NAV_SHAPE = {
         columns: { kind: 'array', of: FOOTER_COLUMN },
         copyright: { kind: 'string' },
         legal: { kind: 'array', optional: true, of: NAV_LINK },
-        cta: FOOTER_CTA,
       },
     },
     topbar: {
@@ -695,8 +673,7 @@ function shapeProblems(nav) {
 const NAVIGATION_EDITABLE_SUMMARY =
   'In navigation.json you may change: the header button (header.cta — its label and href), the second '
   + 'header button (header.ctaSecondary — {label, href}), the footer copyright, the footer description, the '
-  + 'footer column titles, the footer legal links (footer.legal — a list of {label, href}), the footer '
-  + 'call-to-action band (footer.cta — {title, subtitle?, buttons?: [{label, href, style?}]}), and the topbar. '
+  + 'footer column titles, the footer legal links (footer.legal — a list of {label, href}), and the topbar. '
   + 'Write the complete file with everything else exactly as you read it.';
 
 /**

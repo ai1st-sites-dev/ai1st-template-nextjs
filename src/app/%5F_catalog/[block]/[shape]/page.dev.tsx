@@ -76,8 +76,8 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
  * #1464 —— **部件**：哪个槽（`options` 以外）的 shape 以 `{style: "a" | "b" …` **开头**，它就是一个带样式单选的
  *   可选部件（none + 那几种样式），地址栏参数就是槽名（`?form=inline`）。按槽派生、不写死名字 —— 这里原来是
  *   两条写死的判据（`cta` 槽里的 `style:` · 有没有 `newsletter` 槽），footer 定稿第 2 版把 CTA 样式挪成旋钮、
- *   订阅框换成 `form` 之后两条一起失效（PM #1464 r1 阻断 2 / r3 点名 1）。🔴 要「开头」：`cta` 槽里还有
- *   `buttons: [{…, style: "solid" | …}]`，不锚定开头就会把按钮样式读成部件样式。
+ *   订阅框换成 `form` 之后两条一起失效（PM #1464 r1 阻断 2 / r3 点名 1）。🔴 要「开头」：槽的 shape 里可以嵌着
+ *   `style:`（#1648 之前页脚 `cta` 槽的 `buttons: [{…, style: "solid" | …}]` 就是），不锚定开头就会把它读成部件样式。
  *   Go 那侧 `manager/template_blocks.go` §manifestOptionMeta 是同一套判据（各写一份是有意的：Go / TS 共享不了）。
  * #1469 —— 开头那个键也可以叫 `mode`（footer 的 `form` 改成 `{mode: "teaser" | "full", id?: string}`：表单是站级资产，
  *   块只选画法）。只放宽键名、不放宽开头锚定；选中一档时写回的也是这个键（`Widget.key`）。
@@ -341,7 +341,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
       >
         {/* #1424 / #1455 —— 顶栏 / 页脚：内容来自演示内容包（槽位契约），不来自 navigation.json（站上那一份是
             构建期从 navigation.json 派生的，#1425 T3；图册用演示生意那一份）。
-            #1458 —— 它们的选项开关（header 的 topbar / icons；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
+            #1458 —— 它们的选项开关（header 的 topbar / icons；footer 的表单）住在这一页的工具栏里
             （§CellOptions），初值可由地址栏给：`?opt=topbar,icons`；#1462 起旋钮各一个参数：
             `?logo=center&menu=below`；#1464 起部件也是槽名一个参数：`?form=inline`。 */}
         {isRegion && hasOptionBar ? (

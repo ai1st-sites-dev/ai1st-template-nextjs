@@ -25,12 +25,10 @@ export interface ButtonClassOptions {
   size?: ButtonSize;
   /** link 样式去掉左右内边距（`px-0`），跟正文左边对齐。hero / cta 的 link 不去。 */
   flush?: boolean;
-  /** 只要 `btn` + 样式 + 尺寸，不带 inline-flex 那一组排版类（footer）。 */
+  /** 只要 `btn` + 样式 + 尺寸，不带 inline-flex 那一组排版类（header）。 */
   bare?: boolean;
-  /** 深色面上用 Bootstrap 的浅色那一档：outline → `btn-outline-light`，link 加 `link-light`（footer）。 */
+  /** 深色面上用 Bootstrap 的浅色那一档：outline → `btn-outline-light`，link 加 `link-light`（header 的深底）。 */
   onDark?: boolean;
-  /** 实心按钮用 `btn-light`（footer 的深色盒子 / 主色底）。 */
-  solidLight?: boolean;
 }
 
 /** 实际画哪种：`style` 没写用块的默认 `fallback`；写了但不认识，也落回 `fallback`。 */
@@ -46,7 +44,7 @@ export function buttonClass(style: ButtonStyle, o: ButtonClassOptions = {}): str
   if (o.bare) {
     if (style === 'link') return `btn btn-link${size}${o.onDark ? ' link-light' : ''}`;
     if (style === 'outline') return `btn${size} ${o.onDark ? 'btn-outline-light' : 'btn-outline-primary'}`;
-    return `btn${size} ${o.solidLight ? 'btn-light' : 'btn-primary'}`;
+    return `btn${size} btn-primary`;
   }
   if (style === 'link') {
     return o.flush

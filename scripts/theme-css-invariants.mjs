@@ -3843,8 +3843,8 @@ readings.push(`  pages measured for check ② (essential content not hidden): `
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page `
     + `cap were NOT measured for this check either — not for ②, and not for ②d/②e: `
     + `${droppedPages.join(', ')}` : ''}`);
-// 🔴 #1425（T3）—— 新库的顶栏 / 页脚把**旋钮的当前值**写成根上的状态类（`hdr-logo-left` · `hdr-topbar-off` ·
-// `ftr-cta-none` …，`blocks/header/Section.tsx` / `blocks/footer/Section.tsx`）：排版只给需要特别处理的那几个值写规则，
+// 🔴 #1425（T3）—— 新库的顶栏 / 页脚把**旋钮的当前值**写成根上的状态类（`hdr-logo-left` · `hdr-topbar-off`
+// …，`blocks/header/Section.tsx` / `blocks/footer/Section.tsx`）：排版只给需要特别处理的那几个值写规则，
 // 默认那一档本来就没有规则。它们不是「没穿衣服的元素」，是一句读数。豁免**按 manifest 声明算**、不写死名单：
 // 类名恰好拼成 `<前缀>-<某个块声明的旋钮名>-<那个旋钮声明的取值>`（布尔开关的取值是 on / off）才算。
 // 别的没规则的类照旧报。

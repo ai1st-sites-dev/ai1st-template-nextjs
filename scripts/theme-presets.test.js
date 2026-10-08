@@ -1430,7 +1430,7 @@ let judgeSheetForRegistrySweep = null;
   }
 }
 
-// ── #1464 验收 8：两套脚手架主题的 footer 选择单 ∈ 6 个预设名、且不同；按行为判 ─────────────────────
+// ── #1464 验收 8：两套脚手架主题的 footer 选择单 ∈ 3 个预设名、且不同；按行为判 ─────────────────────
 //
 // 🔴 只判「写的是哪个名字」不够：选择单的值是拿去跟形态清单（= 子目录）比的（`lib/block-shape.js`
 //    §shapeForBlock），对不上只打一行「shapes 清单里没有它，落回默认」、不报错。所以这里拿每套主题的选择单
@@ -1442,7 +1442,7 @@ console.log('\n── #1464 验收 8：theme-pool 的 footer 选择单 ──');
   const path = require('path');
   const { shapeForBlock } = require('./lib/block-shape.js');
   const { loadManifests } = require('./lib/block-manifest.js');
-  const FOOTER_PRESETS = ['slim-row', 'stacked', 'columns', 'cta-row', 'cta-stacked', 'cta-columns'];
+  const FOOTER_PRESETS = ['slim-row', 'stacked', 'columns'];  // #1648 删掉了三个带 CTA 条的预设
   const pool = JSON.parse(fs.readFileSync(path.join(__dirname, 'theme-pool.json'), 'utf-8'));
   const manifests = Object.fromEntries(loadManifests());
   const DEMO = require('./lib/demo-content').DEMO_CONTENT['footer'];
@@ -1453,8 +1453,8 @@ console.log('\n── #1464 验收 8：theme-pool 的 footer 选择单 ──');
   };
   const picks = Object.entries(pool).map(([id, t]) => [id, t.shapes && t.shapes['footer']]);
   const outside = picks.filter(([, v]) => !FOOTER_PRESETS.includes(v));
-  if (picks.length >= 2 && outside.length === 0) ok(`${picks.length} 套主题的 footer 都 ∈ 6 个预设名（${picks.map(([i, v]) => `${i}=${v}`).join(' · ')}）`);
-  else bad(`footer 选择单不在 6 个预设名里：${outside.map(([i, v]) => `${i}=${v}`).join(' · ') || `只有 ${picks.length} 套`}`);
+  if (picks.length >= 2 && outside.length === 0) ok(`${picks.length} 套主题的 footer 都 ∈ 3 个预设名（${picks.map(([i, v]) => `${i}=${v}`).join(' · ')}）`);
+  else bad(`footer 选择单不在 3 个预设名里：${outside.map(([i, v]) => `${i}=${v}`).join(' · ') || `只有 ${picks.length} 套`}`);
   if (new Set(picks.map(([, v]) => v)).size === picks.length) ok('两套主题选的 footer 预设互不相同');
   else bad(`两套主题选了同一个 footer 预设：${picks.map(([i, v]) => `${i}=${v}`).join(' · ')}`);
   for (const [id, v] of picks) {
@@ -1462,10 +1462,16 @@ console.log('\n── #1464 验收 8：theme-pool 的 footer 选择单 ──');
     if (r.got === v && !r.fellBack) ok(`${id}：选择单 ${v} ⟹ 解析出 ${r.got}，没有落回默认`);
     else bad(`${id}：选择单 ${v} ⟹ 解析出 ${r.got}${r.fellBack ? '（日志说落回默认）' : ''}`);
   }
-  // 带 cta 的预设不在两套主题里，也要能被选中（目录 = 预设名的意义就在这）。
+  // #1648 —— 删掉的预设名（旧站的 theme.json 里可能还存着）落回默认 slim-row 并说一声，不报错、不建坏。
+  //    两条路各量一次：块的选择单（§shapeForBlock）和站上页脚真走的那条（`region-layout.js` §resolveRegionShapes，
+  //    sync-config 把它的 notes 打进构建日志）。
   const cc = resolveFooter('cta-columns');
-  if (cc.got === 'cta-columns' && !cc.fellBack) ok('夹具选择单 cta-columns ⟹ 解析出 cta-columns（不是落回默认）');
-  else bad(`夹具选择单 cta-columns ⟹ 解析出 ${cc.got}${cc.fellBack ? '（落回默认）' : ''}`);
+  if (cc.got === 'slim-row' && cc.fellBack) ok('选择单 cta-columns（#1648 删了）⟹ 落回 slim-row 且日志点名');
+  else bad(`选择单 cta-columns ⟹ 解析出 ${cc.got}${cc.fellBack ? '' : '（日志没说落回默认）'}，应当落回 slim-row`);
+  const rl = require('./region-layout.js').resolveRegionShapes({ footer: 'cta-columns' });
+  const WANT_NOTE = 'theme 给 footer 选的形态 "cta-columns" 不在 blocks/footer/ 的清单里(slim-row / stacked / columns),退回 slim-row';
+  if (rl.footer.shape === 'slim-row' && rl.notes.includes(WANT_NOTE)) ok(`region-layout：footer=cta-columns ⟹ slim-row，构建日志那一行逐字是「${WANT_NOTE}」`);
+  else bad(`region-layout：footer=cta-columns ⟹ ${rl.footer.shape}，notes=${JSON.stringify(rl.notes)}`);
   // 阳性对照：一个不存在的名字，同一条断言要红。
   const ghost = resolveFooter('no-such-footer');
   if (ghost.got !== 'no-such-footer' && ghost.fellBack) ok(`阳性对照：选择单 no-such-footer ⟹ 落回 ${ghost.got} 且日志点名 —— 上面那几格「没落回」读数是真会红的`);

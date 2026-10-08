@@ -14,7 +14,7 @@ layout_intent:
 
 # footer · slim-row
 
-**旋钮：** layout=row · cta=none
+**旋钮：** layout=row
 
 **长什么样：** 一行：logo · 页面链接 · 社交；底栏左电话 + 城市、右版权 + 法务（默认）
 

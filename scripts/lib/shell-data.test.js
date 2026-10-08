@@ -8,7 +8,8 @@
 //   · 联系方式 / 社交写成引用，不抄值；
 //   · 派生不到的维度（columns.areas · form · topbar.links / topbar.social）不造数据。
 //   · #1528：navigation.json 的 `topbar`（老公告条那句话）接回 header 的 `topbar.message`。
-//   · #1529：navigation.json 里老板写了的 header.ctaSecondary / footer.legal / footer.cta 照派生，没写就不进 data。
+//   · #1529：navigation.json 里老板写了的 header.ctaSecondary / footer.legal 照派生，没写就不进 data。
+//   · #1648：页脚没有 CTA 条了 —— navigation.json 里残留的 footer.cta 不派生、不报错、不产生 notes。
 // 还有一条反向：派生出来的每个键都必须是块 manifest 声明过的槽（写错一个键名，块就静默不画它）。
 'use strict';
 
@@ -95,7 +96,7 @@ console.log('── ③b 老公告条那句话接回 header.topbar.message（#15
   }
 }
 
-console.log('── ③c 老板能写的三格（#1529）：写了照派生，没写 / 写坏了就不进 data');
+console.log('── ③c 老板能写的两格（#1529）：写了照派生，没写 / 写坏了就不进 data · 残留的 footer.cta 被忽略（#1648）');
 {
   const der = (edit, extra = {}) => {
     const nav = JSON.parse(JSON.stringify(NAV)); edit(nav);
@@ -114,40 +115,38 @@ console.log('── ③c 老板能写的三格（#1529）：写了照派生，�
   for (const [name, v] of [['空数组', []], ['全是坏项', [{ label: '' }, 'x']], ['是对象', { label: 'P', href: '/p' }]]) {
     check(!('legal' in der((n) => { n.footer.legal = v; }).footer), `footer.legal ${name} ⟹ 不进 data`);
   }
-  // footer.cta
-  const full = der((n) => { n.footer.cta = { title: 'Ready for a new roof?', subtitle: 'Free estimates.', buttons: [{ label: 'Get a quote', href: '/quote', style: 'solid' }, { label: 'Call', href: 'tel:+14165550000', style: 'outline' }, { label: '', href: '/x' }] }; });
-  check(JSON.stringify(full.footer.cta) === JSON.stringify({ title: 'Ready for a new roof?', subtitle: 'Free estimates.', buttons: [{ label: 'Get a quote', href: '/quote', style: 'solid' }, { label: 'Call', href: 'tel:+14165550000', style: 'outline' }] }),
-    `footer.cta → cta，没字的按钮去掉（读到 ${JSON.stringify(full.footer.cta)}）`);
-  check(full.notes.length === 0, '合法的 cta 不产生 notes');
-  const bare = der((n) => { n.footer.cta = { title: 'Ready?' }; }).footer.cta;
-  check(JSON.stringify(bare) === JSON.stringify({ title: 'Ready?' }), `只有 title ⟹ {title}，不造 subtitle / buttons（读到 ${JSON.stringify(bare)}）`);
-  const badStyle = der((n) => { n.footer.cta = { title: 'Ready?', buttons: [{ label: 'Go', href: '/go', style: 'primary' }, { label: 'More', href: '/more' }] }; });
-  check(JSON.stringify(badStyle.footer.cta.buttons) === JSON.stringify([{ label: 'Go', href: '/go' }, { label: 'More', href: '/more' }]),
-    `style 不在 solid | outline | link 里 ⟹ 丢掉 style 那一格、按钮照留（读到 ${JSON.stringify(badStyle.footer.cta.buttons)}）`);
-  check(badStyle.notes.length === 1 && /buttons\[0\]\.style = "primary"/.test(badStyle.notes[0]), `丢的时候记一行 notes（PM：别静默丢；读到 ${JSON.stringify(badStyle.notes)}）`);
-  for (const [name, v] of [['没有 title', { subtitle: 's', buttons: [{ label: 'a', href: '/a' }] }], ['title 只有空白', { title: '   ' }], ['是字符串', 'Ready?']]) {
-    check(!('cta' in der((n) => { n.footer.cta = v; }).footer), `footer.cta ${name} ⟹ 不进 data（块没标题就不画这一条）`);
+  // #1648 —— 残留的 footer.cta：页脚已经没有 CTA 条，构建不派生它，也不因为它报错 / 记 notes（#1529 那时会记的坏 style
+  //    也不再记：没人画它，说「按钮用默认样式」是假话）。同一份 navigation 里的 legal 照常派生 = 阳性对照（der 真的跑了）。
+  for (const [name, v] of [
+    ['完整的一份', { title: 'Ready for a new roof?', subtitle: 'Free estimates.', buttons: [{ label: 'Get a quote', href: '/quote', style: 'solid' }] }],
+    ['style 不认识', { title: 'Ready?', buttons: [{ label: 'Go', href: '/go', style: 'primary' }] }],
+    ['地址被白名单拒', { title: 'R', buttons: [{ label: 'Q', href: 'javascript:alert(1)' }] }],
+    ['是字符串', 'Ready?'],
+  ]) {
+    let x;
+    try {
+      x = der((n) => { n.footer.cta = v; n.footer.legal = [{ label: 'Privacy', href: '/privacy' }]; });
+    } catch (e) { check(false, `footer.cta ${name} ⟹ 派生不抛`, e.message); continue; }
+    check(!('cta' in x.footer) && x.notes.length === 0 && JSON.stringify(x.footer.legal) === JSON.stringify([{ label: 'Privacy', href: '/privacy' }]),
+      `残留的 footer.cta（${name}）⟹ 页脚 data 里没有 cta、notes 为空；同一份里的 legal 照常派生（读到 cta=${JSON.stringify(x.footer.cta)} notes=${JSON.stringify(x.notes)}）`);
   }
-  // 写盘那一关会拒的地址（#1529 之前这三格不在那一关里）⟹ 当没写。
+  // 写盘那一关会拒的地址（#1529 之前这两格不在那一关里）⟹ 当没写。
   for (const bad of ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,x', 'java\tscript:alert(1)', ' /contact']) {
     const x = der((n) => {
       n.header.ctaSecondary = { label: 'C', href: bad };
       n.footer.legal = [{ label: 'P', href: '/privacy' }, { label: 'T', href: bad }];
-      n.footer.cta = { title: 'R', buttons: [{ label: 'Q', href: bad }, { label: 'Ok', href: '/ok' }] };
     });
-    check(!('ctaSecondary' in x.header) && JSON.stringify(x.footer.legal) === JSON.stringify([{ label: 'P', href: '/privacy' }])
-      && JSON.stringify(x.footer.cta.buttons) === JSON.stringify([{ label: 'Ok', href: '/ok' }]),
-      `地址 ${JSON.stringify(bad)} ⟹ 三格里那一项都不进 data（读到 ${JSON.stringify([x.header.ctaSecondary, x.footer.legal, x.footer.cta])}）`);
+    check(!('ctaSecondary' in x.header) && JSON.stringify(x.footer.legal) === JSON.stringify([{ label: 'P', href: '/privacy' }]),
+      `地址 ${JSON.stringify(bad)} ⟹ 两格里那一项都不进 data（读到 ${JSON.stringify([x.header.ctaSecondary, x.footer.legal])}）`);
   }
-  // 副语言：三格里的站内链接都加 /zh，站外 / tel: 不动（判据形状照 ⑦）。
+  // 副语言：两格里的站内链接都加 /zh，站外不动（判据形状照 ⑦）。
   const zh = der((n) => {
     n.header.ctaSecondary = { label: 'C', href: '/contact' };
     n.footer.legal = [{ label: 'P', href: '/privacy' }, { label: 'T', href: 'https://x.com/terms' }];
-    n.footer.cta = { title: 'R', buttons: [{ label: 'Q', href: '/quote' }, { label: 'Call', href: 'tel:+1416' }] };
   }, { locale: 'zh', defaultLocale: 'en' });
-  const zhHrefs = [zh.header.ctaSecondary.href, ...zh.footer.legal.map((l) => l.href), ...zh.footer.cta.buttons.map((b) => b.href)];
-  check(JSON.stringify(zhHrefs) === JSON.stringify(['/zh/contact', '/zh/privacy', 'https://x.com/terms', '/zh/quote', 'tel:+1416']),
-    `zh：三格的站内链接加 /zh，站外 / tel: 不动（读到 ${zhHrefs.join(' ')}）`);
+  const zhHrefs = [zh.header.ctaSecondary.href, ...zh.footer.legal.map((l) => l.href)];
+  check(JSON.stringify(zhHrefs) === JSON.stringify(['/zh/contact', '/zh/privacy', 'https://x.com/terms']),
+    `zh：两格的站内链接加 /zh，站外不动（读到 ${zhHrefs.join(' ')}）`);
 }
 
 console.log('── ④ 版权行');

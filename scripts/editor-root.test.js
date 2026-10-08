@@ -71,7 +71,7 @@ fs.writeFileSync(path.join(LAYOUTS_DIR, `${FIXTURE_LAYOUT}.json`), `${JSON.strin
   id: FIXTURE_LAYOUT,
   description: 'Test fixture (#1425 T3): the footer is two bands with pinned styles.',
   regions: ['header', 'content', 'footer-a', 'footer-b'],
-  repeatVariants: { 'footer-a': 'cta-row', 'footer-b': 'slim-row' },
+  repeatVariants: { 'footer-a': 'stacked', 'footer-b': 'slim-row' },
 }, null, 2)}\n`);
 {
   const libs = pageLayoutLib.loadLayouts(LAYOUTS_DIR);

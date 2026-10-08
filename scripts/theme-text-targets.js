@@ -154,14 +154,11 @@ const RENDERED_CONTROLS = [
 //   `.btn-outline-primary`  the outline button on a light ground. Hover FILLS it (transparent → the
 //                           primary colour) and changes its ink, so this is the state where a sheet
 //                           can make the words vanish (#966's shape) while the resting state is fine.
-//   `.btn-light`            the solid button on a dark ground (`solidLight` — the footer CTA's boxed /
-//                           brand-ground variants, `blocks/footer/Section.tsx`).
-//   `.btn-outline-light`    the outline button on a dark ground (`onDark` — a deep header's CTA, the
-//                           footer CTA on a dark ground).
-//   The last two are on no page of this repo's sample site today (no deep header, no footer CTA on a
-//   dark ground — `grep -c` over its built HTML reads 0 for both). They are on this list because real
-//   sites render them, and the run's "pages measured for check ①" line prints `🔴 on no page measured`
-//   for each hover label it never reached — so their absence is a reading on every run, not a silent gap.
+//   `.btn-outline-light`    the outline button on a dark ground (`onDark` — a deep header's CTA).
+//   The last one is on no page of this repo's sample site today (no deep header — `grep -c` over its
+//   built HTML reads 0). It is on this list because real sites render it, and the run's "pages measured
+//   for check ①" line prints `🔴 on no page measured` for each hover label it never reached — so its
+//   absence is a reading on every run, not a silent gap.
 //   NOT here: `.btn-link`, although blocks do emit it — its hover changes neither its background
 //   nor its colour (measured on the sample site's /allblocks.html: `rgba(0, 0, 0, 0)|rgb(30, 44, 72)`
 //   before and after), so there is no second state to judge: hovering it photographs the resting
@@ -170,13 +167,14 @@ const RENDERED_CONTROLS = [
 //   colour, it belongs back here.
 //   Also not here: `.btn-secondary` / `.btn-accent` (still defined in `globals.css`, emitted by nothing —
 //   `git grep -nE 'btn-(secondary|accent)' -- templates/nextjs/blocks templates/nextjs/src/components`
-//   finds no class that renders them) and `link-light` (a modifier on `.btn-link`, not a button of its
+//   finds no class that renders them), `.btn-light` (#1648: its only emitter was the footer's CTA band,
+//   which is gone — `git grep -n 'btn-light' -- templates/nextjs/blocks templates/nextjs/src` finds
+//   nothing) and `link-light` (a modifier on `.btn-link`, not a button of its
 //   own — the `.btn-link` locator reaches it). `HOVER_TARGETS.length` is the only count anything reads,
 //   so adding or removing a line here needs no other edit.
 const HOVER_TARGETS = [
   '.btn-primary',
   '.btn-outline-primary',
-  '.btn-light',
   '.btn-outline-light',
 ];
 

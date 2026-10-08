@@ -63,12 +63,6 @@
       "required": false,
       "promptOptional": true
     },
-    "cta": {
-      "kind": "object",
-      "required": false,
-      "promptOptional": true,
-      "shape": "{title, subtitle?, buttons: [{label, href, style: \"solid\" | \"outline\" | \"link\"}]}"
-    },
     "form": {
       "kind": "object",
       "required": false,
@@ -80,22 +74,18 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{preset?: string, layout, brand, cta, form}",
+      "shape": "{preset?: string, layout, brand, form}",
       "knobs": [
         { "name": "layout", "values": ["row", "stacked", "columns"] },
         { "name": "brand", "values": ["left", "right"] },
-        { "name": "cta", "values": ["none", "centered", "boxed", "inline"] },
         { "name": "form", "values": ["none", "teaser", "full"] }
       ]
     }
   },
   "presets": [
-    { "name": "slim-row", "shape": "slim-row", "knobs": { "layout": "row", "brand": "left", "cta": "none", "form": "none" } },
-    { "name": "stacked", "shape": "stacked", "knobs": { "layout": "stacked", "brand": "left", "cta": "none", "form": "none" } },
-    { "name": "columns", "shape": "columns", "knobs": { "layout": "columns", "brand": "left", "cta": "none", "form": "none" } },
-    { "name": "cta-row", "shape": "cta-row", "knobs": { "layout": "row", "brand": "left", "cta": "centered", "form": "none" } },
-    { "name": "cta-stacked", "shape": "cta-stacked", "knobs": { "layout": "stacked", "brand": "left", "cta": "inline", "form": "none" } },
-    { "name": "cta-columns", "shape": "cta-columns", "knobs": { "layout": "columns", "brand": "left", "cta": "boxed", "form": "none" } }
+    { "name": "slim-row", "shape": "slim-row", "knobs": { "layout": "row", "brand": "left", "form": "none" } },
+    { "name": "stacked", "shape": "stacked", "knobs": { "layout": "stacked", "brand": "left", "form": "none" } },
+    { "name": "columns", "shape": "columns", "knobs": { "layout": "columns", "brand": "left", "form": "none" } }
   ],
   "industries": {
     "required": [],
@@ -103,7 +93,7 @@
     "discouraged": []
   },
   "toolbarGroups": [
-    ["layout", "brand", "cta"],
+    ["layout", "brand"],
     ["color:bg"],
     ["form"]
   ]

@@ -16,7 +16,7 @@ layout_intent:
 
 # footer · columns
 
-**旋钮：** layout=columns · cta=none
+**旋钮：** layout=columns
 
 **长什么样：** 品牌列（logo · 一句话 · 社交）+ 最多 4 列（服务 / 服务区域 / 页面 / 联系）· 底栏版权 + 法务；列是固定语义，空列不渲染
 

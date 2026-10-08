@@ -40,8 +40,8 @@ const triFooter = {
   description: '#1425（T3）合成：三支页脚',
   regions: ['header', 'content', 'footer-a', 'footer-b', 'footer-c'],
   repeatVariants: {
-    'footer-a': pickShape('cta-row') || FOOTER_SHAPES[FOOTER_SHAPES.length - 1],
-    'footer-b': pickShape('columns') || FOOTER_SHAPES[1],
+    'footer-a': pickShape('stacked') || FOOTER_SHAPES[1],
+    'footer-b': pickShape('columns') || FOOTER_SHAPES[FOOTER_SHAPES.length - 1],
     'footer-c': pickShape('slim-row') || FOOTER_SHAPES[0],
   },
 };

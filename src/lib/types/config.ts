@@ -80,25 +80,11 @@ export interface FooterColumn {
   links: NavLink[];
 }
 
-// #1529 —— 页脚 CTA 条的按钮。`style` 写成 string 而不是 'solid' | 'outline' | 'link'：值是老板 / AI 写的，
-// 不合法的由构建期派生丢掉那一格并打一行读数（`scripts/lib/shell-data.js` §footerCta），不该让 tsc 整站建不出来。
-export interface NavButton {
-  label: string;
-  href: string;
-  style?: string;
-}
-
-export interface FooterCtaConfig {
-  title: string;
-  subtitle?: string;
-  buttons?: NavButton[];
-}
-
 export interface NavigationConfig {
   header: {
     links: NavLink[];
     cta: NavLink;
-    // #1529 —— 下面三格都是可选的：写了才派生进外壳 data（`scripts/lib/shell-data.js`），没写的站一个字节不变。
+    // #1529 —— 这一格和下面 footer 的 `legal` 都是可选的：写了才派生进外壳 data（`scripts/lib/shell-data.js`），没写的站一个字节不变。
     ctaSecondary?: NavLink;
   };
   footer: {
@@ -106,7 +92,6 @@ export interface NavigationConfig {
     columns: FooterColumn[];
     copyright: string;
     legal?: NavLink[];
-    cta?: FooterCtaConfig;
   };
   // #1000 — 顶栏那条细带（公告条）的内容。#1425（T3）公告条那个区随旧库退役时数据留着（PM 2026-10-02 裁定 ②）；
   // #1528 起构建把它派生进 header 的 `topbar.message`（`scripts/lib/shell-data.js` §topbarMessage），

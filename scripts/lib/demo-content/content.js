@@ -636,10 +636,10 @@ const DEMO_CONTENT = {
     options: { icons: false },
   },
 
-  // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。6 个预设吃同一份；`cta` / `form`
-  // 两个可选部件也填上，单格页工具栏上的勾选 / 单选才有东西可切（#1458 起开关住在 `[shape]/CellOptions.tsx`）。
+  // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。3 个预设吃同一份；`form`
+  // 可选部件也填上，单格页工具栏上的单选才有东西可切（#1458 起开关住在 `[shape]/CellOptions.tsx`）。
   // 🔴 `nav` / `social` / `legal` 是顶层 list 槽，守卫 (c) 要各 ≥ 6 项、最长 ≥ 最短 2 倍（网址记 0 字，
-  //    `icon` 是字、要算进去）。`columns` / `contact` / `cta` / `form` 是 object，底下的 list 不查。
+  //    `icon` 是字、要算进去）。`columns` / `contact` / `form` 是 object，底下的 list 不查。
   'footer': {
     logo: imageUrl('brand-logo'),
     brandName: SITE,
@@ -680,14 +680,6 @@ const DEMO_CONTENT = {
       { label: 'Sitemap', href: '/sitemap' },
     ],
     copyright: `© 2026 ${SITE}. OMVIC licensed.`,
-    cta: {
-      title: 'Car making a noise you do not like?',
-      subtitle: 'Book a free 15-minute check. We tell you what it is and what it costs before any work starts.',
-      buttons: [
-        { label: 'Book a free check', href: '/contact', style: 'solid' },
-        { label: 'Call {phone}', href: { source: 'phone' }, style: 'outline' },
-      ],
-    },
     // #1464 —— 部件 `form`（跟 hero 同一个表单部件）。#1471 起槽只有 `{ id? }`（选站级表单库里哪一张，空 = 第一张），
     // 露多少是旋钮 `options.form`（下面那一行）—— #1469 的 `form: { mode }` 已迁移，不做兼容读。
     form: {},

@@ -8,15 +8,15 @@
 //    data 是构建期从 navigation.json + brand.json 派生的那一份（`scripts/lib/shell-data.js`，#1425 T3），
 //    形态取主题选择单 `shapes.footer`。单格页 `/__catalog` 直接传 data。
 //
-// 🔴 **一份 markup + 三个旋钮 + 六个预设**（#1464，Chris 2026-09-27 图册定稿第 2 版，照 header 的做法；
-//    #1469 第 3 版加 `brand`）。
-//    旋钮 `layout`（row | stacked | columns）· `brand`（left | right）· `cta`（none | centered | boxed | inline），声明在 manifest 的
+// 🔴 **一份 markup + 两个旋钮 + 三个预设**（#1464，Chris 2026-09-27 图册定稿第 2 版，照 header 的做法；
+//    #1469 第 3 版加 `brand`；#1648 删掉页脚 CTA 条 —— 页尾号召只由页面里的 CTA 块负责）。
+//    旋钮 `layout`（row | stacked | columns）· `brand`（left | right），声明在 manifest 的
 //    `slots.options.knobs`；预设是旋钮组合起的名，表在顶层 `presets`（name 与形态目录名 shape 相同）。
 //    形态名只决定**初值**：`options` 里写了旋钮就按旋钮画（§resolveKnobs），函数跟工具栏是同一个
 //    （`scripts/lib/header-knobs.js`）。footer 没有耦合（manifest 不写 `knobCoupling`）⟹ 任意组合都成立，
-//    对不上预设的就是 Custom。根上挂 `ftr-layout-*` / `ftr-cta-*` 两个类，工具类表达不了的几条在
+//    对不上预设的就是 Custom。根上挂 `ftr-layout-*` 类，工具类表达不了的几条在
 //    `blocks/footer/block.css`（不在各预设的 shape.css：Custom 组合没有文件夹）。
-//    部件永远是 `[CTA 条?] [主体] [底栏]`；主体按 layout 分三种排法，CTA 条按 cta 三选一或没有。
+//    部件永远是 `[主体] [底栏]`；主体按 layout 分三种排法。
 //
 // 🔴 **`brand=right`：桌面在左的，小屏就在上**（Chris 2026-09-27；#1469 起它是旋钮 `brand`，原来是开关 `reverse`，
 //    画法逐字没变 —— 根上的类名也还叫 `ftr-reverse`）。两个排布的主容器 ≥768 反向（首项 / 品牌列
@@ -33,7 +33,7 @@
 //
 // 🔴 **表单 = 槽 `form: { id? }` + 旋钮 `form`（none | teaser | full）**（#1471，跟 hero / contact / cta 同形）：
 //    表单是站级资产（`site/<locale>/forms.json`），槽只选一张（空 = 第一张）；露多少只存在 `data.options.form` 一处，
-//    经本文件 §resolveKnobs（同一份 manifest 的旋钮表）取实际生效值。6 个预设一律 `form: none`（形态里没给表单留位置）。
+//    经本文件 §resolveKnobs（同一份 manifest 的旋钮表）取实际生效值。3 个预设一律 `form: none`（形态里没给表单留位置）。
 //    🔴 #1469 的 `form.mode` 不再读、也不做兼容读：旧值已迁移（#1469 当时它还没上客户站）。
 //
 // 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3）。Webpixels 的工具类全带 `!important`，要压过它们的
@@ -45,7 +45,6 @@
 
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
-import { buttonClass, resolveButtonStyle } from '@/components/Button';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { defaultLocale, getServices } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
@@ -57,21 +56,16 @@ import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/
 // #1506 —— 电话 → `tel:`、邮箱 → `mailto:` 只有一份（contact 与引用展开 `scripts/lib/item-sources.js` 用的也是它）。
 import { mailtoHref, telHref } from '../../scripts/lib/contact-facts.js';
 
-type BtnStyle = 'solid' | 'outline' | 'link';
-
 export type Layout = 'row' | 'stacked' | 'columns';
 export type BrandSide = 'left' | 'right';
-export type Cta = 'none' | 'centered' | 'boxed' | 'inline';
 export type FormMode = 'none' | 'teaser' | 'full';
 
 export interface FooterLink { label: string; href: string; icon?: string }
-export interface FooterButton { label: string; href: string; style?: BtnStyle }
 /** #1530 —— `city`：`row` 底栏露「电话 + 城市」读它（`{source: "brand"}` 从 `brand.locations[].city` 展开）；没有就那一格不画，不从地址串猜。 */
 export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string; city?: string }
 /** #1632 —— 关键词页按服务分组的那几栏（构建从当前页面现算，`scripts/lib/shell-data.js`）；只有 `layout=columns` 画。 */
 export interface FooterKeywordGroup { title: string; links: FooterLink[] }
 export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean; keywordGroups?: FooterKeywordGroup[] }
-export interface FooterCta { title?: string; subtitle?: string; buttons?: FooterButton[] }
 /** #1471 —— 块只选一张站级表单（空 = 第一张）；露多少是旋钮 `options.form`。 */
 export interface FooterForm { id?: string }
 export interface FooterOptions {
@@ -79,7 +73,6 @@ export interface FooterOptions {
   preset?: string;
   layout?: Layout;
   brand?: BrandSide;
-  cta?: Cta;
   /** #1471 —— 表单露多少：none（不画）· teaser（首要字段 + 按钮）· full（整张）。 */
   form?: FormMode;
 }
@@ -94,14 +87,13 @@ export interface FooterNewData {
   social?: FooterLink[];
   legal?: FooterLink[];
   copyright?: string;
-  cta?: FooterCta;
   form?: FooterForm;
   /** #1469 —— 底色：`#rrggbb` · `brand` · 渐变 `{ stops, angle }`；空 = 浅底（`bg-body`）。 */
   bg?: BgValue;
   options?: FooterOptions;
 }
 
-export interface FooterKnobs { layout: Layout; brand: BrandSide; cta: Cta; form: FormMode }
+export interface FooterKnobs { layout: Layout; brand: BrandSide; form: FormMode }
 
 const KNOBS = knobsOf(manifest);
 const PRESETS = presetsOf(manifest);
@@ -145,7 +137,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const opts = data.options || {};
   const titles = columnTitles(locale);
   const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
-  const { layout, cta: ctaKind } = knobs;
+  const { layout } = knobs;
   const brandSide = knobs.brand;
   // §文件头：`stacked` 下 brand 一处都不生效 —— 下面所有「翻不翻」都只读这一个变量。
   const reverse = brandSide === 'right' && layout !== 'stacked';
@@ -154,8 +146,6 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const dark = tone !== 'light';
   const bgValue = bgCss(bg);
   const bgStyle = bgValue ? { background: bgValue } : undefined;
-  // 主色底上主色按钮看不见 ⟹ 翻成浅色（hero 同一条：「`brand` 时主按钮翻成白底主色字」）。
-  const onBrand = tone === 'brand';
   const list = <T,>(v: T[] | undefined): T[] => (Array.isArray(v) ? v.filter(Boolean) : []);
   const nav = list(data.nav);
   const social = list(data.social);
@@ -163,7 +153,6 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const contact = data.contact || {};
   const brand = data.brandName || '';
   const copyright = data.copyright || `© ${new Date().getFullYear()} ${brand}`;
-  const cta = ctaKind !== 'none' && data.cta && data.cta.title ? data.cta : null;
   const formMode = knobs.form === 'teaser' || knobs.form === 'full' ? knobs.form : null;
   const formId = data.form && typeof data.form.id === 'string' && data.form.id ? data.form.id : undefined;
 
@@ -245,54 +234,6 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
       <BlockLeadForm mode={formMode} formId={formId} services={servicesFor(locale)} locale={locale} idPrefix="ftr" size="sm" tone={tone} />
     </div>
   ) : null);
-
-  // ── CTA 条（旋钮 `cta`，顶上，三选一或没有）──────────────────────────────────────────────────────
-  //    三种与下面内容之间都是 `mb-16`（间距照 Webpixels footer-4 的尺度，票正文）。
-  // `solidLight`：boxed 那个深色盒子里、以及主色底（`bg=brand`）上的实心按钮用浅色（Webpixels footer-3），别处照旧是主色。
-  const ctaButtons = (onDark: boolean, large: boolean, extra = '', solidLight = false) => (
-    <div className={`d-flex flex-column flex-sm-row gap-2 ${extra}`}>
-      {list(cta?.buttons).map((b, i) => (
-        <SiteLink key={i} href={b.href} className={`${buttonClass(resolveButtonStyle(b.style, 'solid'), { bare: true, size: large ? 'lg' : 'md', onDark, solidLight })} text-nowrap`}>{b.label}</SiteLink>
-      ))}
-    </div>
-  );
-  const ctaCopy = (onDark: boolean) => (
-    <div>
-      <h2 className={`h4 fw-bold mb-1 ${onDark ? 'text-white' : headTone}`}>{cta?.title}</h2>
-      {/* boxed 那个深盒子在浅底页脚上照旧 .5（#1464 的样子）；页脚本身是深底时跟别处小字一样白 .92。 */}
-      {cta?.subtitle ? <p className={`mb-0 ${onDark ? (dark ? 'ftr-muted-on-dark' : 'text-white-50') : mutedTone}`}>{cta.subtitle}</p> : null}
-    </div>
-  );
-  const ctaRowDir = `d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4 ${reverse ? 'flex-md-row-reverse' : ''}`;
-
-  const ctaStrip = () => {
-    if (!cta) return null;
-    if (ctaKind === 'centered') {
-      return (
-        <div className={`border-bottom ${lineTone} py-10 mb-16 text-center`} data-footer-cta="centered">
-          <h2 className={`display-6 fw-bold mb-2 ${headTone}`}>{cta.title}</h2>
-          {cta.subtitle ? <p className={`fs-5 mb-4 mx-auto mw-lg ${mutedTone}`}>{cta.subtitle}</p> : null}
-          {ctaButtons(dark, true, 'justify-content-center', onBrand)}
-        </div>
-      );
-    }
-    if (ctaKind === 'boxed') {
-      // 深色圆角盒子：页脚本身是深底（`bg` 深色 / `brand`）时换成比底色浅一档（半透明白叠在底色上 ——
-      // 任何深底、包括主色底都成立），否则深盒子融进深底看不出来。
-      return (
-        <div className={`rounded-3 ${dark ? 'bg-white bg-opacity-10' : 'bg-dark'} text-white px-6 px-md-10 py-8 mb-16 ${ctaRowDir}`} data-footer-cta="boxed">
-          {ctaCopy(true)}
-          {ctaButtons(true, false, 'flex-shrink-0', !dark || onBrand)}
-        </div>
-      );
-    }
-    return (
-      <div className={`border-bottom ${lineTone} pb-10 mb-16 ${ctaRowDir}`} data-footer-cta="inline">
-        {ctaCopy(false)}
-        {ctaButtons(dark, false, 'flex-shrink-0', onBrand)}
-      </div>
-    );
-  };
 
   // ── 主体（按 layout）───────────────────────────────────────────────────────────────────────────
   const rowBody = () => (
@@ -435,14 +376,12 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
     'border-top',
     lineTone,
     `ftr-layout-${layout}`,
-    `ftr-cta-${ctaKind}`,
     reverse ? 'ftr-reverse' : '',
   ].filter(Boolean).join(' ');
 
   return (
     <footer {...blockAttrs('footer', footerBlock)} data-bs-theme={bsThemeForBg(bg)} className={rootClass} data-preset={preset} style={bgStyle}>
       <div className={`container-lg ${layout === 'stacked' ? 'py-16 py-lg-20' : 'py-12'}`}>
-        {ctaStrip()}
         {body}
         {bottomBar()}
       </div>

@@ -59,7 +59,7 @@ const AC2 = {
   cta: 'presets | layout frame textAlign image form | choice:eyebrow.style count:ctas | color:bg',
   faq: 'presets | introPosition introAlign choice:introEyebrow.style part:help | itemsMode itemsColumns | itemStyle itemToggle | color:bg',
   features: 'presets | introPosition introAlign choice:introEyebrow.style count:introCtas introImage | itemsLayout itemsColumns itemsImage | itemStyle itemAlign itemIcon itemImage itemConnector | color:bg',
-  footer: 'presets | layout brand cta | color:bg | form',
+  footer: 'presets | layout brand | color:bg | form',
   gallery: 'presets | introPosition introAlign choice:introEyebrow.style | itemsLayout itemsColumns | itemShape itemCaption | color:bg',
   header: 'presets | logo menu bool:topbar | color:bg | bool:icons',
   hero: 'presets | textAlign image form | color:bg | part:proof part:stats part:logos part:band | choice:eyebrow.style',

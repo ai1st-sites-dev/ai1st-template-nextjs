@@ -14,6 +14,8 @@
  *    （hero 那个表单部件）。
  * 📌 #1469 起开关 `reverse` → 旋钮 `brand`（left | right），开关 `dark` → 颜色槽 `bg`（纯色 / brand / 渐变），
  *    `form` 从 `style: inline | stacked` 改成 `mode: teaser | full`（表单是站级资产，块只选画法）。
+ * 📌 #1648 起页脚没有 CTA 条：旋钮 cta 和三个带 CTA 条的预设一起删，剩 slim-row / stacked / columns 三个预设，
+ *    旋钮 layout / brand / form（页尾号召只由页面里的 CTA 块负责）。旧站 data 里残留的 cta 内容不画（第 ② 段）。
  *
  * 🔴 每一段都带一格反向对照（同一进程、单变量），证明判据真会红：一道只在真组件上跑的检查恒绿时，
  *    「它在起作用」和「它瞎了」给出同一个读数。
@@ -95,63 +97,59 @@ const noPreset = (h) => h.replace(/ data-preset="[^"]*"/, '');
 
 // ══ 定稿表（票正文，Chris 2026-09-27；顺序就是这张表的顺序）══════════════════════════════════════
 const TABLE = [
-  ['slim-row', 'row', 'none'],
-  ['stacked', 'stacked', 'none'],
-  ['columns', 'columns', 'none'],
-  ['cta-row', 'row', 'centered'],
-  ['cta-stacked', 'stacked', 'inline'],
-  ['cta-columns', 'columns', 'boxed'],
+  ['slim-row', 'row'],
+  ['stacked', 'stacked'],
+  ['columns', 'columns'],
 ];
 const PRESET_NAMES = TABLE.map((r) => r[0]);
 const LAYOUTS = ['row', 'stacked', 'columns'];
-const CTAS = ['none', 'centered', 'boxed', 'inline'];
 
-// 夹具：演示内容（Northside Auto Care）去掉表单部件（它在第 ③ 段单独开关）；cta 内容留着，由旋钮决定出不出。
+// 夹具：演示内容（Northside Auto Care）去掉表单部件（它在第 ③ 段单独开关）。
 const base = clone(DEMO);
 delete base.form;
-// #1471 —— 露多少是旋钮 `options.form`（演示内容写着 teaser）；它也一起拿掉，否则它压过每个预设的 `form: none`、6 个都读成 custom。
+// #1471 —— 露多少是旋钮 `options.form`（演示内容写着 teaser）；它也一起拿掉，否则它压过每个预设的 `form: none`、3 个都读成 custom。
 if (base.options) delete base.options.form;
 
-// ══ ① 验收 1：manifest 6 个预设 · 旋钮值与定稿表一致 · 目录 == 6 个预设名 · 6 个预设两两不同 ═══════════
-console.log('① 6 个预设：manifest · 目录 · 两两不同 · bg / brand 各改 HTML');
+// ══ ① 验收 1：manifest 3 个预设 · 旋钮值与定稿表一致 · 目录 == 3 个预设名 · 3 个预设两两不同 ═══════════
+console.log('① 3 个预设：manifest · 目录 · 两两不同 · bg / brand 各改 HTML');
 {
   const presets = Array.isArray(MANIFEST.presets) ? MANIFEST.presets : [];
   check(JSON.stringify(presets.map((p) => p.name)) === JSON.stringify(PRESET_NAMES),
-    `manifest presets 6 条、名字与顺序逐字等于定稿表（${presets.map((p) => p.name).join(' · ')}）`);
-  const wrong = TABLE.filter(([n, l, c]) => {
+    `manifest presets 3 条、名字与顺序逐字等于定稿表（${presets.map((p) => p.name).join(' · ')}）`);
+  const wrong = TABLE.filter(([n, l]) => {
     const p = presets.find((x) => x.name === n);
-    return !p || p.shape !== n || p.knobs.layout !== l || p.knobs.brand !== 'left' || p.knobs.cta !== c
-      || p.knobs.form !== 'none' || Object.keys(p.knobs).length !== 4;
+    return !p || p.shape !== n || p.knobs.layout !== l || p.knobs.brand !== 'left'
+      || p.knobs.form !== 'none' || Object.keys(p.knobs).length !== 3;
   });
-  check(wrong.length === 0, '每个预设的 shape = 自己的名字、四个旋钮值与定稿表一致（brand 都是 left，form 都是 none —— #1471：形态里没给表单留位置）',
+  check(wrong.length === 0, '每个预设的 shape = 自己的名字、三个旋钮值与定稿表一致（brand 都是 left，form 都是 none —— #1471：形态里没给表单留位置）',
     `对不上：${wrong.map((r) => r[0]).join(' · ')}`);
   const knobs = (MANIFEST.slots.options.knobs || []).map((k) => `${k.name}=${k.values.join('|')}`);
-  check(knobs.join(' ; ') === 'layout=row|stacked|columns ; brand=left|right ; cta=none|centered|boxed|inline ; form=none|teaser|full',
+  check(knobs.join(' ; ') === 'layout=row|stacked|columns ; brand=left|right ; form=none|teaser|full',
     `旋钮顺序 = 控件顺序：${knobs.join(' ; ')}`);
   const dirs = fs.readdirSync(path.join(NEXT, 'blocks', 'footer'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
-  check(JSON.stringify(dirs) === JSON.stringify([...PRESET_NAMES].sort()), `blocks/footer/ 的目录集合 == 6 个预设名（${dirs.join(' · ')}）`);
+  check(JSON.stringify(dirs) === JSON.stringify([...PRESET_NAMES].sort()), `blocks/footer/ 的目录集合 == 3 个预设名（${dirs.join(' · ')}）`);
   check(!dirs.includes('centered') && !dirs.includes('minimal'), 'centered / minimal 两个老目录不在');
 
   const htmls = PRESET_NAMES.map((s) => render(s, base));
-  check(new Set(htmls).size === 6, `同一份夹具下 6 个预设的 HTML 两两不同（${new Set(htmls).size} 种）`);
+  check(new Set(htmls).size === 3, `同一份夹具下 3 个预设的 HTML 两两不同（${new Set(htmls).size} 种）`);
   const labels = PRESET_NAMES.filter((s, i) => !htmls[i].includes(`data-preset="${s}"`) || !htmls[i].includes(`data-shape="${s}"`));
   check(labels.length === 0, '每个预设渲染出来戴的就是自己的名字（data-shape + data-preset）', `没戴上：${labels.join(' · ')}`);
-  // bg 深色：6 个预设全变。brand=right：4 个非 stacked 预设全变、stacked 两个不变（AC3：stacked 居中，brand 不起作用）。
-  const STACKED = ['stacked', 'cta-stacked'];
+  // bg 深色：3 个预设全变。brand=right：2 个非 stacked 预设全变、stacked 不变（AC3：stacked 居中，brand 不起作用）。
+  const STACKED = ['stacked'];
   const bgChanged = (Comp) => PRESET_NAMES.filter((s, i) => render(s, { ...base, bg: '#0f172a' }, Comp) === (Comp ? render(s, base, Comp) : htmls[i]));
   const brandSame = (Comp) => PRESET_NAMES.filter((s, i) => noPreset(render(s, withKnobs(base, { brand: 'right' }), Comp)) === noPreset(Comp ? render(s, base, Comp) : htmls[i]));
   {
     const same = bgChanged();
-    check(same.length === 0, 'bg=#0f172a：6 个预设的 HTML 全都变了', `没变的：${same.join(' · ')}`);
+    check(same.length === 0, 'bg=#0f172a：3 个预设的 HTML 全都变了', `没变的：${same.join(' · ')}`);
     const bs = brandSame();
-    check(bs.length === 2 && STACKED.every((s) => bs.includes(s)),
-      'brand=right：4 个非 stacked 预设全变、stacked / cta-stacked 两个不变（比较前去掉 data-preset）', `没变的：${bs.join(' · ') || '（无）'}`);
+    check(bs.length === 1 && STACKED.every((s) => bs.includes(s)),
+      'brand=right：2 个非 stacked 预设全变、stacked 不变（比较前去掉 data-preset）', `没变的：${bs.join(' · ') || '（无）'}`);
   }
   // 反向对照：把组件读 bg / brand 的那一行换成恒空 / 恒 left，上面两条必须被点名。锚点找不到不许静默跳过。
   const src = fs.readFileSync(SECTION, 'utf-8');
   for (const [what, from, to, want] of [
-    ['bg', 'const bg = data.bg;', 'const bg = undefined as FooterNewData[\'bg\'];', 6],
-    ['brand', 'const brandSide = knobs.brand;', "const brandSide: BrandSide = 'left';", 4],
+    ['bg', 'const bg = data.bg;', 'const bg = undefined as FooterNewData[\'bg\'];', 3],
+    ['brand', 'const brandSide = knobs.brand;', "const brandSide: BrandSide = 'left';", 2],
   ]) {
     const broken = src.replace(from, to);
     if (broken === src) { bad(`反向对照（${what}）没改到源码（锚点找不到）—— 这一格什么都没证明`); continue; }
@@ -164,32 +162,31 @@ console.log('① 6 个预设：manifest · 目录 · 两两不同 · bg / brand 
   check(render('no-such-preset', base) === htmls[0], '不认识的形态名 ⟹ 渲染成 slim-row');
 }
 
-// ══ ② 验收 2：layout × cta 12 种都能渲染 · cta=none 没有 CTA 条节点 · 三种互斥 · Custom ══════════════
-console.log('\n② layout × cta 12 种组合');
+// ══ ② #1648：页脚没有 CTA 条 —— 根上只挂 layout 那一个旋钮类 · 旧站残留的 cta 内容 / 旋钮不画、不报错 ═══════
+console.log('\n② 三种 layout · 残留的 CTA 内容不画（#1648）');
 {
   const seen = new Set();
   for (const layout of LAYOUTS) {
-    for (const cta of CTAS) {
-      const h = render('slim-row', withKnobs(base, { layout, cta }));
-      seen.add(h);
-      const got = ['centered', 'boxed', 'inline'].filter((x) => h.includes(`data-footer-cta="${x}"`));
-      if (cta === 'none') check(count(h, 'data-footer-cta') === 0, `${layout} + none：DOM 里没有 CTA 条节点`, `出了 ${got.join(' + ')}`);
-      else check(got.length === 1 && got[0] === cta && count(h, 'data-footer-cta') === 1, `${layout} + ${cta}：只出 ${cta} 那一条`, `出了 ${got.join(' + ') || '（没有）'}`);
-      check(h.includes(`ftr-layout-${layout}`) && h.includes(`ftr-cta-${cta}`), `${layout} + ${cta}：根上挂着两个旋钮类`);
-      const hit = TABLE.find((r) => r[1] === layout && r[2] === cta);
-      const label = hit ? hit[0] : 'custom';
-      check(h.includes(`data-preset="${label}"`), `${layout} + ${cta}：预设标签 = ${label}`);
-    }
+    const h = render('slim-row', withKnobs(base, { layout }));
+    seen.add(h);
+    const cls = ((h.match(/<footer[^>]*class="([^"]*)"/) || [])[1] || '').split(' ').filter(Boolean);
+    check(cls.includes(`ftr-layout-${layout}`) && cls.filter((c) => c.startsWith('ftr-')).length === 1,
+      `${layout}：根上的 ftr- 类只有 ftr-layout-${layout} 一个`, cls.join(' '));
+    const hit = TABLE.find((r) => r[1] === layout);
+    check(h.includes(`data-preset="${hit[0]}"`), `${layout}：预设标签 = ${hit[0]}`);
   }
-  check(seen.size === 12, `12 种组合的 HTML 两两不同（${seen.size} 种）`);
-  // CTA 条在最顶上：它是容器里的第一个部件。（不锚 `^`：React 19 会把 logo 的 `<link rel="preload">` 提到最前。）
-  for (const cta of ['centered', 'boxed', 'inline']) {
-    const h = render('slim-row', withKnobs(base, { cta }));
-    check(new RegExp(`<footer[^>]*><div class="container-lg[^"]*"><div[^>]*data-footer-cta="${cta}"`).test(h), `${cta}：CTA 条是页脚里的第一个部件`);
+  check(seen.size === 3, `3 种 layout 的 HTML 两两不同（${seen.size} 种）`);
+  // #1648 之前存下的站：data 里还有一份 cta 内容、options 里还有 cta 旋钮 ⟹ 都不认，HTML 逐字等于没有它们。
+  const leftover = { title: 'Ready to book?', subtitle: 'Leftover band copy', buttons: [{ label: 'Book now', href: '/contact', style: 'solid' }] };
+  const legacy = withKnobs({ ...base, cta: leftover }, { cta: 'boxed' });
+  for (const s of PRESET_NAMES) {
+    const h = render(s, legacy);
+    check(!h.includes(leftover.title) && !h.includes(leftover.subtitle) && count(h, 'data-footer-cta') === 0,
+      `${s}：残留的 cta 内容不上页面（标题 / 副标题都不在，没有 data-footer-cta 节点）`);
+    check(h === render(s, base), `${s}：残留的 cta 内容 + 旋钮 ⟹ HTML 逐字等于没有它们（预设标签也不变）`);
   }
-  // cta 旋钮开着但 cta 内容空 ⟹ 也没有条（空值不渲染）。
-  const noCta = clone(base); delete noCta.cta;
-  check(count(render('cta-row', noCta), 'data-footer-cta') === 0, 'cta-row 但 cta 槽为空 ⟹ 没有 CTA 条');
+  // 阳性对照：同一串字放进页脚会画的那一格（tagline），上面「不在」那条的找法必须找得到它。
+  check(render('stacked', { ...base, tagline: leftover.title }).includes(leftover.title), '阳性对照：同一串字放进 tagline ⟹ 找得到（「不在」那条不是找法瞎了）');
   // brand=right（原 reverse）：两个排布的主容器 ≥768 反向、<768 反序叠；columns 的断点是 md（T2.2 是 lg）。
   for (const layout of ['row', 'columns']) {
     const h = render('slim-row', withKnobs(base, { layout, brand: 'right' }));
@@ -243,12 +240,11 @@ console.log('\n③ form 部件');
 console.log('\n③b bg 颜色槽');
 {
   const rootOf = (h) => (h.match(/<footer[^>]*>/) || [''])[0];
-  const dark = render('cta-columns', { ...base, bg: '#0f172a' });
+  const dark = render('columns', { ...base, bg: '#0f172a' });
   check(/style="background:#0f172a"/.test(rootOf(dark)) && !/\bbg-body\b/.test(rootOf(dark)) && /\btext-white\b/.test(rootOf(dark)),
     'bg=#0f172a：根上 background:#0f172a、没有 bg-body、字反白', rootOf(dark));
   check(!/text-white-50|text-body-secondary/.test(dark) && dark.includes('ftr-muted-on-dark'), 'bg=#0f172a：小字不用灰（白 .92 那个类），没有 text-white-50');
-  check(/rounded-3 bg-white bg-opacity-10[^"]*" data-footer-cta="boxed"/.test(dark), 'bg=#0f172a：boxed 盒子换成浅一档（半透明白），不是 bg-dark');
-  const light = render('cta-columns', { ...base, bg: '#ffffff' });
+  const light = render('columns', { ...base, bg: '#ffffff' });
   check(/style="background:#ffffff"/.test(rootOf(light)) && !/\btext-white\b/.test(rootOf(light)) && light.includes('text-body-secondary') && !light.includes('ftr-muted-on-dark'),
     'bg=#ffffff：深字（没有反白类）', rootOf(light));
   const brand = render('slim-row', { ...base, bg: 'brand' });
@@ -317,17 +313,17 @@ console.log('\n⑤ 联系信息');
   }
 }
 
-// ══ ⑥ #1464 验收 8 的后半：选择单填 cta-columns ⟹ 解析出的形态画出来是 boxed CTA 条 + 列 ═══════════════
-console.log('\n⑥ 选择单 → 形态解析 → 渲染（cta-columns）');
+// ══ ⑥ #1464 验收 8 的后半：选择单填 columns ⟹ 解析出的形态画出来是品牌列 + 列 ═══════════════════════════
+//    （#1648 删掉的那三个名字落回默认，那一格在 `theme-presets.test.js` 的选择单那一段。）
+console.log('\n⑥ 选择单 → 形态解析 → 渲染（columns）');
 {
   const { shapeForBlock } = require(path.join(NEXT, 'scripts', 'lib', 'block-shape.js'));
   const manifests = Object.fromEntries(require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js')).loadManifests());
   const pick = (name) => shapeForBlock({ type: 'footer', data: DEMO }, { 'footer': name }, manifests, () => {});
-  const h = render(pick('cta-columns'), base);
-  check(h.includes('data-footer-cta="boxed"') && h.includes('data-footer-col="brand"') && h.includes('data-footer-col="services"'),
-    '选择单 cta-columns ⟹ 页脚 DOM 上是 boxed CTA 条 + 品牌列 + 列');
+  const h = render(pick('columns'), base);
+  check(h.includes('data-footer-col="brand"') && h.includes('data-footer-col="services"'), '选择单 columns ⟹ 页脚 DOM 上是品牌列 + 列');
   const g = render(pick('no-such-footer'), base);
-  check(!g.includes('data-footer-cta="boxed"') && !g.includes('data-footer-col="brand"'), '阳性对照：不存在的名字 ⟹ 落回默认，没有 boxed、没有列');
+  check(!g.includes('data-footer-col="brand"'), '阳性对照：不存在的名字 ⟹ 落回默认，没有列');
 }
 
 // ══ ⑦ #1530：row 底栏的「城市」读 contact.city，没有就整格不画（不再从地址串取最后一段）═══════════════════
@@ -338,7 +334,7 @@ console.log('\n⑦ row 底栏的城市（#1530）');
   const addr = '2150 Yonge St, Toronto, ON';
   const withCity = { ...base, contact: { phone: '(416) 555-0142', address: addr, city: 'Toronto' } };
   const noCity = { ...base, contact: { phone: '(416) 555-0142', address: addr } };
-  for (const s of ['slim-row', 'cta-row']) {
+  for (const s of ['slim-row']) {
     check(cityCell(render(s, withCity)) === 'Toronto', `${s} + contact.city = Toronto ⟹ 底栏画 Toronto`, String(cityCell(render(s, withCity))));
     const h = render(s, noCity);
     check(cityCell(h) === null && count(h, 'data-icon="geo-alt"') === 0, `${s} + 没有 city ⟹ 城市那一格不在（没有 geo-alt 图标）`);

@@ -629,8 +629,8 @@ function navWritesInSyncConfig(file) {
     const src = fs.readFileSync(TYPES_FILE, 'utf-8');
     // `footer` 那个内联对象的原文 —— 下面两格 extends 的锚点。它变了的话，`doctored === src`
     // 会让那一格报「锚点不在了」，而不是悄悄跳过。
-    // #1529：footer 里多了 legal? / cta? 两行，锚点跟着改。
-    const FOOTER_INLINE = '  footer: {\n    description: string;\n    columns: FooterColumn[];\n    copyright: string;\n    legal?: NavLink[];\n    cta?: FooterCtaConfig;\n  };\n';
+    // #1529：footer 里多了 legal? 一行，锚点跟着改（#1648 删掉了同时加的 cta? 那一行）。
+    const FOOTER_INLINE = '  footer: {\n    description: string;\n    columns: FooterColumn[];\n    copyright: string;\n    legal?: NavLink[];\n  };\n';
     // 'differs' = 必须报出跟 NAV_SHAPE 不同 · 'cantTell' = 必须说不出来（unavailable），不许当成对得上
     const SHAPES = [
       ['加一个必需字段',      (s) => s.replace('export interface NavigationConfig {', 'export interface NavigationConfig {\n  newThing: string;'), 'differs'],
@@ -1105,7 +1105,6 @@ function flattenShape(shape, at = '', out = []) {
     // #1529
     'header.ctaSecondary': (n) => { n.header.ctaSecondary = { label: 'Call us', href: '/contact' }; },
     'footer.legal': (n) => { n.footer.legal = [{ label: 'Privacy policy', href: '/privacy' }]; },
-    'footer.cta': (n) => { n.footer.cta = { title: 'Ready for a new roof?', buttons: [{ label: 'Get a quote', href: '/quote' }] }; },
   };
 
   /** AC1 + AC3 的判据本体。返回一串问题；空 = 过。做成函数是为了下面能拿同一把判据去量变异版。 */
@@ -1503,7 +1502,6 @@ function flattenShape(shape, at = '', out = []) {
       // #1529
       'header.ctaSecondary': (n, m) => { n.header.ctaSecondary = { label: m, href: '/contact' }; },
       'footer.legal': (n, m) => { n.footer.legal = [{ label: m, href: '/privacy' }]; },
-      'footer.cta': (n, m) => { n.footer.cta = { title: m, subtitle: m, buttons: [{ label: m, href: '/quote', style: 'solid' }] }; },
     };
     const REGIONS = ['header', 'footer'];
 

@@ -51,13 +51,12 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 /** `navigation.json` 里老板的链接住在哪几个键上（对应哪个块的哪个槽位）。 */
 // 📌 #1425（T3）删过 `topbar.link`（公告条那个区随旧库退役，链接不再画）；#1528 它又画到页面上了（派生成 header 的
 //    `topbar.message.href`，shell-data.js §topbarMessage）⟹ 加回来。`slot` 是个对象槽，`field` 是它 shape 里那一格。
-// #1529：`key` 是任意深度的路径；`list: true` ⟹ 那个位置是一串链接（每一项都查）。下面三行是老板 #1529 起能写、构建派生进外壳的。
+// #1529：`key` 是任意深度的路径；`list: true` ⟹ 那个位置是一串链接（每一项都查）。后面两行（ctaSecondary / legal）是老板 #1529 起能写、构建派生进外壳的。
 const NAV_LINKS = [
   { key: ['topbar', 'link'], block: 'header', slot: 'topbar', field: 'message', where: 'the announcement at the top of the header' },
   { key: ['header', 'cta'], block: 'header', slot: 'ctaPrimary', where: 'the header' },  // #1425：派生成 header 的 ctaPrimary（shell-data.js）
   { key: ['header', 'ctaSecondary'], block: 'header', slot: 'ctaSecondary', where: 'the second header button' },
   { key: ['footer', 'legal'], list: true, block: 'footer', slot: 'legal', where: 'the footer legal links' },
-  { key: ['footer', 'cta', 'buttons'], list: true, block: 'footer', slot: 'cta', where: 'the footer call-to-action band' },
 ];
 
 let nameCache = null;

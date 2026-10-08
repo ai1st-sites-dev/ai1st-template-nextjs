@@ -14,7 +14,7 @@ layout_intent:
 
 # footer · stacked
 
-**旋钮：** layout=stacked · cta=none
+**旋钮：** layout=stacked
 
 **长什么样：** 全部居中竖着叠：logo · 一句话 · 链接一行 · 社交 · 联系一行 · 版权（T2.2 的 centered 与 minimal 合成这一个）
 
