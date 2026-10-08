@@ -41,7 +41,10 @@ const { isKeywordPage } = require('./lib/keyword-service');
 const { keywordFooterColumns } = require('./lib/keyword-pages');
 
 const rootDir = path.resolve(__dirname, '..');
-const siteDir = path.join(rootDir, 'site');
+// #1599 —— 分段建站的预览构建读一份快照（lib/staged-preview.js：给预览写的文件不进 site/、不进阶段提交），由 SYNC_SITE_DIR
+//    给路径。不给 = site/，跟改之前逐字节相同。快照不在 git 里 ⟹ sitemap 的 <lastmod> 落到 mtime 那一档（lib/page-lastmod.js），
+//    预览站不发布，无所谓。
+const siteDir = process.env.SYNC_SITE_DIR ? path.resolve(process.env.SYNC_SITE_DIR) : path.join(rootDir, 'site');
 
 if (!fs.existsSync(siteDir) || !fs.existsSync(path.join(siteDir, 'brand.json'))) {
   console.error(`Site config not found: ${siteDir}/brand.json`);

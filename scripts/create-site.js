@@ -117,6 +117,8 @@ const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 // #1593 —— 一次调用产出全部语言（第二语言按主语言骨架拼）+ 建站的四个数（耗时 / 费用 / 修补页数 / 页数）。
 const localesLib = require('./lib/all-locales');
 const { createBuildStats } = require('./lib/build-stats');
+// #1599 —— 三段式建站：每个阶段做完就构建一版预览（lib/staged-preview.js 文件头）。
+const stagedPreviewLib = require('./lib/staged-preview');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 // 🔴 下面 MODEL_PRICING 不是文档,是【记账输入】:getModelPricing(model) 的结果乘 token 数写进 operation_runs.cost(manager/db.go 的 insertOperationRun),写错一行不报错、只静默虚记。改它之前去 https://platform.claude.com/docs/en/about-claude/pricing 现取一次,别凭记忆 —— #1249 修的两行原来逐字是【已退役】型号的真价钱,不是打错。
@@ -1458,6 +1460,15 @@ async function main() {
   };
 
   // #1598 —— plan / pages / images 三个阶段都在 generateContent 里；images 已存档 ⟹ 整个 Call 1 跳过，content 就是存档里那份。
+  // ── #1599 分段预览 ───────────────────────────────────────────────────────────────────────────────────────
+  // 只在 entrypoint.sh 打开时才有（STAGED_PREVIEW_DIR）。每个阶段做完调一次：给了 content ⟹ 预览按它写一版站点文件（写进快照，
+  // 不碰 site/）；null ⟹ site/ 里此刻的文件就是要看的站。三段怎么分、哪一次发什么事件，都在 lib 里按 BUILD_PHASES 派生。
+  const stagedPreview = stagedPreviewLib.fromEnv({ rootDir, siteDir, emit, log: debug });
+  const previewPhaseDone = (phase, content) => {
+    if (!stagedPreview) return;
+    stagedPreview.phaseDone(phase, content ? (dir) => writePreviewSite(dir, content, { defaultLocale, disabledBlocks, industry }) : null);
+  };
+
   const content = (resume && resume.index >= 2) ? resume.state.content : await generateContent({
     locales: localesInfo, book: localeBook, secondaryKeywords: secondaryLocaleKeywords,
     companyName, industry, location, address, phone, email,
@@ -1495,6 +1506,7 @@ async function main() {
     resumeFrom: resume ? resume.index : -1,
     resumeState: resume ? resume.state : null,
     checkpoint,
+    onPhaseDone: previewPhaseDone,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -1535,6 +1547,8 @@ async function main() {
 
   // #1598 —— images 阶段做完（logo、各页配图、导航、seo 都已拼进 content；图在 public/ 里，跟存档同一个提交）。
   if (!(resume && resume.index >= 2)) checkpoint('images', { content });
+  // #1599 —— 图配上了（从 images 续跑时就是存档里那份 content —— 那一次是续跑的第一版预览，发 preview-viewable）。
+  if (!(resume && resume.index >= 3)) previewPhaseDone('images', content);
 
   progress('Writing base configuration files...', 50);
 
@@ -1674,6 +1688,8 @@ async function main() {
     debug(`[color scheme] ${colorScheme}（AI 给的是 ${JSON.stringify(content.ai && content.ai.colorScheme)}）`);
     checkpoint('keywordPages', { content });
   }
+  // #1599 —— 关键词页、SEO 修补都写进 site/ 了（从 keywordPages 续跑时那些文件就在仓里）：照 site/ 构建。
+  previewPhaseDone('keywordPages', null);
 
   // ─── TICKET-122b / #1593: Secondary locales ──────────────────────────────────
   // 第二语言的字已经跟主语言在同一次调用里写回来了（每页 / 关键词页 / 站级），这里按主语言最终那一版拼出来、过一遍 SEO、写盘。
@@ -1722,6 +1738,7 @@ async function main() {
   //     entrypoint.sh 之后那一次前台推送仍是「存进仓了没有」的权威读数（#1592）。
   progress('Committing to git...', 80);
   const lastCommitted = checkpoint('secondaryLocales', null);
+  previewPhaseDone('secondaryLocales', null);
   if (repoUrl) {
     try {
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
@@ -1748,6 +1765,11 @@ async function main() {
   // #1596 —— 降级清单进报告的 `degraded` 那一格（一处没降级是 []）。skipAI 那条路不走这里，那一格留 null。
   buildReportLib.recordDegraded(buildReport, degradedSteps);
   finishBuildReport(siteDir);
+  // #1599 —— 等排着的预览构建跑完再退出：最后那一次换上去了（result.json `final`）⟹ entrypoint 直接起预览、不再构建一次。
+  if (stagedPreview) {
+    const r = await stagedPreview.finish();
+    debug(`[staged-preview] 结束：preview-viewable ${r.viewable ? '发了' : '没发'} · preview-reload ${r.reloads.join(' / ') || '（无）'} · 最后一个阶段的预览${r.final ? '已换上' : '没换上，entrypoint 自己构建'}`);
+  }
   // Done — entrypoint.sh handles sync-config + the static preview (`next build` → `serve out`)
   progress('Site generated, starting preview...', 85);
 }
@@ -2006,6 +2028,17 @@ function ensureContactPage(content, defaultLocale, disabledBlocks = [], words = 
   };
   content.pages.push(page);
   return page;
+}
+
+// #1599 —— 给分段预览写一版站点文件，写进快照目录 `dir`（不碰 site/ —— site/ 跟阶段提交是一回事）。真写盘之前那几步这里也补上：
+//    没有 contact 页就补一页（导航按钮多半指 /contact，不补的话 ② 时它 404）、首屏表单、站级深浅。content 先整份拷一份：
+//    writeSiteConfig / ensureContactPage 都原地改它（#1631），而传进来的是建站正在用的那份。
+function writePreviewSite(dir, content, { defaultLocale, disabledBlocks = [], industry }) {
+  const c = structuredClone(content);
+  ensureContactPage(c, defaultLocale, disabledBlocks, defaultLocale !== 'en' && c.ai ? c.ai.contactPage : null);
+  applyHeroLeadForm({ content: c, industry, disabledBlocks });
+  writeSiteConfig(dir, c, defaultLocale, disabledBlocks);
+  writeThemeColorScheme(dir, normalizeColorScheme(c.ai && c.ai.colorScheme));
 }
 
 function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
@@ -2291,6 +2324,8 @@ async function generateContent(opts) {
     resumeFrom = -1,
     resumeState = null,
     checkpoint = () => {},
+    // #1599 —— 一个阶段做完：`onPhaseDone(阶段, content)` 把这一刻该给老板看的站交给分段预览（main §stagedPreview）。缺省 = 不预览。
+    onPhaseDone = () => {},
   } = opts;
   const others = (locales.others || []).filter((o) => book && !book.failed.has(o.code));
   const otherCodes = others.map((o) => o.code);
@@ -2826,6 +2861,148 @@ ${FACTS_ONLY_FROM_FORM_RULE}
   const recipeSnapshot = () => (recipeNav
     ? { nav: [...recipeNav], blocks: Object.fromEntries(ai.pages.filter((p) => recipeBlocksOf.has(p)).map((p) => [p.slug, recipeBlocksOf.get(p)])) }
     : null);
+  // #1599 —— 站级那几份（brand / navigation / seo）怎么从 ai 拼出来，抽成两个函数：分段建站的预览（① 骨架、② 能看了）在出 logo、
+  //    出图之前就要它们；images 阶段照旧调它们，再往 brand 里添坐标 / logo、往页里填图（那几步不碰导航和 seo）。
+  //    `say` = 日志：images 阶段那一次打 debug，预览那几次不打（同一段日志不重复三遍）。
+  const assembleBrand = (say = () => {}) => {
+    // Assemble config files
+    // TICKET-136: brand.name is per-locale. Default to companyName for the
+    // primary locale; merge in any explicit per-locale overrides from the
+    // dashboard form (e.g. {"zh":"耐克"} for a Nike site).
+    const brandName = brandNameRecord(companyName, brandNameByLocale, defaultLocale);
+    const brand = {
+      name: brandName,
+      tagline: ai.brand.tagline,
+      logoIcon: ai.brand.logoIcon,
+      logoUrl: logoUrl || '',
+      colors: theme.colors,
+      fonts: theme.fonts,
+      // #986: 风格设定（圆角/留白/阴影/按钮形状）跟配色、字体一起烤进 brand.json，新站第一次构建就带着它。
+      // 不加这行的话它们只在老板去后台换过一次装之后才出现 —— 同一套 theme，「刚建好的站」和「换过装
+      // 的站」长得不一样。
+      // 🔴 #1121 改了下半句：那句「换装那条路不受影响：applied 为真时 sync-config 照旧用注册表覆盖
+      // 内存里这份」今天是假的。构建期已经没有任何覆盖了（sync-config.js §theme），brand.json 是唯一
+      // 真相；换主题时由 worker 把新主题那套**写进这个文件**（worker/main.go 的 processThemeTask）。
+      // 所以这三行（colors / fonts / settings）在建站那天写什么，就一直是这个站的样子，直到老板自己
+      // 换主题 —— 包括他勾了「照抄参照站配色」拿到的那套（见下面 refPrefs 那一段），以前它会在他第一次
+      // 换装时被静默盖掉。
+      settings: theme.settings,
+      email: ai.brand.email || email || 'info@example.com',
+      locations: ai.brand.locations,
+      googleFormUrl: "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform",
+      googleFormEntries: { source: "entry.0000000000", services: "entry.0000000000", propertyType: "entry.0000000000", urgency: "entry.0000000000" }
+    };
+    // #1596 —— 代码拼的站级计划那条路：payload 没给邮箱 ⟹ 没有这个键（上面那个 'info@example.com' 兜底是 AI 那条路的既有行为，不动）。
+    if (brandByCode && !ai.brand.email) delete brand.email;
+
+    // Write socialLinks to brand.json deterministically (not relying on Claude prompt)
+    if (onlinePresence && onlinePresence.socialLinks) {
+      const sl = onlinePresence.socialLinks;
+      const filtered = {};
+      for (const [platform, url] of Object.entries(sl)) {
+        if (url) filtered[platform] = url;
+      }
+      if (Object.keys(filtered).length > 0) {
+        brand.socialLinks = filtered;
+        say(`Social links written to brand.json: ${Object.keys(filtered).join(', ')}`);
+      }
+    }
+
+    // Override colors/fonts with reference site analysis when available
+    if (refAnalysis && refPrefs.includes('colors-fonts') && refAnalysis.primaryColor) {
+      brand.colors = {
+        primary: generatePalette(refAnalysis.primaryColor),
+        accent: generateAccentPalette(refAnalysis.accentColor || refAnalysis.primaryColor),
+      };
+      say(`Colors overridden from reference site: primary=${refAnalysis.primaryColor}, accent=${refAnalysis.accentColor || 'same as primary'}`);
+    }
+    if (refAnalysis && refPrefs.includes('colors-fonts') && refAnalysis.headingFont) {
+      const refFonts = buildFontsFromRef(refAnalysis.headingFont, refAnalysis.bodyFont);
+      if (refFonts) {
+        brand.fonts = refFonts;
+        say(`Fonts overridden from reference site: heading=${refAnalysis.headingFont}, body=${refAnalysis.bodyFont || refAnalysis.headingFont}`);
+      } else {
+        say(`Font "${refAnalysis.headingFont}" not in whitelist, keeping theme fonts`);
+      }
+    }
+    return brand;
+  };
+  const assembleNavSeo = (pages, say = () => {}) => {
+    // #1635 —— 只有「照抄参照站结构」那条路走得到这个兜底（配方那条路在上面整个覆盖成配方的 ctaPage）。
+    const ctaPage = ai.navigation.ctaPage || 'contact';
+    // #1601 —— 配方在 contact 被后台关掉时让按钮指首页（lib/site-recipe.js §sitePagesFor）。
+    const ctaSlug = ctaPage === 'home' ? '/' : `/${ctaPage}`;
+
+    const allNonHome = pages.filter(p => p.slug !== 'home').sort((a, b) => (a.navOrder ?? 99) - (b.navOrder ?? 99));
+    const serviceDetailPages = allNonHome.filter(p => p.serviceDetailPage === true);
+    const regularPages = allNonHome.filter(p => !p.serviceDetailPage);
+
+    // Header nav: regular pages only (service detail + keyword pages excluded)
+    // Footer: Quick Links column (service links handled by hardcoded Footer.tsx section)
+    // #1633 —— 主语言不是英文时用站级那一通给的主语言字；没给 / 英文站 ⟹ 今天的英文常量。
+    const primaryWord = (v, en) => (defaultLocale !== 'en' && typeof v === 'string' && v.trim() ? v.trim() : en);
+    const homeLabel = primaryWord(ai.homeLabel, "Home");
+    const footerColumns = [{
+      title: primaryWord(ai.quickLinksTitle, "Quick Links"),
+      links: [
+        { label: homeLabel, href: "/" },
+        ...regularPages
+          .filter(p => p.navLabel)
+          .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
+      ]
+    }];
+
+    const navigation = {
+      header: {
+        links: [
+          { label: homeLabel, href: "/" },
+          // #1601 —— 配方定顶部导航放哪几页（判据：到得了每一张服务页）；照抄参照站结构那条老路仍是全部普通页。
+          ...(recipeNav ? allNonHome.filter((p) => recipeNav.has(p.slug)) : regularPages)
+            .filter(p => p.navLabel && p.slug !== ctaPage)
+            .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
+        ],
+        cta: { label: ai.navigation.ctaLabel, href: ctaSlug }
+      },
+      footer: {
+        description: ai.navigation.footerDescription,
+        columns: footerColumns,
+        copyright: `${companyName}. All rights reserved.`
+      }
+    };
+
+    const locale = localeMap[languageName] || 'en_CA';
+    const hoursCheck = verifyTranscription(hours, ai.seo && ai.seo.openingHours);
+    if (hoursCheck.reason) say(`[hours] 营业时间不出：${hoursCheck.reason}`);
+    else if (hoursCheck.segments.length) say(`[hours] 营业时间 ${hoursCheck.segments.length} 段，逐个小时数都在原文里`);
+    const rating = ratingFrom(onlinePresence);
+    const seo = {
+      domain: siteUrl, // #1547：manager 给的地址，不再由 AI 编
+      locale,
+      siteTitle: ai.seo.siteTitle,
+      siteDescription: ai.seo.siteDescription,
+      verification: { google: "YOUR_GOOGLE_VERIFICATION_CODE" },
+      schema: {
+        areaServed: ai.seo.areaServed,
+        addresses: ai.seo.addresses,
+        // #1551 —— 营业时间只出核过的那几段；没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出空壳，contact 那一行不画）。
+        ...(hoursCheck.segments.length ? { openingHours: hoursCheck.segments } : {}),
+        // #1551 —— 评分只在抓到真实平台评分时才有（§ratingFrom），不让 AI 编。
+        ...(rating ? { aggregateRating: rating } : {}),
+        priceRange: ai.seo.priceRange,
+        offerCatalogName: ai.seo.offerCatalogName
+      }
+    };
+    return { navigation, seo };
+  };
+  // #1599 ① —— 某一页还没写（plan 做完时每一页都还没写）就用骨架页（#1596 §skeletonSections，同 §pageSkeleton 那一支）顶上，标 placeholder。
+  const skeletonPage = (p) => ({
+    ...p,
+    seo: { ...(p.seo && typeof p.seo === 'object' ? p.seo : {}), placeholder: true },
+    sections: fallbackSite.skeletonSections(p, { companyName, sitePages: ai.pages, ctaPage: ai.navigation && ai.navigation.ctaPage, disabledBlocks }),
+  });
+  // 给预览用的一整份 content（同本函数的回值形状），pages 由调用方给。
+  const previewContent = (pages) => ({ brand: assembleBrand(), ...assembleNavSeo(pages), services: ai.services, pages, ai });
+
   if (resumeFrom >= 0) {
     let recipe;
     ({ ai, idRenames = [], brandByCode = false, recipe = null } = resumeState);
@@ -2974,6 +3151,8 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     }
     checkpoint('plan', { ai, idRenames, brandByCode, recipe: recipeSnapshot() });
   }
+  // #1599 ① —— 站级结构定了，每页先用骨架页拼一版给预览构建（不通知平台）。pages 已存档（从 pages 或更后续跑）⟹ 没有 ①。
+  if (resumeFrom < 1) onPhaseDone('plan', previewContent(ai.pages.map(skeletonPage)));
 
   // ── #1598 pages 阶段：每页一通 + 整站那一条块库检查。pages 已存档 ⟹ 整段跳过（存档里那份 ai 每页都已带着 sections）。
   if (resumeFrom >= 1) {
@@ -3333,76 +3512,20 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     }
     checkpoint('pages', { ai, brandByCode, recipe: recipeSnapshot() });
   }
+  // #1599 ② —— 每页都写好了（两次都没写成的那页是骨架页，留有 `degraded` 记录）：这一版构建好就发 preview-viewable。
+  //    images 已存档 ⟹ 本函数根本不会被调（main 直接用存档里的 content），所以这里不用判 resumeFrom >= 2。
+  onPhaseDone('pages', previewContent(ai.pages));
 
   progress('Parsing AI response...', 42);
 
   progress('Assembling configuration...', 45);
 
-  // Assemble config files
-  // TICKET-136: brand.name is per-locale. Default to companyName for the
-  // primary locale; merge in any explicit per-locale overrides from the
-  // dashboard form (e.g. {"zh":"耐克"} for a Nike site).
-  const brandName = brandNameRecord(companyName, brandNameByLocale, defaultLocale);
-  const brand = {
-    name: brandName,
-    tagline: ai.brand.tagline,
-    logoIcon: ai.brand.logoIcon,
-    logoUrl: logoUrl || '',
-    colors: theme.colors,
-    fonts: theme.fonts,
-    // #986: 风格设定（圆角/留白/阴影/按钮形状）跟配色、字体一起烤进 brand.json，新站第一次构建就带着它。
-    // 不加这行的话它们只在老板去后台换过一次装之后才出现 —— 同一套 theme，「刚建好的站」和「换过装
-    // 的站」长得不一样。
-    // 🔴 #1121 改了下半句：那句「换装那条路不受影响：applied 为真时 sync-config 照旧用注册表覆盖
-    // 内存里这份」今天是假的。构建期已经没有任何覆盖了（sync-config.js §theme），brand.json 是唯一
-    // 真相；换主题时由 worker 把新主题那套**写进这个文件**（worker/main.go 的 processThemeTask）。
-    // 所以这三行（colors / fonts / settings）在建站那天写什么，就一直是这个站的样子，直到老板自己
-    // 换主题 —— 包括他勾了「照抄参照站配色」拿到的那套（见下面 refPrefs 那一段），以前它会在他第一次
-    // 换装时被静默盖掉。
-    settings: theme.settings,
-    email: ai.brand.email || email || 'info@example.com',
-    locations: ai.brand.locations,
-    googleFormUrl: "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform",
-    googleFormEntries: { source: "entry.0000000000", services: "entry.0000000000", propertyType: "entry.0000000000", urgency: "entry.0000000000" }
-  };
-  // #1596 —— 代码拼的站级计划那条路：payload 没给邮箱 ⟹ 没有这个键（上面那个 'info@example.com' 兜底是 AI 那条路的既有行为，不动）。
-  if (brandByCode && !ai.brand.email) delete brand.email;
-
-  // Write socialLinks to brand.json deterministically (not relying on Claude prompt)
-  if (onlinePresence && onlinePresence.socialLinks) {
-    const sl = onlinePresence.socialLinks;
-    const filtered = {};
-    for (const [platform, url] of Object.entries(sl)) {
-      if (url) filtered[platform] = url;
-    }
-    if (Object.keys(filtered).length > 0) {
-      brand.socialLinks = filtered;
-      debug(`Social links written to brand.json: ${Object.keys(filtered).join(', ')}`);
-    }
-  }
+  const brand = assembleBrand(debug);
 
   // #1489 —— 地址 → 坐标，查一次存进站点数据（contact 的地图点开时要 bbox / marker）。页面打开时不查；
   //    查不到 / 网络错 ⟹ 不写 geo、地图不渲染，建站照常（geocodeBrand 不抛）。只查坐标，瓦片一张都不取（OSM 瓦片条款禁预取）。
   const geoResult = await geocodeBrand(brand, { log: debug });
   debug(`Geocode brand.locations[0]: ${geoResult}`);
-
-  // Override colors/fonts with reference site analysis when available
-  if (refAnalysis && refPrefs.includes('colors-fonts') && refAnalysis.primaryColor) {
-    brand.colors = {
-      primary: generatePalette(refAnalysis.primaryColor),
-      accent: generateAccentPalette(refAnalysis.accentColor || refAnalysis.primaryColor),
-    };
-    debug(`Colors overridden from reference site: primary=${refAnalysis.primaryColor}, accent=${refAnalysis.accentColor || 'same as primary'}`);
-  }
-  if (refAnalysis && refPrefs.includes('colors-fonts') && refAnalysis.headingFont) {
-    const refFonts = buildFontsFromRef(refAnalysis.headingFont, refAnalysis.bodyFont);
-    if (refFonts) {
-      brand.fonts = refFonts;
-      debug(`Fonts overridden from reference site: heading=${refAnalysis.headingFont}, body=${refAnalysis.bodyFont || refAnalysis.headingFont}`);
-    } else {
-      debug(`Font "${refAnalysis.headingFont}" not in whitelist, keeping theme fonts`);
-    }
-  }
 
   // TICKET-159 + TICKET-160: Brand Site AI Logo Generation — silent build-time
   // via Nano Banana (Gemini 2.5 Flash Image). If the user uploaded a logo
@@ -3498,70 +3621,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     debug(`[sanitize-image-urls] dropped ${droppedPlaceholders} invalid imageUrl placeholder(s) — template will render gradient fallback`);
   }
 
-  // #1635 —— 只有「照抄参照站结构」那条路走得到这个兜底（配方那条路在上面整个覆盖成配方的 ctaPage）。
-  const ctaPage = ai.navigation.ctaPage || 'contact';
-  // #1601 —— 配方在 contact 被后台关掉时让按钮指首页（lib/site-recipe.js §sitePagesFor）。
-  const ctaSlug = ctaPage === 'home' ? '/' : `/${ctaPage}`;
-
-  const allNonHome = ai.pages.filter(p => p.slug !== 'home').sort((a, b) => (a.navOrder ?? 99) - (b.navOrder ?? 99));
-  const serviceDetailPages = allNonHome.filter(p => p.serviceDetailPage === true);
-  const regularPages = allNonHome.filter(p => !p.serviceDetailPage);
-
-  // Header nav: regular pages only (service detail + keyword pages excluded)
-  // Footer: Quick Links column (service links handled by hardcoded Footer.tsx section)
-  // #1633 —— 主语言不是英文时用站级那一通给的主语言字；没给 / 英文站 ⟹ 今天的英文常量。
-  const primaryWord = (v, en) => (defaultLocale !== 'en' && typeof v === 'string' && v.trim() ? v.trim() : en);
-  const homeLabel = primaryWord(ai.homeLabel, "Home");
-  const footerColumns = [{
-    title: primaryWord(ai.quickLinksTitle, "Quick Links"),
-    links: [
-      { label: homeLabel, href: "/" },
-      ...regularPages
-        .filter(p => p.navLabel)
-        .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
-    ]
-  }];
-
-  const navigation = {
-    header: {
-      links: [
-        { label: homeLabel, href: "/" },
-        // #1601 —— 配方定顶部导航放哪几页（判据：到得了每一张服务页）；照抄参照站结构那条老路仍是全部普通页。
-        ...(recipeNav ? allNonHome.filter((p) => recipeNav.has(p.slug)) : regularPages)
-          .filter(p => p.navLabel && p.slug !== ctaPage)
-          .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
-      ],
-      cta: { label: ai.navigation.ctaLabel, href: ctaSlug }
-    },
-    footer: {
-      description: ai.navigation.footerDescription,
-      columns: footerColumns,
-      copyright: `${companyName}. All rights reserved.`
-    }
-  };
-
-  const locale = localeMap[languageName] || 'en_CA';
-  const hoursCheck = verifyTranscription(hours, ai.seo && ai.seo.openingHours);
-  if (hoursCheck.reason) debug(`[hours] 营业时间不出：${hoursCheck.reason}`);
-  else if (hoursCheck.segments.length) debug(`[hours] 营业时间 ${hoursCheck.segments.length} 段，逐个小时数都在原文里`);
-  const rating = ratingFrom(onlinePresence);
-  const seo = {
-    domain: siteUrl, // #1547：manager 给的地址，不再由 AI 编
-    locale,
-    siteTitle: ai.seo.siteTitle,
-    siteDescription: ai.seo.siteDescription,
-    verification: { google: "YOUR_GOOGLE_VERIFICATION_CODE" },
-    schema: {
-      areaServed: ai.seo.areaServed,
-      addresses: ai.seo.addresses,
-      // #1551 —— 营业时间只出核过的那几段；没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出空壳，contact 那一行不画）。
-      ...(hoursCheck.segments.length ? { openingHours: hoursCheck.segments } : {}),
-      // #1551 —— 评分只在抓到真实平台评分时才有（§ratingFrom），不让 AI 编。
-      ...(rating ? { aggregateRating: rating } : {}),
-      priceRange: ai.seo.priceRange,
-      offerCatalogName: ai.seo.offerCatalogName
-    }
-  };
+  const { navigation, seo } = assembleNavSeo(ai.pages, debug);
 
   return { brand, navigation, seo, services: ai.services, pages: ai.pages, ai };
 }
