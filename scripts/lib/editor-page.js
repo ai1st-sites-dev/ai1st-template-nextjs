@@ -32,14 +32,15 @@ const { readRootValues } = require('./editor-root.js');
  * @param {string} rootDir 模板根（`site/` 的上一层）
  * @param {string} locale
  * @param {string} slug
+ * @param {string} [siteDir] 从哪份站点目录读，缺省 `<rootDir>/site`。#1599 的分段预览构建读的是一份快照（sync-config 的
+ *   `SYNC_SITE_DIR`），编辑器页要跟它读同一份 —— 那一刻 `site/` 里的页面还没写出来。`file` 照旧是 `site/…`（存盘写回的是容器里的 `site/`）。
  * @returns {{ file: string, raw: Record<string, unknown>, baseHash: string, siteBlocks: Record<string, any>, refs: Record<string, string[]>, slugs: string[] } | { error: string }}
  *   `file` 是相对仓根的路径（`site/en/pages/home.json` / 扁平站 `site/pages/home.json`）。
  *   `baseHash` 是那个文件**字节**的 sha256（hex）—— 编辑器存盘时带回去，`scripts/write-page.js` 拿它跟
  *   容器里当前的文件比：不一样就说明编辑器打开之后这一页被别处改过（检查器 / AI 聊天 / 另一个标签页），
  *   拒绝写入，而不是拿这份旧底稿把别人的改动冲掉（#1409 QA2 r1 第 1 条）。
  */
-function editorSource(rootDir, locale, slug) {
-  const siteDir = path.join(rootDir, 'site');
+function editorSource(rootDir, locale, slug, siteDir = path.join(rootDir, 'site')) {
   const shape = readSiteShape(siteDir);
   // 🔴 问不出形状就什么都不判（site-shape.js 文件头第三条）—— 猜成扁平会去读一个构建不读的文件。
   if (!shape) return { error: 'no-site' };
@@ -55,7 +56,7 @@ function editorSource(rootDir, locale, slug) {
   const bytes = fs.readFileSync(abs);
   const raw = JSON.parse(bytes.toString('utf-8'));
   return {
-    file: path.relative(rootDir, abs).split(path.sep).join('/'),
+    file: ['site', ...path.relative(siteDir, abs).split(path.sep)].join('/'),
     raw,
     baseHash: crypto.createHash('sha256').update(bytes).digest('hex'),
     siteBlocks: readSiteBlocks(localeDir),

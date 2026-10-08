@@ -214,6 +214,7 @@ function humanize(name) {
 /**
  * @param {object} [opts]
  * @param {string} [opts.rootDir]       模板根（`site/` 的上一层）；只用来读这个站穿哪套主题
+ * @param {string} [opts.siteDir]       站点目录，缺省 `<rootDir>/site`（#1599：分段预览构建读快照，见 editor-page.js §editorSource）
  * @param {string} [opts.registryPath]  透传给 blockShapeCatalog（守卫用它换一份假注册表）
  * @param {string} [opts.blocksDir]     透传给 blockShapeCatalog
  * @param {string} [opts.layoutsDir]    `page-layouts/`（#1405 的 root 字段用）；不给按 page-layout.js 的默认
@@ -231,7 +232,7 @@ function editorSchema(opts = {}) {
   const catalog = blockShapeCatalog({ registryPath: opts.registryPath, blocksDir: opts.blocksDir });
   let selection = {};
   if (opts.rootDir) {
-    const { structureThemeId } = siteRegions.resolveSiteRegionLayout(path.join(opts.rootDir, 'site'));
+    const { structureThemeId } = siteRegions.resolveSiteRegionLayout(opts.siteDir || path.join(opts.rootDir, 'site'));
     if (structureThemeId) selection = shapesFor(structureThemeId);
   }
   const manifestsObj = Object.fromEntries(catalog.manifests);

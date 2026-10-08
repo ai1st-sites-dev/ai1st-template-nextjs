@@ -21,6 +21,8 @@
 //     关键词页照常补齐（最后那版 out/ 里有）、报告里图那一行 generated < requested
 //   C（反向对照）：把 ② 那一版里一个导航页（非首页）换成骨架页、不发 degraded（= 「② 没做完就发了事件」），A 那把尺子必须读红
 //   D（没打开）：不给 STAGED_PREVIEW_DIR ⟹ 不发任何预览事件、不建 out —— 跟改之前一样
+//   A / B 都按真 AI 时序跑（桩 §gate，r4）：② 那次构建结束之前 site/ 里一页都没有 —— 构建只许读快照（编辑器页偷读 site/ 那次，
+//   appdev 上两次阶段构建全红、preview-viewable 没发，而这份测试因为桩瞬时写满了 site/ 一直是绿的）
 'use strict';
 
 const assert = require('assert');
@@ -55,7 +57,29 @@ const fs = require('fs');
 const cfg = JSON.parse(fs.readFileSync(process.env.SP_STUB_CFG, 'utf8'));
 // #1599 —— 生图那一家（Nano Banana）在 cfg.images === 'ok' 的那几跑回一张假图（同 create-site-all-locales.test.js），其余一律离线：
 //    「图阶段失败」那一跑就是离线那一支（logo 和每一张照片都失败）。
+// #1599 r4 —— 真 AI 时序：cfg.holdAfterPages 的那几跑，pages 阶段之后的第一次联网（geocode / 生图）等 ② 那次构建（#2）跑完才放行。
+//    真建站里 pages 之后还要几分钟 AI，② 构建期间 site/ 里一页都还没写（页面只在快照里）；桩是瞬时的，不拦的话 site/ 在构建
+//    预渲染之前就被写满了 ⟹ 「构建偷读 site/」这一类缺陷在这里永远是绿的（appdev site-fd7e9c78：`#1409 editor: en/home → no-page`，
+//    两次阶段构建全红、preview-viewable 没发，而这份测试 19/19 绿）。何时拦看 #2 的快照目录，何时放行读 create-site 自己打的
+//    「#2（pages 之后）…」那一行（成功失败都打）。
+let gate = async () => {};
+if (cfg.holdAfterPages) {
+  let seen = '';
+  const w = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk, ...a) => { seen += String(chunk); return w(chunk, ...a); };
+  let held = false;
+  gate = async () => {
+    // #2 的快照目录在了 = pages 阶段做完了（phaseDone 当场同步拍快照；这几跑 STAGED_PREVIEW_KEEP=1，快照不删）
+    if (held || !fs.existsSync(require('path').join(process.env.STAGED_PREVIEW_DIR, '2', 'site'))) return;
+    held = true;
+    const t0 = Date.now();
+    while (!/\[staged-preview\] #2（pages 之后/.test(seen) && Date.now() - t0 < 10 * 60 * 1000) await new Promise((r) => setTimeout(r, 200));
+    const done = /\[staged-preview\] #2（pages 之后/.test(seen);
+    fs.appendFileSync(process.env.SP_STUB_CALLS, JSON.stringify({ kind: 'hold', done, ms: Date.now() - t0, siteHome: fs.existsSync('site/zh/pages/home.json') }) + '\n');
+  };
+}
 globalThis.fetch = async (url) => {
+  await gate();
   if (cfg.images === 'ok' && String(url).includes('generativelanguage')) {
     return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ inlineData: { data: Buffer.from('fakejpg').toString('base64') } }] } }] }), text: async () => '' };
   }
@@ -380,15 +404,25 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
   const D = freshRepo('d');
   const t0 = Date.now();
   const [RA, RB, RC, RD] = await Promise.all([
-    stagedRun('a', A, PAYLOAD({ secondaryLocales: ['en'], geminiApiKey: 'stub-key' }), { cfg: { images: 'ok' } }),
-    stagedRun('b', B, PAYLOAD({ geminiApiKey: 'stub-key' }), { cfg: {} }),
+    stagedRun('a', A, PAYLOAD({ secondaryLocales: ['en'], geminiApiKey: 'stub-key' }), { cfg: { images: 'ok', holdAfterPages: true } }),
+    stagedRun('b', B, PAYLOAD({ geminiApiKey: 'stub-key' }), { cfg: { holdAfterPages: true } }),
     stagedRun('c', C, PAYLOAD(), { killAfterViewable: true }),
     run('d', D, PAYLOAD(), { staged: false }),
   ]);
   console.log(`   四跑用时 ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 
+  // #1599 r4 —— 桩 §gate 的读数：A / B 两跑真的按真 AI 时序走了（② 构建期间 site/ 里还没有页面）。没拦住 = 下面那几格量的又是瞬时桩的竞态。
+  const holds = (repo) => fs.readFileSync(path.join(repo.root, 'calls.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((c) => c.kind === 'hold');
+  const heldBeforeSiteWritten = (repo) => () => {
+    const h = holds(repo);
+    assert.strictEqual(h.length, 1, JSON.stringify(h));
+    assert.strictEqual(h[0].done, true, `#2 构建 10 分钟没结束：${JSON.stringify(h[0])}`);
+    assert.strictEqual(h[0].siteHome, false, 'pages 之后、#2 构建结束时 site/zh/pages/home.json 已经在了 —— 没量到真时序');
+  };
+
   console.log('── A：图片成功、带第二语言 en');
   const vA = RA.st.atViewable;
+  check('真 AI 时序：pages 之后第一次联网等到 ② 那次构建结束才放行，那一刻 site/ 里还没有页面（阳性对照，同 appdev site-fd7e9c78）', heldBeforeSiteWritten(A));
   check('建站成功（rc 0、没有 error 事件）', () => assert.ok(RA.rc === 0 && !RA.error, `rc=${RA.rc} ${RA.error}\n${RA.stderr.slice(-1500)}`));
   check('preview-viewable 恰好一次，在 pages 阶段做完之后（最后一条「Page i/N written」之后）', () => {
     const v = ofType(RA, 'preview-viewable');
@@ -478,6 +512,7 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
   });
 
   console.log('── B：图阶段失败（生图全部离线）');
+  check('真 AI 时序（单语言站）：同 A，② 构建期间 site/ 里还没有页面', heldBeforeSiteWritten(B));
   check('照常建完：rc 0、三次 preview-reload 都发、result.json final（⟹ entrypoint 直接发 preview-started）', () => {
     assert.ok(RB.rc === 0 && !RB.error, `rc=${RB.rc} ${RB.error}\n${RB.stderr.slice(-1500)}`);
     assert.strictEqual(ofType(RB, 'preview-viewable').length, 1);

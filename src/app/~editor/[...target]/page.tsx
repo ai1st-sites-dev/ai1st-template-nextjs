@@ -65,7 +65,12 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
   const page = getPage(slug, locale);
   if (!page) notFound();
 
-  const src = editorSource(path.join(process.cwd()), locale, slug);
+  // #1599 —— 站点文件从 sync-config 读的**同一份**目录读（同 `sync-config.js` 那行 `SYNC_SITE_DIR`）：分段预览构建的输入是
+  // 一份快照，那一刻 `site/` 里的页面还没写出来（实测 appdev site-fd7e9c78：`en/home → no-page`，两次阶段构建全红、
+  // `preview-viewable` 没发）。读 `site/` 就是拿别的时刻的站去配这次构建的 config。
+  const root = process.cwd();
+  const siteDir = process.env.SYNC_SITE_DIR ? path.resolve(process.env.SYNC_SITE_DIR) : path.join(root, 'site');
+  const src = editorSource(root, locale, slug, siteDir);
   if ('error' in src) {
     // 构建时读不到这一页的文件 = 配置和磁盘对不上。让构建红，别导出一个存不了盘的编辑器。
     throw new Error(`#1409 editor: ${locale}/${slug} → ${src.error}`);
@@ -76,9 +81,9 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
   // 🔴 路径从 `process.cwd()` 起算、显式传进去：那几个脚本默认按自己的 `__dirname` 找 `blocks/` 与
   //    注册表，而被打进 Next 服务端包之后 `__dirname` 是产物目录（实测报 `ENOENT …/.next/server/app/src/
   //    lib/sections/registry.generated.ts`）—— 跟 `/__catalog` 的 `CATALOG_PATHS` 同一个坑。
-  const root = process.cwd();
   const schema = editorSchema({
     rootDir: root,
+    siteDir,
     registryPath: path.join(root, 'src', 'lib', 'sections', 'registry.generated.ts'),
     blocksDir: path.join(root, 'blocks'),
     layoutsDir: path.join(root, 'page-layouts'),
