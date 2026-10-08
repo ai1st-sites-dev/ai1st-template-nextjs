@@ -133,6 +133,17 @@ function toProp(field, value) {
   }
 }
 
+/**
+ * #1670 —— 列表项里一个对象被拆成几格平铺（价格块套餐的 `price` → Price / Yearly price，editor-schema.js §fieldsOf）：
+ * 改其中一格之后，那个对象变成什么。只换那一个键、其余键原样；清空一格 ⟹ 删掉那个键（不留 `"yearly": ""`）；
+ * 全清空 ⟹ undefined（整个键不写 —— 跟 AI 写的形状一样：没有价格就没有 `price`）。EditorApp 的输入框调的就是它。
+ */
+function nestedPartSet(value, sub, text) {
+  const next = isPlainObject(value) ? { ...value } : {};
+  if (text === '' || text === undefined || text === null) delete next[sub]; else next[sub] = text;
+  return Object.keys(next).length ? next : undefined;
+}
+
 function emptyish(v) {
   return v === undefined || v === '' || v === null;
 }
@@ -196,6 +207,7 @@ function mergeSlot(data, field, prop) {
         const out = {};
         for (const [k, v] of Object.entries(it || {})) {
           if (k.startsWith('_puck')) continue; // Puck 自己的簿记键（若有）不进文件
+          if (v === undefined) continue; // #1670 —— 拆成几格的对象全清空是 undefined（§nestedPartSet）：这个键不写
           out[k] = v;
         }
         return out;
@@ -869,5 +881,5 @@ function patchedFieldLabels(component, patch) {
 module.exports = {
   UNKNOWN_TYPE, describeSave, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
-  aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions,
+  aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions, nestedPartSet,
 };

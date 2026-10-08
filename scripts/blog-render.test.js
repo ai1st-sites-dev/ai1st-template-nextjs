@@ -281,7 +281,9 @@ console.log('\n── AC10 block-roles · 首页配方');
   check('blog' in recipe.NOT_IN_POOL, "'blog' 在 NOT_IN_POOL");
   const all = manifestLib.loadManifests();
   const pool = recipe.poolFor(all);
-  check(!pool.includes('blog') && pool.length === 11, `poolFor 不含 blog、池子 11 种（读到 ${pool.length}）`);
+  // #1670 —— 种数原来写死成 11；pricing 出池后是 10。改成现算「首页组减排除名单」，别的票再动排除名单时这格不跟着红。
+  const wantLen = [...all.values()].filter((m) => m.prompt && m.prompt.group === 'homepage' && !(m.type in recipe.NOT_IN_POOL)).length;
+  check(!pool.includes('blog') && pool.length === wantLen, `poolFor 不含 blog、池子 ${wantLen} 种（首页组减排除名单现算；读到 ${pool.length}）`);
   const saved = recipe.NOT_IN_POOL['blog'];
   let leak;
   try { delete recipe.NOT_IN_POOL['blog']; leak = recipe.poolFor(all); } finally { recipe.NOT_IN_POOL['blog'] = saved; }

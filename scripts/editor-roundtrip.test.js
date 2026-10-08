@@ -107,7 +107,9 @@ console.log('② 字段两层比');
       const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...choiceSubs, ...itemSubs,
         ...(f.kind === 'link' ? ['href'] : []), ...(special(f.slot) === 'formRef' ? ['id'] : []),
         // #1518 —— 项形状里必有 `href` 的列表槽（按钮列表）也多一个 `href`。哪几个槽算数由下面 #1518 那一节逐个钉死。
-        ...(f.kind === 'list' && itemTopKeys((slots[f.slot] || {}).shape).includes('href') ? ['href'] : [])])].sort();
+        ...(f.kind === 'list' && itemTopKeys((slots[f.slot] || {}).shape).includes('href') ? ['href'] : []),
+        // #1670 —— 项形状里有价格对象 `price: {monthly, yearly?}` 的列表槽（价格块的套餐）多一个 `price`。下面 #1670 那一节逐格钉死。
+        ...(f.kind === 'list' && /price\s*:\s*\{\s*monthly\s*,\s*yearly\?\s*\}/.test(String((slots[f.slot] || {}).shape || '')) ? ['price'] : [])])].sort();
       const gotSub = f.subs.map((s) => s.sub).sort();
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
@@ -1192,6 +1194,68 @@ console.log('\n#1521 按钮列表的 Link 格带 sources');
   }
   const sb = { promo: { type: 'cta', data: { headline: 'x', ctas: [{ label: 'Call', href: { source: 'phone' } }] } } };
   check(linkRejection('site-blocks', sb, null) === null, "linkRejection('site-blocks') 对引用按钮放行");
+}
+
+// ══ #1670：价格块每个套餐能改价格 —— Price（price.monthly）/ Yearly price（price.yearly），写回同一个嵌套对象 ═════════
+console.log('\n#1670 价格块套餐的价格两格');
+{
+  // AC2 上半：哪几个列表槽有拆成几格的对象 —— 钉死成一张表；pricing.plans 的 price 恰好是这两格、这两个显示名
+  const nestedAt = [];
+  for (const c of schema.components) for (const f of c.fields) for (const x of f.subs || []) {
+    if (x.nested) nestedAt.push(`${c.type}.${f.slot}.${x.sub}=${x.nested.map((n) => `${f.slot}[*].${x.sub}.${n.sub}:${n.label}`).join('+')}`);
+  }
+  check(JSON.stringify(nestedAt) === JSON.stringify(['pricing.plans.price=plans[*].price.monthly:Price+plans[*].price.yearly:Yearly price']),
+    '拆成几格的对象只有一处：pricing.plans 每项的 price → price.monthly「Price」+ price.yearly「Yearly price」', JSON.stringify(nestedAt));
+  const plansF = compOf('pricing').fields.find((f) => f.slot === 'plans');
+  check(plansF && plansF.control === 'list' && JSON.stringify(plansF.subs.map((x) => x.sub)) === JSON.stringify(['name', 'price', 'period', 'description', 'badge']),
+    'plans 仍是列表控件，price 排在 name 之后、period 之前（照项形状的键序）', JSON.stringify(plansF && plansF.subs.map((x) => x.sub)));
+  // 反向：项形状里没有那个价格对象 ⟹ 不长这两格（形状判据分得开）；按钮对象 cta 不被当成价格拆格
+  const { fieldsOf } = require('./lib/editor-schema.js');
+  const pm = JSON.parse(JSON.stringify(manifests.get('pricing')));
+  pm.slots.plans.shape = pm.slots.plans.shape.replace(/price:\s*\{monthly, yearly\?\},\s*/, '');
+  const noPrice = fieldsOf(pm).find((f) => f.slot === 'plans');
+  check(noPrice && !noPrice.subs.some((x) => x.sub === 'price' || x.nested), '反向对照：项形状里去掉 price 对象 ⟹ 不长价格两格', JSON.stringify(noPrice && noPrice.subs));
+  check(!plansF.subs.some((x) => x.sub === 'cta'), 'cta 按钮对象不出格子（本票不做，正文「不做」第 1 条）');
+
+  // AC2 下半：存盘往返。站上那份（site-3cd07ef6 首页价格块，取自 appdev 的形状）
+  const plans = [
+    { name: 'Acupuncture + Tuina', price: { monthly: 'Contact Us' }, period: 'per visit', description: 'Full session', features: ['60 min'], cta: { label: 'Book', href: '/contact' } },
+    { name: 'Membership', price: { monthly: '$49', yearly: '$39' }, period: '/ month', description: 'Monthly care', features: ['Two visits'], cta: { label: 'Join', href: '/contact' }, featured: true, badge: 'Most popular' },
+  ];
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-pricing-0', type: 'pricing', data: { headline: 'Prices', plans } }] };
+  check(convert.deepEqual(roundTrip(raw), raw), '价格块：打开就存，deepEqual');
+  const { initial, data } = openPage(raw);
+  const c = data.content.find((x) => x.type === 'pricing');
+  check(JSON.stringify(c.props.plans[0].price) === JSON.stringify({ monthly: 'Contact Us' }), '打开时 Price 那一格拿到的是 price 对象（显示 Contact Us）', JSON.stringify(c.props.plans[0].price));
+  // 老板在 Price 那一格输入 $80（输入框调的就是 nestedPartSet）
+  c.props.plans[0].price = convert.nestedPartSet(c.props.plans[0].price, 'monthly', '$80');
+  // 第二个套餐：改 Price 不动 Yearly price；再把 Yearly price 清空
+  c.props.plans[1].price = convert.nestedPartSet(c.props.plans[1].price, 'monthly', '$59');
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const p0 = out.blocks[0].data.plans[0];
+  check(JSON.stringify(p0) === JSON.stringify({ ...plans[0], price: { monthly: '$80' } }),
+    '改 Price 存盘 ⟹ "price": {"monthly": "$80"}，套餐其余字段逐字节不变', JSON.stringify(p0));
+  check(!('price.monthly' in p0), '没有写出平键 "price.monthly"');
+  check(JSON.stringify(out.blocks[0].data.plans[1].price) === JSON.stringify({ monthly: '$59', yearly: '$39' }), '只改月付 ⟹ yearly 原样', JSON.stringify(out.blocks[0].data.plans[1].price));
+  check(out.blocks[0].data.headline === 'Prices' && JSON.stringify(Object.keys(out.blocks[0].data)) === JSON.stringify(['headline', 'plans']), '块里其余槽位不变');
+  // 反向对照：要是那一格写成平键（PM 裁定 ① 说的那种坏法），同一个判据必须红
+  const { initial: iB, data: dB } = openPage(raw);
+  const cB = dB.content.find((x) => x.type === 'pricing');
+  cB.props.plans[0]['price.monthly'] = '$80';
+  const outB = convert.puckToPage({ raw, data: dB, initial: iB, schema, slug: 'home' });
+  check(JSON.stringify(outB.blocks[0].data.plans[0]) !== JSON.stringify({ ...plans[0], price: { monthly: '$80' } }), '反向对照：写成平键 "price.monthly" ⟹ 上面那条判据分得开（不相等）');
+  // nestedPartSet 本身：清空一格删那个键；全清空回 undefined（存盘时整个 price 不写）；其余键原样
+  check(JSON.stringify(convert.nestedPartSet({ monthly: '$49', yearly: '$39' }, 'yearly', '')) === JSON.stringify({ monthly: '$49' }), '清空 Yearly price ⟹ 删掉 yearly，不留 ""');
+  check(convert.nestedPartSet({ monthly: '$49' }, 'monthly', '') === undefined, '两格都空 ⟹ undefined');
+  check(JSON.stringify(convert.nestedPartSet(undefined, 'monthly', '$80')) === JSON.stringify({ monthly: '$80' }), '新加的套餐（没有 price）填 Price ⟹ {monthly}');
+  const { initial: iC, data: dC } = openPage(raw);
+  const cC = dC.content.find((x) => x.type === 'pricing');
+  cC.props.plans[1].price = convert.nestedPartSet(convert.nestedPartSet(cC.props.plans[1].price, 'monthly', ''), 'yearly', '');
+  const pC = convert.puckToPage({ raw, data: dC, initial: iC, schema, slug: 'home' }).blocks[0].data.plans[1];
+  check(!('price' in pC) && pC.name === 'Membership', '两格都清空存盘 ⟹ 那个套餐没有 price 键，其余不变', JSON.stringify(pC));
+  // 锁住的块：价格那一格也是只读（Puck 键 `plans[*].price`）
+  const locked = convert.pageToPuck({ raw, blocks: raw.blocks, located: [{ at: 0, writable: false, reason: 'x' }], schema });
+  check(locked.content[0].readOnly && locked.content[0].readOnly['plans[*].price'] === true, '锁住的价格块：plans[*].price 只读', JSON.stringify(locked.content[0].readOnly));
 }
 
 console.log(`\n${pass} 过 · ${fail} 败`);

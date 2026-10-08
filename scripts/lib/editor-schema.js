@@ -27,6 +27,8 @@
 //                                                link 再多一个 `href`（显示名 Link，#1404 r3，理由在 §fieldsOf）
 //                       kind list 且项形状顶层必有 `href`（按钮列表 `[{label, href, …}]`）→ 每项也多一个 `href`（#1518，§itemTopKeys），
 //                                                它跟 link 那格一样带 `sources`（本店电话 / 邮箱，#1521）
+//                       kind list 且项形状里有 `price: {monthly, yearly?}`（价格块的套餐）→ 每项多一个 `price`，
+//                                                里面两格 Price / Yearly price（`nested`，#1670）
 // 🔴 「带 `sub`」≠「列表」：`link`（`{label, href}`）和 `object`（`hero-with-form.form`）也带 `sub`。
 //    把它们做成 array 字段，Puck 会把一个对象当数组编辑，存回去就坏了。
 //
@@ -47,6 +49,10 @@ const { BUTTON_SOURCES } = require('./item-sources');
 
 /** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
 const LINK_HREF = 'href';
+
+/** 列表项里的价格对象（#1670，`pricing.plans` 的 `price: {monthly, yearly?}`）：认它的形状，和它在编辑器里的两格。 */
+const ITEM_PRICE_SHAPE = /(^|[{,]\s*)price\s*:\s*\{\s*monthly\s*,\s*yearly\?\s*\}/;
+const ITEM_PRICE = { sub: 'price', label: 'Price', nested: [{ sub: 'monthly', label: 'Price' }, { sub: 'yearly', label: 'Yearly price' }] };
 
 /**
  * 一份 manifest → 字段清单（顺序照 manifest 里槽位的书写顺序）。
@@ -164,6 +170,16 @@ function fieldsOf(manifest) {
       //       它不是按钮，引用不会被展开，写进去那一行就不画了；电话 / 邮箱它另有 `kind=phone` / `kind=email` 两种项。
       if (itemTopKeys(spec && spec.shape).includes(LINK_HREF) && !subs.some((x) => x.sub === LINK_HREF)) {
         subs.push({ sub: LINK_HREF, label: 'Link', sources: BUTTON_SOURCES.slice() });
+      }
+      // #1670 —— 项形状里有价格对象 `price: {monthly, yearly?}`（pricing.plans）：每一项补一个 `price` 子字段，
+      //    里面两格 Price / Yearly price（`nested`），EditorApp 画成两个平铺的输入框、写回同一个 `price` 对象。
+      //    理由同 #1404 r3 那条：价格那一格（`pr-amount`）不挂 `data-slot`、月付年付由组件状态切换，往 `editLabel` 里加就得
+      //    动守卫；这里只在编辑器自己的 schema 里补，按形状认、不写块名单。项是整项携带的（editor-convert §toProp 的 list），
+      //    `price` 对象里其余的键原样带着。位置照项形状里的键序（`name` 之后、`period` 之前）。
+      const topKeys = itemTopKeys(spec && spec.shape);
+      if (ITEM_PRICE_SHAPE.test(String((spec && spec.shape) || '')) && !subs.some((x) => x.sub === ITEM_PRICE.sub)) {
+        const at = subs.findIndex((x) => topKeys.indexOf(x.sub) > topKeys.indexOf(ITEM_PRICE.sub));
+        subs.splice(at < 0 ? subs.length : at, 0, { sub: ITEM_PRICE.sub, label: ITEM_PRICE.label, nested: ITEM_PRICE.nested.map((n) => ({ ...n })) });
       }
     }
     fields.push({

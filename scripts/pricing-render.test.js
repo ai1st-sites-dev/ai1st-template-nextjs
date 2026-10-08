@@ -309,13 +309,17 @@ console.log('\n── AC10 block-roles · 首页配方');
   const recipe = require(path.join(NEXT, 'scripts', 'lib', 'homepage-recipe.js'));
   const all = manifestLib.loadManifests();
   const pool = recipe.poolFor(all);
-  // 📌 #1425（T3）—— 这里原来测「pricing-table 在 NOT_IN_POOL、种数 == 合入前且 pricing 原位顶掉它、拿掉它两个都进池、order == 它的、200 个配方不同时硬要两个、它在 block-roles 里仍 optional」；pricing-table 随旧库删了。今天的不变量：pricing 在池里、池子 11 种、排除名单不点它。
-  check(pool.includes('pricing') && !('pricing' in recipe.NOT_IN_POOL) && pool.length === 11, `poolFor 含 pricing、pricing 不在 NOT_IN_POOL、池子 11 种（读到 ${pool.length}）`);
-  // 反向对照：把 pricing 放进排除名单 ⟹ 它出池、种数 -1 —— 判据分得开。
-  recipe.NOT_IN_POOL['pricing'] = 'test';
-  let outPool;
-  try { outPool = recipe.poolFor(all); } finally { delete recipe.NOT_IN_POOL['pricing']; }
-  check(!outPool.includes('pricing') && outPool.length === pool.length - 1, `反向对照：排除 pricing ⟹ 它出池、种数 ${pool.length} → ${outPool.length}（-1）`);
+  // 📌 #1425（T3）—— 这里原来测「pricing-table 在 NOT_IN_POOL、种数 == 合入前且 pricing 原位顶掉它、拿掉它两个都进池、order == 它的、200 个配方不同时硬要两个、它在 block-roles 里仍 optional」；pricing-table 随旧库删了。
+  // 🔴 #1670 —— 不变量反过来了：pricing **不在**配方池里（建站时没有价格，抽中它的站首页被钉一块写着「Contact Us」的价格块）。
+  //    它仍在首页组里（prompt.group 见下一格）—— AI 自己在首页其余位置放不放，按 manifest 那行提示词判断。种数现算，不写死。
+  const wantLen = [...all.values()].filter((m) => m.prompt && m.prompt.group === 'homepage' && !(m.type in recipe.NOT_IN_POOL)).length;
+  check(!pool.includes('pricing') && ('pricing' in recipe.NOT_IN_POOL) && pool.length === wantLen, `poolFor 不含 pricing、pricing 在 NOT_IN_POOL、池子 ${wantLen} 种（现算；读到 ${pool.length}）`);
+  // 反向对照：把 pricing 从排除名单拿掉 ⟹ 它进池、种数 +1 —— 判据分得开。
+  const saved = recipe.NOT_IN_POOL['pricing'];
+  delete recipe.NOT_IN_POOL['pricing'];
+  let inPool;
+  try { inPool = recipe.poolFor(all); } finally { recipe.NOT_IN_POOL['pricing'] = saved; }
+  check(inPool.includes('pricing') && inPool.length === pool.length + 1, `反向对照：拿掉排除项 ⟹ pricing 进池、种数 ${pool.length} → ${inPool.length}（+1）`);
   check(M.prompt && M.prompt.group === 'homepage', 'prompt.group == homepage');
   const lines = M.prompt.lines.join('\n');
   check(/1–4/.test(lines) && /ONE plan has featured/.test(lines) && /price\.yearly/.test(lines) && /billing/.test(lines)

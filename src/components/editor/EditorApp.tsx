@@ -71,7 +71,7 @@ import type { EditorPageGroup } from '../../../scripts/lib/editor-pages';
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
-  THEME_DEFAULT, canvasShape, shapeOptions, describeSave,
+  THEME_DEFAULT, canvasShape, shapeOptions, describeSave, nestedPartSet,
 } from '../../../scripts/lib/editor-convert.js';
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
@@ -220,12 +220,37 @@ function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: u
 }
 
 /** 一个子字段：词表里有它（`choices`）就是下拉；带 `sources` 的是链接格（#1506）；否则是一格文字。 */
-function subField(s: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[] }): Field {
+function subField(s: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; nested?: { sub: string; label: string }[] }): Field {
+  if (s.nested && s.nested.length) return nestedTextField(s.sub, s.nested);
   if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources);
   if (s.choices && s.choiceDefault && s.choiceDefault !== s.choices[0]) return choiceField(s.label, s.choices, s.choiceDefault);
   return s.choices
     ? ({ type: 'select', label: s.label, options: s.choices.map((c) => ({ label: c, value: c })) } as Field)
     : ({ type: 'text', label: s.label } as Field);
+}
+
+// #1670 —— 列表项里的一个对象拆成几格平铺（价格块套餐的 `price` → Price / Yearly price，editor-schema.js §fieldsOf）。
+//    值是整个对象，改一格之后变成什么由 editor-convert.js §nestedPartSet 定（往返守卫测的是同一个函数）。
+function nestedTextField(key: string, parts: { sub: string; label: string }[]): Field {
+  return {
+    type: 'custom',
+    label: key,
+    render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => {
+      const obj = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+      const set = (sub: string, v: string) => onChange(nestedPartSet(obj, sub, v));
+      return (
+        <div data-editor-nested={key}>
+          {parts.map((p) => (
+            <div key={p.sub} data-editor-nested-part={p.sub} style={{ marginBottom: 8 }}>
+              <FieldLabel label={p.label} el="div" readOnly={readOnly} />
+              <input type="text" value={typeof obj[p.sub] === 'string' || typeof obj[p.sub] === 'number' ? String(obj[p.sub]) : ''} readOnly={readOnly}
+                onChange={(e) => set(p.sub, e.target.value)} style={INPUT_STYLE} />
+            </div>
+          ))}
+        </div>
+      );
+    },
+  } as unknown as Field;
 }
 
 // #1481 —— 词表的默认值不是第一项（hero / cta 的 `eyebrow.style`：词表 none 排第一、没写时画 pill）：Puck 自带的

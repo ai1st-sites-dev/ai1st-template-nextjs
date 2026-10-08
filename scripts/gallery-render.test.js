@@ -429,8 +429,9 @@ console.log('\n── AC9 block-roles · 首页配方');
   const recipe = require(path.join(NEXT, 'scripts', 'lib', 'homepage-recipe.js'));
   const all = manifestLib.loadManifests();
   const pool = recipe.poolFor(all);
-  // 📌 #1425（T3）—— 这里原来测「旧 gallery 在 NOT_IN_POOL、种数 == 交付前、拿掉它两个都进池、industries 跟旧块对齐、order 紧挨旧块、旧块 role 不变」；旧 gallery 随旧库删了（这个名字今天是新块）。今天的不变量：gallery 在池里、池子 11 种、排除名单不点它。
-  check(pool.includes('gallery') && !('gallery' in recipe.NOT_IN_POOL) && pool.length === 11, `poolFor 含 gallery、gallery 不在 NOT_IN_POOL、池子 11 种（读到 ${pool.length}）`);
+  // 📌 #1425（T3）—— 这里原来测「旧 gallery 在 NOT_IN_POOL、种数 == 交付前、拿掉它两个都进池、industries 跟旧块对齐、order 紧挨旧块、旧块 role 不变」；旧 gallery 随旧库删了（这个名字今天是新块）。今天的不变量：gallery 在池里、池子种数 = 首页组减排除名单（#1670 起现算，原来写死 11）、排除名单不点它。
+  const wantLen = [...all.values()].filter((m) => m.prompt && m.prompt.group === 'homepage' && !(m.type in recipe.NOT_IN_POOL)).length; // #1670：种数现算（首页组减排除名单），不再写死 11
+  check(pool.includes('gallery') && !('gallery' in recipe.NOT_IN_POOL) && pool.length === wantLen, `poolFor 含 gallery、gallery 不在 NOT_IN_POOL、池子 ${wantLen} 种（现算；读到 ${pool.length}）`);
   // 反向对照：把 gallery 放进排除名单 ⟹ 它出池、种数 -1 —— 判据分得开。
   recipe.NOT_IN_POOL['gallery'] = 'test';
   let outPool;

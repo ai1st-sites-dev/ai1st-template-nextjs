@@ -846,6 +846,39 @@ console.log('── ⑭ 抽步长跟池子长度互质:池长 11–20 每个抽�
   diff14 === 0 ? ok('池长 14：新旧两版 drawDistinct 对 i = 0–399 逐个相同（互质的步长保持原值）') : bad(`池长 14：新旧两版有 ${diff14} 个站号不同`);
 }
 
+// ── ⑮ 价格块不进配方（#1670 AC1）─────────────────────────────────────────────────────────────────────
+//    建站时没有任何价格，抽中 pricing 的站首页被钉一块价格块、价格写成「Contact Us」。
+//    站号从 0 连续取到「不排除 pricing 时的池子长度 × 2」：STRIDES[0]=1 ⟹ 第一个抽位就是 index % 池长，扫满一圈必然撞上它。
+//    反向对照就在这一格里：临时把 pricing 从 NOT_IN_POOL 拿掉，同一把尺子必须数到它。
+console.log('── ⑮ 价格块不进配方:连续站号的开场和必须出现的块里都没有 pricing;拿掉排除项这格会红');
+{
+  const pricingIn = (n) => {
+    let hits = 0; let recipes = 0;
+    for (let i = 0; i < n; i++) {
+      for (const ind of ['', 'Acupuncture']) {
+        const r = tryHomepageRecipe(i, manifests, ind);
+        if (!r.recipe) continue;
+        recipes++;
+        if ([...r.recipe.opener, ...r.recipe.mustInclude].includes('pricing')) hits++;
+      }
+    }
+    return { hits, recipes };
+  };
+  const saved = NOT_IN_POOL.pricing;
+  delete NOT_IN_POOL.pricing;
+  let without;
+  try { without = { len: poolFor(manifests).length }; without = { ...without, ...pricingIn(without.len * 2) }; }
+  finally { if (saved !== undefined) NOT_IN_POOL.pricing = saved; }
+  const n = without.len * 2;
+  const now = pricingIn(n);
+  'pricing' in NOT_IN_POOL && now.recipes > 0 && now.hits === 0
+    ? ok(`站号 0–${n - 1}（两种行业）${now.recipes} 份配方，开场 + 必须出现的块里 pricing 0 次`)
+    : bad(`排除名单 ${'pricing' in NOT_IN_POOL ? '有' : '没有'} pricing；${now.recipes} 份配方里 pricing 出现 ${now.hits} 次`);
+  without.hits > 0
+    ? ok(`反向对照：把 pricing 从 NOT_IN_POOL 拿掉 ⟹ 同样 ${without.recipes} 份配方里它出现 ${without.hits} 次 —— 这格分得开`)
+    : bad(`反向对照没红：拿掉排除项之后 pricing 仍是 0 次（${without.recipes} 份配方）—— 这格量不到它`);
+}
+
 console.log(`\n逐条断言:PASS ${pass} · FAIL ${fail}`);
 console.log(fail === 0 ? '✅ #1034 homepage-recipe: 全过' : '❌ #1034 homepage-recipe: 有失败');
 process.exit(fail === 0 ? 0 : 1);

@@ -379,7 +379,8 @@ console.log('\n── 判据 11 block-roles · 首页配方');
   const all = manifestLib.loadManifests();
   const pool = recipe.poolFor(all);
   // 📌 #1425（T3）—— 这里原来测 contact-info / map-area 在 NOT_IN_POOL、拿掉它们 +2、order 紧挨 contact-info；两个旧块随旧库删了。
-  check(pool.includes('contact') && !('contact' in recipe.NOT_IN_POOL) && pool.length === 11, `poolFor 含 contact、contact 不在 NOT_IN_POOL（池子 ${pool.length} 种 == 11）`);
+  const wantLen = [...all.values()].filter((m) => m.prompt && m.prompt.group === 'homepage' && !(m.type in recipe.NOT_IN_POOL)).length; // #1670：种数现算（首页组减排除名单），不再写死 11
+  check(pool.includes('contact') && !('contact' in recipe.NOT_IN_POOL) && pool.length === wantLen, `poolFor 含 contact、contact 不在 NOT_IN_POOL（池子 ${pool.length} 种 == 现算的 ${wantLen}）`);
   // 反向对照：把 contact 放进排除名单 ⟹ 它出池、种数 -1 —— 判据分得开。
   recipe.NOT_IN_POOL['contact'] = 'test';
   let leaked;
