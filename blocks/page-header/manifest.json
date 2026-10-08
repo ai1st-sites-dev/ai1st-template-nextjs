@@ -1,6 +1,6 @@
 {
   "type": "page-header",
-  "displayName": "Page header (Webpixels)",
+  "displayName": "Page header",
   "category": "banner",
   "roleDefault": "optional",
   "skin": "site-css",

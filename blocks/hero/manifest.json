@@ -1,6 +1,6 @@
 {
   "type": "hero",
-  "displayName": "Hero (Webpixels)",
+  "displayName": "Hero",
   "category": "banner",
   "roleDefault": "lead",
   "skin": "site-css",

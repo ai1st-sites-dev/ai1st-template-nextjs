@@ -1,6 +1,6 @@
 {
   "type": "content",
-  "displayName": "Content (Webpixels)",
+  "displayName": "Content",
   "category": "text",
   "roleDefault": "optional",
   "skin": "site-css",

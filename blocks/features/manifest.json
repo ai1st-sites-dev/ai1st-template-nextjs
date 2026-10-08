@@ -1,6 +1,6 @@
 {
   "type": "features",
-  "displayName": "Features (Webpixels)",
+  "displayName": "Features",
   "category": "features",
   "roleDefault": "essential",
   "skin": "site-css",

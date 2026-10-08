@@ -1,6 +1,6 @@
 {
   "type": "team",
-  "displayName": "Team (Webpixels)",
+  "displayName": "Team",
   "category": "team",
   "roleDefault": "optional",
   "skin": "site-css",

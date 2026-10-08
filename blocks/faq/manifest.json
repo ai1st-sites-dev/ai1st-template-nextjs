@@ -1,6 +1,6 @@
 {
   "type": "faq",
-  "displayName": "FAQ (Webpixels)",
+  "displayName": "FAQ",
   "category": "faq",
   "roleDefault": "essential",
   "skin": "site-css",
