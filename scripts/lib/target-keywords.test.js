@@ -11,7 +11,8 @@
  *   ② unmatchedServiceKeys：「键不在 services.json 的 id 集合里」那条谓词
  *   ③ validateSite 两条新规则：命中 / 不命中各一 · 主词同在首页和服务页不报 · 没有 targetKeywords 的老站不查（含阳性对照）
  *   ④ keywordBrief：没词 = 空串；有词时三样都在
- *   ⑤ localizeKeywords（#1569 r3）：主语言非英语时有翻译种子的组主词换成它、翻译失败回退、英文站不变、汉字间空格去掉
+ *   ⑤ localizeKeywords（#1569 r3；#1661 不分主语言）：有翻译种子的组主词换成它、翻译失败回退、汉字间空格去掉
+ *   ⑥ #1661：英语站 + 中文服务名 + 英文翻译种子 ⟹ 提示词服务名 / 主词 / 按名字对服务都是英文；中文站反方向
  */
 'use strict';
 
@@ -196,7 +197,7 @@ console.log('④ keywordBrief');
   same(s.includes('do NOT add them to "pages"') && c.includes('do NOT add them to "pages"'), true, '(c) 关键词页那段写明「不许放进 pages」');
 }
 
-console.log('\n── ⑤ localizeKeywords（#1569 r3）：主语言非英语时服务主词换成翻译种子 · 汉字间空格去掉');
+console.log('\n── ⑤ localizeKeywords（#1569 r3）：服务主词换成翻译种子 · 汉字间空格去掉');
 {
   const { localizeKeywords, assignTargetKeywords, sitePrimaryOf, keywordGroups } = tk;
   const kp = require('./keyword-pages.js');
@@ -213,33 +214,64 @@ console.log('\n── ⑤ localizeKeywords（#1569 r3）：主语言非英语时
   const contentServices = [{ id: 'haircut', name: 'Haircut' }, { id: 'perming', name: 'Perming' }];
   const pages = [{ slug: 'home' }, { slug: 'services/haircut', serviceDetailPage: true }, { slug: 'services/perming', serviceDetailPage: true }];
 
-  const zh = localizeKeywords(ZH, 'zh');
+  const zh = localizeKeywords(ZH);
   same(zh.swapped, [{ group: 'Haircut', from: 'haircut', to: '剪发' }], 'zh：Haircut 组主词 haircut → 翻译种子「剪发」（空格已去）');
   const a = assignTargetKeywords({ keywords: zh.keywords, services: svcs, contentServices, pages });
   same(a.pageKeywords['services/haircut'], '剪发', 'zh：Haircut 服务页的目标词 = 翻译种子');
   same(a.pageKeywords['services/perming'], 'perming', 'zh：Perming 组没有翻译种子（翻译失败）⟹ 回退原服务名');
   same(a.pageKeywords.home, 'perming', 'zh：Brand 站主词仍按各组主词的 Gold 取（perming 50 > 剪发 40）');
-  const zhHome = localizeKeywords({ ...ZH, Perming: [{ ...ZH.Perming[0], goldIndex: 5 }] }, 'zh');
+  const zhHome = localizeKeywords({ ...ZH, Perming: [{ ...ZH.Perming[0], goldIndex: 5 }] });
   same(sitePrimaryOf(keywordGroups(zhHome.keywords, svcs), {}).keyword, '剪发', 'zh：站主词同理 —— Gold 最高的那组主词是翻译种子时首页拿中文');
   same(kp.keywordPageCandidates(zh.keywords, svcs).map((c) => c.keyword), ['剪发店'],
     'zh：关键词页候选不含被换下的英文主词、也不含已当主词的翻译种子；联想词「剪发店」空格已去');
   same(a.targetKeywords.byService.haircut.map((e) => `${e.keyword}:${e.isPrimary}`), ['haircut:false', '剪发:true', '剪发店:false'], 'zh：seo.json 的 byService 里主词标记跟着换');
-  same(localizeKeywords(ZH, 'zh', 'Haircut').leadKeyword, '剪发', 'zh：Lead 站主词正是被换掉的英文主词 ⟹ 跟着换');
-  same(localizeKeywords(ZH, 'zh', 'hair salon toronto').leadKeyword, 'hair salon toronto', 'zh：Lead 站主词不是被换掉的那个 ⟹ 原样');
+  same(localizeKeywords(ZH, 'Haircut').leadKeyword, '剪发', 'zh：Lead 站主词正是被换掉的英文主词 ⟹ 跟着换');
+  same(localizeKeywords(ZH, 'hair salon toronto').leadKeyword, 'hair salon toronto', 'zh：Lead 站主词不是被换掉的那个 ⟹ 原样');
 
-  // 英文站：主词不换；去空格只碰汉字之间（英文词原样）
-  const en = localizeKeywords(ZH, 'en');
-  same(en.swapped, [], 'en：不换主词');
-  same(assignTargetKeywords({ keywords: en.keywords, services: svcs, contentServices, pages }).pageKeywords['services/haircut'], 'haircut', 'en：Haircut 服务页仍是 haircut');
+  // 去空格只碰汉字之间（英文词原样）；没有翻译种子的组不动
   const plain = { Haircut: [{ keyword: 'haircut', isPrimary: true, selected: true }, { keyword: 'haircut near me', selected: true }] };
-  same(localizeKeywords(plain, 'en').keywords, plain, 'en：没有汉字的 payload 逐字节不变');
-  same(localizeKeywords(plain, 'zh-TW').swapped, [], 'zh-TW：没有翻译种子的组不动');
+  same(localizeKeywords(plain).keywords, plain, '没有汉字、没有翻译种子的 payload 逐字节不变');
+  same(localizeKeywords(plain).swapped, [], '没有翻译种子的组不动');
 
   // 反向对照：不经 localizeKeywords，同一份 payload 的服务页拿的是英文（这正是 Chris 撞上的那个）
   same(assignTargetKeywords({ keywords: ZH, services: svcs, contentServices, pages }).pageKeywords['services/haircut'], 'haircut', '反向对照：没换之前 Haircut 服务页 = haircut');
   // 去空格后撞重：同组里「剪 发」和「剪发」并成一条，标记取并集
-  const dup = localizeKeywords({ X: [{ keyword: 'x', isPrimary: true }, { keyword: '剪发', selected: false, source: 'autocomplete' }, { keyword: '剪 发', source: 'translated-seed', selected: true }] }, 'zh');
+  const dup = localizeKeywords({ X: [{ keyword: 'x', isPrimary: true }, { keyword: '剪发', selected: false, source: 'autocomplete' }, { keyword: '剪 发', source: 'translated-seed', selected: true }] });
   same(dup.keywords.X.map((e) => [e.keyword, e.isPrimary === true, e.source]), [['x', false, undefined], ['剪发', true, 'translated-seed']], '去空格后撞重 ⟹ 并成一条（带上 translated-seed），再当主词');
+}
+
+console.log('\n── ⑥ #1661：服务名按主语言写（英语站 + 中文服务名 / 中文站 + 英文服务名）');
+{
+  const { localizeKeywords, promptServiceNames, assignTargetKeywords, keywordGroups, matchGroupsToServices } = tk;
+  // site-fd7e9c78 那一份的形状：英语站，老板填中文服务名，向导翻出英文种子
+  const EN = {
+    推拿按摩: [{ keyword: '推拿按摩', isPrimary: true, selected: true, goldIndex: 5 }, { keyword: 'Tui Na Massage', source: 'translated-seed', selected: true, goldIndex: 30 }],
+    针灸: [{ keyword: '针灸', isPrimary: true, selected: true, goldIndex: 4 }, { keyword: 'Acupuncture', source: 'translated-seed', selected: true, goldIndex: 60 }],
+  };
+  const svcs = ['推拿按摩', '针灸'];
+  const loc = localizeKeywords(EN);
+  same(promptServiceNames(svcs, loc.keywords), ['Tui Na Massage', 'Acupuncture'], '英语站：提示词里的服务名 = 英文翻译种子（个数、顺序不变）');
+  same(keywordGroups(loc.keywords, svcs).map((g) => g.entries.find((e) => e.isPrimary).keyword), ['Tui Na Massage', 'Acupuncture'], '英语站：每组主词 = 英文翻译种子');
+  // AI 照提示词抄回英文服务名，而且顺序跟组的顺序反着 —— 按位置会配错，必须按名字对上
+  const contentServices = [{ id: 'acupuncture', name: 'Acupuncture' }, { id: 'tui-na-massage', name: 'Tui Na Massage' }];
+  const m = matchGroupsToServices(keywordGroups(loc.keywords, svcs), contentServices);
+  same(m.ids, ['tui-na-massage', 'acupuncture'], '英语站：组 ↔ 服务按名字（翻译种子）对上，不是按位置');
+  same(m.reordered.map((r) => r.matchedBy), ['name', 'name'], '英语站：两组都记成 matchedBy=name');
+  const pages = [{ slug: 'home' }, { slug: 'services/acupuncture', serviceDetailPage: true }, { slug: 'services/tui-na-massage', serviceDetailPage: true }];
+  const a = assignTargetKeywords({ keywords: loc.keywords, services: svcs, contentServices, pages });
+  same([a.pageKeywords['services/tui-na-massage'], a.pageKeywords['services/acupuncture'], a.pageKeywords.home], ['Tui Na Massage', 'Acupuncture', 'Acupuncture'],
+    '英语站：服务详情页 / 首页的目标词是英文翻译种子（首页取 Gold 最高的 Acupuncture 60）');
+  // 反向对照：没换主词时（#1661 之前英语站的样子）按名字对不上
+  same(matchGroupsToServices(keywordGroups(EN, svcs), contentServices).reordered, [], '反向对照：不换主词 ⟹ 按名字一组都对不上（只能按位置，而位置是反的）');
+  // 没有翻译种子（翻译失败 / 本来就是主语言）⟹ 原名
+  same(promptServiceNames(['Haircut', '针灸'], { Haircut: [{ keyword: 'haircut', isPrimary: true }], 针灸: EN.针灸 }), ['Haircut', 'Acupuncture'], '没有翻译种子的服务用原名');
+  same(promptServiceNames(['Haircut'], undefined), ['Haircut'], '没有 keywords ⟹ 原名');
+
+  // 反方向：中文站，老板填英文服务名，向导翻出中文种子
+  const ZH = { 'Tui Na Massage': [{ keyword: 'tui na massage', isPrimary: true, selected: true }, { keyword: '推拿 按摩', source: 'translated-seed', selected: true }] };
+  const zl = localizeKeywords(ZH);
+  same(promptServiceNames(['Tui Na Massage'], zl.keywords), ['推拿按摩'], '中文站：提示词里的服务名 = 中文翻译种子（空格已去）');
+  same(matchGroupsToServices(keywordGroups(zl.keywords, ['Tui Na Massage']), [{ id: 'tui-na', name: '推拿按摩' }]).ids, ['tui-na'], '中文站：按中文名对上');
 }
 
 console.log(failed ? `\n❌ ${failed} 格没过` : '\n✅ 全过');

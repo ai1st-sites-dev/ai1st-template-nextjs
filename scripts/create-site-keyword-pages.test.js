@@ -15,6 +15,7 @@
 //   AC11 素材进了这一页那次调用的提示词（字段名 = dashboard 送的 keywordMaterial）
 //   PM ① 挂 Brand 的 Lead（组名对不上服务）→ 补一个服务；那组一页都没成 → 不补
 //   #1569 r2 中文站不填 Address → Call 1 地址那一格是原样地点（不是给 AI 当背景的双语串）
+//   #1661 AC1/AC2 英语站 + 中文服务名 ⟹ 提示词服务名 / 目标词是英文翻译种子、按名字对上服务；中文站反方向
 'use strict';
 
 const assert = require('assert');
@@ -805,6 +806,62 @@ check('#1569 r3：seo.json 里这组的主词是翻译种子，英文那条降�
   assert.ok(g, JSON.stringify(ZT.readJson('zh/seo.json').targetKeywords));
   assert.deepStrictEqual(g.filter((k) => k.isPrimary).map((k) => k.keyword), ['疏通下水道'], JSON.stringify(g));
   assert.ok(g.every((k) => !/[\u4e00-\u9fff]\s+[\u4e00-\u9fff]/.test(k.keyword)), JSON.stringify(g));
+});
+
+// ── #1661：服务名按主语言写 ─────────────────────────────────────────────────────────────────────────────
+// Chris 2026-10-08 site-fd7e9c78：主语言 English、服务填中文 ⟹ 英文站的服务名 / 目标词全是中文。向导现在把服务名翻成主语言当种子
+// （英语站也翻），建站这一侧：提示词里的服务名 = 翻译种子、主词 = 翻译种子、英语站也带 LANGUAGE 那句、组按翻译种子对上服务。
+// Call 1 的回答故意把两个服务的顺序反过来：按位置对会把两页的目标词配反，只有按名字（翻译种子）才对。
+console.log('── #1661：英语站 + 中文服务名 + 英文翻译种子');
+const EN_ZH = run('enzhsvc', {
+  companyName: 'Anjia Pain Relief Clinic', industry: 'acupuncture clinic', language: 'en', services: ['推拿按摩', '针灸'],
+  keywords: {
+    推拿按摩: [primary('推拿按摩'), kw('Tui Na Massage', { source: 'translated-seed' }), kw('tui na massage near me', { source: 'autocomplete' })],
+    针灸: [primary('针灸'), kw('Acupuncture', { source: 'translated-seed' }), kw('acupuncture clinic', { source: 'autocomplete' })],
+  },
+}, { call1: call1([{ id: 'acupuncture', name: 'Acupuncture' }, { id: 'tui-na-massage', name: 'Tui Na Massage' }]) });
+const enZhCall1 = (EN_ZH.calls.find((c) => c.kind === 'call1') || { first: '' }).first;
+check('#1661 AC1：Call 1 提示词里的服务清单是英文翻译种子（个数、顺序不变）', () => {
+  const list = (enZhCall1.match(/SERVICES \(use EXACTLY these[^\n]*\n((?:\d+\. [^\n]*\n?)+)/) || [])[1] || '(没找到服务清单)';
+  assert.deepStrictEqual(list.trim().split('\n'), ['1. Tui Na Massage', '2. Acupuncture'], list);
+  assert.ok(enZhCall1.includes('Service names are written in English: if a name above is not in English, translate it into English.'), '缺「服务名用主语言写」那句');
+});
+check('#1661 AC1：英语站的提示词带「Write ALL content in English」（原来是空串）', () => {
+  assert.ok(enZhCall1.includes('LANGUAGE: Write ALL content in English.'), (enZhCall1.match(/LANGUAGE:[^\n]*/) || ['(无 LANGUAGE 行)'])[0]);
+  const pageCall = EN_ZH.calls.find((c) => c.kind === 'call1-page');
+  assert.ok(pageCall && pageCall.first.includes('LANGUAGE: Write ALL content in English.'), '每页那一通也要带');
+});
+check('#1661 AC1：服务详情页的目标词是英文翻译种子，按名字对上（顺序反着也不配错）', () => {
+  assert.deepStrictEqual(['services/tui-na-massage', 'services/acupuncture'].map((p) => EN_ZH.page(p).seo.targetKeyword), ['Tui Na Massage', 'Acupuncture']);
+});
+check('#1661 AC1：matchGroupsToServices 按名字对上（keyword-assignment 事件的 reordered 两组都是 matchedBy=name）', () => {
+  const ev = EN_ZH.events.filter((e) => e.event === 'keyword-assignment').pop();
+  assert.ok(ev, '没有 keyword-assignment 事件');
+  assert.deepStrictEqual(ev.reordered.map((r) => [r.group, r.matchedBy, r.service]), [['推拿按摩', 'name', 'tui-na-massage'], ['针灸', 'name', 'acupuncture']], JSON.stringify(ev.reordered));
+  assert.deepStrictEqual(ev.unmatched, []);
+});
+check('#1661 AC1：seo.json 的站主词和每组主词是英文翻译种子，没有一个汉字', () => {
+  const tk = EN_ZH.readJson('en/seo.json').targetKeywords;
+  assert.strictEqual(tk.primary.keyword, 'Tui Na Massage', JSON.stringify(tk.primary));
+  const prim = Object.values(tk.byService).flat().filter((e) => e.isPrimary).map((e) => e.keyword).sort();
+  assert.deepStrictEqual(prim, ['Acupuncture', 'Tui Na Massage'], JSON.stringify(tk.byService));
+  const han = EN_ZH.pageFiles.map((f) => [f, EN_ZH.page(f).seo && EN_ZH.page(f).seo.targetKeyword]).filter(([, k]) => /[\u4e00-\u9fff]/.test(k || ''));
+  assert.deepStrictEqual(han, [], '有页的目标词带汉字');
+});
+
+console.log('── #1661：反方向 —— 中文站 + 英文服务名 + 中文翻译种子');
+const ZH_EN = run('zhensvc', {
+  companyName: 'Anjia Pain Relief Clinic', industry: 'acupuncture clinic', language: 'zh', services: ['Tui Na Massage'], ...ZH_LOC,
+  keywords: { 'Tui Na Massage': [primary('tui na massage'), kw('推拿 按摩', { source: 'translated-seed' }), kw('推拿 按摩 多伦多', { source: 'autocomplete' })] },
+}, { call1: call1([{ id: 'tui-na', name: '推拿按摩' }]) });
+check('#1661 AC2：中文站的提示词服务名是中文翻译种子（空格已去），带「用 Chinese 写」', () => {
+  const first = (ZH_EN.calls.find((c) => c.kind === 'call1') || { first: '' }).first;
+  const list = (first.match(/SERVICES \(use EXACTLY these[^\n]*\n((?:\d+\. [^\n]*\n?)+)/) || [])[1] || '(没找到服务清单)';
+  assert.deepStrictEqual(list.trim().split('\n'), ['1. 推拿按摩'], list);
+  assert.ok(first.includes('LANGUAGE: Write ALL content in Chinese.'), (first.match(/LANGUAGE:[^\n]*/) || ['(无)'])[0]);
+});
+check('#1661 AC2：服务详情页的目标词 = 中文翻译种子', () => {
+  assert.strictEqual(ZH_EN.page('services/tui-na').seo.targetKeyword, '推拿按摩');
 });
 
 // ── #1600 建站报告：真 AI 路（打桩）上 seo / repair / keywordPages 三格是真数，并且与同一次建站的事件逐项一致 ──────────

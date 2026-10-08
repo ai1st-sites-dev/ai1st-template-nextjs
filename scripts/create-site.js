@@ -951,11 +951,11 @@ async function main() {
   }
   const defaultLocale = normalizeLocale(language) || 'en';
 
-  // #1569 r3 —— 主语言非英语：有翻译种子的服务组，主词换成翻译种子（服务详情页 / 首页的目标词跟着换）；
+  // #1569 r3 —— 有翻译种子的服务组，主词换成翻译种子（服务详情页 / 首页的目标词跟着换；#1661 起英语站也换）；
   //    每条词去掉汉字之间的空格（§lib/target-keywords.js localizeKeywords）。下游一律读换过的这份，
-  //    payload.keywords 也换掉（关键词页素材 §keywordPageMaterial 读的是它）。英文站不换主词；去空格不分站的语言，
+  //    payload.keywords 也换掉（关键词页素材 §keywordPageMaterial 读的是它）。去空格不分站的语言，
   //    只碰两侧都是汉字 / 假名的那几个空格（英文站里没有这种词就一个字节不变）。
-  const { keywords, leadKeyword, swapped: kwSwapped } = targetKw.localizeKeywords(rawKeywords, defaultLocale, rawLeadKeyword);
+  const { keywords, leadKeyword, swapped: kwSwapped } = targetKw.localizeKeywords(rawKeywords, rawLeadKeyword);
   input.keywords = keywords;
   for (const x of kwSwapped) debug(`[keywords] ${x.group}：主词「${x.from}」→ 翻译种子「${x.to}」（主语言 ${defaultLocale}）`);
 
@@ -1475,6 +1475,8 @@ async function main() {
     // #1569 r2 —— 地址那一格要的是原样的地点（Google Ads 那份），不是上面给 AI 当背景的双语串（§generateContent 地址那行）。
     rawLocation: input.location,
     services, usp, targetCustomers, brandDescription,
+    // #1661 —— 服务名按主语言写：有翻译种子的服务用翻译种子（跟它那组换上去的主词是同一个词）。
+    serviceNames: targetKw.promptServiceNames(services, keywords),
     theme, languageName, refSite, refPrefs, refAnalysis,
     reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
     // #1134（来源 #1139）—— 这个站会不会有服务子页。判据跟 Call 2 真去生成那些页时用的是
@@ -2282,6 +2284,8 @@ async function generateContent(opts) {
   const {
     companyName, industry, location, rawLocation, address, phone, email,
     services, usp, targetCustomers, brandDescription,
+    // #1661 —— 写进提示词的服务名（主语言那一份）。缺省 = services（不传的调用方跟改之前一样）。
+    serviceNames = services,
     theme, languageName, refSite, refPrefs = [], refAnalysis = null,
     reviews = [], onlinePresence = {}, hours, priceRange, uploadedImages = [],
     logoUrl = '',
@@ -2469,14 +2473,15 @@ async function generateContent(opts) {
     'Thai': 'th_TH', 'Punjabi': 'pa_IN', 'Urdu': 'ur_PK', 'Tamil': 'ta_IN',
   };
 
-  const languageInstruction = languageName !== 'English'
-    ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} This includes: taglines, descriptions, headlines, subheadlines, testimonial quotes, FAQ answers, service names, navigation labels, page titles, meta descriptions, keywords, and all other user-facing text. Only JSON keys and technical values (slugs, hrefs, icon names, section type names) should remain in English.\n`
-    : '';
+  // #1661 —— 英语站同样要这一句（原来是空串）：老板填中文服务名时，AI 把中文原样抄进了英文站。
+  const languageInstruction = `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} This includes: taglines, descriptions, headlines, subheadlines, testimonial quotes, FAQ answers, service names, navigation labels, page titles, meta descriptions, keywords, and all other user-facing text. Only JSON keys and technical values (slugs, hrefs, icon names, section type names) should remain in English.\n`;
 
   // Build services instruction from real form data
-  const servicesList = services.length > 0 ? services : ['General Services'];
+  // #1661 —— 列的是主语言那一份服务名（有翻译种子的用翻译种子，§lib/target-keywords.js promptServiceNames），跟那组的主词是同一个词。
+  const servicesList = serviceNames.length > 0 ? serviceNames : ['General Services'];
   const servicesInstruction = `SERVICES (use EXACTLY these — do NOT invent new ones):
-${servicesList.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+${servicesList.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+Service names are written in ${languageName}: if a name above is not in ${languageName}, translate it into ${languageName}. Keep the same number of services, in the same order.`;
 
   // Build contact info instruction
   const contactParts = [];
