@@ -199,11 +199,19 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
   }
 
   // 姓名 / 电话 / 邮箱各占半行（两个一排），需求下拉与留言占整行。
+  // #1654 —— 按 `fields` 当前顺序（编辑器能重排，#1637），连续的半行字段算一段；段里个数是奇数时最后一个占整行，不落单。
   const half = (f: LeadField) => f === 'name' || f === 'phone' || f === 'email';
+  const wide = (i: number) => {
+    if (!half(fields[i])) return true;
+    if (i + 1 < fields.length && half(fields[i + 1])) return false;
+    let start = i;
+    while (start > 0 && half(fields[start - 1])) start -= 1;
+    return (i - start) % 2 === 0;
+  };
   return (
     <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${place}`} data-form-variant="stacked" data-role="essential" {...toneAttr} {...formAttr}>
       <div className="row g-2">
-        {fields.map((f) => <div key={f} className={half(f) ? 'col-12 col-sm-6' : 'col-12'}>{input(f)}</div>)}
+        {fields.map((f, i) => <div key={f} className={wide(i) ? 'col-12' : 'col-12 col-sm-6'}>{input(f)}</div>)}
         <div className="col-12">{button(`${sz.btn} w-100`)}</div>
       </div>
       {honeypot}

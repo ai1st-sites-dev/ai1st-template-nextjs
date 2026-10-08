@@ -304,6 +304,25 @@ console.log('\n── 判据 8 表单');
   check(/id="ct-/.test(full) && !/id="(hro|ftr|cta)-/.test(teaser + full), 'id 前缀 ct-（不跟 hero / footer / cta 撞）');
   const formSrc = fs.readFileSync(path.join(SRC, 'components', 'BlockLeadForm.tsx'), 'utf-8');
   check(/import BlockLeadForm from '@\/components\/BlockLeadForm'/.test(SRC_TEXT) && /'\/api\/leads'/.test(formSrc), '表单用共用的 BlockLeadForm，提交走 /api/leads（真提交在 e2e 里）');
+
+  // #1654 —— stacked 里连续的半行字段（姓名 / 电话 / 邮箱）两个一排，段里奇数个时最后一个整行；按 fields 当前顺序算。
+  const LeadForm = require(path.join(SRC, 'components', 'BlockLeadForm.tsx')).default;
+  const colsOf = (fields) => {
+    const h = renderToStaticMarkup(React.createElement(LeadForm, { mode: 'full', locale: 'en', idPrefix: 'ct', forms: [{ id: 'f', name: 'F', primary: fields[0], fields }] }));
+    const out = {};
+    for (const m of h.matchAll(/<div class="([^"]*)"><(?:input|select|textarea)[^>]*\sid="ct-([a-z]+)"/g)) out[m[2]] = m[1];
+    return out;
+  };
+  const HALF = 'col-12 col-sm-6'; const FULL = 'col-12';
+  for (const [fields, want, note] of [
+    [['name', 'phone', 'email', 'message'], { name: HALF, phone: HALF, email: FULL, message: FULL }, '默认表单：邮箱落单 ⟹ 整行'],
+    [['name', 'phone'], { name: HALF, phone: HALF }, '两个半行字段 ⟹ 一排'],
+    [['name', 'phone', 'email', 'service', 'message'], { name: HALF, phone: HALF, email: FULL, service: FULL, message: FULL }, '邮箱后跟下拉 ⟹ 邮箱整行'],
+    [['name', 'email', 'service', 'phone', 'message'], { name: HALF, email: HALF, service: FULL, phone: FULL, message: FULL }, '重排后：电话自己一段 ⟹ 整行'],
+  ]) {
+    const got = colsOf(fields);
+    check(JSON.stringify(got) === JSON.stringify(want), `#1654 [${fields.join(', ')}]：${note}`, `实际 ${JSON.stringify(got)}`);
+  }
 }
 
 // ══ 判据 9：bg ═════════════════════════════════════════════════════════════════════════════════════
