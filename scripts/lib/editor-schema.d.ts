@@ -27,10 +27,21 @@ export interface EditorField {
   /** #1487 —— 归预设管的部件的占位内容（槽的 `demo`）；没有带部件预设的块是 {}。 */
   partDemos?: Record<string, unknown>;
 }
+/** #1657 —— 画布上一段可改的字（`editableSlotPaths` 的一条）：能不能就地打字、出不出 AI 按钮。 */
+export interface EditorInlineSlot {
+  /** 不带列表序号的路径（`items.title`、`headline`），跟 `data-slot` 去掉序号之后比 */
+  path: string;
+  kind: string;
+  /** false = 只出 AI 按钮、打字去右栏（`richtext`） */
+  typing: boolean;
+  /** false = 数字 / 价格 / 事实，不出 AI 按钮 */
+  ai: boolean;
+}
 export interface EditorComponent {
   type: string;
   label: string;
   fields: EditorField[];
+  inline: EditorInlineSlot[];
   carried: string[];
   shapes: { name: string; needs: string[] }[];
   defaultShape: string | null;
@@ -63,4 +74,6 @@ export function fieldsOf(manifest: unknown): EditorField[];
 export function slotCoverageProblems(schema: EditorSchema, manifests: Map<string, unknown>): string[];
 /** #1518 —— 列表槽项形状 `[{…}]` 的顶层必填键名（嵌套 / 带 `?` 的不算；不是一个 `[{…}]` ⟹ []）。 */
 export function itemTopKeys(shape: unknown): string[];
+export function inlineSlotsOf(manifest: unknown): EditorInlineSlot[];
+export function isFactSlot(spec: unknown, sub: string | null, label: string): boolean;
 export const LINK_HREF: string;

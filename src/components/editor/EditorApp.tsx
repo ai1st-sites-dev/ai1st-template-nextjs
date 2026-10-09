@@ -57,6 +57,10 @@
 //   收  ai1st:editor-leave {id}                     dashboard 要换到别的页
 //   发  ai1st:editor-leave-result {id, ok, message?} 没存的改动已经存下去（或本来就没有）才 ok；存不上 / AI 在改 ⟹ ok: false
 // 换页本身是 dashboard 改 iframe 的地址，这里不导航。
+//
+// #1657 —— 画布里点字直接改 + 四个 AI 按钮（`InlineEdit.tsx` 文件头是全文）。这个页面多认 / 多发的：
+//   发  ai1st:ai-rewrite {id, action, blockType, page, locale, fields: [{name, text}]}   dashboard 带凭证打 manager 的改写接口
+//   收  ai1st:ai-rewrite-result {id, ok, fields?, message?}
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
@@ -79,6 +83,8 @@ import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { brand as siteBrand } from '@/lib/config';
+import { setAt } from '../../../scripts/lib/inline-edit.js';
+import { InlineApiContext, InlineEditLayer, InlineFreezeContext, type InlineApi, type InlineFreeze, type RewriteResult } from './InlineEdit';
 
 export interface EditorAppProps {
   locale: string;
@@ -493,7 +499,11 @@ function sharedNoteField(id: string): Field {
  * 数据的底是**归一化之后**那一块（`_src.view`，跟真页面同一份：列表已升格、`data-has-*` 已算好），
  * 老板改过的字段才换成新值 —— 用的是存盘时同一个合法（§dataFromProps），画布和落盘不会各说各的。
  */
-function CanvasBlock({ component, props, locale, pageSlug }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string }) {
+function CanvasBlock({ component, props: live, locale, pageSlug }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string }) {
+  // #1657 —— 老板正在画布上打这一块的某一格：那一格按打之前的值画（浏览器手上的字才是真的，React 不去重写那个文本节点，
+  //    光标就不会每敲一个字跳回开头）。右栏和存盘读的是 Puck 里的新值，不受这里影响。
+  const freeze = useContext(InlineFreezeContext);
+  const props = freeze && freeze.id === live.id ? setAt(live, freeze.path, freeze.value) : live;
   const src = props._src;
   // 复制出来的条目跟原件共用一份 `_src.view`，画布上的 `data-block-id` 换成它自己的 id（存盘时它也会拿到新 id）。
   const baseView = (src?.view || { type: component.type }) as unknown as BlockConfig;
@@ -753,6 +763,8 @@ const KEPT_TEXT: Record<'external' | 'ai' | 'stale', string> = {
   ai: "The AI's change was not put on the page, because you were still editing. Your changes are still here, and nothing is saved until you choose: keep yours (they replace the AI's change to this page), or load the latest version (your unsaved changes will be lost).",
   stale: 'This page was changed somewhere else (in another tab, or by the AI) after you opened it, so your latest changes were not saved. They are still here, but they cannot be saved on top of that change. Load the latest version to keep editing — the changes that were not saved will be lost.',
 };
+// #1657 —— 等 dashboard 回 AI 改写最多等多久（它那一侧调一次 Claude，正常几秒）。
+const REWRITE_WAIT_MS = 90_000;
 // 停手多久算「一笔改完」（Chris：失焦或停手 1–2 秒）。
 const AUTOSAVE_IDLE_MS = 1500;
 // 浮条在的时候，发 AI 消息 / 换页 / 关编辑器都先停下来等他（不替他选「留下我的」）。`stale` 那种没得选，只能加载最新版本。
@@ -981,6 +993,7 @@ const EDITOR_UI = { plugin: { current: AI_PLUGIN_NAME } };
  * 🔴 只 `preventDefault()`，不许 `stopPropagation`：next/link 在自己的 onClick 里看 `defaultPrevented` 就收手
  *    （`next/dist/client/app-dir/link.js` §linkClicked 之前那一行），而 Puck 的选中还要收到这次点击。
  */
+// #1657 —— 画布里点字直接改的点击层也挂在这里（同一份 document，`InlineEdit.tsx`）。
 function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; document?: Document }) {
   useEffect(() => {
     if (!doc) return;
@@ -991,10 +1004,15 @@ function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; doc
     doc.addEventListener('click', onClick, true);
     return () => doc.removeEventListener('click', onClick, true);
   }, [doc]);
-  return <>{children}</>;
+  return <>{children}{doc && <InlineEditLayer doc={doc} />}</>;
 }
 
 const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard };
+// #1657 —— 🔴 必须是模块级常量，不许写回 JSX 里的字面量。Puck 的画布有一个 effect（依赖里有 `iframe`）：历史里只有一条时，
+//    它每跑一次就把那一条换成**当前**画布。字面量每次 EditorApp 重画都是新对象 ⟹ 那个 effect 每次都跑 ⟹ 打开后的第一笔改动
+//    （画布上打字、AI 改写，都是先写进画布、停手才记历史）在记进历史之前碰上一次重画，「改之前」那一条就被换成改之后，Ctrl+Z 退不回去。
+//    `node_modules/@puckeditor/core/dist/index.js` 搜 `histories.length === 1`。
+const EDITOR_IFRAME = { enabled: true, syncHostStyles: true, waitForStyles: true };
 
 /**
  * #1410 做什么 4 末尾 —— AI 在改这一页的时候画布只读：从点发送（含「先存再发」那一笔）到 AI 结束、它那份底稿已经换进来
@@ -1124,6 +1142,10 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   lockedRef.current = locked;
   // #1448 —— dashboard 要换页、在等手上这一笔落盘（`sending` 同 pendingChatRef：只认那一笔自己的 `saved` 底稿）。
   const pendingLeaveRef = useRef<{ id: string; sending: object } | null>(null);
+  // #1657 —— 画布上正在打的那一格（§InlineFreezeContext）；在等 AI 改写回话的那几次（id → 回话交给谁）。
+  const [freeze, setFreeze] = useState<InlineFreeze>(null);
+  const rewritesRef = useRef(new Map<string, (r: RewriteResult) => void>());
+  const componentsByType = useMemo(() => new Map(schema.components.map((c) => [c.type, c])), [schema]);
 
   // #1453 —— autosave。画布每变一次（§Autosave）就重新数 AUTOSAVE_IDLE_MS；数到了存一笔（§flushAutosave）。
   // 停着的时候（AI 在改 · 浮条在问他要哪一版）不数；停的原因一解除就重新数一次（下面那个 effect）——
@@ -1236,6 +1258,22 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       if (d.type === 'ai1st:chat-state') {
         const st = (d as { state?: unknown }).state;
         if (st && typeof st === 'object') setChat(st as EditorChatState);
+        return;
+      }
+      if (d.type === 'ai1st:ai-rewrite-result') {
+        // #1657 —— 只认手上在等的那一次（id 对得上）；回来的字段逐个按形状收。
+        const r = d as { id?: unknown; fields?: unknown };
+        const done = typeof r.id === 'string' ? rewritesRef.current.get(r.id) : undefined;
+        if (!done) return;
+        rewritesRef.current.delete(r.id as string);
+        if (d.ok === true && Array.isArray(r.fields)) {
+          const fields = (r.fields as unknown[])
+            .filter((f): f is { name: string; text: string } => !!f && typeof (f as { name?: unknown }).name === 'string' && typeof (f as { text?: unknown }).text === 'string')
+            .map((f) => ({ name: f.name, text: f.text }));
+          done({ ok: true, fields });
+        } else {
+          done({ ok: false, message: typeof d.message === 'string' && d.message ? d.message : 'The AI could not rewrite this text. Please try again.' });
+        }
         return;
       }
       if (d.type === 'ai1st:chat-sent') {
@@ -1559,6 +1597,22 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     setChatNotice({ kind: 'info', text: 'Saving your changes first, then sending…' });
   }
 
+  // #1657 —— 画布工具条上的 AI 按钮：交给 dashboard（它带凭证打 manager），回话在 §onMessage 的 `ai1st:ai-rewrite-result`。
+  //    这个页面照旧一个请求都不发。等太久就当没回来（manager 那一侧调 Claude 有自己的超时，这里只是别让按钮永远转着）。
+  function rewrite(req: Parameters<InlineApi['rewrite']>[0]): Promise<RewriteResult> {
+    if (!trustedOrigin || window.parent === window) {
+      return Promise.resolve({ ok: false, message: 'Open this editor from your dashboard to use AI.' });
+    }
+    const id = `rw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (rewritesRef.current.delete(id)) resolve({ ok: false, message: 'The AI did not answer in time. Please try again.' });
+      }, REWRITE_WAIT_MS);
+      rewritesRef.current.set(id, (r) => { clearTimeout(timer); resolve(r); });
+      postChat({ type: 'ai1st:ai-rewrite', id, action: req.action, blockType: req.blockType, page, locale, fields: req.fields });
+    });
+  }
+
   // #1448 —— 换页（dashboard 面板条上的下拉）。🔴 画布上没存的改动不许被换页静默丢掉：有就先存，
   // 存上了才回 ok；存不上 / AI 正在改这一页 ⟹ 回 ok: false 和一句话，dashboard 不换页。
   // 形状同「先存再发」（§releaseChat）：交出去的那一笔落盘（它自己的 `saved` 底稿）才放行，并且放行前再判一次。
@@ -1617,6 +1671,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
   };
 
+  const inlineApi: InlineApi = { locked, locale, page, components: componentsByType, setFreeze, rewrite };
+
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };
   const editingForm = formEditing ? formList.find((f) => f.id === formEditing) : undefined;
@@ -1625,12 +1681,14 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     <SharedInfoContext.Provider value={sharedInfo}>
     <EditorUiContext.Provider value={ui}>
     <FormsContext.Provider value={formsCtx}>
+    <InlineApiContext.Provider value={inlineApi}>
+    <InlineFreezeContext.Provider value={freeze}>
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
         key={canvas.key}
         config={config}
         data={canvas.data as unknown as Data}
-        iframe={{ enabled: true, syncHostStyles: true, waitForStyles: true }}
+        iframe={EDITOR_IFRAME}
         onAction={onAction as never}
         overrides={EDITOR_OVERRIDES}
         plugins={EDITOR_PLUGINS}
@@ -1652,6 +1710,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         />
       )}
     </div>
+    </InlineFreezeContext.Provider>
+    </InlineApiContext.Provider>
     </FormsContext.Provider>
     </EditorUiContext.Provider>
     </SharedInfoContext.Provider>

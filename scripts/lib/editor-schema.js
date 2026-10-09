@@ -222,6 +222,34 @@ function itemTopKeys(shape) {
   return keys;
 }
 
+// ── #1657 —— 画布里点字直接改：哪几段字能就地打字、哪几段出 AI 按钮 ─────────────────────────────────────────
+//
+// 全集就是 §editableSlotPaths（检查器面板和 `data-slot` 守卫用的那一把尺）。每一条再问两件事：
+//   · `typing`：能不能在画布上直接打字。只有 `richtext`（content.body，我们自己的 markdown）不能 —— 就地编辑是纯文本，
+//                点进去会露出 markdown 原文，打歪一个字符就能把链接写坏；它只出 AI 按钮，打字仍去右栏。
+//   · `ai`：出不出 AI 按钮。数字 / 价格 / 事实这一类不出（AI 不该编数字），见 §isFactSlot。
+// 🔴 按字段性质判，不按块名写名单（PM 裁定，#643 的老规矩）：今天命中的 6 个只是读数。
+//
+// 「数字 / 价格 / 事实」的判据（任一条）：
+//   ① manifest 给这个子字段声明了数值范围（`slots.<槽>.ranges.<子字段>`，#1488）—— 评分、评价条数；
+//   ② 它的显示名（`editLabel`）说的就是一个数：Number / Price / Rating（整词，大小写不论）。
+//      「Number of reviews」「Yearly price」也算；「What it counts」「Yearly label」不算。
+function isFactSlot(spec, sub, label) {
+  if (sub && spec && spec.ranges && typeof spec.ranges === 'object' && Object.prototype.hasOwnProperty.call(spec.ranges, sub)) return true;
+  return /\b(number|price|rating)\b/i.test(String(label || ''));
+}
+
+/** 一份 manifest → 画布上每一段可改的字（顺序同 §editableSlotPaths）：`{ path, kind, typing, ai }`。 */
+function inlineSlotsOf(manifest) {
+  const slots = (manifest && manifest.slots) || {};
+  return editableSlotPaths(manifest).map((e) => ({
+    path: e.path,
+    kind: e.kind,
+    typing: e.kind !== 'richtext',
+    ai: !isFactSlot(slots[e.slot], e.sub, e.label),
+  }));
+}
+
 function humanize(name) {
   const s = String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ');
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -266,6 +294,8 @@ function editorSchema(opts = {}) {
       type,
       label: typeof m.displayName === 'string' && m.displayName ? m.displayName : type,
       fields,
+      // #1657 —— 画布上的点击层据它判「点到的这段字能不能打、出不出 AI 按钮」（§inlineSlotsOf）。
+      inline: inlineSlotsOf(m),
       carried: Object.keys(m.slots || {}).filter((s) => !fieldSlots.has(s)),
       shapes,
       defaultShape: shapeForBlock({ type, data: {} }, selection, manifestsObj, () => {}) || null,
@@ -337,4 +367,4 @@ function slotCoverageProblems(schema, manifests) {
   return out;
 }
 
-module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemTopKeys, LINK_HREF };
+module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemTopKeys, inlineSlotsOf, isFactSlot, LINK_HREF };
