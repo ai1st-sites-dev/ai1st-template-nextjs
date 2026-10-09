@@ -70,12 +70,12 @@ import SiteShell from '@/components/SiteShell';
 import EditorChat, { type ChatScope, type EditorChatState } from './EditorChat';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
-import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
+import type { AiNote, AiNotes, PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
 import type { EditorPageGroup } from '../../../scripts/lib/editor-pages';
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
-  THEME_DEFAULT, canvasShape, shapeOptions, describeSave, nestedPartSet,
+  THEME_DEFAULT, canvasShape, shapeOptions, describeSave, nestedPartSet, recordAiNote, aiNotesForSave, settleAiNotes,
 } from '../../../scripts/lib/editor-convert.js';
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
@@ -1115,7 +1115,12 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   // （`editor-convert.js` §puckToPage 的 `moved`）。换一份新画布（open / external）时清空。
   const movedRef = useRef<Set<string>>(new Set());
   // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「还有没有要存的」要跟它比，不跟打开时比）。
-  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null; forms?: FormCopyEdit | null } | null>(null);
+  // #1676 —— `aiUsed` / `dragged`：这一笔的记录用掉了哪几条 AI 说明、前几次拖动 —— 存上了才清（被拒就留到下一笔）。
+  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null; forms?: FormCopyEdit | null; aiUsed?: AiNote[]; dragged?: number } | null>(null);
+  // #1676 —— 记录说人话要的两样（`editor-convert.js` §describeSave）：AI 按钮改过哪几格（§recordAiNote，作废规矩在那份文件里）、
+  // 老板拖过哪几块（块键，最后拖的在最后；相邻两块对调时据它说是谁动了）。换一份新画布时跟 movedRef 一起清。
+  const aiNotesRef = useRef<AiNotes>({});
+  const draggedRef = useRef<string[]>([]);
   // #1634 —— 这个语言的表单库（存成功之后换成新的，下拉和面板读它）；面板开着的是哪一张；Done 了、还没交出去的那一笔。
   const [formList, setFormList] = useState<EditorFormChoice[]>(forms);
   const [formEditing, setFormEditing] = useState<string | null>(null);
@@ -1321,6 +1326,9 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
           setFormList((list) => applyFormCopyEdit(list, edit));
           if (pendingFormRef.current === edit) pendingFormRef.current = null;
         }
+        // #1676 —— 这一笔进了文件：它的记录说过的那几条 AI 说明、那几次拖动用掉了。
+        if (sent?.aiUsed) aiNotesRef.current = settleAiNotes(aiNotesRef.current, sent.aiUsed);
+        if (sent?.dragged) draggedRef.current = draggedRef.current.slice(sent.dragged);
         sendingRef.current = null;
         // #1442 —— 画布上那份进了文件（没交页面 = 页面本来就跟文件一样），画布跟文件又是一份了。
         if (sent) setKept(null);
@@ -1395,6 +1403,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
         baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib, sharedOwn: {} };
         setSharedInfo({ siteBlocks: nextLib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
         movedRef.current = new Set();
+        aiNotesRef.current = {};
+        draggedRef.current = [];
         if (step.record) {
           // 这一步由我们自己拼进历史，**不走** `setData({recordHistory: true})`：Puck 的 record 有 250ms 防抖，
           // 而 e2e ⑧ 实测那条路上 AI 之前那张快照会在防抖落下时被换成新的（历史变成 [新, 新]，撤销退不回去）。
@@ -1423,6 +1433,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
       setKept(null);
       if (same) return; // 跟首屏一样（构建之后没人改过）：画布不动，不打断已经开始的编辑。
       movedRef.current = new Set();
+      aiNotesRef.current = {};
+      draggedRef.current = [];
       if (d.reason === 'external' && dispatchRef.current) {
         if (g) {
           const hs = aiBaselineStep({
@@ -1462,7 +1474,9 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     // #1634 —— 面板里 Done 了、还没交出去的表单文案：它自己就算一笔（只改表单的那一笔不带页面）。
     const forms = pendingFormRef.current;
     if (!pageChanged && Object.keys(root).length === 0 && !hasShared && !forms) return null;
-    return { base, json, shared, root, pageChanged, hasShared, forms };
+    // #1676 —— 画布上 AI 写的那几格还在不在（后来手改过的说明不用）。
+    const { aiNotes, used: aiUsed } = aiNotesForSave(aiNotesRef.current, (data as { content?: unknown[] }).content || []);
+    return { base, json, shared, root, pageChanged, hasShared, forms, aiNotes, aiUsed, dragged: draggedRef.current.slice() };
   }
 
   /**
@@ -1492,7 +1506,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     }
     const { json, shared, root, pageChanged, hasShared, forms } = plan;
     setStatus({ kind: 'saving', text: 'Saving…' });
-    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null, forms: forms || null };
+    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null, forms: forms || null, aiUsed: plan.aiUsed, dragged: plan.dragged.length };
     window.parent.postMessage({ type: 'ai1st:editor-save', ...saveFields(plan) }, trustedOrigin);
     reportPending(null);
     return 'sent';
@@ -1500,14 +1514,14 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
 
   /** 一笔存盘消息的正文（`ai1st:editor-save` 与 §reportPending 递的待存那份同一个形状）。 */
   function saveFields(plan: NonNullable<ReturnType<typeof planSave>>): Record<string, unknown> {
-    const { base, json, shared, root, pageChanged, hasShared, forms } = plan;
+    const { base, json, shared, root, pageChanged, hasShared, forms, aiNotes, dragged } = plan;
     // #1454 —— 这一笔说人话，manager 拿它写 AI chat 里那条手改记录。🔴 算不出来也照存：它只是说明，不是存盘的一部分。
     let summary = '';
     // #1634 —— 只改了表单文案的那一笔没有页面 / 外壳 / 共用块可说：describeSave 会回一句通用话，那句不要。
     if (pageChanged || Object.keys(root).length || hasShared) try {
       summary = describeSave({
         saved: base.saved, json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
-        schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_FIELD_LABELS, shapeLabel: SHAPE_FIELD_LABEL,
+        schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_FIELD_LABELS, shapeLabel: SHAPE_FIELD_LABEL, aiNotes, dragged,
       });
     } catch { /* 记录退回 manager 那句通用话 */ }
     // #1634 —— 改了表单文案：说一句是哪张表单（只改了表单时它就是这一笔的全部说明）。
@@ -1651,8 +1665,13 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
   function onAction(action: PuckAction, _next: unknown, prev: { data?: { content?: { props?: { id?: unknown } }[] } }) {
     if (action.type !== 'reorder' && action.type !== 'move') return;
-    const id = prev?.data?.content?.[action.sourceIndex]?.props?.id;
+    const item = prev?.data?.content?.[action.sourceIndex] as { props?: { id?: unknown; _src?: PuckItemSrc } } | undefined;
+    const id = item?.props?.id;
     if (typeof id === 'string') movedRef.current.add(id);
+    // #1676 —— 记录里「挪了谁」用的是页面 JSON 的块键（§describeSave 的 keyOf）。新插的块还没有 —— 它记成 `Added X`。
+    const src = item?.props?._src;
+    const key = src?.shared ? `ref:${src.shared}` : src?.entry && typeof (src.entry as { id?: unknown }).id === 'string' ? `id:${(src.entry as { id: string }).id}` : null;
+    if (key) draggedRef.current = [...draggedRef.current.filter((k) => k !== key), key];
   }
 
   let empty: ReactNode = null;
@@ -1678,7 +1697,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
   };
 
-  const inlineApi: InlineApi = { locked, locale, page, site, components: componentsByType, setFreeze, rewrite };
+  const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
+  const inlineApi: InlineApi = { locked, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };

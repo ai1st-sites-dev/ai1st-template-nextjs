@@ -105,4 +105,15 @@ export function describeSave(args: {
   siteBlocks?: Record<string, unknown>;
   rootLabels: Record<string, string>;
   shapeLabel?: string;
+  /** #1676 —— `{ 块键: { 字段 slot: 动作 } }`，由 §aiNotesForSave 算出来。 */
+  aiNotes?: Record<string, Record<string, string>>;
+  /** #1676 —— 老板拖过的块键（`id:<id>` / `ref:<ref>`），最后拖的在最后。 */
+  dragged?: string[];
 }): string;
+/** #1676 —— AI 按钮的说明（实现与三条作废规矩在 .js）。 */
+export type AiNote = { action: string; path: (string | number)[]; text: string };
+export type AiNotes = Record<string, Record<string, AiNote>>;
+export const AI_ACTION_PHRASES: Record<string, string>;
+export function recordAiNote(notes: AiNotes, note: { id: string; path: (string | number)[]; action: string; text: string }): AiNotes;
+export function aiNotesForSave(notes: AiNotes, content: unknown[]): { aiNotes: Record<string, Record<string, string>>; used: AiNote[] };
+export function settleAiNotes(notes: AiNotes, used: AiNote[]): AiNotes;

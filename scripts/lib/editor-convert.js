@@ -30,6 +30,8 @@
 const ITEM_ORIG = '__orig';
 // #1505 —— 列表槽的引用写法（`items: {source: "services"}`）。判据跟构建、校验同一个函数（item-sources.js §isSourceRef）。
 const { isSourceRef } = require('./item-sources');
+// #1676 —— 记录里「换成了哪个预设」跟面板上亮哪个预设用同一个判法（§panelPreset）。
+const { presetFor, knobDefault } = require('./block-knobs');
 
 // 页面上有、而这个站的组件清单里没有的块（区块库删掉了它的类型，老页面 JSON 里还留着）。
 // 构建对它只打一行 `Unknown block type` 就跳过（`SectionRenderer`），编辑器也不许因为它打不开 ——
@@ -794,25 +796,167 @@ function entryLabel(e, idx, lib) {
   return c ? c.label : type || 'Section';
 }
 
-/** 同一块前后两份 `data` 里改了哪几个字段 → 字段名（照 schema 的字段顺序）。 */
-function changedFieldLabels(component, before, after) {
+// ── #1676 每个改动说成什么 ─────────────────────────────────────────────────────────────────────────
+//   AI 按钮       `Hero · Headline · made shorter`       （说明由编辑器递进来：`aiNotes`，见 §aiNotesForSave）
+//   手改文字      `Hero · Subheading · "前 40 个字…"`
+//   换形态        `Hero · Layout → split`                 （值写形态 id，不写面板上带括号的那个 label；回到跟主题走 = `(default)`）
+//                 🔴 带预设的块（今天 15 个页面块全是）编辑器里**没有**形态下拉（`EditorApp.tsx` §buildConfig，#1463）——
+//                 老板「换版式」点的是预设那一排，落到数据里是 `options` 的几个旋钮（带颜色 / 部件的预设还连着那几个字段）。
+//                 所以面板上亮的预设变了、改完又落在某个预设上，也说成 `Layout → <那个预设的形态 id>`（点 Split 预设 ⟹
+//                 `Hero · Layout → split`），那一下顺带写进去的颜色 / 部件字段不再另列。判「亮哪个」照搬面板（§panelPreset）。
+//   旋钮          `Hero · Layout options → textAlign = center`
+//   加 / 删 / 挪  `Added Pricing` / `Removed FAQ` / `Moved Features up`
+//   其余字段（图片、链接、列表…）照旧只说字段名：`Hero · Background, Stats`。
+// 全部按规则算，不调 AI（每次自动保存一条，调 AI 又贵又慢又不确定）。
+
+/** AI 四个动作在记录里的说法。键 = `InlineEdit.tsx` 的 `REWRITE_ACTIONS`（按钮上的字是另一份）。 */
+const AI_ACTION_PHRASES = { longer: 'made longer', shorter: 'made shorter', casual: 'more casual', professional: 'more professional' };
+/** 手改文字记录里新值最多带几个字（按字符，不按字节：中文 / emoji 不被切半）。 */
+const SUMMARY_TEXT_CHARS = 40;
+
+/** 新值 → `"前 40 个字…"`。富文本去掉标签；空白压成一个空格。 */
+function quoteText(v, rich) {
+  let s = typeof v === 'string' ? v : '';
+  if (rich) s = s.replace(/<[^>]*>/g, ' ');
+  s = s.replace(/\s+/g, ' ').trim();
+  if (!s) return '(empty)';
+  const chars = Array.from(s);
+  return `"${chars.length > SUMMARY_TEXT_CHARS ? `${chars.slice(0, SUMMARY_TEXT_CHARS).join('').trimEnd()}…` : s}"`;
+}
+
+/**
+ * 面板上亮的是哪个预设（null = Custom）。🔴 逐字照搬 `EditorApp.tsx` §OptionsField 那几行：没写的旋钮先落回 `presets[0]`
+ * 那一组、再落回 §knobDefault；颜色槽、部件跟旋钮一起交给 `block-knobs.js` §presetFor（#1483 / #1487）—— pricing 的
+ * Plan cards 与 Rainbow 旋钮一模一样、只差颜色，只比旋钮就会把 Rainbow 说成 plan-cards（#1676 QA1 r1）。
+ */
+function panelPreset(field, data) {
+  const d = isPlainObject(data) ? data : {};
+  const v = isPlainObject(d[field.slot]) ? d[field.slot] : {};
+  const knobs = field.knobs || [];
+  const presets = field.presets || [];
+  const fallback = (presets[0] && presets[0].knobs) || {};
+  const values = {};
+  for (const k of knobs) {
+    values[k.name] = typeof v[k.name] === 'string' ? v[k.name] : k.values.includes(fallback[k.name]) ? fallback[k.name] : knobDefault(k);
+  }
+  for (const slot of [...(field.colorSlots || []), ...Object.keys(field.partDemos || {})]) values[slot] = d[slot];
+  return presetFor({ slots: { options: { knobs } }, presets }, values);
+}
+
+/**
+ * 这一笔是不是「换了一个预设」：面板上亮的预设前后不同、改完落在某个预设上 ⟹ `{ text, covered }`。
+ * `covered` = 这一下顺带写进去的字段（那个对象字段 + 它的颜色槽 + 部件），它们不再另列。
+ */
+function presetSwitch(component, before, after, shapeLabel) {
+  const f = component.fields.find((x) => x.control === 'options' && (x.presets || []).length);
+  if (!f) return null;
+  const to = panelPreset(f, after);
+  if (!to || to === panelPreset(f, before)) return null;
+  return {
+    text: `${shapeLabel || 'Layout'} → ${to.shape}`,
+    covered: new Set([f.slot, ...(f.colorSlots || []), ...Object.keys(f.partDemos || {})]),
+  };
+}
+
+/** 「Layout options」那种对象字段：改了哪几个旋钮 / 开关 → `textAlign = center`。没有能说的 ⟹ 空数组。 */
+function knobChanges(field, before, after) {
+  const names = [...(field.knobs || []).map((k) => k.name), ...(field.booleans || [])];
+  if (!names.length) return [];
   const a = isPlainObject(before) ? before : {};
   const b = isPlainObject(after) ? after : {};
   const out = [];
-  for (const f of component.fields) if (!deepEqual(has(a, f.slot) ? a[f.slot] : undefined, has(b, f.slot) ? b[f.slot] : undefined)) out.push(f.label);
+  for (const n of names) {
+    if (deepEqual(has(a, n) ? a[n] : undefined, has(b, n) ? b[n] : undefined)) continue;
+    const v = has(b, n) ? b[n] : undefined;
+    out.push(`${n} = ${v === undefined || v === null || v === '' ? '(default)' : String(v)}`);
+  }
   return out;
 }
 
 /**
+ * 一块里改过的那些字段 → 记录里的几段（照 schema 字段顺序；只说字段名的相邻几个并成一段，跟今天一样用「, 」）。
+ * @param changed  `[{ field, before, after }]`
+ * @param notes    这一块的 AI 说明 `{ slot: action }`（可缺）
+ * @param preset   §presetSwitch 的结果（这一笔换了预设）：先说它，它顺带写的字段跳过
+ */
+function fieldSegments(label, changed, notes, preset) {
+  const segs = preset ? [`${label} · ${preset.text}`] : [];
+  let plain = null;
+  for (const { field: f, before, after } of changed) {
+    if (preset && preset.covered.has(f.slot)) continue;
+    const action = notes && has(notes, f.slot) ? AI_ACTION_PHRASES[notes[f.slot]] : undefined;
+    let detail = null;
+    if (action) detail = `${f.label} · ${action}`;
+    else if ((f.kind === 'text' || f.kind === 'richtext') && (typeof after === 'string' || after === undefined || after === null)) {
+      detail = `${f.label} · ${quoteText(after, f.kind === 'richtext')}`;
+    } else {
+      const knobs = knobChanges(f, before, after);
+      if (knobs.length) detail = `${f.label} → ${knobs.join(', ')}`;
+    }
+    if (detail) { plain = null; segs.push(`${label} · ${detail}`); continue; }
+    if (plain) plain.push(f.label);
+    else { plain = [f.label]; segs.push(plain); }
+  }
+  return segs.map((s) => (Array.isArray(s) ? `${label} · ${s.join(', ')}` : s));
+}
+
+/** 同一块前后两份 `data` 里改过的字段（照 schema 的字段顺序）。 */
+function changedFields(component, before, after) {
+  const a = isPlainObject(before) ? before : {};
+  const b = isPlainObject(after) ? after : {};
+  const out = [];
+  for (const f of component.fields) {
+    const va = has(a, f.slot) ? a[f.slot] : undefined;
+    const vb = has(b, f.slot) ? b[f.slot] : undefined;
+    if (!deepEqual(va, vb)) out.push({ field: f, before: va, after: vb });
+  }
+  return out;
+}
+
+/**
+ * 挪了哪一块、往哪挪。两边都按**生效顺序**排（`blocks.js` §effectiveWeight：有 `weight` 用它，没有用 `下标 × 10`，
+ * 平手按下标）—— 结构没变时数组顺序是文件原来的顺序，不是页面上的顺序。只比两边都有的块（加 / 删另说）。
+ * @returns `{ key, up }` · `null` = 顺序没变 · `'many'` = 说不出是哪一块（两块以上换了位置；或相邻两块对调、又不知道拖的是谁）
+ */
+function movedBlock(before, after, keyOf, dragged) {
+  const order = (arr) => arr
+    .map((e, i) => ({ k: keyOf(e, i), w: isPlainObject(e) && typeof e.weight === 'number' && Number.isFinite(e.weight) ? e.weight : i * 10, i }))
+    .sort((x, y) => (x.w - y.w) || (x.i - y.i))
+    .map((x) => x.k);
+  const a0 = order(before);
+  const b0 = order(after);
+  const inA = new Set(a0);
+  const inB = new Set(b0);
+  const a = a0.filter((k) => inB.has(k));
+  const b = b0.filter((k) => inA.has(k));
+  if (a.every((k, i) => k === b[i])) return null;
+  // 只挪了一块 ⟺ 把它从两边拿掉之后剩下的一样。挪一格时（相邻对调）有两块都满足 —— 「A 上移」和「B 下移」都对，
+  // 选老板真拖的那块（`dragged`，最后拖的在最后）；不知道就不猜。
+  const same = (k) => { const x = a.filter((y) => y !== k); const y = b.filter((z) => z !== k); return x.every((v, i) => v === y[i]); };
+  const cands = a.filter(same);
+  let key = cands.length === 1 ? cands[0] : null;
+  if (cands.length === 2 && Array.isArray(dragged)) {
+    for (let i = dragged.length - 1; i >= 0 && !key; i -= 1) if (cands.includes(dragged[i])) key = dragged[i];
+  }
+  if (!key) return 'many';
+  return { key, up: b.indexOf(key) < a.indexOf(key) };
+}
+
+/**
  * @param {{ saved: object, json: object|null, root: object|null, shared: object|null, schema: object,
- *           siteBlocks?: object, rootLabels: Record<string, string>, shapeLabel?: string }} a
+ *           siteBlocks?: object, rootLabels: Record<string, string>, shapeLabel?: string,
+ *           aiNotes?: Record<string, Record<string, string>>, dragged?: string[] }} a
  *   json/root/shared 是这一笔**交出去的**那几样（没交 = null）；`saved` 是上一次存下去的页面 JSON。
- * @returns {string} 一行话，各项用「; 」隔开（`Hero · Headline, Subheadline; Announcement Bar · Message`）。
+ *   #1676 —— `aiNotes`：这一笔里 AI 按钮改过的字段，`{ 块键: { 字段 slot: 动作 } }`（块键 = `id:<id>` / `ref:<ref>` 页面块、
+ *   `shared:<块库 id>` 共用块；已按作废规矩筛过，见 §aiNotesForSave）。`dragged`：老板拖过的块键（最后拖的在最后），
+ *   只用来分辨相邻两块对调时是谁动了。两个都可缺。
+ * @returns {string} 一行话，各项用「; 」隔开（`Hero · Headline · made shorter; Moved Features up`）。
  *   一项都认不出（例如只动了一个没有字段的块）⟹ 一句通用话，不回空串：什么都没改的那一笔调用方根本不会存。
  */
-function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabels, shapeLabel }) {
+function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabels, shapeLabel, aiNotes, dragged }) {
   const idx = schemaIndex(schema);
   const lib = isPlainObject(siteBlocks) ? siteBlocks : {};
+  const notes = isPlainObject(aiNotes) ? aiNotes : {};
   const parts = [];
   if (json) {
     const before = rawArray(saved) || [];
@@ -826,24 +970,33 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
     };
     const old = new Map(before.map((e, i) => [keyOf(e, i), e]));
     const seen = new Set();
-    let moved = false;
+    let reweighted = false;
     after.forEach((e, i) => {
       const k = keyOf(e, i);
       seen.add(k);
       const o = old.get(k);
       const label = entryLabel(e, idx, lib);
-      if (o === undefined) { parts.push(`${label} (added)`); return; }
+      if (o === undefined) { parts.push(`Added ${label}`); return; }
       if (deepEqual(o, e)) return;
       const c = isPlainObject(e) && typeof e.type === 'string' ? idx.get(e.type) : null;
-      const fields = c ? changedFieldLabels(c, o.data, e.data) : [];
-      if ((isPlainObject(o) ? o.shape : undefined) !== (isPlainObject(e) ? e.shape : undefined)) fields.push(shapeLabel || 'Layout');
-      if (fields.length) parts.push(`${label} · ${fields.join(', ')}`);
+      const od = isPlainObject(o) ? o.data : undefined;
+      const segs = c ? fieldSegments(label, changedFields(c, od, e.data), notes[k], presetSwitch(c, od, e.data, shapeLabel)) : [];
+      const s0 = isPlainObject(o) ? o.shape : undefined;
+      const s1 = isPlainObject(e) ? e.shape : undefined;
+      if (s0 !== s1) segs.push(`${label} · ${shapeLabel || 'Layout'} → ${typeof s1 === 'string' && s1 ? s1 : '(default)'}`);
+      if (segs.length) parts.push(...segs);
       else if (!deepEqual({ ...o, weight: undefined }, { ...e, weight: undefined })) parts.push(label);
-      else moved = true;
+      else reweighted = true;
     });
-    before.forEach((e, i) => { if (!seen.has(keyOf(e, i))) parts.push(`${entryLabel(e, idx, lib)} (removed)`); });
-    // 只动了位置（权重）：不逐块列 —— 拖一块，后面每块的 weight 都会跟着重写，逐块列出来就是「全改了」。
-    if (moved) parts.push('Section order');
+    before.forEach((e, i) => { if (!seen.has(keyOf(e, i))) parts.push(`Removed ${entryLabel(e, idx, lib)}`); });
+    // 位置：按 key 对上号的形状比生效顺序（§movedBlock）。老的 sections 形状按下标对号，挪一块就是「这一格的内容全变了」，
+    // 说不出谁挪了 —— 照旧一句 `Section order`。
+    const mv = byKey ? movedBlock(before, after, keyOf, dragged) : (reweighted ? 'many' : null);
+    if (mv === 'many') parts.push('Section order');
+    else if (mv) {
+      const i = after.findIndex((e, j) => keyOf(e, j) === mv.key);
+      parts.push(`Moved ${entryLabel(after[i], idx, lib)} ${mv.up ? 'up' : 'down'}`);
+    }
   }
   if (isPlainObject(shared)) {
     for (const id of Object.keys(shared)) {
@@ -853,8 +1006,14 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
       const c = type ? idx.get(type) : null;
       const label = c ? c.label : type || 'Shared section';
       if (isPlainObject(ch.data)) {
-        const fields = c ? patchedFieldLabels(c, ch.data) : [];
-        parts.push(fields.length ? `${label} · ${fields.join(', ')}` : label);
+        // 共用块那一笔交的是「改过的字段 → 新值」+ 画布是按哪个值取的（`was`，没有这个键 = 本来没有）。
+        const was = isPlainObject(ch.was) ? ch.was : {};
+        const changed = c ? c.fields.filter((f) => has(ch.data, f.slot)).map((f) => ({ field: f, before: was[f.slot], after: ch.data[f.slot] })) : [];
+        // 换没换预设要整块比：块库里那一份是底，前后各盖上画布的旧值 / 新值。
+        const base = isPlainObject(b) && isPlainObject(b.data) ? b.data : {};
+        const sw = c ? presetSwitch(c, { ...base, ...was }, { ...base, ...ch.data }, shapeLabel) : null;
+        const segs = c ? fieldSegments(label, changed, notes[`shared:${id}`], sw) : [];
+        if (segs.length) parts.push(...segs); else parts.push(label);
       }
       if (ch.unlist) parts.push(`${label} (removed from this page)`);
     }
@@ -873,13 +1032,66 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
 /** 外壳四样里是「选一项」的那几个：记录里带上选了哪一项（`Page layout (whole website) → standard`）。 */
 const ROOT_CHOICE_FIELDS = new Set(['layout', 'headerShape', 'footerShape']);
 
-/** 共用块那一笔交的是「改过的字段 → 新值」，字段名照 schema 顺序取。 */
-function patchedFieldLabels(component, patch) {
-  return component.fields.filter((f) => has(patch, f.slot)).map((f) => f.label);
+// ── #1676 AI 按钮的说明：从按下去到写进记录 ────────────────────────────────────────────────────────
+//
+// 编辑器（`EditorApp.tsx`）手上一份 `notes`：Puck 条目 id → 字段 slot → `{ action, path, text }`（text = AI 写进去的那段字）。
+//   §recordAiNote    AI 写完记一条。同一格再按一次就覆盖（作废规矩 ②：同一笔里同一字段只说最后一次）。
+//   §aiNotesForSave  存盘那一刻：画布上那一格已经不是 AI 写的那段字 ⟹ 后来手改过，这条不用（规矩 ①：手改优先，
+//                    记录照手改写新值）；再把 Puck id 换成 §describeSave 认的块键。
+//   §settleAiNotes   这一笔**存上了**才把它用掉的那几条清掉；被拒（stale）就留着，随下一笔一起出（规矩 ③）。
+// 三个都是纯函数（返回新的一份，不改入参），node 测试直接驱动。
+
+function recordAiNote(notes, { id, path, action, text }) {
+  const slot = Array.isArray(path) && typeof path[0] === 'string' ? path[0] : null;
+  if (!slot || typeof id !== 'string' || !has(AI_ACTION_PHRASES, action)) return notes;
+  const cur = isPlainObject(notes) ? notes : {};
+  return { ...cur, [id]: { ...(isPlainObject(cur[id]) ? cur[id] : {}), [slot]: { action, path: path.slice(), text } } };
+}
+
+/** @returns `{ aiNotes, used }` —— `aiNotes` 给 §describeSave；`used` = 用掉的那几条（原对象），交给 §settleAiNotes。 */
+function aiNotesForSave(notes, content) {
+  const aiNotes = {};
+  const used = [];
+  if (!isPlainObject(notes)) return { aiNotes, used };
+  for (const item of Array.isArray(content) ? content : []) {
+    const props = item && item.props;
+    const byId = props && typeof props.id === 'string' ? notes[props.id] : undefined;
+    if (!isPlainObject(byId)) continue;
+    const src = props._src;
+    const key = src && typeof src.shared === 'string' && src.shared ? `shared:${src.shared}`
+      : src && isPlainObject(src.entry) && typeof src.entry.id === 'string' && src.entry.id ? `id:${src.entry.id}`
+        : null;
+    if (!key) continue; // 新插的块记成 `Added X`，不用说明；老 sections 形状没有 id，对不上号就照常写新值
+    for (const slot of Object.keys(byId)) {
+      const n = byId[slot];
+      if (!isPlainObject(n) || !Array.isArray(n.path)) continue;
+      let v = props;
+      for (const p of n.path) v = v == null ? undefined : v[p];
+      if (v !== n.text) continue; // 规矩 ①
+      aiNotes[key] = { ...(aiNotes[key] || {}), [slot]: n.action };
+      used.push(n);
+    }
+  }
+  return { aiNotes, used };
+}
+
+/** 存上了：把 `used` 里那几条（还是同一个对象的话 —— 之后又按过一次的不清）从 `notes` 拿掉。 */
+function settleAiNotes(notes, used) {
+  if (!isPlainObject(notes) || !Array.isArray(used) || !used.length) return notes;
+  const gone = new Set(used);
+  const out = {};
+  for (const id of Object.keys(notes)) {
+    const byId = isPlainObject(notes[id]) ? notes[id] : {};
+    const keep = {};
+    for (const slot of Object.keys(byId)) if (!gone.has(byId[slot])) keep[slot] = byId[slot];
+    if (Object.keys(keep).length) out[id] = keep;
+  }
+  return out;
 }
 
 module.exports = {
   UNKNOWN_TYPE, describeSave, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
   aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions, nestedPartSet,
+  recordAiNote, aiNotesForSave, settleAiNotes, AI_ACTION_PHRASES,
 };

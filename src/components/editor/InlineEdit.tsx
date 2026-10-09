@@ -55,6 +55,8 @@ export type InlineApi = {
   components: Map<string, EditorComponent>;
   setFreeze: (f: InlineFreeze) => void;
   rewrite: (req: { action: RewriteAction; blockType: string; fields: { name: string; text: string }[] }) => Promise<RewriteResult>;
+  /** #1676 —— AI 写进去了：记一条说明，下一笔存盘的记录写 `Hero · Headline · made shorter`（EditorApp §aiNotesRef）。 */
+  noteAi: (n: { id: string; path: InlinePath; action: RewriteAction; text: string }) => void;
 };
 export const InlineApiContext = createContext<InlineApi | null>(null);
 
@@ -376,6 +378,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       return;
     }
     if (!write(a.id, a.path, out.text, true)) { setNote('This section is no longer on the page.'); return; }
+    ap.noteAi({ id: a.id, path: a.path, action, text: out.text });
     setNote('');   // Chris 2026-10-09：写完不说话 —— 文字换了就是反馈，撤销走左栏记录的 Revert（#1675）
   }
 
