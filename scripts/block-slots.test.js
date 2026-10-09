@@ -62,8 +62,7 @@ for (const ext of ['.tsx', '.ts']) {
   require.extensions[ext] = (mod, filename) => mod._compile(compile(filename), filename);
 }
 
-// 替身：这三样要么是 Next 自己的，要么是构建期生成的（`config-data.ts` 由 sync-config 写，
-// 这棵树上不一定有）。它们跟被测的那一维（钩子挂在哪儿）无关。
+// 替身：这两样是 Next 自己的 / 跟被测的那一维（钩子挂在哪儿）无关。
 const STUB_DIR = path.join(NEXT, 'scripts', '.block-slots-stubs');
 fs.mkdirSync(STUB_DIR, { recursive: true });
 const stub = (name, body) => {
@@ -77,16 +76,6 @@ const STUBS = {
     + 'module.exports=L;module.exports.default=L;\n'),
   '@/components/ServiceIcon': stub('icon', "const React=require('react');"
     + "const C=()=>React.createElement('span');module.exports=C;module.exports.default=C;\n"),
-  // 🔴 `pagesByLocale` 里要真有几页：`service-related-pages` 在「这个服务底下一页都没有」时
-  //    **直接 return null**，那时它一个钩子都挂不出来 —— 夹具给空数组的话，这道守卫会把它报成
-  //    「组件漏挂了」，而那是夹具的毛病不是组件的。slug 跟 §fixtureFor 给 `serviceSlug` 造的值对齐。
-  '@/lib/config': stub('config', 'module.exports={'
-    + 'getServices:()=>[],'
-    + 'pagesByLocale:{en:[{slug:"serviceSlug-text/a",title:"A"},{slug:"serviceSlug-text/b",title:"B"}]},'
-    + 'localeUrl:(s)=>"/"+s,siteId:"t",leadApi:"",'
-    // #1497 —— 同一个理由：`blog` 在站里一篇博客都没有时**整块 return null**，给空数组就会被报成「漏挂了」。
-    + 'getBlogPosts:()=>[{slug:"p",title:"P",excerpt:"E",content:"<p>x</p>",category:"C",tags:[],author:"A",publishedAt:"2026-09-01",seo:{metaTitle:"",metaDescription:""}}],'
-    + 'brand:{locations:[],email:"a@b.c"}};\n'),
 };
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, ...rest) {
@@ -95,6 +84,20 @@ Module._resolveFilename = function resolve(req, ...rest) {
   return origResolve.call(this, req, ...rest);
 };
 process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾，别掩盖真失败 */ } });
+
+// #1665 —— 站点数据不再是 `@/lib/config` 的模块级常量：块从 `site` prop 取（SectionRenderer 递下来），`config.ts` 是纯函数、
+// 这里加载的就是真的那份。这一份就是原来那个替身里的值，换成 `SiteData` 的形状。
+// 🔴 `pagesByLocale` 里要真有几页：`service-related-pages` 在「这个服务底下一页都没有」时
+//    **直接 return null**，那时它一个钩子都挂不出来 —— 夹具给空数组的话，这道守卫会把它报成
+//    「组件漏挂了」，而那是夹具的毛病不是组件的。slug 跟 §fixtureFor 给 `serviceSlug` 造的值对齐。
+// #1497 —— 同一个理由：`blog` 在站里一篇博客都没有时**整块 return null**，给空数组就会被报成「漏挂了」。
+const SITE = {
+  siteId: 't', leadApi: '', defaultLocale: 'en', locales: ['en'],
+  brand: { locations: [], email: 'a@b.c' },
+  seoByLocale: { en: {} }, servicesByLocale: { en: [] }, formsByLocale: { en: [] },
+  pagesByLocale: { en: [{ slug: 'serviceSlug-text/a', title: 'A' }, { slug: 'serviceSlug-text/b', title: 'B' }] },
+  blogPostsByLocale: { en: [{ slug: 'p', title: 'P', excerpt: 'E', content: '<p>x</p>', category: 'C', tags: [], author: 'A', publishedAt: '2026-09-01', seo: { metaTitle: '', metaDescription: '' } }] },
+};
 
 // ── 块类型 → 组件文件 ───────────────────────────────────────────────────────────────────────────
 //
@@ -210,6 +213,7 @@ function slotsInOutput(type, manifest) {
     html = (VARIANTS[type] || [{}]).map((v) => renderToStaticMarkup(React.createElement(C, {
       data: { ...fixtureFor(type, manifest), ...v },
       locale: 'en',
+      site: SITE,
       block: { id: `${type}-0`, type, role: manifest.roleDefault, region: 'content', data: {} },
     }))).join('\n');
   } catch (e) {

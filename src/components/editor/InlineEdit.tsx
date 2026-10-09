@@ -32,7 +32,7 @@ import { registerOverlayPortal, useGetPuck } from '@puckeditor/core';
 import type { EditorComponent } from '../../../scripts/lib/editor-schema';
 import { resolveInlineSlot, setAt, getAt, typedValue, type InlinePath } from '../../../scripts/lib/inline-edit.js';
 import { describeRef, itemSourceContext, resolveItemSources, SOURCED_KEY } from '@/lib/sections/item-sources';
-import type { BlockConfig } from '@/lib/types/config';
+import type { BlockConfig, SiteData } from '@/lib/types/config';
 
 /** 正在打字的那一格：画布上这一格冻结成 `value`（打之前的值），React 不去碰浏览器正在改的那几个 DOM 节点。 */
 export type InlineFreeze = { id: string; path: InlinePath; value: unknown } | null;
@@ -50,6 +50,8 @@ export type InlineApi = {
   locked: boolean;
   locale: string;
   page: string;
+  /** 这一页的站点数据（#1665 起编辑器不再 import 编译期常量，跟画布同一份，由 EditorApp 递下来）。 */
+  site: SiteData;
   components: Map<string, EditorComponent>;
   setFreeze: (f: InlineFreeze) => void;
   rewrite: (req: { action: RewriteAction; blockType: string; fields: { name: string; text: string }[] }) => Promise<RewriteResult>;
@@ -81,9 +83,9 @@ function hintFor(why: string, sourcedRef: unknown): string {
 }
 
 /** 这一块展开时写下的 `_sourced` 的键（写成引用的槽名）—— 跟画布同一个函数、同一份站点数据。 */
-function sourcedSlots(item: Item, locale: string, page: string): string[] {
+function sourcedSlots(item: Item, site: SiteData, locale: string, page: string): string[] {
   try {
-    const [b] = resolveItemSources([{ type: item.type, data: item.props } as unknown as BlockConfig], itemSourceContext(locale, page === 'home' ? undefined : page));
+    const [b] = resolveItemSources([{ type: item.type, data: item.props } as unknown as BlockConfig], itemSourceContext(site, locale, page === 'home' ? undefined : page));
     const marks = (b.data as Record<string, unknown>)[SOURCED_KEY];
     return marks && typeof marks === 'object' ? Object.keys(marks as object) : [];
   } catch {
@@ -274,7 +276,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       const component = item ? a.components.get(item.type) : undefined;
       if (!item || !component) return;
       const slot = el.getAttribute('data-slot') || '';
-      const sourced = sourcedSlots(item, a.locale, a.page);
+      const sourced = sourcedSlots(item, a.site, a.locale, a.page);
       const r = resolveInlineSlot({ component, props: item.props, slot, text: el.textContent || '', sourced, locked: !!item.props._src?.locked });
       setNote('');
       if (!r.ok) {

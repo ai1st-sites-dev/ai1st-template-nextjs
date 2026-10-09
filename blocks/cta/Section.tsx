@@ -28,10 +28,10 @@
 import { slotImg } from '@/lib/sections/blockMedia';
 
 import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
+import type { BlockConfig, SiteData } from '@/lib/types/config';
 import Icon from '@/components/Icon';
 import BlockLeadForm from '@/components/BlockLeadForm';
-import { getServices } from '@/lib/config';
+import { getServices, leadFormSite } from '@/lib/config';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import Button from '@/components/Button';
 import manifest from './manifest.json';
@@ -58,6 +58,8 @@ interface Props {
   data: CtaNewData;
   locale?: string;
   block?: BlockConfig;
+  /** #1665 —— 这个站的内容（SectionRenderer 递下来）。 */
+  site: SiteData;
 }
 
 // 按钮 0–2 条（定稿）；演示内容包按守卫 (c) 给列表槽 6 条，多出来的在这里截掉。
@@ -66,11 +68,11 @@ const MAX_CTAS = 2;
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** #1471 —— 表单「需求」下拉的选项：在 Section.tsx 里读（`page-deps.js` 只看注册表指向的这份文件，理由见 BlockLeadForm 文件头）。 */
-function servicesFor(locale: string): { id: string; name: string }[] {
-  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+function servicesFor(site: SiteData, locale: string): { id: string; name: string }[] {
+  try { return (getServices(site, locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
 }
 
-export default function CtaNewSection({ data, locale = 'en', block }: Props) {
+export default function CtaNewSection({ data, locale = 'en', block, site }: Props) {
   const d: CtaNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: CtaNewOptions = isObj(d.options) ? d.options : {};
@@ -103,7 +105,8 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
       <BlockLeadForm
         mode={k.form === 'teaser' ? 'teaser' : 'full'}
         formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
-        services={servicesFor(locale)}
+        services={servicesFor(site, locale)}
+        {...leadFormSite(site, locale)}
         locale={locale}
         center={centerForm}
         idPrefix="cta"

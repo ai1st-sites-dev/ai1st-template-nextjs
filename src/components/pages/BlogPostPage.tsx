@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArticleJsonLd } from '@/components/JsonLd';
+import type { SiteData } from '@/lib/types/config';
 import { getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
@@ -8,21 +9,21 @@ import { getLabels } from '@/lib/component-labels';
 // 正文是 AI 写的裸 HTML（下面的 dangerouslySetInnerHTML，一个 class 都没有）：原来靠 Tailwind 的 `prose`，现在交给
 // Bootstrap reboot（标题阶梯、列表符号、段距本来就有，设计文档 §1.3 / B8）+ Webpixels 自带的 `.article`（那个组件
 // 本身就这么写：行高、h2 间距、blockquote、code）。行宽 `mw-read` = 65ch。链接色接主题那一档（globals.css §博客两页）。
-export default function BlogPostPage({ locale, slug }: { locale: string; slug: string }) {
-  if (!isValidLocale(locale)) notFound();
-  const post = getBlogPosts(locale).find((p) => p.slug === slug);
-  if (!post) redirect(localeUrl('', locale, 'blogIndex'));
+export default function BlogPostPage({ site, locale, slug }: { site: SiteData; locale: string; slug: string }) {
+  if (!isValidLocale(site, locale)) notFound();
+  const post = getBlogPosts(site, locale).find((p) => p.slug === slug);
+  if (!post) redirect(localeUrl(site, '', locale, 'blogIndex'));
 
   const labels = getLabels(locale);
 
   return (
     <>
-      <ArticleJsonLd locale={locale} post={post} />
+      <ArticleJsonLd site={site} locale={locale} post={post} />
 
       <article className="py-12 py-lg-16">
         <div className="container">
           <div className="mw-read mx-auto">
-            <Link href={localeUrl('', locale, 'blogIndex')} className="text-sm text-decoration-none blog-accent">
+            <Link href={localeUrl(site, '', locale, 'blogIndex')} className="text-sm text-decoration-none blog-accent">
               &larr; {labels.backToBlog}
             </Link>
 

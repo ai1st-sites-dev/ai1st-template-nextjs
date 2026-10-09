@@ -5,19 +5,30 @@
 import Link from 'next/link';
 import SiteShell from '@/components/SiteShell';
 import { buttonClass } from '@/components/Button';
-import { defaultLocale, localeUrl } from '@/lib/config';
+import { localeUrl } from '@/lib/config';
+import type { SiteData } from '@/lib/types/config';
+import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
+import { isPreviewRender } from '@/lib/render-mode';
 import { getLabels } from '@/lib/component-labels';
 
+// #1665 —— 发布模式下这个组件是**同步**的，理由同 layout.tsx 的 RootLayout：写成 async 之后，Next 给 404 页插的那条
+//    `<meta name="robots" content="noindex">` 在 <head> 里的位置跟着渲染快慢走（本机快的那台排对了、站容器里排错了，实测），
+//    发布出去的 404.html 就不再逐字相同。预览模式先 `requestSiteData()`（按请求渲染），再画同一份。
 export default function NotFound() {
+  return isPreviewRender ? requestSiteData().then(notFoundPage) : notFoundPage(loadSiteData());
+}
+
+function notFoundPage(site: SiteData) {
+  const { defaultLocale } = site;
   const labels = getLabels(defaultLocale);
   return (
-    <SiteShell locale={defaultLocale} notFound>
+    <SiteShell site={site} locale={defaultLocale} notFound>
       <section className="py-16 py-lg-24" data-not-found="">
         <div className="container">
           <div className="text-center mx-auto mw-read">
             <h1 className="display-5 ls-tight fw-bolder text-heading">{labels.pageNotFound}</h1>
             <p className="lead text-body-secondary mt-4 mb-8">{labels.pageNotFoundBody}</p>
-            <Link href={localeUrl('home', defaultLocale)} className={buttonClass('solid', { size: 'lg' })} data-not-found-home="">
+            <Link href={localeUrl(site, 'home', defaultLocale)} className={buttonClass('solid', { size: 'lg' })} data-not-found-home="">
               {labels.backToHome}
             </Link>
           </div>

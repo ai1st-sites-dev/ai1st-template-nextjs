@@ -1,9 +1,14 @@
-import type { BlockConfig } from '@/lib/types/config';
+import type { BlockConfig, SiteData } from '@/lib/types/config';
 import type { IconTable } from '@/components/InlineIcon';
 import type { ContactSiteFacts } from '../../scripts/lib/contact-facts.js';
 import { sectionRegistry } from '@/lib/sections/registry.generated';
 
 interface SectionRendererProps {
+  /**
+   * #1665 —— 这个站的内容（服务端加载器读的那份）。读站点数据的块（hero / cta / contact / blog …）从这个 prop 取，
+   * 不再自己 import 一份编译期常量。真站由页面传，编辑器画布由 `EditorApp` 传（它从编辑器页的 props 拿到）。
+   */
+  site: SiteData;
   blocks: BlockConfig[];
   locale: string;
   /**
@@ -27,7 +32,13 @@ interface SectionRendererProps {
   pageSlug?: string;
 }
 
-export default function SectionRenderer({ blocks, locale, iconTables, siteFacts, pageSlug }: SectionRendererProps) {
+// #1665 —— 服务端渲染时，`'use client'` 的块（pricing …）在这里是一个「客户端引用」，交给它的 props 会被原样序列化进页面。
+//    整份站点数据不许这么走（每一页多带一份全站内容），所以只交给服务端块；它们需要的那一小块自己递给下面的浏览器组件。
+//    在浏览器里（编辑器画布）没有这个区分，也没有序列化 —— 每个块都拿到它。
+const CLIENT_REFERENCE = Symbol.for('react.client.reference');
+const isClientReference = (c: unknown) => (c as { $$typeof?: symbol } | null)?.$$typeof === CLIENT_REFERENCE;
+
+export default function SectionRenderer({ site, blocks, locale, iconTables, siteFacts, pageSlug }: SectionRendererProps) {
   return (
     <>
       {blocks.map((block, index) => {
@@ -54,6 +65,7 @@ export default function SectionRenderer({ blocks, locale, iconTables, siteFacts,
             data={block.data || {}}
             locale={locale}
             block={block}
+            {...(isClientReference(Component) ? {} : { site })}
             {...(iconTable ? { iconTable } : {})}
             {...(siteFacts ? { siteFacts } : {})}
             {...(pageSlug ? { pageSlug } : {})}

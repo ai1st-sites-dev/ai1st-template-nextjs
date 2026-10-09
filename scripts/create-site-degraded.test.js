@@ -315,13 +315,23 @@ function assertNoBorrowedFacts(R) {
   assert.deepStrictEqual(keys, [], 'seo.schema 里不该有营业时间 / 价位');
 }
 
-// 构建得出来：真 sync-config.js 生成 config-data.ts → 项目 tsconfig 对 src/lib/config.ts 做类型检查。返回诊断（空 = 过）。
+// 构建得出来：真 sync-config.js 生成 config-data.ts → 项目 tsconfig 把那 15 个值按 `SiteData` 的字段类型各 `as` 一次再做类型检查。
+// 返回诊断（空 = 过）。
+// 🔴 #1665 —— 以前检查的就是 `src/lib/config.ts`：它 import config-data.ts 并把每个值 `as` 成声明的类型，所以 next build 的类型检查
+//    顺带判了站点数据。现在 config.ts 是纯函数、不再 import 它（站点数据是服务端加载器每次请求读的，next build 看不见）⟹ 那条路
+//    对数据恒绿（本票 r1 实测：阳性对照那一格读成 0 条问题）。这里自己写一份同样的 `as`（类型取 `SiteData` 的字段 = 原来那几个
+//    cast 的目标类型），量的仍是「这份数据跟组件以为的形状对不对得上」—— 对不上的那一格在真站上是渲染时抛（例：JsonLd 的 `.map`）。
 const ts = require('typescript');
+const SITE_DATA_KEYS = ['siteId', 'leadApi', 'colorScheme', 'dir', 'defaultLocale', 'locales', 'brand', 'seoByLocale', 'servicesByLocale',
+  'formsByLocale', 'navigationByLocale', 'pagesByLocale', 'blogPostsByLocale', 'regions', 'pageLayout'];
 function typeProblems(work) {
   const sc = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'sync-config.js')], { cwd: work, encoding: 'utf8', timeout: 180000 });
   if (sc.status !== 0) return [`sync-config.js rc=${sc.status}：${(sc.stderr || sc.stdout || '').slice(-600)}`];
+  const checkFile = path.join(work, 'src', 'lib', 'tmp-site-data-typecheck.ts');
+  fs.writeFileSync(checkFile, "import type { SiteData } from './types/config';\nimport * as d from './config-data';\n"
+    + `export const checked = {\n${SITE_DATA_KEYS.map((k) => `  ${k}: d.${k} as SiteData['${k}'],`).join('\n')}\n};\n`);
   const conf = ts.parseJsonConfigFileContent(ts.readConfigFile(path.join(work, 'tsconfig.json'), ts.sys.readFile).config, ts.sys, work);
-  const prog = ts.createProgram([path.join(work, 'src', 'lib', 'config.ts')], { ...conf.options, incremental: false, noEmit: true });
+  const prog = ts.createProgram([checkFile], { ...conf.options, incremental: false, noEmit: true });
   return ts.getPreEmitDiagnostics(prog).map((d) => {
     const where = d.file ? `${path.relative(work, d.file.fileName)}:${d.file.getLineAndCharacterOfPosition(d.start).line + 1} ` : '';
     return where + ts.flattenDiagnosticMessageText(d.messageText, ' ').slice(-300);
@@ -635,7 +645,7 @@ console.log('── 构建得出来（#1596 r2）：站级计划另两份 payloa
     TYPECHECK.push([`站级计划（${name}）`, R]);
   }
 }
-console.log('── 构建得出来：sync-config.js + 对 src/lib/config.ts 做类型检查（next build 判站点数据的那一处）');
+console.log('── 构建得出来：sync-config.js + 站点数据按 SiteData 的字段类型做类型检查（#1665 以前就是 next build 经 config.ts 判的那一处）');
 for (const [name, R] of TYPECHECK) {
   check(`${name}：类型检查 0 条问题`, () => {
     assertOk(R);

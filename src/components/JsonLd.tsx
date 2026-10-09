@@ -1,4 +1,5 @@
-import { brand, getSeo, getServices, getInLanguage, getBrandName, localeUrl } from '@/lib/config';
+import type { SiteData } from '@/lib/types/config';
+import { getSeo, getServices, getInLanguage, getBrandName, localeUrl } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
 import type { BlockConfig, DynamicPageConfig } from '@/lib/types/config';
 import { faqItems } from '@blocks/faq/Section';
@@ -20,9 +21,10 @@ function socialUrls(links: unknown): string[] {
 //   · 地址的 `streetAddress` / `postalCode`、`geo`：`brand.locations[0]`，建站时那一次 Nominatim 回答里取（`scripts/lib/geocode.js`）；
 //   · `sameAs`：`brand.socialLinks`（建站时从 payload 原样写进去的社交链接）；
 //   · `aggregateRating`：`seo.schema.aggregateRating`，只在抓到真实平台评分时才有（`local-business-facts.js` §ratingFrom）。
-export function LocalBusinessJsonLd({ locale }: { locale: string }) {
-  const seo = getSeo(locale);
-  const services = getServices(locale);
+export function LocalBusinessJsonLd({ site, locale }: { site: SiteData; locale: string }) {
+  const { brand } = site;
+  const seo = getSeo(site, locale);
+  const services = getServices(site, locale);
   const loc = brand.locations[0];
   const segments = hoursSegments(seo.schema.openingHours);
   const sameAs = socialUrls(brand.socialLinks);
@@ -31,8 +33,8 @@ export function LocalBusinessJsonLd({ locale }: { locale: string }) {
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
-    inLanguage: getInLanguage(locale),
-    name: getBrandName(locale),
+    inLanguage: getInLanguage(site, locale),
+    name: getBrandName(site, locale),
     description: seo.siteDescription,
     url: seo.domain,
     telephone: loc?.phone,
@@ -91,13 +93,13 @@ export function LocalBusinessJsonLd({ locale }: { locale: string }) {
   );
 }
 
-export function WebSiteJsonLd({ locale }: { locale: string }) {
-  const seo = getSeo(locale);
+export function WebSiteJsonLd({ site, locale }: { site: SiteData; locale: string }) {
+  const seo = getSeo(site, locale);
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    inLanguage: getInLanguage(locale),
-    name: getBrandName(locale),
+    inLanguage: getInLanguage(site, locale),
+    name: getBrandName(site, locale),
     url: seo.domain,
     description: seo.siteDescription,
     // #1551 —— 这里原来挂着一个「站内搜索」动作，可站上根本没有搜索、target 里也没有 {search_term_string}，是无效标记，删了。
@@ -111,16 +113,17 @@ export function WebSiteJsonLd({ locale }: { locale: string }) {
   );
 }
 
-export function ServiceJsonLd({ locale, serviceName, serviceDescription, serviceUrl }: { locale: string; serviceName: string; serviceDescription: string; serviceUrl: string }) {
-  const seo = getSeo(locale);
+export function ServiceJsonLd({ site, locale, serviceName, serviceDescription, serviceUrl }: { site: SiteData; locale: string; serviceName: string; serviceDescription: string; serviceUrl: string }) {
+  const { brand } = site;
+  const seo = getSeo(site, locale);
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Service',
-    inLanguage: getInLanguage(locale),
+    inLanguage: getInLanguage(site, locale),
     serviceType: serviceName,
     provider: {
       '@type': 'LocalBusiness',
-      name: getBrandName(locale),
+      name: getBrandName(site, locale),
       telephone: brand.locations[0]?.phone,
     },
     name: serviceName,
@@ -147,21 +150,22 @@ export function ServiceJsonLd({ locale, serviceName, serviceDescription, service
  * `provider` = 本站 LocalBusiness。算法全在 `scripts/lib/keyword-service.js`；不是关键词页 / 没有目标词 ⟹ 什么都不出。
  * 📌 目标词是 T4 #1548 写进页面数据的 `seo.targetKeyword` —— 它落地之前，真实站点上这里一条都不出。
  */
-export function KeywordServiceJsonLd({ locale, page, pageUrl }: { locale: string; page: DynamicPageConfig; pageUrl: string }) {
-  const seo = getSeo(locale);
+export function KeywordServiceJsonLd({ site, locale, page, pageUrl }: { site: SiteData; locale: string; page: DynamicPageConfig; pageUrl: string }) {
+  const { brand } = site;
+  const seo = getSeo(site, locale);
   const svc = keywordServiceFor(page, { seo, brand });
   if (!svc) return null;
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Service',
-    inLanguage: getInLanguage(locale),
+    inLanguage: getInLanguage(site, locale),
     name: svc.name,
     serviceType: svc.name,
     ...(page.description ? { description: page.description } : {}),
     url: pageUrl,
     provider: {
       '@type': 'LocalBusiness',
-      name: getBrandName(locale),
+      name: getBrandName(site, locale),
       ...(brand.locations[0]?.phone ? { telephone: brand.locations[0].phone } : {}),
       ...(seo.domain ? { url: seo.domain } : {}),
     },
@@ -175,12 +179,12 @@ export function KeywordServiceJsonLd({ locale, page, pageUrl }: { locale: string
   );
 }
 
-export function ArticleJsonLd({ locale, post }: { locale: string; post: BlogPostConfig }) {
-  const seo = getSeo(locale);
+export function ArticleJsonLd({ site, locale, post }: { site: SiteData; locale: string; post: BlogPostConfig }) {
+  const seo = getSeo(site, locale);
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
-    inLanguage: getInLanguage(locale),
+    inLanguage: getInLanguage(site, locale),
     headline: post.title,
     description: post.seo.metaDescription,
     author: {
@@ -189,11 +193,11 @@ export function ArticleJsonLd({ locale, post }: { locale: string; post: BlogPost
     },
     publisher: {
       '@type': 'Organization',
-      name: getBrandName(locale),
+      name: getBrandName(site, locale),
       url: seo.domain,
     },
     datePublished: post.publishedAt,
-    url: `${seo.domain}${localeUrl(post.slug, locale, 'blogPost')}`,
+    url: `${seo.domain}${localeUrl(site, post.slug, locale, 'blogPost')}`,
     keywords: post.tags.join(', '),
   };
 

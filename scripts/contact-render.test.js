@@ -41,17 +41,20 @@ const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); 
 const check = (cond, m, detail) => (cond ? ok(m) : bad(detail ? `${m} —— ${detail}` : m));
 
 // ── 让 node 能 require 这份 .tsx；Next 自己的换成替身（同 cta-render.test.js）──────────────────────
-// `@/lib/config` 的替身带一份**跟演示站不同**的站点数据：判据 3 要证明「不传 siteFacts ⟹ 读这个站自己的」。
+// #1665 —— 块从 `site` prop 读站点数据（`config.ts` 是纯函数，加载真的那份）。`OWN_SITE` 是一份**跟演示站不同**的站点数据：
+// 判据 3 要证明「不传 siteFacts ⟹ 读这个站自己的」。
 const STUB_DIR = path.join(NEXT, 'scripts', '.contact-stubs');
 fs.mkdirSync(STUB_DIR, { recursive: true });
 const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.writeFileSync(p, body); return p; };
 const STUBS = {
   'next/link': stub('link', "const React=require('react');"
     + "const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
-  '@/lib/config': stub('config', 'module.exports={siteId:"t-site",leadApi:"https://lead.example",'
-    + 'getServices:()=>[{id:"brakes",name:"Brakes"}],'
-    + 'brand:{email:"own@site.example",locations:[{label:"Own",address:"1 Own Rd",phone:"+1 (905) 555-0199"}]},'
-    + 'getSeo:()=>({schema:{openingHours:{days:["Monday","Tuesday"],opens:"10:00",closes:"16:30"}}})};\n'),
+};
+const OWN_SITE = {
+  siteId: 't-site', leadApi: 'https://lead.example', defaultLocale: 'en', locales: ['en'],
+  servicesByLocale: { en: [{ id: 'brakes', name: 'Brakes' }] }, formsByLocale: { en: [] },
+  brand: { email: 'own@site.example', locations: [{ label: 'Own', address: '1 Own Rd', phone: '+1 (905) 555-0199' }] },
+  seoByLocale: { en: { schema: { openingHours: { days: ['Monday', 'Tuesday'], opens: '10:00', closes: '16:30' } } } },
 };
 process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } });
 const sourceOverride = new Map();
@@ -94,7 +97,7 @@ const TABLE = icons.iconTableFor('contact', DEMO, { warn: () => {} });
 const siteOf = (mut) => { const s = clone(DEMO_SITE); if (mut) mut(s); return facts.siteFactsFrom(s.brand, s.seo); };
 const FACTS = siteOf();
 const render = (shape, data, { site = FACTS, Comp = C, iconTable = TABLE } = {}) => renderToStaticMarkup(React.createElement(Comp, {
-  data, locale: 'en', iconTable, block: { id: 'ct', type: 'contact', shape, data: {} }, ...(site ? { siteFacts: site } : {}),
+  data, locale: 'en', iconTable, site: OWN_SITE, block: { id: 'ct', type: 'contact', shape, data: {} }, ...(site ? { siteFacts: site } : {}),
 }));
 const withOpts = (o, extra = {}, base = DEMO) => ({ ...clone(base), ...extra, options: { ...(base.options || {}), ...o } });
 const count = (html, needle) => html.split(needle).length - 1;
@@ -174,7 +177,7 @@ console.log('\n── 判据 3 值只读站点数据');
     `站点数据删掉营业时间 ⟹ hours 那一条不渲染、其余照常（${kinds(h)} → ${kinds(noHours)}）`);
   const own = render('form-beside', clone(DEMO), { site: null });
   check(own.includes('1 Own Rd') && own.includes('tel:+19055550199') && own.includes('Mon, Tue · 10am – 4:30pm') && !own.includes('2150 Yonge'),
-    '不传 siteFacts ⟹ 读这个站自己的（@/lib/config 的 brand / getSeo）');
+    '不传 siteFacts ⟹ 读这个站自己的（site prop 的 brand / getSeo）');
   const linkRow = itemsOf(h).find((i) => i.includes('data-kind="link"'));
   check(!!linkRow && linkRow.includes('href="https://wa.me/14165550142"') && linkRow.includes('>Text us on WhatsApp</a>'), 'link：值就是标题、跳 href');
   check(facts.formatHours({ days: ['Monday', 'Wednesday', 'Thursday', 'Friday', 'Sunday'], opens: '07:00', closes: '19:00' }) === 'Mon, Wed–Fri, Sun · 7am – 7pm'

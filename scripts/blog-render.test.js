@@ -39,17 +39,13 @@ const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 const check = (cond, m, detail) => (cond ? ok(m) : bad(detail ? `${m} —— ${detail}` : m));
 
-// ── 让 node 能 require 这份 .tsx；Next 自己的、站点配置换成替身（这棵树里不一定有生成的 config-data）────────
+// ── 让 node 能 require 这份 .tsx；Next 自己的换成替身 ────────
 // 替身要放在 scripts/ 底下：从系统临时目录 require('react') 找不到模块（同 milestones-render.test.js）。
 const STUB_DIR = fs.mkdtempSync(path.join(NEXT, 'scripts', 'tmp-blog-stubs-'));
 const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.writeFileSync(p, body); return p; };
-// 替身 config：文章由测试放进 globalThis.__BLOG_POSTS__（按 locale），localeUrl 跟真的一样给 /blog/<slug>。
 const STUBS = {
   'next/link': stub('link', "const React=require('react');"
     + "const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
-  '@/lib/config': stub('config', 'module.exports={'
-    + 'getBlogPosts:(l)=>((globalThis.__BLOG_POSTS__||{})[l]||[]),'
-    + 'localeUrl:(s,l,kind)=>kind==="blogPost"?"/blog/"+s:"/"+s};\n'),
 };
 process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } });
 const sourceOverride = new Map();
@@ -91,8 +87,10 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const sorted = (arr) => [...arr].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 const setPosts = (arr) => { globalThis.__BLOG_POSTS__ = { en: sorted(arr) }; };
 setPosts(POSTS);
+// #1665 —— 块从 `site` prop 取博客（`config.ts` 是纯函数，加载的是真的那份）。文章由测试放进 globalThis.__BLOG_POSTS__（按 locale）。
+const SITE = { defaultLocale: 'en', locales: ['en'], get blogPostsByLocale() { return globalThis.__BLOG_POSTS__ || {}; } };
 const render = (shape, data, Comp = C) => renderToStaticMarkup(React.createElement(Comp, {
-  data, locale: 'en', block: { id: 'b', type: 'blog', shape, data: {} },
+  data, locale: 'en', site: SITE, block: { id: 'b', type: 'blog', shape, data: {} },
 }));
 const withOpts = (o, extra = {}, base = DEMO) => ({ ...clone(base), ...extra, options: { ...(base.options || {}), ...o } });
 const count = (html, needle) => html.split(needle).length - 1;
@@ -168,7 +166,7 @@ console.log('\n── AC3 文章来自博客');
   check(render('cards', clone(DEMO)) === '', '博客 0 篇 ⟹ 块不渲染（空串）');
   setPosts(POSTS);
   // 反向对照：组件改成不读博客（永远 0 篇）⟹ 上面「最新 3 篇」那格会红。
-  const NoBlog = loadSection(fs.readFileSync(SECTION, 'utf-8').replace('getBlogPosts(loc).slice(', '([] as BlogPostConfig[]).slice('));
+  const NoBlog = loadSection(fs.readFileSync(SECTION, 'utf-8').replace('getBlogPosts(site, loc).slice(', '([] as BlogPostConfig[]).slice('));
   check(posts(render('cards', clone(DEMO), NoBlog)).length === 0, '反向对照：组件不读博客 ⟹ 0 篇（判据分得开）');
   loadSection();
 }

@@ -62,11 +62,14 @@ const STUBS = {
   '@/components/ServiceIcon': stub('icon', "const React=require('react');const C=()=>React.createElement('span');module.exports=C;module.exports.default=C;\n"),
   // 📌 #1425（T3）：`pagesByLocale` 一页都没有，原来是为了让 `service-related-pages` return null（验收第 3 条点名的唯一
   //    例外）；那个块随旧库删了，替身照旧留空。
-  '@/lib/config': stub('config', 'module.exports={getServices:()=>[],pagesByLocale:{en:[]},localeUrl:(s)=>"/"+s,'
-    // #1497 —— 博客给一篇：`blog` 在站里一篇文章都没有时同样 return null（按设计）。给空数组的话它会成为第二个
-    //    「画出来是空的」；给一篇，画布上 blog 真画得出来也一起量到。
-    + 'siteId:"t",leadApi:"",getBlogPosts:()=>[{slug:"p",title:"P",excerpt:"E",content:"<p>x</p>",category:"C",tags:[],author:"A",publishedAt:"2026-09-01",seo:{metaTitle:"",metaDescription:""}}],'
-    + 'brand:{locations:[],email:"a@b.c"}};\n'),
+};
+// #1665 —— 站点数据经 `site` prop 进块（`config.ts` 是纯函数，加载真的那份）；这就是原来那个替身里的值。
+// #1497 —— 博客给一篇：`blog` 在站里一篇文章都没有时同样 return null（按设计）。给空数组的话它会成为第二个
+//    「画出来是空的」；给一篇，画布上 blog 真画得出来也一起量到。
+const SITE = {
+  siteId: 't', leadApi: '', defaultLocale: 'en', locales: ['en'], brand: { locations: [], email: 'a@b.c' },
+  seoByLocale: { en: {} }, servicesByLocale: { en: [] }, formsByLocale: { en: [] }, pagesByLocale: { en: [] },
+  blogPostsByLocale: { en: [{ slug: 'p', title: 'P', excerpt: 'E', content: '<p>x</p>', category: 'C', tags: [], author: 'A', publishedAt: '2026-09-01', seo: { metaTitle: '', metaDescription: '' } }] },
 };
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, ...rest) {
@@ -119,7 +122,7 @@ function emptyOnCanvas() {
     const view = item.props._src.view;
     let html = '';
     try {
-      html = renderToStaticMarkup(React.createElement(SectionRenderer, { blocks: [{ ...view, shape: convert.canvasShape(schema.components.find((c) => c.type === view.type), item.props._shape, view.data) }], locale: 'en' }));
+      html = renderToStaticMarkup(React.createElement(SectionRenderer, { site: SITE, blocks: [{ ...view, shape: convert.canvasShape(schema.components.find((c) => c.type === view.type), item.props._shape, view.data) }], locale: 'en' }));
     } catch (e) {
       errors.push(`${view.type}: ${e.message}`);
       continue;

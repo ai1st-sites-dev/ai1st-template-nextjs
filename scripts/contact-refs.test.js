@@ -65,22 +65,26 @@ const TEMP = [];
 const temp = (prefix) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); TEMP.push(d); return d; };
 
 // ── 让 node 能 require .tsx；Next 自己的、编辑器外壳、站点配置换成替身 ─────────────────────────────────
-// 🔴 `@/lib/config` 的 brand 读 globalThis.__BRAND__：编辑器那一段把要测的那份放进去（真站读 config-data.ts，§AC1 量那一条）。
+// 🔴 #1665 —— `@/lib/config` 是纯函数，加载真的那份；站点数据是下面的 `SITE`（编辑器那一段经 buildConfig 递进去），
+//    它的 brand 读 globalThis.__BRAND__：编辑器那一段把要测的那份放进去（真站读服务端加载器那一份，§AC1 量那一条）。
 const STUB_DIR = path.join(__dirname, `.contact-refs-stubs-${process.pid}`);
 fs.mkdirSync(STUB_DIR, { recursive: true });
 const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.writeFileSync(p, body); return p; };
 const STUBS = {
   'next/link': stub('link', "const React=require('react');const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
   '@/components/ServiceIcon': stub('icon', "const React=require('react');const C=()=>React.createElement('span');module.exports=C;module.exports.default=C;\n"),
-  '@/lib/config': stub('config', 'module.exports={defaultLocale:"en",locales:["en"],siteId:"t",leadApi:"",'
-    + 'getServices:()=>[],get pagesByLocale(){return {en:[]};},localeUrl:(s)=>s==="home"?"/":"/"+s,getBlogPosts:()=>[{slug:"p1",title:"Winter tires",excerpt:"x",content:"",category:"Tips",tags:[],author:"A",publishedAt:"2026-01-01",seo:{metaTitle:"",metaDescription:""}}],'
-    + 'get brand(){return globalThis.__BRAND__||{locations:[]};},getForms:()=>[]};\n'),
   '@puckeditor/core': stub('puck', "const React=require('react');module.exports={Puck:()=>null,"
     + "FieldLabel:({label,children})=>React.createElement('div',{'data-label':label},children),"
     + 'createUsePuck:()=>(sel)=>sel({selectedItem:null,dispatch(){},getSelectorForId(){}}),useGetPuck:()=>()=>({})};\n'),
   '@puckeditor/core/puck.css': stub('css', '\n'),
   '@/components/SiteShell': stub('shell', "const C=()=>null;module.exports=C;module.exports.default=C;\n"),
   './EditorChat': stub('chat', "const C=()=>null;module.exports=C;module.exports.default=C;\n"),
+};
+const SITE = {
+  defaultLocale: 'en', locales: ['en'], siteId: 't', leadApi: '',
+  servicesByLocale: { en: [] }, formsByLocale: { en: [] }, seoByLocale: { en: {} }, pagesByLocale: { en: [] },
+  blogPostsByLocale: { en: [{ slug: 'p1', title: 'Winter tires', excerpt: 'x', content: '', category: 'Tips', tags: [], author: 'A', publishedAt: '2026-01-01', seo: { metaTitle: '', metaDescription: '' } }] },
+  get brand() { return globalThis.__BRAND__ || { locations: [] }; },
 };
 process.on('exit', () => {
   try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ }
@@ -439,9 +443,9 @@ globalThis.__BRAND__ = clone(BRAND);
     if (pred(node)) return node;
     return find(node.props && node.props.children, pred);
   };
-  // 自定义字段的 render 回的是 <LinkHrefControl/>：展开一层拿它画出来的树（它不用 hook）。
+  // 自定义字段的 render 回的是 <LinkHrefControl/>：展开一层拿它画出来的树（它不用 hook —— #1665 起站点数据是 buildConfig 递进去的 prop）。
   const tree = (f, value, onChange) => { const el = f.render({ value, onChange, readOnly: false }); return el.type(el.props); };
-  const cfg = EditorApp.buildConfig(schema, 'en');
+  const cfg = EditorApp.buildConfig(SITE, schema, 'en');
   const hrefField = (type) => cfg.components[type].fields.introCta.objectFields.href;
   for (const type of ['blog', 'logos']) {
     const f = hrefField(type);
@@ -475,7 +479,7 @@ globalThis.__BRAND__ = clone(BRAND);
   // 画布：存下去的那一份画出来按钮链到 tel:；改 brand 后跟着变。
   const view = { id: 'bl', type: 'blog', shape: 'cards', data: saved };
   const canvas = () => {
-    const c = EditorApp.buildConfig(schema, 'en');
+    const c = EditorApp.buildConfig(SITE, schema, 'en');
     const p = { id: 'bl', ...convert.fieldProps(comp, saved), _shape: '', _src: { at: 0, entry: clone(view), locked: false, shared: null, sharedData: null, reason: '', view: clone(view), weight: null, shape0: 'cards', pid: 'bl' } };
     return renderToStaticMarkup(c.components['blog'].render(p));
   };
@@ -538,7 +542,7 @@ console.log('\n── AC1 只改 brand.json 跟着变（真跑 create-site.js sk
   ];
   fs.writeFileSync(homeFile, JSON.stringify(home, null, 2));
   // #1425（T3）—— 页头 / 页脚走真路径：data 是 sync-config 从 navigation.json + brand.json + services.json 派生、写进
-  // config-data 的 `regions.<区>.dataByLocale`，由真 SiteShell 展开引用再渲染（原来这里手写一份 regions.json 直接渲染组件）。
+  // 站点数据（#1665 起是服务端加载器 `scripts/lib/site-data.js` 拼的那份，形状同 config-data）的 `regions.<区>.dataByLocale`，由真 SiteShell 展开引用再渲染（原来这里手写一份 regions.json 直接渲染组件）。
   // 形态用 theme.json 的 regionLayout 钉住（站上那套主题的形态不一定画电话）：header=topbar（顶条画 contact）、
   // footer=columns（联系列画电话）—— 跟编辑器 / 主题候选写这个键是同一条路（`lib/site-regions.js` §readPreviewRegionLayout）。
   const themeFile = path.join(site, 'theme.json');
@@ -563,8 +567,8 @@ const o=Module._resolveFilename;Module._resolveFilename=function(r,...a){if(STUB
 const warn=console.warn;console.warn=()=>{};
 const Home=require(path.join(SRC,'components','pages','HomePage.tsx')).default;
 const Shell=require(path.join(SRC,'components','SiteShell.tsx')).default;
-const {regions}=require(path.join(SRC,'lib','config.ts'));
-const html=renderToStaticMarkup(React.createElement(Shell,{locale:'en',page:'home'},React.createElement(Home,{locale:'en'})));
+const site=require(path.join(NEXT,'scripts','lib','site-data.js')).assembleSiteData({rootDir:NEXT});const {regions}=site;
+const html=renderToStaticMarkup(React.createElement(Shell,{site,locale:'en',page:'home'},React.createElement(Home,{site,locale:'en'})));
 const pick=(re)=>(html.match(re)||[''])[0];
 const out={home:pick(/<main[\\s\\S]*<\\/main>/),header:pick(/<header[\\s\\S]*?<\\/header>/),footer:pick(/<footer[\\s\\S]*?<\\/footer>/),
  shapes:{header:regions.header.shape,footer:regions.footer.shape},
@@ -598,10 +602,10 @@ process.stdout.write(JSON.stringify(out));
   check(r1.shapes.header === 'topbar' && r1.shapes.footer === 'columns',
     `构建出的 regions 形态是钉的那两个（header=topbar · footer=columns；读到 ${JSON.stringify(r1.shapes)}）—— 否则下面量的不是画电话的预设`);
   check(b1.header !== '' && b1.footer !== '', '真 SiteShell 渲染出了 <header> 和 <footer>（不是空串）');
-  // config-data 里存的是引用不是值 ⟹ 跟着变是渲染时展开的结果，不是构建抄进去的号码。
+  // 站点数据里存的是引用不是值 ⟹ 跟着变是渲染时展开的结果，不是构建抄进去的号码。
   const rawText = JSON.stringify(r1.raw);
   check(!!(r1.raw.header && r1.raw.footer) && /"source":"phone"/.test(rawText) && !rawText.includes('6045550142') && !rawText.includes('555-0142'),
-    `config-data 的 regions.<区>.dataByLocale.en 存的是引用（含 {source:"phone"}、不含号码）：${rawText.slice(0, 200)}`);
+    `站点数据的 regions.<区>.dataByLocale.en 存的是引用（含 {source:"phone"}、不含号码）：${rawText.slice(0, 200)}`);
   check(b1.hero !== '' && b1.cta !== '', '第一次构建：首页上 hero 和 cta 都渲染出来了（不是空串）');
   check(has(b1.hero, '6045550142', 'Call (604) 555-0142'), '第一次：hero 按钮 href="tel:6045550142"、文字「Call (604) 555-0142」');
   check(has(b1.cta, '6045550142', 'Phone (604) 555-0142'), '第一次：cta 按钮 href="tel:6045550142"、文字「Phone (604) 555-0142」');

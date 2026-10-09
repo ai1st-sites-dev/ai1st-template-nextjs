@@ -1,20 +1,24 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, colorScheme, dir } from '@/lib/config';
+import { getSeo, getBrandName } from '@/lib/config';
+import type { SiteData } from '@/lib/types/config';
+import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
+import { isPreviewRender } from '@/lib/render-mode';
 import { ogImageFields, twitterCard } from '@/lib/og-image';
 // #1472 —— `auto` 站首屏前那段脚本（判据和文案都在 lib 那一处）。
 import { AUTO_SCHEME_SCRIPT } from '../../scripts/lib/color-scheme.js';
 import { DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
 
-const seo = getSeo(defaultLocale);
+// #1665 —— 这里原来有三个模块级常量（`seo` / `defaultBrandName` / `previewTrustedOrigin`）和一个 `export const metadata`，
+// 都是从编译期常量算的。站点内容现在是每次请求读的（`requestSiteData`），所以它们都搬进了函数里：metadata 改成
+// `generateMetadata`，其余在 RootLayout 里现算。发布模式下构建时调一次、值跟原来一样；预览模式下每个请求一次。
+
 // TICKET-136: layout.tsx is a server component with no locale prop — use the
 // default-locale brand name for the site-wide baseline metadata (per-page
 // metadata builders in lib/metadata.ts already pass locale through).
-const defaultBrandName = getBrandName(defaultLocale);
-
-function buildFaviconSvg(): string {
-  const letter = (defaultBrandName || 'X').charAt(0).toUpperCase();
-  const bg = brand.colors.primary[500] || '#6366f1';
+function buildFaviconSvg(site: SiteData): string {
+  const letter = (getBrandName(site, site.defaultLocale) || 'X').charAt(0).toUpperCase();
+  const bg = site.brand.colors.primary[500] || '#6366f1';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="${bg}"/><text x="16" y="23" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="20" font-weight="bold">${letter}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
@@ -48,13 +52,13 @@ function buildFaviconSvg(): string {
 // direction is safe — the listener refuses the message, the dashboard's handshake times out, and
 // the modal falls back to thumbnails ("applies after Apply"). It never trusts the wrong parent.
 // 📌 Empty leadApi (local template dev) ⟹ no listener is emitted at all, same fail-closed end.
-const previewTrustedOrigin = (() => {
+function previewTrustedOriginOf(leadApi: string): string {
   try {
     return leadApi ? new URL(leadApi).origin : '';
   } catch {
     return '';
   }
-})();
+}
 
 // #925 — the inbound half of the iframe conversation. Kept as its own script tag: the outbound
 // navigation script below is deliberately untouched (its `postMessage(…, "*")` is a known separate
@@ -590,45 +594,50 @@ window.addEventListener('message',function(e){
 })();`;
 }
 
-export const metadata: Metadata = {
-  title: {
-    default: seo.siteTitle,
-    template: `%s | ${defaultBrandName}`,
-  },
-  description: seo.siteDescription,
-  metadataBase: new URL(seo.domain),
-  alternates: {
-    canonical: '/',
-  },
-  openGraph: {
-    title: seo.siteTitle,
+export async function generateMetadata(): Promise<Metadata> {
+  const site = await requestSiteData();
+  const seo = getSeo(site, site.defaultLocale);
+  const defaultBrandName = getBrandName(site, site.defaultLocale);
+  return {
+    title: {
+      default: seo.siteTitle,
+      template: `%s | ${defaultBrandName}`,
+    },
     description: seo.siteDescription,
-    url: seo.domain,
-    siteName: defaultBrandName,
-    locale: seo.locale,
-    type: 'website',
-    ...ogImageFields(),
-  },
-  twitter: {
-    // #1552 —— 有分享图才声明大图卡；没图降成 summary（§siteOgImage 三档）。
-    card: twitterCard(),
-    title: seo.siteTitle,
-    description: seo.siteDescription,
-  },
-  // #1547 — 预览构建（manager 给 indexable=false）整站 noindex；canonical 照常指自己。
-  robots: seo.indexable === false ? { index: false, follow: false } : {
-    index: true,
-    follow: true,
-    googleBot: {
+    metadataBase: new URL(seo.domain),
+    alternates: {
+      canonical: '/',
+    },
+    openGraph: {
+      title: seo.siteTitle,
+      description: seo.siteDescription,
+      url: seo.domain,
+      siteName: defaultBrandName,
+      locale: seo.locale,
+      type: 'website',
+      ...ogImageFields(site),
+    },
+    twitter: {
+      // #1552 —— 有分享图才声明大图卡；没图降成 summary（§siteOgImage 三档）。
+      card: twitterCard(site),
+      title: seo.siteTitle,
+      description: seo.siteDescription,
+    },
+    // #1547 — 预览构建（manager 给 indexable=false）整站 noindex；canonical 照常指自己。
+    robots: seo.indexable === false ? { index: false, follow: false } : {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
     },
-  },
-  verification: seo.verification,
-};
+    verification: seo.verification,
+  };
+}
 
 // #1409 — answers `ai1st:editor-ping` with `ai1st:editor-pong {page, locale}` (read off `<main data-page>`,
 // the same attributes the inspector reads — SiteShell writes them). Pages without them (blog, redirect
@@ -653,11 +662,23 @@ function buildChatWidgetLoader(src: string): string {
     + `document.body.appendChild(s);})();`;
 }
 
+// #1665 —— 发布模式下 RootLayout 必须是**同步**的：写成 async 之后，Next 给 404 页插的那条 `<meta name="robots" content="noindex">`
+//    在 <head> 里换了位置（实测：从 icon 之后挪到 preconnect 之前），发布出去的 404.html / _not-found.html 就不再逐字相同；
+//    别的页面不受影响。本机上单把这一处改回同步就对上了；站容器里（机器慢一些）not-found.tsx 那个 async 也会让它挪位 ⟹
+//    那边同样改成发布模式同步（见 not-found.tsx）。generateMetadata 是 async 不影响（排除过）。
+//    预览模式先 `requestSiteData()`（里面那次 `connection()` 让这一页按请求渲染），再画同一份。
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  return isPreviewRender ? requestSiteData().then((site) => rootLayout(site, children)) : rootLayout(loadSiteData(), children);
+}
+
+function rootLayout(site: SiteData, children: React.ReactNode) {
+  const { brand, siteId, leadApi, colorScheme, dir } = site;
+  const seo = getSeo(site, site.defaultLocale);
+  const previewTrustedOrigin = previewTrustedOriginOf(leadApi);
   return (
     // #1472 —— 站级深浅。`light` / `dark` 构建时写死；`auto` 构建时不知道访客的系统是深是浅 ⟹ 不写，由 <head> 第一段
     // 内联脚本在 body 画第一帧之前按 `prefers-color-scheme` 写上（并跟着系统切换改写）。属性是脚本写的，React 水合时
@@ -721,7 +742,7 @@ export default function RootLayout({
              .ico 的老浏览器今天拿到的也是「没有图标」。要给老浏览器补一个真的 .ico 是新功能，不是修
              死链，另开票。（少的那 1 页是 `blog/_.html` —— 空博客的 `__next_error__` 占位页，它整页
              一个 `rel="icon"` 都没有。） */
-          <link rel="icon" type="image/svg+xml" href={buildFaviconSvg()} />
+          <link rel="icon" type="image/svg+xml" href={buildFaviconSvg(site)} />
         )}
       </head>
       {/* #1426 —— 原来是 Tailwind 的 `flex min-h-screen flex-col font-sans`。`site-body` 管正文字体（globals.css）：它是一个类，

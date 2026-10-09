@@ -30,11 +30,11 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg）；这里不自己算亮度、不自己拼渐变。
 
-import { brand as siteBrand, getSeo, getServices } from '@/lib/config';
+import { getSeo, getServices, leadFormSite } from '@/lib/config';
 import Link from 'next/link';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import BlockSection, { blockTone } from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
+import type { BlockConfig, SiteData } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import ContactMap from './ContactMap';
@@ -69,6 +69,8 @@ interface Props {
   iconTable?: IconTable;
   /** 单格页传的演示站点数据（SectionRenderer §siteFacts）；不传 ⟹ 读这个站自己的。 */
   siteFacts?: ContactSiteFacts;
+  /** #1665 —— 这个站的内容（SectionRenderer 递下来）。 */
+  site: SiteData;
 }
 
 // items 最多 6 条（manifest `slots.items.maxItems`，validateSite 拦超出的）；多出来的在这里截掉。
@@ -82,8 +84,8 @@ const KIND_ICON: Record<ContactKind, string> = {
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** #1471 —— 表单「需求」下拉的选项：在 Section.tsx 里读（`page-deps.js` 只看注册表指向的这份文件，理由见 BlockLeadForm 文件头）。 */
-function servicesFor(locale: string): { id: string; name: string }[] {
-  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+function servicesFor(site: SiteData, locale: string): { id: string; name: string }[] {
+  try { return (getServices(site, locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
 }
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
@@ -108,7 +110,7 @@ function rowOf(it: ContactNewItem, i: number, f: ContactSiteFacts): Row | null {
   return title && href ? { ...base, value: title, href } : null;
 }
 
-export default function ContactNewSection({ data, locale, block, iconTable = {}, siteFacts }: Props) {
+export default function ContactNewSection({ data, locale, block, iconTable = {}, siteFacts, site }: Props) {
   const d: ContactNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: ContactNewOptions = isObj(d.options) ? d.options : {};
@@ -119,8 +121,8 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
   if (siteFacts) facts = siteFacts;
   else {
     let seo: unknown = null;
-    try { seo = getSeo(lang); } catch { seo = null; }
-    facts = siteFactsFrom(siteBrand, seo);
+    try { seo = getSeo(site, lang); } catch { seo = null; }
+    facts = siteFactsFrom(site?.brand, seo);
   }
 
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
@@ -228,7 +230,8 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
                   <BlockLeadForm
                     mode={k.form === 'teaser' ? 'teaser' : 'full'}
                     formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
-                    services={servicesFor(lang)}
+                    services={servicesFor(site, lang)}
+                    {...leadFormSite(site, lang)}
                     locale={lang}
                     center={k.sidePosition === 'bottom' && k.introAlign === 'center'}
                     idPrefix="ct"

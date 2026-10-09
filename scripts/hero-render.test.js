@@ -49,9 +49,10 @@ const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.w
 const STUBS = {
   'next/link': stub('link', "const React=require('react');"
     + "const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
-  '@/lib/config': stub('config', 'module.exports={siteId:"t-site",leadApi:"https://lead.example",'
-    + 'getServices:()=>[{id:"brakes",name:"Brakes"},{id:"tires",name:"Tires"}]};\n'),
 };
+// #1665 —— 块从 `site` prop 读站点数据（`config.ts` 是纯函数，加载真的那份）；这就是原来那个替身里的值。
+const SITE = { siteId: 't-site', leadApi: 'https://lead.example', defaultLocale: 'en', locales: ['en'], formsByLocale: { en: [] },
+  servicesByLocale: { en: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] } };
 process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } });
 const sourceOverride = new Map();
 for (const ext of ['.tsx', '.ts']) {
@@ -85,7 +86,7 @@ if (!M) die('blocks/ 里没有 hero');
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const render = (shape, data, Comp = C) => renderToStaticMarkup(React.createElement(Comp, {
-  data, locale: 'en', block: { id: 'h', type: 'hero', shape, data: {} },
+  data, locale: 'en', site: SITE, block: { id: 'h', type: 'hero', shape, data: {} },
 }));
 const withOpts = (o, extra = {}) => ({ ...clone(DEMO), ...extra, options: { ...(DEMO.options || {}), ...o } });
 const count = (html, needle) => html.split(needle).length - 1;
@@ -367,7 +368,7 @@ console.log('\n── AC6 表单（提交）');
       const host = win.document.createElement('div');
       win.document.body.appendChild(host);
       const root = createRoot(host);
-      await act(async () => { root.render(React.createElement(F, { mode: variant, locale: 'en', ...(forms ? { forms } : {}), services: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] })); });
+      await act(async () => { root.render(React.createElement(F, { mode: variant, locale: 'en', siteId: SITE.siteId, leadApi: SITE.leadApi, ...(forms ? { forms } : {}), services: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] })); });
       const setVal = async (sel, val) => {
         const el = host.querySelector(sel);
         const proto = Object.getPrototypeOf(el);

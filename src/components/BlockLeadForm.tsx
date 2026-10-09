@@ -34,9 +34,10 @@
 //    `data-tone`，输入框的字 / 占位字 / 边框换成白色那一档（规则在 `scripts/lib/site-css.js` §ON_DEEP_FORM，全站一份）。
 //    只给「输入框透明、直接压在深底上」的调用方传（footer）；cta 深底时自己把输入框涂成白底（它的
 //    `block.css`），占位字原来的灰在白底上看得清，所以它不传 —— 传了就是白底白字。
+// 🔴 #1665 —— 这里不再 import `@/lib/config`：站点内容是服务端每次请求读的，浏览器端拿不到。往哪儿提交（`leadApi`）、
+//    哪个站（`siteId`）、表单库（`forms`）由渲染它的块从站点数据里取好递进来（`config.ts` §leadFormSite）。
 
 import { useState } from 'react';
-import * as config from '@/lib/config';
 import type { SiteFormConfig } from '@/lib/types/config';
 import { FORM_FIELDS, pickForm } from '../../scripts/lib/site-forms.js';
 import { getLabels } from '@/lib/component-labels';
@@ -54,11 +55,6 @@ const DEFAULT_FIELDS: Record<LeadFormMode, LeadField[]> = {
 const DEFAULT_BUTTON_TEXT = (locale: string) => getLabels(locale).formSubmit;
 const DEFAULT_SUCCESS = (locale: string) => getLabels(locale).formThanks;
 
-/** 这个语言的站级表单库。`@/lib/config` 在单测里是替身，可能没有 `getForms` ⟹ 当成空库。 */
-function siteFormsFor(locale: string): SiteFormConfig[] {
-  const get = (config as { getForms?: (l: string) => SiteFormConfig[] }).getForms;
-  try { return typeof get === 'function' ? get(locale) || [] : []; } catch { return []; }
-}
 /**
  * #1631 —— 输入框占位符按站的语言（`component-labels.ts` 的 `getLabels`，跟 not-found 页 / 博客页取界面字同一张表）。
  * 那张表 14 种、没有 zh-tw ⟹ 繁体站这里回英文，跟改之前一样（已知，票面「做什么」3）。逐键回退英文。
@@ -70,12 +66,15 @@ function placeholdersFor(locale: string): Record<LeadField, string> {
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function BlockLeadForm({ mode, formId, forms, services = [], locale, center, align, idPrefix = 'hro', size = 'lg', tone = 'light' }: {
+export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', leadApi = '', services = [], locale, center, align, idPrefix = 'hro', size = 'lg', tone = 'light' }: {
   mode: LeadFormMode;
   /** 块的 `form.id`；空 ⟹ 表单库第一张。 */
   formId?: string;
-  /** 不传 ⟹ 读这个站自己的（`getForms(locale)`）；单格页 / 测试传演示那份。 */
+  /** 这个站这个语言的表单库（`leadFormSite`）；不传 / 空 ⟹ 内置默认字段。单格页 / 测试传演示那份。 */
   forms?: SiteFormConfig[];
+  /** 线索归到哪个站、POST 到哪个 manager（`site_meta.json`，部署时 env 压过 leadApi）。 */
+  siteId?: string;
+  leadApi?: string;
   /** 「需求」下拉的选项，调用方的 Section.tsx 读（理由见文件头）。 */
   services?: { id: string; name: string }[];
   locale: string; center?: boolean;
@@ -84,7 +83,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
   idPrefix?: string; size?: 'lg' | 'sm';
   tone?: 'light' | 'dark' | 'brand';
 }) {
-  const form = pickForm(forms ?? siteFormsFor(locale), formId) as SiteFormConfig | null;
+  const form = pickForm(forms, formId) as SiteFormConfig | null;
   const PLACEHOLDER = placeholdersFor(locale);
   const L = getLabels(locale);
   const variant: 'inline' | 'stacked' = mode === 'teaser' ? 'inline' : 'stacked';
@@ -107,7 +106,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
   const [state, setState] = useState<SubmitState>('idle');
   const [error, setError] = useState('');
   const set = (k: string) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }));
-  const endpoint = (config.leadApi || '').replace(/\/$/, '') + '/api/leads';
+  const endpoint = leadApi.replace(/\/$/, '') + '/api/leads';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +126,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          siteId: config.siteId, name: (values.name || '').trim(), email, phone, message: parts.join('\n'), source: 'contact-form', hp,
+          siteId, name: (values.name || '').trim(), email, phone, message: parts.join('\n'), source: 'contact-form', hp,
           ...(form ? { meta: { formId: form.id, formName: form.name, formMode: mode } } : {}),
         }),
       });

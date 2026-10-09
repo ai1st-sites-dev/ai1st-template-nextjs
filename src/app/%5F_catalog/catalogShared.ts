@@ -9,8 +9,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { blogPostsByLocale, pagesByLocale } from '@/lib/config';
-import type { BlogPostConfig, DynamicPageConfig } from '@/lib/types/config';
+import type { BlogPostConfig, DynamicPageConfig, SiteData } from '@/lib/types/config';
 import { DEMO_BLOG_POSTS } from '../../../scripts/lib/demo-content/index.js';
 import { buildThemeCss } from '../../../scripts/theme-css.js';
 import themePool from '../../../scripts/theme-pool.json';
@@ -123,9 +122,12 @@ const CATALOG_PAGE_HEADER_PAGES: DynamicPageConfig[] = [
   { slug: CATALOG_PAGE_HEADER_SLUG, title: 'Brake Repair in North York', description: 'Brake repair for North York drivers.', blocks: [] },
 ];
 
-/** 幂等：`next dev` 里这个模块只求值一次，但重复调用也只是原样写回同一份。 */
-export function registerCatalogFixturePages(): void {
-  pagesByLocale[CATALOG_LOCALE] = [...CATALOG_FIXTURE_PAGES, ...CATALOG_PAGE_HEADER_PAGES];
+/**
+ * 幂等：重复调用也只是原样写回同一份。#1665 —— 站点内容不再是模块级常量，挂在这一次请求拿到的那份站点对象上
+ * （加载器在 site/ 没变时还回同一个对象，变了就是新的一份、再挂一次）。
+ */
+export function registerCatalogFixturePages(site: SiteData): void {
+  site.pagesByLocale[CATALOG_LOCALE] = [...CATALOG_FIXTURE_PAGES, ...CATALOG_PAGE_HEADER_PAGES];
 }
 
 // #1497 —— blog 只从站点博客读（`getBlogPosts(locale)`），块里不存文章；站里一篇都没有就整块不渲染。
@@ -137,8 +139,8 @@ const CATALOG_FIXTURE_BLOG_POSTS = ([...DEMO_BLOG_POSTS] as unknown as BlogPostC
   .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
 /** 幂等：同 registerCatalogFixturePages。 */
-export function registerCatalogFixtureBlogPosts(): void {
-  blogPostsByLocale[CATALOG_LOCALE] = CATALOG_FIXTURE_BLOG_POSTS;
+export function registerCatalogFixtureBlogPosts(site: SiteData): void {
+  site.blogPostsByLocale[CATALOG_LOCALE] = CATALOG_FIXTURE_BLOG_POSTS;
 }
 
 /**

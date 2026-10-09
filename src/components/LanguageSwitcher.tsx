@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { locales, localeUrl, switchLocaleHref } from '@/lib/config';
+import { localeUrl, switchLocaleHref, type LocaleSwitchIndex } from '@/lib/config';
 
 // TICKET-134 v2: native language name + globe icon. Following Vercel / Stripe /
 // Notion convention — flag emojis are an i18n anti-pattern (W3C: en ≠ Canada,
@@ -30,7 +30,10 @@ function renderLocale(locale: string): string {
 //    下拉仍是自己的卡片，字跟卡片底同一套（都随深浅换），不靠从祖先继承。
 // #1628 —— `notFound`：404 页上的开关一律回目标语言首页（那一页本来就没有语言版本；水合后 usePathname 读到的是
 //    访客打错的那个地址，它碰巧在目标语言里存在也不该当成「同一页」）。
-export default function LanguageSwitcher({ currentLocale, notFound = false }: { currentLocale: string; notFound?: boolean }) {
+// #1665 —— 这是浏览器端组件，站点内容读不到：语言清单和换语言要查的那张索引由 SiteShell（服务端）算好递进来。
+export default function LanguageSwitcher({ currentLocale, notFound = false, locales, switchIndex }: {
+  currentLocale: string; notFound?: boolean; locales: string[]; switchIndex: LocaleSwitchIndex;
+}) {
   const pathname = usePathname();
   // Single-locale sites (~30 in production) must render nothing — backward compat P0.
   if (locales.length <= 1) return null;
@@ -54,7 +57,7 @@ export default function LanguageSwitcher({ currentLocale, notFound = false }: { 
         {locales.filter((l) => l !== currentLocale).map((l) => {
           // TICKET-129: defaultLocale uses the root URL (no prefix), other locales /<locale>/*.
           // #1628: only when that page exists in `l` — otherwise `l`'s home (§config switchLocaleHref).
-          const href = notFound ? localeUrl('home', l) : switchLocaleHref(pathSansLocale, l);
+          const href = notFound ? localeUrl(switchIndex, 'home', l) : switchLocaleHref(switchIndex, pathSansLocale, l);
           return (
             <li key={l}>
               <Link

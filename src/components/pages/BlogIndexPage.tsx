@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { SiteData } from '@/lib/types/config';
 import { getBlogPosts, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
@@ -16,9 +17,9 @@ const COVERS: Array<[string, string]> = [
   ['var(--color-primary-200)', 'var(--color-primary-100)'],
 ];
 
-export default function BlogIndexPage({ locale }: { locale: string }) {
-  if (!isValidLocale(locale)) notFound();
-  const blogPosts = getBlogPosts(locale);
+export default function BlogIndexPage({ site, locale }: { site: SiteData; locale: string }) {
+  if (!isValidLocale(site, locale)) notFound();
+  const blogPosts = getBlogPosts(site, locale);
   const labels = getLabels(locale);
 
   return (
@@ -28,7 +29,7 @@ export default function BlogIndexPage({ locale }: { locale: string }) {
           <div className="text-center mb-12">
             <h1 className="display-5 ls-tight fw-bolder text-heading">{labels.blog}</h1>
             <p className="lead text-body-secondary mt-4 mb-0 mx-auto mw-read">
-              {labels.latestArticlesFrom} {getBrandName(locale)}
+              {labels.latestArticlesFrom} {getBrandName(site, locale)}
             </p>
           </div>
 
@@ -41,7 +42,7 @@ export default function BlogIndexPage({ locale }: { locale: string }) {
                 return (
                   <div key={post.slug} className="col-12 col-md-6 col-lg-4 d-flex">
                     <Link
-                      href={localeUrl(post.slug, locale, 'blogPost')}
+                      href={localeUrl(site, post.slug, locale, 'blogPost')}
                       className="blog-card card w-100 border-0 shadow-sm overflow-hidden text-reset text-decoration-none"
                     >
                       <div className="blog-card-cover" style={{ background: `linear-gradient(to bottom right, ${from}, ${to})` }} />

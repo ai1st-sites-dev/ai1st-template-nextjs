@@ -23,7 +23,7 @@ import Link from 'next/link';
 import { getBlogPosts, localeUrl } from '@/lib/config';
 import BlockSection from '@/components/BlockSection';
 import type { BgValue } from '../../scripts/lib/contrast.js';
-import type { BlockConfig, BlogPostConfig } from '@/lib/types/config';
+import type { BlockConfig, BlogPostConfig, SiteData } from '@/lib/types/config';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import Button from '@/components/Button';
 import manifest from './manifest.json';
@@ -50,6 +50,8 @@ interface Props {
   data: BlogNewData;
   locale?: string;
   block?: BlockConfig;
+  /** #1665 —— 这个站的内容（SectionRenderer 递下来）。 */
+  site: SiteData;
 }
 
 // postCount 2–6、默认 3（manifest `slots.postCount.intRange`，validateSite 拦超出的；这里再夹一次，写歪的老数据也不炸）。
@@ -79,10 +81,10 @@ function formatDate(iso: string, locale: string | undefined): string {
   try { return new Intl.DateTimeFormat(locale || 'en-US', opts).format(d); } catch { return new Intl.DateTimeFormat('en-US', opts).format(d); }
 }
 
-export default function BlogNewSection({ data, locale, block }: Props) {
+export default function BlogNewSection({ data, locale, block, site }: Props) {
   const d: BlogNewData = isObj(data) ? data : {};
   const loc = locale || 'en';
-  const posts: BlogPostConfig[] = getBlogPosts(loc).slice(0, postCountOf(d.postCount));
+  const posts: BlogPostConfig[] = getBlogPosts(site, loc).slice(0, postCountOf(d.postCount));
   if (!posts.length) return null;
 
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
@@ -137,7 +139,7 @@ export default function BlogNewSection({ data, locale, block }: Props) {
         <div className="col-12 bl-itemscol" data-part="posts">
           <div className="bl-grid">
             {posts.map((p, i) => {
-              const href = localeUrl(p.slug, loc, 'blogPost');
+              const href = localeUrl(site, p.slug, loc, 'blogPost');
               // featured 的大篇封面固定在上（正文 + AC4），旁边的小篇跟 itemImage 走 —— 这件事写在每篇文章自己身上，
               // block.css 的封面规则按它命中，而不是按根元素的旋钮（否则 background 那几条会把大篇也铺满）。
               const image = k.itemsLayout === 'featured' && i === 0 ? 'top' : k.itemImage;

@@ -4,9 +4,9 @@ import Footer, { type FooterNewData } from '@blocks/footer/Section';
 import type { IconTable } from './InlineIcon';
 import LanguageSwitcher from './LanguageSwitcher';
 import { LocalBusinessJsonLd, WebSiteJsonLd } from './JsonLd';
-import { defaultLocale, locales, pageLayout, regions as siteRegions } from '@/lib/config';
+import { getServices, leadFormSite, localeSwitchIndex } from '@/lib/config';
 import { itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
-import type { BlockConfig } from '@/lib/types/config';
+import type { BlockConfig, SiteData } from '@/lib/types/config';
 
 // TICKET-129: shared layout wrapper used by [locale]/layout.tsx and the
 // default-locale root alias pages (src/app/page.tsx, [...slug]/page.tsx,
@@ -46,21 +46,22 @@ export interface ShellOverride {
 }
 
 /** 一个区那个块这次要用的图标表：构建期查好的，这种语言的那一份（没有就落回默认语言）。 */
-function shellIconTable(region: 'header' | 'footer', locale: string): IconTable {
-  const byLocale = siteRegions[region].iconTableByLocale || {};
-  return (byLocale[locale] ?? byLocale[defaultLocale] ?? {}) as IconTable;
+function shellIconTable(site: SiteData, region: 'header' | 'footer', locale: string): IconTable {
+  const byLocale = site.regions[region].iconTableByLocale || {};
+  return (byLocale[locale] ?? byLocale[site.defaultLocale] ?? {}) as IconTable;
 }
 
 /** 一个区那个块这次要画的 data：这种语言的那一份（没有就落回默认语言），引用展开之后。 */
-function shellBlockData(region: 'header' | 'footer', locale: string): Record<string, unknown> {
-  const byLocale = siteRegions[region].dataByLocale || {};
-  const raw = byLocale[locale] ?? byLocale[defaultLocale] ?? {};
-  const [b] = resolveItemSources([{ type: region, data: raw } as unknown as BlockConfig], itemSourceContext(locale));
+function shellBlockData(site: SiteData, region: 'header' | 'footer', locale: string): Record<string, unknown> {
+  const byLocale = site.regions[region].dataByLocale || {};
+  const raw = byLocale[locale] ?? byLocale[site.defaultLocale] ?? {};
+  const [b] = resolveItemSources([{ type: region, data: raw } as unknown as BlockConfig], itemSourceContext(site, locale));
   return ((b && b.data) || {}) as Record<string, unknown>;
 }
 
 // #1628 —— `notFound`：只有 app/not-found.tsx 传，交给语言开关（404 页上一律回目标语言首页）。
-export default function SiteShell({ locale, page, shell, notFound, children }: { locale: string; page?: string; shell?: ShellOverride; notFound?: boolean; children: React.ReactNode }) {
+export default function SiteShell({ site, locale, page, shell, notFound, children }: { site: SiteData; locale: string; page?: string; shell?: ShellOverride; notFound?: boolean; children: React.ReactNode }) {
+  const { defaultLocale, locales, pageLayout, regions: siteRegions } = site;
   const regions = shell ? shell.layout.regions : pageLayout.regions;
   const repeatVariants = (shell ? shell.layout.repeatVariants : pageLayout.repeatVariants) || {};
 
@@ -74,13 +75,19 @@ export default function SiteShell({ locale, page, shell, notFound, children }: {
   };
   // #1425 QA2 r1 F2 —— logo 回首页的那个链接（TICKET-129：默认语言走根路径）。
   const homeHref = locale === defaultLocale ? '/' : `/${locale}`;
-  const headerData = shellBlockData('header', locale);
-  const footerData = shellBlockData('footer', locale);
+  const headerData = shellBlockData(site, 'header', locale);
+  const footerData = shellBlockData(site, 'footer', locale);
+  // #1665 —— 页脚是浏览器端组件，读不到站点内容：它表单要的东西在这里取好递下去（服务下拉的选项 + 提交地址 / 站 / 表单库）。
+  //    这一处 getServices 在 `scripts/lib/page-deps.js` 的 ACCOUNTED 里写明了（站级外壳，不算进哪一页的 <lastmod>）。
+  const footerLeadForm = {
+    services: (getServices(site, locale) || []).map((s) => ({ id: s.id, name: s.name })),
+    ...leadFormSite(site, locale),
+  };
 
   return (
     <>
-      <LocalBusinessJsonLd locale={locale} />
-      <WebSiteJsonLd locale={locale} />
+      <LocalBusinessJsonLd site={site} locale={locale} />
+      <WebSiteJsonLd site={site} locale={locale} />
       {regions.map((region) => {
         switch (kindOf(region)) {
           case 'header':
@@ -93,12 +100,12 @@ export default function SiteShell({ locale, page, shell, notFound, children }: {
                 {locales.length > 1 ? (
                   <div className="bg-body border-bottom">
                     <div className="container d-flex justify-content-end py-1">
-                      <LanguageSwitcher currentLocale={locale} notFound={notFound} />
+                      <LanguageSwitcher currentLocale={locale} notFound={notFound} locales={locales} switchIndex={localeSwitchIndex(site)} />
                     </div>
                   </div>
                 ) : null}
                 <Header shape={shell?.headerShape || siteRegions.header.shape} data={headerData as HeaderNewData} homeHref={homeHref}
-                  iconTable={shellIconTable('header', locale)} />
+                  iconTable={shellIconTable(site, 'header', locale)} />
               </Fragment>
             );
           case 'content':
@@ -114,7 +121,7 @@ export default function SiteShell({ locale, page, shell, notFound, children }: {
             // 同时把那个常量改掉，两处必须一起动。
             return <Footer key={region} shape={repeatVariants[region] || shell?.footerShape || siteRegions.footer.shape}
               locale={locale} homeHref={homeHref}
-              data={footerData as FooterNewData} iconTable={shellIconTable('footer', locale)} />;
+              data={footerData as FooterNewData} iconTable={shellIconTable(site, 'footer', locale)} leadForm={footerLeadForm} />;
           default:
             // 构建期的 schema 已经把不认识的区拦掉了（scripts/lib/page-layout.js）。这一支是为了
             // 「万一」也不静默：什么都不画，但类型上说得清楚。

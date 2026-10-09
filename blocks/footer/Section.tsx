@@ -46,9 +46,8 @@
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
-import { defaultLocale, getServices } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
-import type { BlockConfig } from '@/lib/types/config';
+import type { BlockConfig, SiteFormConfig } from '@/lib/types/config';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '../../scripts/lib/header-knobs.js';
@@ -110,10 +109,6 @@ export function resolveKnobs(shape: string | undefined, options: FooterOptions =
   return { knobs, preset: presetOf(knobs, { knobs: KNOBS, presets: PRESETS }), shape: known };
 }
 
-/** #1471 —— 表单「需求」下拉的选项（BlockLeadForm 不自己读，理由见它的文件头；本块是外壳区，page-deps 的 ACCOUNTED 写明了）。 */
-function servicesFor(locale: string): { id: string; name: string }[] {
-  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
-}
 
 /** 列的固定语义（`columns` 排布专用）。#1640 —— 标题跟着站的语言走（`getLabels` 逐键回落英文，图册没有站的语言 ⟹ 英文演示）。 */
 function columnTitles(locale: string) {
@@ -131,9 +126,14 @@ interface Props {
   locale?: string;
   /** #1425 —— logo 那个「回首页」链接（同 header 的 `homeHref`）；不传 = `/`。 */
   homeHref?: string;
+  /**
+   * #1665 —— 页脚表单要的那几样（服务下拉的选项 + `leadFormSite` 那三样），由 `SiteShell` 在服务端取好递进来。
+   * 这个块是浏览器端组件，站点内容读不到；以前它自己 import `@/lib/config`。不传 ⟹ 表单用内置默认字段、没有服务下拉。
+   */
+  leadForm?: { services: { id: string; name: string }[]; siteId: string; leadApi: string; forms: SiteFormConfig[] };
 }
 
-export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = defaultLocale, homeHref = '/' }: Props) {
+export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = 'en', homeHref = '/', leadForm }: Props) {
   const opts = data.options || {};
   const titles = columnTitles(locale);
   const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
@@ -231,7 +231,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   //    `teaser` 沿用 #1464 `inline` 的画法（一个字段 + 按钮一行），`full` 沿用 `stacked`（整张）。
   const formPart = (extra = '') => (formMode ? (
     <div className={`w-100 mw-sm ${extra}`} data-footer-form={formMode}>
-      <BlockLeadForm mode={formMode} formId={formId} services={servicesFor(locale)} locale={locale} idPrefix="ftr" size="sm" tone={tone} />
+      <BlockLeadForm mode={formMode} formId={formId} {...leadForm} locale={locale} idPrefix="ftr" size="sm" tone={tone} />
     </div>
   ) : null);
 

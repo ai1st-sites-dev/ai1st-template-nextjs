@@ -23,24 +23,35 @@
 //   不生成 `generateStaticParams` 给出的路径 —— 构建 rc=0，`generateStaticParams` 返回了 5 条，
 //   `out/` 里却一个编辑器页都没有，只在 `.next` 里渲染出一个字面的 `[...target].html`。
 //   `/__catalog` 是 dev 专用路由、从没进过导出，所以那个先例从没碰到过这一格。
+//
+// ── #1665 预览模式 ───────────────────────────────────────────────────────────────────────────
+// 预览模式（`AI1ST_RENDER=preview`）不导出：这一页在被访问时才渲染，页面清单和底稿每次请求从 site/ 读 ⟹ 新建的页面
+// 立刻就有编辑器页，不用等下一次构建。`dynamicParams = false` 因此删了（它让「清单里没有」的路径直接 404，
+// 而预览时清单是空的）—— 找不到页面由下面的 `notFound()` 答。发布模式照旧按清单导出每一页。
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import path from 'path';
 import EditorApp from '@/components/editor/EditorApp';
-import { leadApi, locales, pagesByLocale, getPage, pageLayout, regions, getForms } from '@/lib/config';
+import { getPage, getForms } from '@/lib/config';
+import { isPreviewRender } from '@/lib/render-mode';
+import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
 import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
 import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
 import { editorPages } from '../../../../scripts/lib/editor-pages.js';
 
-// 只导出 generateStaticParams 给出的那些；别的路径在静态导出里本来就不存在（serve 回 404）。
-export const dynamicParams = false;
 
 // #1448 —— 哪些页有编辑器页（保留字 `blog` / `_next` 那两类没有）只在 `editor-pages.js` 一处：这里导出的，
 // 和传给 EditorApp、给面板条上那个换页下拉的清单（下面的 `pages`），是同一次调用的结果。
-export function generateStaticParams() {
+function publishedParams() {
+  const { locales, pagesByLocale } = loadSiteData();
   return editorPages(locales, pagesByLocale).flatMap((g) => g.pages.map((p) => ({ target: [g.locale, ...p.slug.split('/')] })));
 }
+
+// #1665 —— 预览模式下**不导出** generateStaticParams（值是 undefined），这条路由就是普通的按请求渲染（构建表里的 ƒ）。
+//    🔴 不能写成「预览模式返回 []」：只要导出了这个函数，Next 就把这条路由当成预先渲染（●）+ 没列出的参数按需生成并缓存，
+//       请求时一调 connection() 就报 DYNAMIC_SERVER_USAGE、页面 500（实测，本票 r1）。发布模式照旧是那个函数。
+export const generateStaticParams = isPreviewRender ? undefined : publishedParams;
 
 export const metadata: Metadata = {
   title: 'Editor',
@@ -49,7 +60,7 @@ export const metadata: Metadata = {
 
 // 框住我们的 dashboard 的 origin。与根布局里主题预览那条（#925 `previewTrustedOrigin`）同一个来源
 // 同一个算法：`leadApi` 就是 dashboard 自己的地址（`cfg.AppBaseURL`）。空 = 本地模板 dev，不能保存。
-function trustedOrigin(): string {
+function trustedOrigin(leadApi: string): string {
   try {
     return leadApi ? new URL(leadApi).origin : '';
   } catch {
@@ -61,8 +72,10 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
   const { target } = await params;
   const [locale, ...rest] = target;
   const slug = rest.join('/');
+  const site = await requestSiteData();
+  const { locales, pagesByLocale, pageLayout, regions } = site;
   if (!locales.includes(locale) || !slug) notFound();
-  const page = getPage(slug, locale);
+  const page = getPage(site, slug, locale);
   if (!page) notFound();
 
   // #1599 —— 站点文件从 sync-config 读的**同一份**目录读（同 `sync-config.js` 那行 `SYNC_SITE_DIR`）：分段预览构建的输入是
@@ -113,19 +126,20 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
 
   return (
     <EditorApp
+      site={site}
       locale={locale}
       page={slug}
       raw={src.raw}
       baseHash={src.baseHash}
       schema={schema}
       initialData={initialData}
-      trustedOrigin={trustedOrigin()}
+      trustedOrigin={trustedOrigin(site.leadApi)}
       siteBlocks={src.siteBlocks}
       refs={src.refs}
       slugs={src.slugs}
       pages={editorPages(locales, pagesByLocale)}
       // #1634 —— 「Edit this form」面板要三句文字的现值（没写的键 = 用默认，面板里那格就是空的）。
-      forms={getForms(locale).map((f) => ({
+      forms={getForms(site, locale).map((f) => ({
         id: f.id, name: f.name, fields: f.fields, primary: f.primary,
         ...(f.buttonText ? { buttonText: f.buttonText } : {}), ...(f.successMessage ? { successMessage: f.successMessage } : {}),
         ...(f.labels ? { labels: f.labels } : {}),

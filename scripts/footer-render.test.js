@@ -54,13 +54,9 @@ for (const ext of ['.tsx', '.ts']) {
   require.extensions[ext] = (mod, filename) => mod._compile(compile(filename), filename);
 }
 const origResolve = Module._resolveFilename;
-// #1464 —— `@/lib/config` 读的是构建期生成的 `config-data`（node 里没有），表单部件要它的 siteId / leadApi /
-// getServices：换成一份内存里的替身（只服务渲染，提交那条路不在这份测试的射程里）。
-const CONFIG_STUB = path.join(__dirname, '.footer-config-stub.js');
-require.cache[CONFIG_STUB] = { id: CONFIG_STUB, filename: CONFIG_STUB, loaded: true,
-  exports: { siteId: 't-site', leadApi: 'https://lead.example', defaultLocale: 'en', getServices: () => [{ id: 'brakes', name: 'Brakes' }] } };
+// #1665 —— 这里原来有一份 `@/lib/config` 的替身（#1464：表单部件要 siteId / leadApi / getServices）。页脚块和表单部件
+// 都不再 import 它了 —— 表单要的那几样由 SiteShell 在服务端取好、经 `leadForm` prop 递进来 —— 替身随之删掉。
 Module._resolveFilename = function resolve(req, ...rest) {
-  if (req === '@/lib/config') return CONFIG_STUB;
   if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), ...rest);
   if (req.startsWith('@blocks/')) return origResolve.call(this, path.join(NEXT, 'blocks', req.slice(8)), ...rest);
   return origResolve.call(this, req, ...rest);

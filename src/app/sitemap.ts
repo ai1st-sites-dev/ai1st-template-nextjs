@@ -1,8 +1,11 @@
 import { MetadataRoute } from 'next';
 import type { BlogPostConfig, DynamicPageConfig } from '@/lib/types/config';
-import { defaultLocale, locales, getSeo, getBlogPosts, getAlternateLanguages, pagesByLocale, localeUrl } from '@/lib/config';
+import { getSeo, getBlogPosts, getAlternateLanguages, localeUrl } from '@/lib/config';
+import { requestSiteData } from '@/lib/site-data.server';
 
-export const dynamic = 'force-static';
+// #1665 —— 理由同 robots.ts：静态导出要一个「能静态生成」的声明，又不能是 force-static（会把预览模式也钉死在构建那一刻）。
+export const revalidate = false;
+
 
 // #1026 — 只在「这一页连一个可用的日期都没有」时才用得上，并且用了就在构建日志里说一声。
 // 之前每一条 <lastmod> 写的都是这个值，于是站每重建一次（换主题、发一篇博客、改任何配置）就等于
@@ -51,8 +54,10 @@ function postLastModified(post: BlogPostConfig, locale: string): Date {
   return BUILD_TIME;
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const seo = getSeo(defaultLocale);
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const site = await requestSiteData();
+  const { locales, pagesByLocale } = site;
+  const seo = getSeo(site, site.defaultLocale);
   const entries: MetadataRoute.Sitemap = [];
 
   // TICKET-129: defaultLocale uses root URL (/about, /, /blog), other locales
@@ -61,9 +66,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   for (const locale of locales) {
     const localePages = pagesByLocale[locale] ?? [];
     for (const page of localePages) {
-      const altLanguages = getAlternateLanguages(page.slug, seo.domain);
+      const altLanguages = getAlternateLanguages(site, page.slug, seo.domain);
       entries.push({
-        url: `${seo.domain}${localeUrl(page.slug, locale)}`,
+        url: `${seo.domain}${localeUrl(site, page.slug, locale)}`,
         lastModified: pageLastModified(page, locale),
         changeFrequency: (page.changeFrequency as 'weekly' | 'monthly' | 'daily') || 'monthly',
         priority: page.priority ?? 0.5,
@@ -71,20 +76,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
       });
     }
 
-    const localeBlogPosts = getBlogPosts(locale);
+    const localeBlogPosts = getBlogPosts(site, locale);
     if (localeBlogPosts.length > 0) {
-      const blogIndexAlts = getAlternateLanguages('', seo.domain, 'blogIndex');
+      const blogIndexAlts = getAlternateLanguages(site, '', seo.domain, 'blogIndex');
       entries.push({
-        url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}`,
+        url: `${seo.domain}${localeUrl(site, '', locale, 'blogIndex')}`,
         lastModified: blogIndexLastModified(localeBlogPosts, locale),
         changeFrequency: 'weekly',
         priority: 0.7,
         ...(Object.keys(blogIndexAlts).length > 0 ? { alternates: { languages: blogIndexAlts } } : {}),
       });
       for (const post of localeBlogPosts) {
-        const blogPostAlts = getAlternateLanguages(post.slug, seo.domain, 'blogPost');
+        const blogPostAlts = getAlternateLanguages(site, post.slug, seo.domain, 'blogPost');
         entries.push({
-          url: `${seo.domain}${localeUrl(post.slug, locale, 'blogPost')}`,
+          url: `${seo.domain}${localeUrl(site, post.slug, locale, 'blogPost')}`,
           lastModified: postLastModified(post, locale),
           changeFrequency: 'monthly',
           priority: 0.6,

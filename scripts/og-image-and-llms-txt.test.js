@@ -8,7 +8,8 @@
  *   ① 取图四臂（跟票上验收那张表同形）+ svg 的几种写法（带查询串 / 大写扩展名）都跳过；
  *   ② llms.txt：站名、服务、每页一行、联系方式都在；不含平台术语；
  *   ③ 阳性对照：把「跳过 svg」那一判拿掉（同一进程、单变量）⟹ ① 的 svg 臂红。
- * 载的是**真的** og-image.ts / llms-txt.ts / config.ts，只把 sync-config 生成的 `config-data` 换成替身。
+ * 载的是**真的** og-image.ts / llms-txt.ts / config.ts；站点数据是下面那一份 `SITE`（#1665 起它们都接站点数据当参数，
+ *   以前是把 sync-config 生成的 `config-data` 换成替身）。
  * 构建产物那一层（out/ 里每个 HTML 的 <head>）归 QA 按票面四臂读，这里管函数本身。
  */
 
@@ -23,28 +24,12 @@ const NEXT = path.resolve(__dirname, '..');
 const SRC = path.join(NEXT, 'src');
 const OG = path.join(SRC, 'lib', 'og-image.ts');
 const LLMS = path.join(SRC, 'lib', 'llms-txt.ts');
-const CONFIG = path.join(SRC, 'lib', 'config.ts');
 
 let pass = 0;
 let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
-
-// ── 替身 config-data：同一个对象原地换键（config.ts 在 import 时把它们取成常量，换引用它看不见）──
-const STUB_DIR = fs.mkdtempSync(path.join(NEXT, 'scripts', 'tmp-og-llms-stubs-'));
-process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } });
-const CONFIG_DATA = path.join(STUB_DIR, 'config-data.js');
-fs.writeFileSync(CONFIG_DATA, `
-const S = globalThis.__SITE__ = globalThis.__SITE__ || { brand: {}, pagesByLocale: {}, servicesByLocale: {} };
-module.exports = {
-  brand: S.brand, siteId: 'x', leadApi: '', regions: {}, pageLayout: {},
-  defaultLocale: 'en', locales: ['en'],
-  seoByLocale: { en: { domain: 'https://northside.test', siteDescription: 'Plumbing done right in Burnaby.' } },
-  servicesByLocale: S.servicesByLocale, navigationByLocale: {}, blogPostsByLocale: {},
-  pagesByLocale: S.pagesByLocale,
-};
-`);
 
 const sourceOverride = new Map();
 for (const ext of ['.tsx', '.ts']) {
@@ -55,12 +40,16 @@ for (const ext of ['.tsx', '.ts']) {
 }
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, parent, ...rest) {
-  if (req === './config-data' && parent && parent.filename === CONFIG) return CONFIG_DATA;
   if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), parent, ...rest);
   return origResolve.call(this, req, parent, ...rest);
 };
 
-const S = globalThis.__SITE__ = { brand: {}, pagesByLocale: {}, servicesByLocale: {} };
+const S = {
+  brand: {}, siteId: 'x', leadApi: '', regions: {}, pageLayout: {},
+  defaultLocale: 'en', locales: ['en'],
+  seoByLocale: { en: { domain: 'https://northside.test', siteDescription: 'Plumbing done right in Burnaby.' } },
+  servicesByLocale: {}, navigationByLocale: {}, blogPostsByLocale: {}, pagesByLocale: {},
+};
 function setSite({ heroImage, logoUrl }) {
   for (const k of Object.keys(S.brand)) delete S.brand[k];
   Object.assign(S.brand, {
@@ -98,9 +87,9 @@ function runArms(mod) {
   const failed = [];
   for (const a of ARMS) {
     setSite(a);
-    const img = mod.siteOgImage();
-    const fields = mod.ogImageFields();
-    const card = mod.twitterCard();
+    const img = mod.siteOgImage(S);
+    const fields = mod.ogImageFields(S);
+    const card = mod.twitterCard(S);
     const wantFields = a.img ? { images: [a.img] } : {};
     const wantCard = a.img ? 'summary_large_image' : 'summary';
     const good = img === a.img && JSON.stringify(fields) === JSON.stringify(wantFields) && card === wantCard;
@@ -120,7 +109,7 @@ console.log('── ② llms.txt');
 {
   setSite({ heroImage: undefined, logoUrl: '' });
   delete require.cache[LLMS];
-  const txt = require(LLMS).buildLlmsTxt('en');
+  const txt = require(LLMS).buildLlmsTxt(S, 'en');
   const must = [
     ['站名是 H1', /^# Northside Plumbing\n/],
     ['一句话简介', /\n> Plumbing done right in Burnaby\.\n/],

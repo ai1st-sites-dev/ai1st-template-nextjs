@@ -299,3 +299,24 @@ export interface PageLayoutConfig {
   /** 同一种区出现多次时，每一个用哪种结构（只有这种情况才轮到布局说话）。 */
   repeatVariants?: Record<string, string>;
 }
+
+// #1665 —— 一个站的全部内容，读成一个普通对象。形状跟 `sync-config.js` 写的 `config-data.ts` 那 15 个导出逐个对应
+// （同名同值），所以发布出去的页面一个字不变。拼它的是 `scripts/lib/site-data.js`（服务端加载器
+// `src/lib/site-data.server.ts` 每次请求调它，按文件改动时间缓存）；`src/lib/config.ts` 里的函数都接它当第一个参数。
+export interface SiteData {
+  siteId: string;
+  leadApi: string;
+  colorScheme: 'light' | 'dark' | 'auto';
+  dir: 'ltr' | 'rtl';
+  defaultLocale: string;
+  locales: string[];
+  brand: BrandConfig;
+  seoByLocale: Record<string, SeoConfig>;
+  servicesByLocale: Record<string, ServiceConfig[]>;
+  formsByLocale: Record<string, SiteFormConfig[]>;
+  navigationByLocale: Record<string, NavigationConfig>;
+  pagesByLocale: Record<string, DynamicPageConfig[]>;
+  blogPostsByLocale: Record<string, BlogPostConfig[]>;
+  regions: RegionsConfig;
+  pageLayout: PageLayoutConfig;
+}

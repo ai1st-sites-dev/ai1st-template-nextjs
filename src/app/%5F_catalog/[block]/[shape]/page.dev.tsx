@@ -27,7 +27,7 @@ import type { IconTable } from '@/components/InlineIcon';
 import type { Preset, Widget } from './CellOptions';
 import KnobBar from './KnobBar';
 import SectionRenderer from '@/components/SectionRenderer';
-import { defaultLocale } from '@/lib/config';
+import { requestSiteData } from '@/lib/site-data.server';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
 import { DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, demoDataFor, demoSourceContext } from '../../../../../scripts/lib/demo-content/index.js';
@@ -228,8 +228,9 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   const fill = resolveFill(one(sp.fill));
   const sheetCss = theme ? readSheetCss(theme.sheet) : '';
 
-  registerCatalogFixturePages();
-  registerCatalogFixtureBlogPosts();
+  const site = await requestSiteData();
+  registerCatalogFixturePages(site);
+  registerCatalogFixtureBlogPosts(site);
 
   const data = demoDataFor(m, { minimal: fill === 'minimal' });
   // #1497 —— blog 读站点博客：同一个图册夹具 locale 下挂着一份博客（catalogShared §registerCatalogFixtureBlogPosts）。
@@ -237,7 +238,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   //    #1630 删了面包屑之后块不读它，留着不影响画面。
   const isPageHeader = block === 'page-header';
   const usesFixtureLocale = block === 'blog' || isPageHeader;
-  const locale = usesFixtureLocale ? CATALOG_LOCALE : defaultLocale;
+  const locale = usesFixtureLocale ? CATALOG_LOCALE : site.defaultLocale;
 
   // #1463 —— 旋钮类页面块：地址栏先改 data，再算 `data-has-*`（关掉的部件不许还挂着「有它」）。
   const knobBar = m.region !== true && knobsOf(m).length ? knobOverrides(m, shape, data as Record<string, unknown>, sp) : null;
@@ -259,10 +260,10 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   //    `?geo=none` / `?hours=none` 把那一样拿掉（`?items=none` 清空 contact items），看「站点数据里没有」时的样子（#1489 判据 3 / 7）。
   let siteFacts: ReturnType<typeof siteFactsFrom> | undefined;
   if (block === 'contact') {
-    const site = JSON.parse(JSON.stringify(DEMO_SITE));
-    if (one(sp.geo) === 'none') delete site.brand.locations[0].geo;
-    if (one(sp.hours) === 'none') site.seo.schema.openingHours = { days: [], opens: '', closes: '' };
-    siteFacts = siteFactsFrom(site.brand, site.seo);
+    const demo = JSON.parse(JSON.stringify(DEMO_SITE));
+    if (one(sp.geo) === 'none') delete demo.brand.locations[0].geo;
+    if (one(sp.hours) === 'none') demo.seo.schema.openingHours = { days: [], opens: '', closes: '' };
+    siteFacts = siteFactsFrom(demo.brand, demo.seo);
     // `?items=none` —— contact items 清空（判据 4：那一组不渲染、空列不占位）。
     if (one(sp.items) === 'none') data.items = [];
   }
@@ -364,7 +365,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         ) : null}
         {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
         {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
-        {isRegion ? null : <SectionRenderer blocks={shown} locale={locale} iconTables={iconTablesFor(shown)} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} />}
+        {isRegion ? null : <SectionRenderer site={site} blocks={shown} locale={locale} iconTables={iconTablesFor(shown)} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} />}
       </main>
     </>
   );

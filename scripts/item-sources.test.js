@@ -56,16 +56,14 @@ const TEMP = [];
 const temp = (prefix) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); TEMP.push(d); return d; };
 
 // ── 让 node 能 require .tsx；Next 自己的、编辑器外壳、站点配置换成替身 ─────────────────────────────────
-// 🔴 `@/lib/config` 的服务目录 / 页面读 globalThis：每一段把要测的那份放进去（真站读 config-data.ts，§realBuild 量那一条）。
+// 🔴 #1665 —— `@/lib/config` 是纯函数，加载真的那份；站点数据是下面的 `SITE`（经 buildConfig 递进编辑器），它的服务目录 /
+//    页面读 globalThis：每一段把要测的那份放进去（真站读服务端加载器那一份，§realBuild 量那一条）。
 const STUB_DIR = path.join(__dirname, `.item-sources-stubs-${process.pid}`);
 fs.mkdirSync(STUB_DIR, { recursive: true });
 const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.writeFileSync(p, body); return p; };
 const STUBS = {
   'next/link': stub('link', "const React=require('react');const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
   '@/components/ServiceIcon': stub('icon', "const React=require('react');const C=()=>React.createElement('span');module.exports=C;module.exports.default=C;\n"),
-  '@/lib/config': stub('config', 'module.exports={defaultLocale:"en",locales:["en"],siteId:"t",leadApi:"",'
-    + 'getServices:()=>globalThis.__SVC__||[],get pagesByLocale(){return {en:globalThis.__PAGES__||[]};},'
-    + 'localeUrl:(s)=>s==="home"?"/":"/"+s,getBlogPosts:()=>[],brand:{locations:[],email:"a@b.c"},getForms:()=>[]};\n'),
   '@puckeditor/core': stub('puck', "const React=require('react');module.exports={Puck:()=>null,"
     + "FieldLabel:({label,children})=>React.createElement('div',{'data-label':label},children),"
     + 'createUsePuck:()=>(sel)=>sel({selectedItem:null,dispatch(){},getSelectorForId(){}}),useGetPuck:()=>()=>({})};\n'),
@@ -287,6 +285,12 @@ console.log('\n── page-deps：引用了服务目录的页面，sitemap 依�
 
 // ══ AC9 / AC10 编辑器 ═════════════════════════════════════════════════════════════════════════════
 console.log('\n── AC9 编辑器：往返无损 · 只读提示 · 改成手写');
+const SITE = {
+  defaultLocale: 'en', locales: ['en'], siteId: 't', leadApi: '', brand: { locations: [], email: 'a@b.c' },
+  seoByLocale: { en: {} }, formsByLocale: { en: [] }, blogPostsByLocale: { en: [] },
+  get servicesByLocale() { return { en: globalThis.__SVC__ || [] }; },
+  get pagesByLocale() { return { en: globalThis.__PAGES__ || [] }; },
+};
 let EditorApp; let schema; let comp;
 try {
   EditorApp = require(path.join(SRC, 'components', 'editor', 'EditorApp.tsx'));
@@ -302,7 +306,7 @@ const itemsField = comp.fields.find((f) => f.slot === 'items');
   check(JSON.stringify(props.items) === JSON.stringify(ref), 'fieldProps：引用写法整份带进 Puck（不是 []）');
   const back = convert.dataFromProps(comp, { ...HEAD, items: ref }, props);
   check(JSON.stringify(back.items) === JSON.stringify(ref), 'dataFromProps：没动它 ⟹ 存盘原样写回那个引用');
-  const cfg = EditorApp.buildConfig(schema, 'en');
+  const cfg = EditorApp.buildConfig(SITE, schema, 'en');
   const fields = cfg.components['features'].resolveFields({ props: { id: 'fx', ...props } });
   const f = fields.items;
   check(f && f.type === 'custom', '条目那一栏换成自定义的只读栏', f && f.type);
@@ -333,7 +337,7 @@ const itemsField = comp.fields.find((f) => f.slot === 'items');
 console.log('\n── AC10 编辑器画布：普通块 / 共用块两支');
 const EDITOR_APP = path.join(SRC, 'components', 'editor', 'EditorApp.tsx');
 function canvasTitles(App) {
-  const cfg = App.buildConfig(schema, 'en');
+  const cfg = App.buildConfig(SITE, schema, 'en');
   const view = { id: 'fx', type: 'features', shape: 'grid', data: { ...HEAD, items: { source: 'services' } } };
   const props = { id: 'fx', ...convert.fieldProps(comp, view.data), _shape: '' };
   const normal = { ...props, _src: { at: 0, entry: clone(view), locked: false, shared: null, sharedData: null, reason: '', view: clone(view), weight: null, shape0: 'grid', pid: 'fx' } };
@@ -348,7 +352,7 @@ function canvasTitles(App) {
   check(JSON.stringify(got.shared) === JSON.stringify(want), `共用块（_src.shared）：画布上 ${got.shared.length} 条、标题 == 展开结果`, JSON.stringify(got.shared));
   // 反向对照：只在普通那一支展开（共用块那一支照旧拿没展开的 block）⟹ 共用那一格红。
   const src = fs.readFileSync(EDITOR_APP, 'utf-8');
-  const mutated = src.replace('<SectionRenderer blocks={[shown]} locale={locale} pageSlug={pageSlug} />\n      </div>', '<SectionRenderer blocks={[block]} locale={locale} pageSlug={pageSlug} />\n      </div>');
+  const mutated = src.replace('<SectionRenderer site={site} blocks={[shown]} locale={locale} pageSlug={pageSlug} />\n      </div>', '<SectionRenderer site={site} blocks={[block]} locale={locale} pageSlug={pageSlug} />\n      </div>');
   if (mutated === src) bad('反向对照没改到 EditorApp.tsx（锚点找不到）—— 这一格什么都没证明');
   else {
     for (const k of Object.keys(require.cache)) if (k.startsWith(SRC) || k.startsWith(path.join(NEXT, 'blocks'))) delete require.cache[k];
@@ -395,7 +399,7 @@ console.log('\n── AC2 只改 services.json 跟着变 · AC8 服务结构化�
   if (!fs.existsSync(path.join(loc, 'pages', 'services.json'))) die('skipAI 站没有 services 这一页');
   writePage('services', [fx({ source: 'services' })]);
 
-  // 渲染器：子进程里加载这棵树的真 config（sync-config 刚写的 config-data.ts），渲染 HomePage 和 /services 那一页。
+  // 渲染器：子进程里用这棵树的服务端加载器读 site/（#1665；以前读 sync-config 刚写的 config-data.ts），渲染 HomePage 和 /services 那一页。
   const renderer = path.join(work, 'scripts', '.item-sources-render.js');
   fs.writeFileSync(renderer, `
 const fs=require('fs'),path=require('path'),Module=require('module'),ts=require('typescript'),React=require('react');
@@ -411,7 +415,8 @@ const o=Module._resolveFilename;Module._resolveFilename=function(r,...a){if(STUB
 const warn=console.warn;console.warn=()=>{};
 const Home=require(path.join(SRC,'components','pages','HomePage.tsx')).default;
 const Sub=require(path.join(SRC,'components','pages','SubPage.tsx')).default;
-const out={home:renderToStaticMarkup(React.createElement(Home,{locale:'en'})),services:renderToStaticMarkup(React.createElement(Sub,{locale:'en',slug:'services'}))};
+const site=require(path.join(NEXT,'scripts','lib','site-data.js')).assembleSiteData({rootDir:NEXT});
+const out={home:renderToStaticMarkup(React.createElement(Home,{site,locale:'en'})),services:renderToStaticMarkup(React.createElement(Sub,{site,locale:'en',slug:'services'}))};
 console.warn=warn;fs.rmSync(S,{recursive:true,force:true});
 process.stdout.write(JSON.stringify(out));
 `);

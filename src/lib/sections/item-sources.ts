@@ -9,8 +9,8 @@
 // #1506 —— 按钮 / 页头顶条 / 页脚里的联系方式引用（`{source: "phone"}` …）也在同一个 `resolveItemSources` 里展开，
 //    站点数据多带一份 `brand`（电话 / 邮箱 / 地址 / 社交链接都住在 brand.json）。
 
-import type { BlockConfig, BrandConfig, DynamicPageConfig, ServiceConfig } from '@/lib/types/config';
-import { brand, defaultLocale, getServices, localeUrl, pagesByLocale } from '@/lib/config';
+import type { BlockConfig, BrandConfig, DynamicPageConfig, ServiceConfig, SiteData } from '@/lib/types/config';
+import { getServices, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 import * as impl from '../../../scripts/lib/item-sources.js';
 
@@ -43,13 +43,13 @@ export function resolveItemSources(blocks: BlockConfig[], ctx: ItemSourceContext
 }
 
 /** 这个站、这个语言的展开上下文。`pageSlug` = 正在画哪一页（#1550：兄弟页清单不列自己）。 */
-export function itemSourceContext(locale: string, pageSlug?: string): ItemSourceContext {
+export function itemSourceContext(site: SiteData, locale: string, pageSlug?: string): ItemSourceContext {
   return {
     ...(pageSlug ? { pageSlug } : {}),
-    services: getServices(locale) || [],
-    pages: pagesByLocale[locale] ?? pagesByLocale[defaultLocale] ?? [],
-    url: (slug: string) => localeUrl(slug, locale),
+    services: getServices(site, locale) || [],
+    pages: site.pagesByLocale[locale] ?? site.pagesByLocale[site.defaultLocale] ?? [],
+    url: (slug: string) => localeUrl(site, slug, locale),
     learnMore: getLabels(locale).learnMore,
-    brand,
+    brand: site.brand,
   };
 }

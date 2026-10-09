@@ -1,84 +1,49 @@
-import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionsConfig, PageLayoutConfig, SiteFormConfig } from './types/config';
-
-import {
-  brand as _brand,
-  siteId as _siteId,
-  leadApi as _leadApi,
-  colorScheme as _colorScheme,
-  dir as _dir,
-  defaultLocale as _defaultLocale,
-  locales as _locales,
-  seoByLocale as _seoByLocale,
-  servicesByLocale as _servicesByLocale,
-  formsByLocale as _formsByLocale,
-  navigationByLocale as _navigationByLocale,
-  pagesByLocale as _pagesByLocale,
-  blogPostsByLocale as _blogPostsByLocale,
-  regions as _regions,
-  pageLayout as _pageLayout,
-} from './config-data';
+// #1665 —— 这个文件不再碰任何文件，也不再有模块级的站点数据。站点内容是一个普通对象（`SiteData`，形状见
+// `types/config.ts`），由服务端加载器 `src/lib/site-data.server.ts` 每次请求从 `site/` 读出来；这里的函数都把它当
+// 第一个参数接进来。为什么不能在这里读文件：编辑器页（`EditorApp`，浏览器端代码）经 `SectionRenderer` 引到了
+// 块组件、`SiteShell`、`item-sources`，它们都 import 这个文件 ⟹ 这里一出现读文件，编辑器页的浏览器包当场编不过。
+// 字段的来历（#1471 表单库、#1472 深浅、#1473 文字方向、#1353 Region、#1000 页面布局 …）写在 `SiteData` 上。
+import type { NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, SiteData, SiteFormConfig } from './types/config';
 // #1628 —— 语言开关指向哪儿的那条规则（纯函数，test:scripts 直接测）。
 import { switchLocaleHref as switchLocaleHrefFrom } from '../../scripts/lib/locale-switch.js';
 
-export const brand = _brand as BrandConfig;
-// TICKET-268b: tenant id + lead API base for the ContactFormSection (POST /api/leads).
-export const siteId = _siteId as string;
-export const leadApi = _leadApi as string;
-// #1472 —— 站级深浅（`site_meta.json` 的 colorScheme，判据在 `scripts/lib/color-scheme.js`）。`layout.tsx` 读它写 `<html data-bs-theme>`。
-export const colorScheme = _colorScheme as 'light' | 'dark' | 'auto';
-// #1473 —— 站级文字方向（主语言推出来的，判据在 `scripts/lib/text-dir.js`）。`layout.tsx` 读它写 `<html dir>`。
-export const dir = _dir as 'ltr' | 'rtl';
-export const defaultLocale = _defaultLocale as string;
-export const locales = _locales as string[];
-export const seoByLocale = _seoByLocale as Record<string, SeoConfig>;
-export const servicesByLocale = _servicesByLocale as Record<string, ServiceConfig[]>;
-// #1471 —— 站级表单库（`site/<locale>/forms.json`，形状与校验在 `scripts/lib/site-forms.js`）。没有 forms.json 的语言是空数组。
-export const formsByLocale = _formsByLocale as Record<string, SiteFormConfig[]>;
-export const navigationByLocale = _navigationByLocale as Record<string, NavigationConfig>;
-export const pagesByLocale = _pagesByLocale as Record<string, DynamicPageConfig[]>;
-export const blogPostsByLocale = _blogPostsByLocale as Record<string, BlogPostConfig[]>;
-// #1353: 三个 Region（顶栏 / 页脚 / 公告条）选中的形态。它们是 Region 不是 section，所以走的是自己
-// 的写出口（sync-config.js 的 §Regions），不是那张按 section.type 索引的偏好表 —— 那张表对它们按
-// 构造是瞎的。🔴 这个导出以前叫 `regionLayout` 且带 `headerScrim`；#1353 把它们搬进形态层之后，
-// 值是**形态名**（跟别的 32 个块同一套词），遮罩由 CSS 决定，所以两样都换了。
-export const regions = _regions as RegionsConfig;
-// #1000: 这个站的页面由哪些区组成(page-layouts/ 里的一个)。构建期选出来并校验过 —— 缺 header /
-// content / footer 的布局进不来(spec §4.4 / D11 的替身)。没有 site/page-layout.json 的站(今天全部)
-// 拿到的是 `standard`,也就是 header → content → footer 这一条老路。
-export const pageLayout = _pageLayout as PageLayoutConfig;
-// 🔴 #991 的 `themeCss` 不在这里了（#1002 + #1008 各拿走它的一个消费者，加起来一个都不剩）：
-// 它以前同时管两件事 —— 挑 `<link href="/themes/<name>.css">` 的文件名（#1002 改成固定路径
-// `/theme.css`，那张表的字节现在被贴进生成的 theme.css），以及让 hero 渲染中性 markup（#1008 把
-// hero 那九个变体分支删掉了，中性 markup 现在无条件生效）。哪张表要贴进 theme.css 仍然由
-// `site/theme.json` 的 `css` 字段决定，但那是**构建期**的事，只有 sync-config.js 需要知道
-// （§readThemeSheet），运行时的组件一个都不问了。
+export type { SiteData };
 
-export function isValidLocale(locale: string): boolean {
-  return locales.includes(locale);
+export function isValidLocale(site: SiteData, locale: string): boolean {
+  return site.locales.includes(locale);
 }
 
-export function getSeo(locale: string): SeoConfig {
-  return seoByLocale[locale] ?? seoByLocale[defaultLocale];
+export function getSeo(site: SiteData, locale: string): SeoConfig {
+  return site.seoByLocale[locale] ?? site.seoByLocale[site.defaultLocale];
 }
 
-export function getServices(locale: string): ServiceConfig[] {
-  return servicesByLocale[locale] ?? servicesByLocale[defaultLocale];
+export function getServices(site: SiteData, locale: string): ServiceConfig[] {
+  return site.servicesByLocale[locale] ?? site.servicesByLocale[site.defaultLocale];
 }
 
 /** #1471 —— 这个语言的表单库；没有这个语言就用默认语言那份；都没有 ⟹ 空数组（块退回内置默认字段）。 */
-export function getForms(locale: string): SiteFormConfig[] {
-  return formsByLocale?.[locale] ?? formsByLocale?.[defaultLocale] ?? [];
+export function getForms(site: SiteData, locale: string): SiteFormConfig[] {
+  return site.formsByLocale?.[locale] ?? site.formsByLocale?.[site.defaultLocale] ?? [];
 }
 
-export function getNavigation(locale: string): NavigationConfig {
-  return navigationByLocale[locale] ?? navigationByLocale[defaultLocale];
+/**
+ * #1665 —— 块里的表单部件（`BlockLeadForm`，浏览器端）要的那三样：往哪儿提交、哪个站、这个语言的表单库。
+ * 它以前自己 import 这个文件；现在由渲染它的块（服务端）从站点数据里取好递下去，浏览器只拿到这三样。
+ */
+export function leadFormSite(site: SiteData, locale: string): { siteId: string; leadApi: string; forms: SiteFormConfig[] } {
+  return { siteId: site.siteId, leadApi: site.leadApi, forms: getForms(site, locale) };
 }
 
-export function getBlogPosts(locale: string): BlogPostConfig[] {
-  return blogPostsByLocale[locale] ?? [];
+export function getNavigation(site: SiteData, locale: string): NavigationConfig {
+  return site.navigationByLocale[locale] ?? site.navigationByLocale[site.defaultLocale];
 }
 
-export function getTagline(locale: string): string {
+export function getBlogPosts(site: SiteData, locale: string): BlogPostConfig[] {
+  return site.blogPostsByLocale[locale] ?? [];
+}
+
+export function getTagline(site: SiteData, locale: string): string {
+  const { brand, defaultLocale } = site;
   return brand.tagline[locale] ?? brand.tagline[defaultLocale] ?? '';
 }
 
@@ -86,39 +51,46 @@ export function getTagline(locale: string): string {
 // shape so call sites read identical to taglines. Final fallback to the first
 // non-empty entry covers the edge case where neither the requested locale nor
 // the default-locale entry are populated.
-export function getBrandName(locale: string): string {
+export function getBrandName(site: SiteData, locale: string): string {
+  const { brand, defaultLocale } = site;
   return brand.name[locale] ?? brand.name[defaultLocale] ?? Object.values(brand.name)[0] ?? '';
 }
 
-export function getPage(slug: string, locale: string): DynamicPageConfig | undefined {
-  return (pagesByLocale[locale] ?? []).find((p) => p.slug === slug);
+export function getPage(site: SiteData, slug: string, locale: string): DynamicPageConfig | undefined {
+  return (site.pagesByLocale[locale] ?? []).find((p) => p.slug === slug);
 }
 
-export function getHomePage(locale: string): DynamicPageConfig {
-  const pages = pagesByLocale[locale] ?? pagesByLocale[defaultLocale];
+export function getHomePage(site: SiteData, locale: string): DynamicPageConfig {
+  const pages = site.pagesByLocale[locale] ?? site.pagesByLocale[site.defaultLocale];
   return pages.find((p) => p.slug === 'home')!;
 }
 
-export function getNonHomePages(locale: string): DynamicPageConfig[] {
-  return (pagesByLocale[locale] ?? []).filter((p) => p.slug !== 'home');
+export function getNonHomePages(site: SiteData, locale: string): DynamicPageConfig[] {
+  return (site.pagesByLocale[locale] ?? []).filter((p) => p.slug !== 'home');
 }
 
-export function getNavPages(locale: string): DynamicPageConfig[] {
-  return (pagesByLocale[locale] ?? []).filter((p) => p.navLabel);
+export function getNavPages(site: SiteData, locale: string): DynamicPageConfig[] {
+  return (site.pagesByLocale[locale] ?? []).filter((p) => p.navLabel);
 }
 
-// TICKET-124: cross-locale slug → locales[] reverse index, built once at module
-// load (O(N×P) where N=locales, P=pages, ~14×6=84 ops). Used by hreflang +
-// sitemap alternates to determine which locales actually have a given page.
-const slugToLocales: Record<string, string[]> = (() => {
-  const idx: Record<string, string[]> = {};
-  for (const loc of locales) {
-    for (const p of pagesByLocale[loc] ?? []) {
-      (idx[p.slug] ??= []).push(loc);
+// TICKET-124: cross-locale slug → locales[] reverse index (O(N×P) where N=locales, P=pages, ~14×6=84 ops).
+// Used by hreflang + sitemap alternates to determine which locales actually have a given page.
+// #1665: it used to be built once at module load; the data is a per-request object now, so it is built once per
+// SiteData object (the loader hands out the same object until a file under site/ changes).
+const slugIndexCache = new WeakMap<SiteData, Record<string, string[]>>();
+function slugToLocalesOf(site: SiteData): Record<string, string[]> {
+  let idx = slugIndexCache.get(site);
+  if (!idx) {
+    idx = {};
+    for (const loc of site.locales) {
+      for (const p of site.pagesByLocale[loc] ?? []) {
+        (idx[p.slug] ??= []).push(loc);
+      }
     }
+    slugIndexCache.set(site, idx);
   }
   return idx;
-})();
+}
 
 // TICKET-129: build a path / absolute URL for a given (slug, locale, kind).
 // defaultLocale uses root URL alias (no /<locale> prefix); other locales keep
@@ -126,12 +98,15 @@ const slugToLocales: Record<string, string[]> = (() => {
 // consolidating links pointing at the root URL for default locale.
 //
 // Returns the path-only form (no domain). Callers prefix the domain themselves.
+// #1665: the only thing it reads is defaultLocale, so it takes just that much of the site — browser components
+// (LanguageSwitcher) are handed `{ defaultLocale }`, not the whole site.
 export function localeUrl(
+  site: Pick<SiteData, 'defaultLocale'>,
   slug: string,
   locale: string,
   kind: 'page' | 'blogIndex' | 'blogPost' = 'page'
 ): string {
-  const isDefault = locale === defaultLocale;
+  const isDefault = locale === site.defaultLocale;
   const prefix = isDefault ? '' : `/${locale}`;
   if (kind === 'blogIndex') return `${prefix}/blog`;
   if (kind === 'blogPost') return `${prefix}/blog/${slug}`;
@@ -143,11 +118,23 @@ export function localeUrl(
 // (a link to a page that was never built is a dead link, and dead links block publishing, #1553). `path` has its
 // locale prefix removed. The rule lives in scripts/lib/locale-switch.js so test:scripts can test it; this passes it
 // the real indexes — slugToLocales, the same one getAlternateLanguages uses.
-const blogSlugsByLocale: Record<string, string[]> = Object.fromEntries(
-  locales.map((l) => [l, (blogPostsByLocale[l] ?? []).map((p) => p.slug)])
-);
-export function switchLocaleHref(path: string, target: string): string {
-  return switchLocaleHrefFrom(path, target, { defaultLocale, slugToLocales, blogSlugsByLocale });
+// #1665: the switcher is browser code, so the server side (SiteShell) builds this index and hands it down as a prop.
+export interface LocaleSwitchIndex {
+  defaultLocale: string;
+  slugToLocales: Record<string, string[]>;
+  blogSlugsByLocale: Record<string, string[]>;
+}
+export function localeSwitchIndex(site: SiteData): LocaleSwitchIndex {
+  return {
+    defaultLocale: site.defaultLocale,
+    slugToLocales: slugToLocalesOf(site),
+    blogSlugsByLocale: Object.fromEntries(
+      site.locales.map((l) => [l, (site.blogPostsByLocale[l] ?? []).map((p) => p.slug)])
+    ),
+  };
+}
+export function switchLocaleHref(index: LocaleSwitchIndex, path: string, target: string): string {
+  return switchLocaleHrefFrom(path, target, index);
 }
 
 // Returns hreflang locale → absolute URL map for a given page slug. Returns {}
@@ -159,21 +146,23 @@ export function switchLocaleHref(path: string, target: string): string {
 // index (locales with at least 1 published post), and individual blog posts (the
 // `slug` argument is matched against blogPostsByLocale[loc][*].slug).
 export function getAlternateLanguages(
+  site: SiteData,
   slug: string,
   domain: string,
   kind: 'page' | 'blogIndex' | 'blogPost' = 'page'
 ): Record<string, string> {
+  const { locales, blogPostsByLocale } = site;
   let matching: string[];
   if (kind === 'blogIndex') {
     matching = locales.filter((l) => (blogPostsByLocale[l] ?? []).length > 0);
   } else if (kind === 'blogPost') {
     matching = locales.filter((l) => (blogPostsByLocale[l] ?? []).some((p) => p.slug === slug));
   } else {
-    matching = slugToLocales[slug] ?? [];
+    matching = slugToLocalesOf(site)[slug] ?? [];
   }
   if (matching.length <= 1) return {};
   // TICKET-129: defaultLocale uses root URL via localeUrl (no /<locale> prefix).
-  return Object.fromEntries(matching.map((l) => [l, `${domain}${localeUrl(slug, l, kind)}`]));
+  return Object.fromEntries(matching.map((l) => [l, `${domain}${localeUrl(site, slug, l, kind)}`]));
 }
 
 // Returns the absolute URL for the x-default hreflang (defaultLocale's version
@@ -183,17 +172,18 @@ export function getAlternateLanguages(
 //
 // TICKET-129: x-default points to the root URL (no /<defaultLocale> prefix).
 export function getXDefaultHref(
+  site: SiteData,
   slug: string,
   domain: string,
   kind: 'page' | 'blogIndex' | 'blogPost' = 'page'
 ): string {
-  return `${domain}${localeUrl(slug, defaultLocale, kind)}`;
+  return `${domain}${localeUrl(site, slug, site.defaultLocale, kind)}`;
 }
 
 // Returns BCP-47 language code (e.g. "en-CA" / "zh-CN") for Schema.org
 // inLanguage field. Reads seo.locale (which uses underscore form like "en_CA"
 // for OpenGraph) and converts to dash form per BCP-47 spec.
-export function getInLanguage(locale: string): string {
-  const seo = getSeo(locale);
+export function getInLanguage(site: SiteData, locale: string): string {
+  const seo = getSeo(site, locale);
   return (seo.locale || locale).replace('_', '-');
 }

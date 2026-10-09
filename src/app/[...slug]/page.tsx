@@ -27,7 +27,9 @@ import SubPage from '@/components/pages/SubPage';
 import BlogIndexPage from '@/components/pages/BlogIndexPage';
 import BlogPostPage from '@/components/pages/BlogPostPage';
 import { homeMetadata, subPageMetadata, blogIndexMetadata, blogPostMetadata } from '@/lib/metadata';
-import { defaultLocale, locales, getNonHomePages, getBlogPosts, getHomePage, getPage } from '@/lib/config';
+import { getNonHomePages, getBlogPosts, getHomePage, getPage, type SiteData } from '@/lib/config';
+import { isPreviewRender } from '@/lib/render-mode';
+import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 
 const RESERVED_SLUGS = ['blog', '_next'];
 
@@ -42,8 +44,9 @@ type Resolved =
 // Parse a slug array into (locale, kind, optional inner slug). First segment is
 // treated as a locale code if and only if it appears in `locales`. Otherwise the
 // entire slug array is treated as a default-locale path.
-function resolveSlug(slugArray: string[]): Resolved {
+function resolveSlug(site: SiteData, slugArray: string[]): Resolved {
   if (slugArray.length === 0) return { kind: 'unknown' };
+  const { locales, defaultLocale } = site;
 
   const isLocaleCode = locales.includes(slugArray[0]);
 
@@ -70,13 +73,15 @@ function resolveSlug(slugArray: string[]): Resolved {
   return { kind: 'subpage', locale, slug: rest.join('/') };
 }
 
-export async function generateStaticParams() {
+async function publishedParams() {
+  const site = loadSiteData();
+  const { locales, defaultLocale } = site;
   const params: { slug: string[] }[] = [];
 
   // 1. Default-locale subpages, no prefix: /about /services /menu ...
   //    Skip 'home' (handled by app/page.tsx) and any reserved slugs (blog handled
   //    by app/blog/* + /<locale>/blog).
-  const defaultPages = getNonHomePages(defaultLocale).filter(
+  const defaultPages = getNonHomePages(site, defaultLocale).filter(
     (p) => !RESERVED_SLUGS.some((r) => p.slug === r || p.slug.startsWith(r + '/'))
   );
   for (const p of defaultPages) {
@@ -90,7 +95,7 @@ export async function generateStaticParams() {
 
   // 3. All locale subpages with prefix: /en/about /zh/services ...
   for (const locale of locales) {
-    const pages = getNonHomePages(locale).filter(
+    const pages = getNonHomePages(site, locale).filter(
       (p) => !RESERVED_SLUGS.some((r) => p.slug === r || p.slug.startsWith(r + '/'))
     );
     for (const p of pages) {
@@ -103,7 +108,7 @@ export async function generateStaticParams() {
   //    app/blog/page.tsx and app/blog/[slug]/page.tsx — those URLs will not reach
   //    this catch-all.
   for (const locale of locales) {
-    const posts = getBlogPosts(locale);
+    const posts = getBlogPosts(site, locale);
     if (posts.length === 0) continue;
     params.push({ slug: [locale, 'blog'] });
     for (const post of posts) {
@@ -121,14 +126,20 @@ export async function generateStaticParams() {
   });
 }
 
+// #1665 —— 预览模式下**不导出** generateStaticParams（值是 undefined），这条路由就是普通的按请求渲染（构建表里的 ƒ）。
+//    🔴 不能写成「预览模式返回 []」：只要导出了这个函数，Next 就把这条路由当成预先渲染（●）+ 没列出的参数按需生成并缓存，
+//       请求时一调 connection() 就报 DYNAMIC_SERVER_USAGE、页面 500（实测，本票 r1）。发布模式照旧是那个函数。
+export const generateStaticParams = isPreviewRender ? undefined : publishedParams;
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string[] }> }): Promise<Metadata> {
   const { slug } = await params;
-  const r = resolveSlug(slug);
+  const site = await requestSiteData();
+  const r = resolveSlug(site, slug);
   switch (r.kind) {
-    case 'home': return homeMetadata(r.locale);
-    case 'subpage': return subPageMetadata(r.locale, r.slug);
-    case 'blogIndex': return blogIndexMetadata(r.locale);
-    case 'blogPost': return blogPostMetadata(r.locale, r.slug);
+    case 'home': return homeMetadata(site, r.locale);
+    case 'subpage': return subPageMetadata(site, r.locale, r.slug);
+    case 'blogIndex': return blogIndexMetadata(site, r.locale);
+    case 'blogPost': return blogPostMetadata(site, r.locale, r.slug);
     case 'redirect': return {
       title: 'Redirecting...',
       robots: { index: false, follow: false },
@@ -140,7 +151,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function CatchAllPage({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
-  const r = resolveSlug(slug);
+  const site = await requestSiteData();
+  const r = resolveSlug(site, slug);
 
   if (r.kind === 'unknown') notFound();
 
@@ -166,17 +178,17 @@ export default async function CatchAllPage({ params }: { params: Promise<{ slug:
 
   let body: React.ReactNode;
   switch (r.kind) {
-    case 'home': body = <HomePage locale={r.locale} />; break;
-    case 'subpage': body = <SubPage locale={r.locale} slug={r.slug} />; break;
-    case 'blogIndex': body = <BlogIndexPage locale={r.locale} />; break;
-    case 'blogPost': body = <BlogPostPage locale={r.locale} slug={r.slug} />; break;
+    case 'home': body = <HomePage site={site} locale={r.locale} />; break;
+    case 'subpage': body = <SubPage site={site} locale={r.locale} slug={r.slug} />; break;
+    case 'blogIndex': body = <BlogIndexPage site={site} locale={r.locale} />; break;
+    case 'blogPost': body = <BlogPostPage site={site} locale={r.locale} slug={r.slug} />; break;
   }
 
   const page =
-    r.kind === 'home' ? getHomePage(r.locale)
-      : r.kind === 'subpage' ? getPage(r.slug, r.locale)
+    r.kind === 'home' ? getHomePage(site, r.locale)
+      : r.kind === 'subpage' ? getPage(site, r.slug, r.locale)
         : undefined;
   // #1351 —— 把这一页的名字带到 DOM 上（`<main data-page>`），检查器靠它分清站级共用块改的是哪一页。
   //    博客那两种没有 `pages/` 里的记录 ⟹ `page` 是 undefined ⟹ 不写这个属性。
-  return <SiteShell locale={r.locale} page={page?.slug}>{body}</SiteShell>;
+  return <SiteShell site={site} locale={r.locale} page={page?.slug}>{body}</SiteShell>;
 }

@@ -45,19 +45,28 @@ const TEMP = [];
 const temp = (prefix) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); TEMP.push(d); return d; };
 
 // ── 让 node 能 require .tsx；Next 自己的与构建期生成的换成替身 ──────────────────────────────────────
-// 🔴 `getForms` 读 `globalThis.__SITE_FORMS__`：每一段把要测的那份表单库放进去，组件取的就是它（真站读 config-data.ts）。
+// 🔴 #1665 —— 站点数据经 `site` prop 进块（`config.ts` 是纯函数，加载真的那份）；页脚块的表单那几样经 `leadForm` prop
+//    （真站由 SiteShell 取好递进去，这里照它的写法从同一份 SITE 取）。SITE 的表单库读 `globalThis.__SITE_FORMS__`：
+//    每一段把要测的那份表单库放进去，组件取的就是它（真站读服务端加载器那一份）。
 const STUB_DIR = path.join(NEXT, 'scripts', '.site-forms-stubs');
 fs.mkdirSync(STUB_DIR, { recursive: true });
 const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.writeFileSync(p, body); return p; };
 const STUBS = {
   'next/link': stub('link', "const React=require('react');"
     + "const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
-  '@/lib/config': stub('config', 'module.exports={siteId:"t-site",leadApi:"https://lead.example",defaultLocale:"en",'
-    + 'getServices:()=>[{id:"brakes",name:"Brakes"},{id:"tires",name:"Tires"}],'
-    + 'getForms:()=>globalThis.__SITE_FORMS__||[],'
-    + 'brand:{email:"own@site.example",locations:[{label:"Own",address:"1 Own Rd",phone:"+1 (905) 555-0199"}]},'
-    + 'getSeo:()=>({schema:{openingHours:{days:["Monday"],opens:"10:00",closes:"16:30"}}})};\n'),
 };
+const SITE = {
+  siteId: 't-site', leadApi: 'https://lead.example', defaultLocale: 'en', locales: ['en'],
+  servicesByLocale: { en: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] },
+  get formsByLocale() { return { en: globalThis.__SITE_FORMS__ || [] }; },
+  brand: { email: 'own@site.example', locations: [{ label: 'Own', address: '1 Own Rd', phone: '+1 (905) 555-0199' }] },
+  seoByLocale: { en: { schema: { openingHours: { days: ['Monday'], opens: '10:00', closes: '16:30' } } } },
+};
+// SiteShell 给页脚块的那一份（`src/components/SiteShell.tsx` §footerLeadForm 的同一写法）。
+const footerLeadForm = () => ({
+  services: SITE.servicesByLocale.en.map((x) => ({ id: x.id, name: x.name })),
+  siteId: SITE.siteId, leadApi: SITE.leadApi, forms: SITE.formsByLocale.en,
+});
 process.on('exit', () => {
   try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ }
   if (process.env.SITE_FORMS_KEEP !== '1') for (const d of TEMP) { try { fs.rmSync(d, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } }
@@ -182,8 +191,8 @@ const html = (type, mode, formId) => {
   const { shape } = CELLS[type];
   const d = dataFor(type, mode, formId);
   const props = type === 'footer'
-    ? { shape, data: d, iconTable: {}, locale: 'en' }
-    : { data: d, locale: 'en', iconTable: {}, block: { id: 'x', type, shape, data: {} } };
+    ? { shape, data: d, iconTable: {}, locale: 'en', leadForm: footerLeadForm() }
+    : { data: d, locale: 'en', iconTable: {}, site: SITE, block: { id: 'x', type, shape, data: {} } };
   return renderToStaticMarkup(React.createElement(C[type], props));
 };
 const ids = (h, prefix) => Array.from(h.matchAll(new RegExp(`<(?:input|select|textarea)[^>]*\\bid="${prefix}-([a-z]+)"`, 'g'))).map((m) => m[1]).filter((x) => x !== 'hp');

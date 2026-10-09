@@ -5,16 +5,20 @@ import type { Metadata } from 'next';
 import SiteShell from '@/components/SiteShell';
 import HomePage from '@/components/pages/HomePage';
 import { homeMetadata } from '@/lib/metadata';
-import { defaultLocale, getHomePage } from '@/lib/config';
+import { getHomePage } from '@/lib/config';
+import { requestSiteData } from '@/lib/site-data.server';
 
 export async function generateMetadata(): Promise<Metadata> {
-  return homeMetadata(defaultLocale);
+  const site = await requestSiteData();
+  return homeMetadata(site, site.defaultLocale);
 }
 
 export default async function RootHomePage() {
+  const site = await requestSiteData();
+  const { defaultLocale } = site;
   return (
-    <SiteShell locale={defaultLocale} page={getHomePage(defaultLocale)?.slug}>
-      <HomePage locale={defaultLocale} />
+    <SiteShell site={site} locale={defaultLocale} page={getHomePage(site, defaultLocale)?.slug}>
+      <HomePage site={site} locale={defaultLocale} />
     </SiteShell>
   );
 }

@@ -35,7 +35,7 @@ if (!Array.isArray(OWNED) || OWNED.length === 0) die('navigation-owned.js 的 OW
 
 const TEMPLATE_ROOT = path.join(__dirname, '..', '..');
 const SYNC_CONFIG = path.join(TEMPLATE_ROOT, 'scripts', 'sync-config.js');
-// ⑩ 的判据源头：tsc 拿这个 interface 去量构建生成的那份数据（src/lib/config.ts:26 的 cast）。
+// ⑩ 的判据源头：渲染那一侧是按这个 interface 写的（#1665 之前 tsc 还会经 src/lib/config.ts 的 cast 拿它去量构建生成的那份数据）。
 const TYPES_FILE = path.join(TEMPLATE_ROOT, 'src', 'lib', 'types', 'config.ts');
 
 // ── 夹具：一份长得像真站的 navigation.json ─────────────────────────────────────────────────────
@@ -596,6 +596,9 @@ function navWritesInSyncConfig(file) {
 //   · `sync-config.js` 直接读的那两处（`header.cta.href` 拿去 `.replace`、`footer.columns` 取 `.length`）
 //   · 🔴 **tsc** —— `src/lib/config.ts:26` 把构建生成的那份数据 cast 成
 //     `Record<string, NavigationConfig>`，任何字段跟那个类型对不上，`npm run build` 整个死掉。
+//     📌 #1665 起这一条**不再成立**：站点数据改成服务端加载器每次请求读（`src/lib/site-data.server.ts`），config.ts 是纯函数、
+//     不再 import 构建生成的那份 ⟹ tsc 量不到数据了。对不上的字段现在落到渲染那一刻（组件仍按 `NavigationConfig` 写的，
+//     `SiteData.navigationByLocale` 就是它）。所以这道门仍然要跟这个 interface 一致 —— 它成了挡在数据进站之前的唯一一道。
 // 漏掉第三个的后果 QA3 实测过：老板说「把页脚版权行去掉」→ 门放行 → sync-config rc=0（#1087 那道
 // 保存前检查看不见）→ 聊天说改好了 → 自动保存 push 进站仓 → 这个站从此建不出来。
 //
@@ -682,15 +685,19 @@ function navWritesInSyncConfig(file) {
     }
   }
 
-  // ⑩ 的前提：tsc 真的会拿 NavigationConfig 去量构建生成的那份数据。
-  // 有人把这句 cast 改成先转 `unknown`，整组就成了一句空话 —— 那时这一格必须红。
+  // ⑩ 的前提：渲染那一侧拿到的导航数据就是 NavigationConfig 这个类型。
+  // 🔴 #1665 之前这一格量的是「src/lib/config.ts 把构建生成的那份数据直接 cast 成 Record<string, NavigationConfig>」（tsc 因此会量
+  //    数据）。那句 cast 随 config-data.ts 一起离开了 config.ts —— 站点数据现在是请求时读的 `SiteData`，tsc 量不到数据（见上面 ⑩ 的头注）。
+  //    剩下的承重点是「每个渲染方拿到的类型是 NavigationConfig」：`SiteData.navigationByLocale` 声明成别的（或先转 unknown），
+  //    这道门跟渲染那一侧就脱钩了 —— 那时这一格必须红。
   {
-    const cfg = fs.readFileSync(path.join(TEMPLATE_ROOT, 'src', 'lib', 'config.ts'), 'utf-8');
-    if (/_navigationByLocale as Record<string, NavigationConfig>/.test(cfg)) {
-      ok('⑩ 前提还在：src/lib/config.ts 把构建生成的那份数据直接 cast 成 Record<string, NavigationConfig>（tsc 因此会量它）');
+    const types = fs.readFileSync(TYPES_FILE, 'utf-8');
+    const siteData = (types.match(/export interface SiteData \{[\s\S]*?\n\}/) || [''])[0];
+    if (/\n\s*navigationByLocale: Record<string, NavigationConfig>;/.test(siteData)) {
+      ok('⑩ 前提还在：SiteData.navigationByLocale 就是 Record<string, NavigationConfig>（渲染方拿到的就是这个类型；#1665 起 tsc 不再量数据本身）');
     } else {
-      bad('⑩ 前提没了：src/lib/config.ts 不再把那份数据直接 cast 成 Record<string, NavigationConfig>'
-        + ' —— NAV_SHAPE 凭什么等于「构建读的全集」要重新量一次（先转 unknown 的写法会让 tsc 一句话都不说）');
+      bad('⑩ 前提没了：src/lib/types/config.ts 的 SiteData.navigationByLocale 不再是 Record<string, NavigationConfig>'
+        + ' —— NAV_SHAPE 凭什么等于「渲染读的全集」要重新量一次');
     }
   }
 }

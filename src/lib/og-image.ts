@@ -10,7 +10,8 @@
 // 🔴 **每页都出同一张，按站的默认语言首页取。** 页面级 `generateMetadata` 的 `openGraph` 会整份替掉根布局那份
 //    （Next 不逐键合并），所以根布局和 `metadata.ts` 的四个构造器都要接这里 —— 只接一处，别的页就没有图。
 // 地址原样给 Next：相对地址（`/logo.png`）由根布局的 `metadataBase`（`seo.domain`）补成绝对地址。
-import { brand, defaultLocale, getHomePage } from '@/lib/config';
+import type { SiteData } from '@/lib/types/config';
+import { getHomePage } from '@/lib/config';
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const isSvg = (url: string) => /\.svg(?:[?#]|$)/i.test(url);
@@ -21,23 +22,23 @@ const usable = (url: unknown): string | null => {
 };
 
 /** 这个站的分享图地址；没有可用的图 ⟹ `null`（第三档）。 */
-export function siteOgImage(): string | null {
-  const home = getHomePage(defaultLocale);
+export function siteOgImage(site: SiteData): string | null {
+  const home = getHomePage(site, site.defaultLocale);
   for (const b of home?.blocks ?? []) {
     if (!b || b.type !== 'hero' || !isObj(b.data) || !isObj(b.data.image)) continue;
     const img = usable(b.data.image.imageUrl);
     if (img) return img;
   }
-  return usable(brand.logoUrl);
+  return usable(site.brand.logoUrl);
 }
 
 /** 塞进 `openGraph` 的那一段：有图 `{ images: [url] }`，没图 `{}`（一个键都不多）。 */
-export function ogImageFields(): { images?: string[] } {
-  const img = siteOgImage();
+export function ogImageFields(site: SiteData): { images?: string[] } {
+  const img = siteOgImage(site);
   return img ? { images: [img] } : {};
 }
 
 /** Twitter 卡型：有图才声明大图卡。 */
-export function twitterCard(): 'summary_large_image' | 'summary' {
-  return siteOgImage() ? 'summary_large_image' : 'summary';
+export function twitterCard(site: SiteData): 'summary_large_image' | 'summary' {
+  return siteOgImage(site) ? 'summary_large_image' : 'summary';
 }

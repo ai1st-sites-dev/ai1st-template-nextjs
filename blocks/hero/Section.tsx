@@ -31,8 +31,8 @@
 import { slotImg } from '@/lib/sections/blockMedia';
 
 import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
-import { getServices } from '@/lib/config';
+import type { BlockConfig, SiteData } from '@/lib/types/config';
+import { getServices, leadFormSite } from '@/lib/config';
 import Icon from '@/components/Icon';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -67,6 +67,8 @@ interface Props {
   data: HeroNewData;
   locale?: string;
   block?: BlockConfig;
+  /** #1665 —— 这个站的内容（SectionRenderer 递下来）。 */
+  site: SiteData;
 }
 
 // 上限写在这里、也写在 manifest 的槽位说明里：演示内容包按守卫 (c) 给每个列表槽 6 条，数据里多出来的
@@ -98,11 +100,11 @@ function rowClass(textAlign: string, hasSide: boolean): string {
 }
 
 /** 表单「需求」下拉的选项 —— 站内服务列表（在这里读、不在 BlockLeadForm 里读，理由见它的文件头：page-deps 只看这份 Section.tsx）。 */
-function servicesFor(locale: string): { id: string; name: string }[] {
-  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+function servicesFor(site: SiteData, locale: string): { id: string; name: string }[] {
+  try { return (getServices(site, locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
 }
 
-export default function HeroNewSection({ data, locale = 'en', block }: Props) {
+export default function HeroNewSection({ data, locale = 'en', block, site }: Props) {
   const d: HeroNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: HeroNewOptions = isObj(d.options) ? d.options : {};
@@ -168,7 +170,8 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
               <BlockLeadForm
                 mode={k.form === 'teaser' ? 'teaser' : 'full'}
                 formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
-                services={servicesFor(locale)}
+                services={servicesFor(site, locale)}
+                {...leadFormSite(site, locale)}
                 locale={locale}
                 align={k.textAlign === 'center' ? 'center' : k.textAlign === 'right' ? 'right' : 'left'}
               />

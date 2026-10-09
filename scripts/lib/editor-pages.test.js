@@ -61,8 +61,11 @@ check(editorPages([], pagesByLocale).length === 0 && editorPages(['de'], pagesBy
 console.log('⑤ 路由与下拉出自同一个函数');
 const route = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'app', '~editor', '[...target]', 'page.tsx'), 'utf-8');
 const code = route.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
-const gsp = code.match(/export function generateStaticParams\(\)[\s\S]*?\n}/);
-check(!!gsp && /editorPages\(locales, pagesByLocale\)/.test(gsp[0]), 'generateStaticParams 调 editorPages(locales, pagesByLocale)', gsp ? gsp[0] : '找不到 generateStaticParams');
+// #1665 —— 发布模式下的 generateStaticParams 就是 `publishedParams`（预览模式不导出它，理由在路由文件里）。
+const gsp = code.match(/function publishedParams\(\)[\s\S]*?\n}/);
+check(!!gsp && /editorPages\(locales, pagesByLocale\)/.test(gsp[0])
+  && /export const generateStaticParams = isPreviewRender \? undefined : publishedParams;/.test(code),
+'generateStaticParams（发布模式 = publishedParams）调 editorPages(locales, pagesByLocale)', gsp ? gsp[0] : '找不到 publishedParams');
 check(/pages=\{editorPages\(locales, pagesByLocale\)\}/.test(code), '传给 EditorApp 的 pages 调同一个');
 check(!/['"]blog['"]\s*,\s*['"]_next['"]/.test(code), '路由文件里没有第二份保留字表');
 

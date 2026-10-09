@@ -7,7 +7,7 @@
 //    dashboard，由它带自己的凭证去打 manager。
 //
 // 🔴 收发两向都校验 origin，发消息**不许**用 `'*'`：
-//    · 发：目标 origin 是构建时烤进来的 dashboard origin（`trustedOrigin`，与主题预览 #925 同一个来源：
+//    · 发：目标 origin 是 dashboard 的 origin（发布模式构建时定、预览模式请求时从服务进程的环境变量读，#1665）（`trustedOrigin`，与主题预览 #925 同一个来源：
 //      `leadApi` 的 origin）。拿不到它就不发，界面上说清楚「只能从 dashboard 里保存」。
 //    · 收：`e.origin !== trustedOrigin` 的消息一律忽略。
 //    `manager/ticket1409_postmessage_test.go` 守着这两条（改成 `'*'` / 删掉 origin 判断都会红）。
@@ -82,11 +82,13 @@ import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contr
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
-import { brand as siteBrand } from '@/lib/config';
 import { setAt } from '../../../scripts/lib/inline-edit.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, type InlineApi, type InlineFreeze, type RewriteResult } from './InlineEdit';
+import type { SiteData } from '@/lib/types/config';
 
 export interface EditorAppProps {
+  /** #1665 —— 这个站的内容（编辑器页在服务端用加载器读的那份）。画布上的块、外壳、列表槽的引用展开都用它。 */
+  site: SiteData;
   locale: string;
   page: string;
   /** #1471 —— 这个语言的站级表单库（id + 名字），给 `form.id` 那格的下拉用。没有表单库 = 空数组（下拉只有「第一张」那一项）。 */
@@ -226,9 +228,9 @@ function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: u
 }
 
 /** 一个子字段：词表里有它（`choices`）就是下拉；带 `sources` 的是链接格（#1506）；否则是一格文字。 */
-function subField(s: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; nested?: { sub: string; label: string }[] }): Field {
+function subField(s: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; nested?: { sub: string; label: string }[] }, site: SiteData): Field {
   if (s.nested && s.nested.length) return nestedTextField(s.sub, s.nested);
-  if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources);
+  if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources, site);
   if (s.choices && s.choiceDefault && s.choiceDefault !== s.choices[0]) return choiceField(s.label, s.choices, s.choiceDefault);
   return s.choices
     ? ({ type: 'select', label: s.label, options: s.choices.map((c) => ({ label: c, value: c })) } as Field)
@@ -284,9 +286,10 @@ const LINK_SOURCE_LABELS: Record<string, string> = { phone: 'Business phone', em
 const CUSTOM_LINK = '';
 const INPUT_STYLE = { width: '100%', padding: '6px 8px', fontSize: 14, border: '1px solid #d0d5dd', borderRadius: 6, fontFamily: 'inherit' } as const;
 
-function LinkHrefControl({ label, sources, value, onChange, readOnly }: {
-  label: string; sources: string[]; value: unknown; onChange: (v: unknown) => void; readOnly?: boolean;
+function LinkHrefControl({ label, sources, value, onChange, readOnly, site }: {
+  label: string; sources: string[]; value: unknown; onChange: (v: unknown) => void; readOnly?: boolean; site: SiteData;
 }) {
+  const siteBrand = site.brand;
   const ref = isSourceRef(value) && sources.includes(value.source) ? value : null;
   const locations = Array.isArray(siteBrand.locations) ? siteBrand.locations : [];
   const at = ref && Number.isInteger(ref.location) ? (ref.location as number) : 0;
@@ -316,12 +319,12 @@ function LinkHrefControl({ label, sources, value, onChange, readOnly }: {
   );
 }
 
-function linkHrefField(label: string, sources: string[]): Field {
+function linkHrefField(label: string, sources: string[], site: SiteData): Field {
   return {
     type: 'custom',
     label,
     render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => (
-      <LinkHrefControl label={label} sources={sources} value={value} onChange={onChange} readOnly={readOnly} />
+      <LinkHrefControl label={label} sources={sources} value={value} onChange={onChange} readOnly={readOnly} site={site} />
     ),
   } as unknown as Field;
 }
@@ -331,7 +334,7 @@ export type { EditorFormChoice } from './FormCopyEditor';
 
 /** manifest 的一个槽位 → 一个 Puck 字段。控件由 `kind` 决定（editor-schema.js 文件头那张表）。
  *  #1471 —— `form` 槽的 `id`（选站级表单库里哪一张）画成下拉：选项 = 这个语言的表单名（`site-forms.js` §formIdOptions）。 */
-function puckField(f: EditorField, forms: EditorFormChoice[] = []): Field {
+function puckField(f: EditorField, forms: EditorFormChoice[], site: SiteData): Field {
   switch (f.control) {
     case 'text':
       return { type: 'text', label: f.label };
@@ -390,13 +393,13 @@ function puckField(f: EditorField, forms: EditorFormChoice[] = []): Field {
               <FormIdField value={value} onChange={onChange} readOnly={readOnly} />
             ),
           } as unknown as Field)
-          : subField(s)])),
+          : subField(s, site)])),
       } as Field;
     case 'list':
       return {
         type: 'array',
         label: f.label,
-        arrayFields: Object.fromEntries(f.subs.map((s) => [s.sub, subField(s)])),
+        arrayFields: Object.fromEntries(f.subs.map((s) => [s.sub, subField(s, site)])),
         defaultItemProps: {},
         getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, f.summary || f.subs.map((s) => s.sub)),
       } as Field;
@@ -462,13 +465,13 @@ function SharedNote({ id }: { id: string }) {
  * 再给一个「改成手写」—— 把**现在**展开出来的那几条写成条目数组（之后就是普通的手写列表，不再跟着站点数据变）。
  * 展开用的是画布同一个函数、同一份站点数据，所以写下来的就是老板此刻在画布上看到的那几条。
  */
-function sourcedItemsField(f: EditorField, type: string, locale: string): Field {
+function sourcedItemsField(f: EditorField, type: string, locale: string, site: SiteData): Field {
   return {
     type: 'custom',
     label: f.label,
     render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => {
       const toManual = () => {
-        const [b] = resolveItemSources([{ type, data: { [f.slot]: value } } as BlockConfig], itemSourceContext(locale));
+        const [b] = resolveItemSources([{ type, data: { [f.slot]: value } } as BlockConfig], itemSourceContext(site, locale));
         const items = (b.data as Record<string, unknown>)[f.slot];
         onChange(Array.isArray(items) ? JSON.parse(JSON.stringify(items)) : []);
       };
@@ -499,7 +502,7 @@ function sharedNoteField(id: string): Field {
  * 数据的底是**归一化之后**那一块（`_src.view`，跟真页面同一份：列表已升格、`data-has-*` 已算好），
  * 老板改过的字段才换成新值 —— 用的是存盘时同一个合法（§dataFromProps），画布和落盘不会各说各的。
  */
-function CanvasBlock({ component, props: live, locale, pageSlug }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string }) {
+function CanvasBlock({ component, props: live, locale, pageSlug, site }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
   // #1657 —— 老板正在画布上打这一块的某一格：那一格按打之前的值画（浏览器手上的字才是真的，React 不去重写那个文本节点，
   //    光标就不会每敲一个字跳回开头）。右栏和存盘读的是 Puck 里的新值，不受这里影响。
   const freeze = useContext(InlineFreezeContext);
@@ -527,7 +530,7 @@ function CanvasBlock({ component, props: live, locale, pageSlug }: { component: 
   const block = { ...view, data, shape: canvasShape(component, props._shape, data) } as BlockConfig;
   // #1505 —— 写成引用的列表槽（`items: {source: "services"}`）在画布上显示展开后的样子：跟真站同一个函数、同一份站点数据，
   //    在这里展开一次，下面普通块和共用块两支用的都是它（只补一支的话，另一支上那块是空的、而且没人会红）。
-  const [shown] = resolveItemSources([block], itemSourceContext(locale, pageSlug));
+  const [shown] = resolveItemSources([block], itemSourceContext(site, locale, pageSlug));
   if (src?.shared) {
     // #1406 —— 共用块在画布上一眼看得出来：左上角一枚标，块名旁写「Shared」（不接鼠标，点它等于点这一块）。
     return (
@@ -538,11 +541,11 @@ function CanvasBlock({ component, props: live, locale, pageSlug }: { component: 
         >
           {component.label} · Shared
         </span>
-        <SectionRenderer blocks={[shown]} locale={locale} pageSlug={pageSlug} />
+        <SectionRenderer site={site} blocks={[shown]} locale={locale} pageSlug={pageSlug} />
       </div>
     );
   }
-  return <SectionRenderer blocks={[shown]} locale={locale} pageSlug={pageSlug} />;
+  return <SectionRenderer site={site} blocks={[shown]} locale={locale} pageSlug={pageSlug} />;
 }
 
 /**
@@ -551,11 +554,14 @@ function CanvasBlock({ component, props: live, locale, pageSlug }: { component: 
 /** 块的形态下拉叫什么（#1454 存盘记录里「改了形态」也用这个字）。 */
 const SHAPE_FIELD_LABEL = 'Layout';
 
-export function buildConfig(schema: EditorSchema, locale: string, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = [], pageSlug?: string): Config {
+// #1665 —— `site` = 这个站的内容（编辑器页在服务端用加载器读的那份，经 EditorApp 的 props 进来）。它以前是一份编译期常量
+//    （`@/lib/config`），画布上的块、外壳、链接下拉、引用展开都直接 import；现在从这里一路递下去（字段 / 画布 / 外壳）。
+//    一张编辑器页一辈子就这一份，所以跟 schema 一样是造配置时定下的，不走 context。
+export function buildConfig(site: SiteData, schema: EditorSchema, locale: string, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = [], pageSlug?: string): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
-    for (const f of c.fields) fields[f.slot] = puckField(f, forms);
+    for (const f of c.fields) fields[f.slot] = puckField(f, forms, site);
     // #1463 —— 带预设的块（hero）不再给「Layout」形态下拉：预设那一排就是它，两处各选一个会互相打架。
     //    `_shape` 这个 prop 照旧在（defaultProps / 页面 JSON 里原来那个值），存盘原样带回去。
     const hasPresets = c.fields.some((f) => f.control === 'options' && (f.presets || []).length > 0);
@@ -599,12 +605,12 @@ export function buildConfig(schema: EditorSchema, locale: string, removable: (id
         // #1505 —— 写成引用的列表槽：那一栏换成只读提示 + 「改成手写」（§sourcedItemsField）。点了之后 prop 变回数组，
         //    下一次 resolveFields 就回到普通的列表字段。
         const sourced = c.fields.filter((f) => f.control === 'list' && isSourceRef(data.props?.[f.slot]));
-        if (sourced.length) own = { ...own, ...Object.fromEntries(sourced.map((f) => [f.slot, sourcedItemsField(f, c.type, locale)])) };
+        if (sourced.length) own = { ...own, ...Object.fromEntries(sourced.map((f) => [f.slot, sourcedItemsField(f, c.type, locale, site)])) };
         if (src?.locked) return { _locked: LOCKED_NOTE, ...own };
         if (src?.shared) return { _shared: sharedNoteField(src.shared), ...own };
         return own;
       },
-      render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} pageSlug={pageSlug} />,
+      render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} pageSlug={pageSlug} site={site} />,
     } as unknown as Config['components'][string];
   }
   // 页面里有、而这个站的区块库里没有的块（#1404 QA1 r1）：锁住的占位，能选中、看得见，不进左栏
@@ -629,7 +635,7 @@ export function buildConfig(schema: EditorSchema, locale: string, removable: (id
       unknown: { components: [UNKNOWN_TYPE], visible: false },
       other: { visible: false },
     },
-    root: rootConfig(schema, locale),
+    root: rootConfig(schema, locale, site),
   } as Config;
 }
 
@@ -672,7 +678,7 @@ const ROOT_FIELD_LABELS: Record<string, string> = {
   footerShape: 'Footer style (whole website)',
 };
 
-function rootConfig(schema: EditorSchema, locale: string) {
+function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
   const opts = (names: string[]) => names.map((n) => ({ value: n, label: n }));
   const fields: Fields = {
     layout: { type: 'select', label: ROOT_FIELD_LABELS.layout, options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
@@ -707,6 +713,7 @@ function rootConfig(schema: EditorSchema, locale: string) {
       const l = layoutOf(layout) || schema.root.layouts[0];
       return (
         <SiteShell
+          site={site}
           locale={locale}
           shell={{
             layout: { regions: l ? l.regions : ['header', 'content', 'footer'], repeatVariants: l ? l.repeatVariants : {} },
@@ -1089,7 +1096,7 @@ function SaveStatus({ status, onRetry, hideError }: { status: Status; onRetry: (
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, trustedOrigin, siteBlocks, refs, slugs, pages, forms = [] }: EditorAppProps) {
+export default function EditorApp({ site, locale, page, raw, baseHash, schema, initialData, trustedOrigin, siteBlocks, refs, slugs, pages, forms = [] }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -1101,8 +1108,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const [sharedInfo, setSharedInfo] = useState<SharedInfo>({ siteBlocks: siteBlocks || {}, refs: refs || {}, slugs: slugs || [] });
   // #1502 —— 画布上要按页面路径算东西的块拿这一页的 slug；首页不传。当初是给 page-header 的面包屑用的（#1630 删了）。
   const config = useMemo(
-    () => buildConfig(schema, locale, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms, page === 'home' ? undefined : page),
-    [schema, locale, page],
+    () => buildConfig(site, schema, locale, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms, page === 'home' ? undefined : page),
+    [site, schema, locale, page],
   );
   // #1406 —— 老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有拖过的才写成这一页的 `{ref}`
   // （`editor-convert.js` §puckToPage 的 `moved`）。换一份新画布（open / external）时清空。
@@ -1671,7 +1678,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
   };
 
-  const inlineApi: InlineApi = { locked, locale, page, components: componentsByType, setFreeze, rewrite };
+  const inlineApi: InlineApi = { locked, locale, page, site, components: componentsByType, setFreeze, rewrite };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };
