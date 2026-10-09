@@ -21,6 +21,14 @@
 //     关键词页照常补齐（最后那版 out/ 里有）、报告里图那一行 generated < requested
 //   C（反向对照）：把 ② 那一版里一个导航页（非首页）换成骨架页、不发 degraded（= 「② 没做完就发了事件」），A 那把尺子必须读红
 //   D（没打开）：不给 STAGED_PREVIEW_DIR ⟹ 不发任何预览事件、不建 out —— 跟改之前一样
+//   E（#1668 换链接模式，图片成功）：容器替身 = 一次真的预览模式 `next build`（跟 create-site 并行起）+ 真 `next start`，
+//     SYNC_SITE_DIR = 一个链接；STAGED_PREVIEW_RESTART = 本文件的 §RESTART_JS（public/ 文件清单变了就重启，同 preview-live.sh）
+//     · 发 preview-viewable 那一刻经 HTTP 顺着站内链接把点得到的页全走一遍：全 200、有生意的真名字、没有骨架页，链接指着 ② 的快照
+//     · 分段建站本身一次 `next build` 都不跑（没有任何 <k>/out 目录），整跑「Running next build」只有并行那 1 行
+//     · images 阶段往 public/photos/ 写了图 ⟹ 服务重启过（进程号变了），之后页面引用的每张 /photos/ 图都 200；
+//       重启之后才发那一阶段的 preview-reload
+//     · 被链接指着的快照还在（今天 §build 构建完就删快照，新路不许）
+//   F（#1668，并行那次构建故意失败：交付树里弄坏一个块组件）：建站照常完成（rc 0），不发 preview-viewable、不发 preview-reload
 //   A / B 都按真 AI 时序跑（桩 §gate，r4）：② 那次构建结束之前 site/ 里一页都没有 —— 构建只许读快照（编辑器页偷读 site/ 那次，
 //   appdev 上两次阶段构建全红、preview-viewable 没发，而这份测试因为桩瞬时写满了 site/ 一直是绿的）
 'use strict';
@@ -73,8 +81,12 @@ if (cfg.holdAfterPages) {
     if (held || !fs.existsSync(require('path').join(process.env.STAGED_PREVIEW_DIR, '2', 'site'))) return;
     held = true;
     const t0 = Date.now();
-    while (!/\[staged-preview\] #2（pages 之后/.test(seen) && Date.now() - t0 < 10 * 60 * 1000) await new Promise((r) => setTimeout(r, 200));
-    const done = /\[staged-preview\] #2（pages 之后/.test(seen);
+    // #1668 换链接模式：② 那一阶段不构建，「#2（pages 之后…」那一行在派生完就打了 —— 真建站里那之后还有几分钟 AI，
+    //    而并行那次预览构建（约 35 秒）早就编完、服务早就起来了。所以这几跑等的是「preview-viewable 已发」：图阶段写图必然晚于开服，
+    //    第 8 条那次重启才真的被驱动到（不等的话，图在服务起来之前就写好了，这一格按构造是绿的）。
+    const doneRe = process.env.STAGED_PREVIEW_LIVE ? /\[staged-preview\] #2（pages 之后）预览服务答了 200/ : /\[staged-preview\] #2（pages 之后/;
+    while (!doneRe.test(seen) && Date.now() - t0 < 10 * 60 * 1000) await new Promise((r) => setTimeout(r, 200));
+    const done = doneRe.test(seen);
     fs.appendFileSync(process.env.SP_STUB_CALLS, JSON.stringify({ kind: 'hold', done, ms: Date.now() - t0, siteHome: fs.existsSync('site/zh/pages/home.json') }) + '\n');
   };
 }
@@ -377,6 +389,125 @@ async function stagedRun(label, repo, payload, { cfg, killAfterViewable = false 
   return R;
 }
 
+// ── #1668 容器替身（换链接模式）────────────────────────────────────────────────────────────────────────────
+// 同 worker/preview-live.sh §restart-if-public-changed：public/ 的文件清单跟开服时那份不一样就杀掉服务、起新的、等它答 200。
+// 本文件不引 worker/ 那份脚本（模板会被同步到单独的模板仓，那边没有 worker/）——判据一句话，在这里照写。
+const RESTART_JS = `
+const fs = require('fs'), path = require('path'), cp = require('child_process'), http = require('http');
+const st = process.env.SP_LIVE_STATE;
+const list = () => { const out = []; const walk = (d) => { let es = []; try { es = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; }
+  for (const e of es) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else out.push(f); } }; walk('public'); return out.sort().join('\\n'); };
+const now = list();
+if (now === fs.readFileSync(path.join(st, 'public-list'), 'utf8')) process.exit(0);
+const old = Number(fs.readFileSync(path.join(st, 'server.pid'), 'utf8'));
+try { process.kill(old); } catch (e) {}
+const port = fs.readFileSync(path.join(st, 'port'), 'utf8').trim();
+const wait = () => new Promise((r) => { const once = () => http.get('http://127.0.0.1:' + port + '/', (x) => { x.resume(); x.statusCode === 200 ? r() : setTimeout(once, 200); }).on('error', () => setTimeout(once, 200)); once(); });
+(async () => {
+  for (let i = 0; i < 50; i++) { try { process.kill(old, 0); await new Promise((r) => setTimeout(r, 100)); } catch (e) { break; } }
+  require(process.env.SP_LIVE_START)(st, port, now, process.cwd());
+  await wait();
+  fs.appendFileSync(path.join(st, 'restarts'), 'restart\\n');
+})();
+`;
+// 起一个 `next start`（同 entrypoint §run_one_server 的预览那一支：AI1ST_RENDER=preview、SYNC_SITE_DIR=链接），记进程号和开服时的清单。
+const START_JS = `
+const fs = require('fs'), path = require('path'), cp = require('child_process');
+module.exports = (st, port, list, cwd) => {
+  fs.writeFileSync(path.join(st, 'public-list'), list);
+  const p = cp.spawn(path.join(cwd, 'node_modules', '.bin', 'next'), ['start', '-p', String(port)], { cwd,
+    env: { ...process.env, AI1ST_RENDER: 'preview', SYNC_SITE_DIR: fs.readFileSync(path.join(st, 'site-link'), 'utf8').trim() },
+    stdio: 'ignore', detached: true });
+  p.unref();
+  fs.writeFileSync(path.join(st, 'server.pid'), String(p.pid));
+};
+`;
+const freePort = () => new Promise((resolve) => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
+const fetchText = (port, p) => new Promise((resolve) => {
+  const req = http.get({ host: '127.0.0.1', port, path: p }, (r) => { let b = ''; r.setEncoding('utf8'); r.on('data', (d) => { b += d; }); r.on('end', () => resolve({ code: r.statusCode, body: b })); });
+  req.on('error', () => resolve({ code: 0, body: '' }));
+});
+/** 同 §crawl，只是经 HTTP 问服务（新路没有 out/）。每页的 slug 去 siteDir 里读页面 JSON 判骨架页。 */
+async function httpCrawl(port, siteDir, locale) {
+  const seen = new Set(['/']); const queue = ['/']; const visited = []; const bad = []; const placeholders = []; let names = 0;
+  while (queue.length) {
+    const p = queue.shift();
+    const r = await fetchText(port, p);
+    if (r.code !== 200) { bad.push(`${p}=${r.code}`); continue; }
+    visited.push(p);
+    if (r.body.includes('Silky Hair Salon')) names += 1;
+    const slug = p === '/' ? 'home' : p.slice(1);
+    const pageJson = path.join(siteDir, locale, 'pages', `${slug}.json`);
+    if (fs.existsSync(pageJson)) { const pg = JSON.parse(fs.readFileSync(pageJson, 'utf8')); if (pg.seo && pg.seo.placeholder === true) placeholders.push(slug); }
+    for (const m of r.body.matchAll(/href="(\/[^"]*)"/g)) {
+      let h = m[1].split('#')[0].split('?')[0];
+      if (!h || h.startsWith('//') || h.startsWith('/_next/') || h.startsWith('/~editor') || PAGE_EXT.test(h)) continue;
+      if (h.length > 1 && h.endsWith('/')) h = h.slice(0, -1);
+      if (!seen.has(h)) { seen.add(h); queue.push(h); }
+    }
+  }
+  return { visited, bad, placeholders, names };
+}
+
+/** 一跑新路：并行起真预览构建 → 成功就起 next start、写 ok；失败写 failed（同 entrypoint 的建站那一支）。 */
+async function liveRun(label, repo, payload, { cfg } = {}) {
+  const st = path.join(repo.root, 'live-state');
+  fs.mkdirSync(st, { recursive: true });
+  fs.mkdirSync(repo.builds, { recursive: true });
+  const link = path.join(repo.builds, 'current');
+  fs.mkdirSync(path.join(repo.builds, '0-empty', 'site'), { recursive: true });
+  fs.symlinkSync(path.join(repo.builds, '0-empty', 'site'), link);
+  const status = path.join(repo.builds, 'build-status');
+  const port = await freePort();
+  fs.writeFileSync(path.join(st, 'port'), String(port));
+  fs.writeFileSync(path.join(st, 'site-link'), link);
+  fs.writeFileSync(path.join(repo.root, 'restart.js'), RESTART_JS);
+  fs.writeFileSync(path.join(repo.root, 'start.js'), START_JS);
+  const L = { buildLines: 0, buildLog: '', pidAtViewable: null, atViewable: null, pidsAtReload: {} };
+  const listNow = () => { const out = []; const walk = (d) => { let es = []; try { es = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; } for (const e of es) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else out.push(f); } }; walk(path.join(repo.work, 'public')); return out.map((f) => path.relative(repo.work, f)).sort().join('\n'); };
+  // 「Running next build」那一行：同 preview-live.sh §prepare，在起构建的那一刻打（这一跑只有这一处会打）。
+  L.buildLines += 1;
+  L.buildLog += `Running next build (preview, create) on ${label}...\n`;
+  const build = new Promise((resolve) => {
+    const b = cp.spawn(path.join(repo.work, 'node_modules', '.bin', 'next'), ['build', '--webpack'], { cwd: repo.work, env: { ...process.env, AI1ST_RENDER: 'preview' } });
+    b.stdout.on('data', (d) => { L.buildLog += d; });
+    b.stderr.on('data', (d) => { L.buildLog += d; });
+    b.on('exit', (code) => {
+      if (code === 0) {
+        require(path.join(repo.root, 'start.js'))(st, port, listNow(), repo.work);
+      }
+      fs.writeFileSync(status, code === 0 ? 'ok' : 'failed');
+      resolve(code);
+    });
+  });
+  const pid = () => { try { return fs.readFileSync(path.join(st, 'server.pid'), 'utf8'); } catch (e) { return null; } };
+  const R = await run(label, repo, payload, {
+    cfg,
+    env: { STAGED_PREVIEW_PORT: String(port), STAGED_PREVIEW_LIVE: link, STAGED_PREVIEW_BUILD_STATUS: status,
+      STAGED_PREVIEW_RESTART: `SP_LIVE_STATE=${st} SP_LIVE_START=${path.join(repo.root, 'start.js')} node ${path.join(repo.root, 'restart.js')}` },
+    onEvent: (e, r) => {
+      if (e.event === 'preview-viewable') {
+        L.pidAtViewable = pid();
+        L.atViewable = { target: fs.readlinkSync(link), index: r.events.length - 1, degradedPages: r.events.filter((x) => x.event === 'degraded' && x.step === 'page').map((x) => x.target) };
+        // 当场经 HTTP 量（同步的 onEvent 里起一个异步读数，跑完之前 create-site 照常往下走 —— 跟老板点开的那一刻一样）
+        L.crawlAtViewable = httpCrawl(port, L.atViewable.target, 'zh');
+      }
+      if (e.event === 'preview-reload') L.pidsAtReload[e.phase] = pid();
+      return undefined;
+    },
+  });
+  L.code = await build;
+  if (L.crawlAtViewable) L.crawlAtViewable = await L.crawlAtViewable;
+  L.port = port;
+  L.st = st;
+  L.link = link;
+  L.pid = pid;
+  R.L = L;
+  R.result = (() => { try { return JSON.parse(fs.readFileSync(path.join(repo.builds, 'result.json'), 'utf8')); } catch (e) { return null; } })();
+  return R;
+}
+const killServer = (R) => { try { const p = Number(fs.readFileSync(path.join(R.L.st, 'server.pid'), 'utf8')); if (p) process.kill(p); } catch (e) { /* 没起或已退出 */ } };
+
 const ofType = (R, t) => R.events.filter((e) => e.event === t);
 const pageFiles = (dir) => {
   const out = {};
@@ -402,12 +533,18 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
     fs.writeFileSync(f, s.replace(HOOK, `onPhaseDone('pages', previewContent(ai.pages.map((p) => (p.slug === '${NAV_SLUG}' ? skeletonPage(p) : p))));`));
   });
   const D = freshRepo('d');
+  const E = freshRepo('e');
+  // F：#1668 并行那次预览构建故意失败 —— 交付树里弄坏一个块组件（create-site 只跑 node 脚本，不编它）
+  const BROKEN = path.join('blocks', 'hero', 'Section.tsx');
+  const F = freshRepo('f', (work) => fs.appendFileSync(path.join(work, BROKEN), '\nexport const broken = (;\n'));
   const t0 = Date.now();
-  const [RA, RB, RC, RD] = await Promise.all([
+  const [RA, RB, RC, RD, RE, RF] = await Promise.all([
     stagedRun('a', A, PAYLOAD({ secondaryLocales: ['en'], geminiApiKey: 'stub-key' }), { cfg: { images: 'ok', holdAfterPages: true } }),
     stagedRun('b', B, PAYLOAD({ geminiApiKey: 'stub-key' }), { cfg: { holdAfterPages: true } }),
     stagedRun('c', C, PAYLOAD(), { killAfterViewable: true }),
     run('d', D, PAYLOAD(), { staged: false }),
+    liveRun('e', E, PAYLOAD({ geminiApiKey: 'stub-key' }), { cfg: { images: 'ok', holdAfterPages: true } }),
+    liveRun('f', F, PAYLOAD(), {}),
   ]);
   console.log(`   四跑用时 ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 
@@ -503,6 +640,13 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
     git(A.bare, ['cat-file', '-e', `${sha('keywordPages')}:site/brand.json`]);
   });
 
+  check('#1668 第 7 条：老路每一阶段的那次 next build 都打了一行「Running next build (legacy, stage …)」（行数 = 构建目录数，阳性 ≥ 3）', () => {
+    const dirs = fs.readdirSync(A.builds).filter((d) => /^\d+$/.test(d)).length;
+    const lines = (RA.stderr.match(/^Running next build \(legacy, stage [a-zA-Z]+\)/gm) || []).length;
+    assert.ok(dirs >= 3, `${dirs} 个构建目录`);
+    assert.strictEqual(lines, dirs, `${lines} 行 vs ${dirs} 次构建`);
+  });
+
   // #1613 —— entrypoint.sh 在 create-site 退出后用 `git status --porcelain --untracked-files=all -- site public` 判「这次建站有没有
   // 没提交的东西」，非空就记 archived:false + warn unarchived。分段预览那几次构建是在 create-site 运行期间跑的（sync-config 往
   // public/ 写生成文件、快照在仓外），这里量它们没在 site/ public/ 留下 git 看得见的东西 —— 否则每个分段建站都会被判成没存进仓。
@@ -551,6 +695,81 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
     assert.ok(!fs.existsSync(path.join(D.work, 'out')));
     assert.ok(!fs.existsSync(D.builds));
   });
+
+  console.log('── E：#1668 换链接模式（真预览构建 + 真 next start，图片成功）');
+  const LE = RE.L;
+  check('建站成功（rc 0、没有 error 事件），并行那次预览构建成功', () => {
+    assert.ok(RE.rc === 0 && !RE.error, `rc=${RE.rc} ${RE.error}\n${RE.stderr.slice(-1500)}`);
+    assert.strictEqual(LE.code, 0, LE.buildLog.slice(-2000));
+  });
+  check('真 AI 时序（同 A）：pages 之后第一次联网等到 ② 那一阶段换上之后才放行，那一刻 site/ 里还没有页面', heldBeforeSiteWritten(E));
+  check('preview-viewable 恰好一次，那一刻链接指着 ② 的快照（不是 site/）', () => {
+    const v = ofType(RE, 'preview-viewable');
+    assert.strictEqual(v.length, 1, `${v.length} 次`);
+    assert.strictEqual(v[0].phase, VIEWABLE_PHASE);
+    assert.ok(LE.atViewable && /\/2\/site$/.test(LE.atViewable.target), JSON.stringify(LE.atViewable));
+  });
+  check('AC「能看了那一刻是真内容」：经 HTTP 走遍点得到的页 —— 全 200、页面里有生意的真名字、没有骨架页（阳性：≥ 9 页）', () => {
+    const c = LE.crawlAtViewable;
+    assert.ok(c, '没收到 preview-viewable');
+    assert.deepStrictEqual(c.bad, [], `非 200：${c.bad.join(' · ')}`);
+    assert.ok(c.visited.length >= 9, `只走到 ${c.visited.length} 页：${c.visited.join(' ')}`);
+    assert.strictEqual(c.names, c.visited.length, `有 ${c.visited.length - c.names} 页里没有 "Silky Hair Salon"`);
+    assert.deepStrictEqual(c.placeholders.filter((x) => !LE.atViewable.degradedPages.includes(x)), [], `骨架页：${c.placeholders.join(' · ')}`);
+  });
+  check('分段建站自己一次 next build 都不跑：构建目录里没有任何 <k>/out；这一跑「Running next build」只有并行那 1 行', () => {
+    const outs = fs.readdirSync(E.builds).filter((d) => /^\d+$/.test(d) && fs.existsSync(path.join(E.builds, d, 'out')));
+    assert.deepStrictEqual(outs, []);
+    assert.ok(!/\[staged-preview\][^\n]*next build/.test(RE.stderr), 'create-site 的日志里出现了 next build');
+    assert.strictEqual(LE.buildLines, 1);
+    assert.strictEqual((LE.buildLog.match(/Running next build/g) || []).length, 1);
+  });
+  check('preview-reload 的集合 = pages 之后的每个阶段各一次；result.json final', () => {
+    assert.deepStrictEqual(ofType(RE, 'preview-reload').map((e) => e.phase), fillPhases());
+    assert.ok(RE.result && RE.result.final === true, JSON.stringify(RE.result));
+  });
+  check('AC「建站时新出现的图」：images 阶段写了 public/photos/* ⟹ 服务重启过（images 那次 reload 时的进程号 ≠ viewable 时的），重启之后才发 reload', () => {
+    const photos = fs.readdirSync(path.join(E.work, 'public', 'photos'));
+    assert.ok(photos.length >= 1, '图阶段没写出图');
+    assert.ok(LE.pidAtViewable && LE.pidsAtReload.images, JSON.stringify([LE.pidAtViewable, LE.pidsAtReload]));
+    assert.notStrictEqual(LE.pidsAtReload.images, LE.pidAtViewable, `写了新图，服务没重启（create-site 里关于重启的日志：${RE.stderr.split('\n').filter((l) => /重启|restart/i.test(l)).join(' | ')}）`);
+    const restarts = fs.readFileSync(path.join(LE.st, 'restarts'), 'utf8').split('\n').filter(Boolean).length;
+    assert.ok(restarts >= 1, `${restarts} 次重启`);
+  });
+  LE.homeAtEnd = await fetchText(LE.port, '/').then((r) => ({ code: r.code, bytes: r.body.length }));
+  const photoCodes = await (async () => {
+    const pages = (await httpCrawl(LE.port, fs.readlinkSync(LE.link), 'zh')).visited;
+    const srcs = new Set();
+    for (const p of pages) for (const m of (await fetchText(LE.port, p)).body.matchAll(/\/photos\/[^"' )?&\\]+/g)) srcs.add(m[0]);
+    const codes = [];
+    for (const s2 of srcs) codes.push(`${s2}=${(await fetchText(LE.port, s2)).code}`);
+    return codes;
+  })();
+  check(`建完之后各页引用的每张 /photos/ 图都答 200（不是 [...slug] 那一页的 500）—— 阳性：至少一张：${photoCodes.join(' ') || '（无）'}`, () => {
+    assert.ok(photoCodes.length >= 1, `没有一页引用 /photos/（服务答首页：${JSON.stringify(LE.homeAtEnd)}）`);
+    assert.deepStrictEqual(photoCodes.filter((c) => !c.endsWith('=200')), []);
+  });
+  check('被链接指着的快照还在（新路不许构建完就删快照）', () => {
+    const target = fs.readlinkSync(LE.link);
+    assert.ok(fs.existsSync(path.join(target, 'brand.json')), target);
+  });
+  check('对照：只改 public/ 里已有文件的内容，不重启（进程号不变）', () => {
+    const before = LE.pid();
+    const f = path.join(E.work, 'public', 'photos', fs.readdirSync(path.join(E.work, 'public', 'photos'))[0]);
+    fs.appendFileSync(f, 'x');
+    cp.execSync(`SP_LIVE_STATE=${LE.st} SP_LIVE_START=${path.join(E.root, 'start.js')} node ${path.join(E.root, 'restart.js')}`, { cwd: E.work });
+    assert.strictEqual(LE.pid(), before);
+  });
+  killServer(RE);
+
+  console.log('── F：#1668 并行那次预览构建失败（弄坏一个块组件）');
+  check('构建确实失败了（阳性：替身写了 failed）', () => assert.notStrictEqual(RF.L.code, 0));
+  check('建站照常完成（rc 0）—— 编译失败不打断内容生成', () => assert.ok(RF.rc === 0 && !RF.error, `rc=${RF.rc} ${RF.error}\n${RF.stderr.slice(-1500)}`));
+  check('不发 preview-viewable、不发 preview-reload（那一刻确实没东西可看）', () => {
+    assert.deepStrictEqual(RF.events.filter((e) => /^preview-/.test(e.event)).map((e) => e.event), []);
+    assert.ok(/并行那次预览构建失败/.test(RF.stderr), '日志里没有那一行原因');
+  });
+  killServer(RF);
 
   console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
   process.exit(fail ? 1 : 0);

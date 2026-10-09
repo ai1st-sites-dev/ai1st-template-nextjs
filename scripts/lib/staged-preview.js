@@ -19,6 +19,16 @@
 // 只在 entrypoint.sh 打开它时才做（给了 STAGED_PREVIEW_DIR）：手跑 create-site、测试、以及没有这一段的老 entrypoint 都照旧，
 // 一个文件都不多建。最后一个阶段的构建换上去了 ⟹ 写 `<目录>/result.json` 的 `final: true`，entrypoint 据它直接起预览、
 // 不再构建一次；没写（中途某次失败 / 没打开）⟹ entrypoint 走老路自己构建。
+//
+// #1668 —— 换链接模式（entrypoint 给了 STAGED_PREVIEW_LIVE 才开；站的模板认预览模式时它才给）。预览服务是 `next start`，
+// 每次请求从 SYNC_SITE_DIR 读内容，而 entrypoint 给它的 SYNC_SITE_DIR 就是 STAGED_PREVIEW_LIVE 这个链接。所以每个阶段：
+//   · 快照照拍（前三个阶段的内容只在快照里 —— #1598 的不变量，site/ 到 keywordPages 才有 brand.json）；
+//   · 照跑 `SYNC_SITE_DIR=<快照> sync-config.js`（派生的 css / 菜单），**不再 `next build`**（并行那一次 entrypoint 自己起）；
+//   · 把链接原子换到这一阶段的快照（symlink + rename，同 §swap），被链接指着的快照不删 —— 留最近两份；
+//   · 跑 STAGED_PREVIEW_RESTART（`preview-live.sh restart-if-public-changed`）：这一阶段往 public/ 写了新文件（照片、logo、
+//     第一份 theme.css）就重启服务、等它答 200（next start 只认开服时已有的文件）；
+//   · ② 等到预览服务答 200 **或者**并行那次构建失败（STAGED_PREVIEW_BUILD_STATUS 里写着 failed）为止，答 200 才发
+//     `preview-viewable`；失败不发。没有秒数上限 —— 两件能观测的事决定等多久。③ 照发 `preview-reload {phase, remaining}`。
 
 const fs = require('fs');
 const path = require('path');
@@ -79,22 +89,44 @@ function fromEnv({ rootDir, siteDir, emit, log, env = process.env }) {
     dir: path.resolve(env.STAGED_PREVIEW_DIR),
     port: Number(env.STAGED_PREVIEW_PORT) || 0,
     keep: env.STAGED_PREVIEW_KEEP === '1',
+    // #1668 —— 换链接模式的三样（文件头）。STAGED_PREVIEW_LIVE 不给 = 今天的每阶段构建模式，一个字不变。
+    live: env.STAGED_PREVIEW_LIVE ? path.resolve(env.STAGED_PREVIEW_LIVE) : '',
+    buildStatus: env.STAGED_PREVIEW_BUILD_STATUS || '',
+    restartCmd: env.STAGED_PREVIEW_RESTART || '',
   });
 }
 
-function createStagedPreview({ rootDir, siteDir, emit, log = () => {}, dir, port = 0, keep = false, phases = BUILD_PHASES }) {
+/** #1668 —— 等预览服务答 200，或者并行那次构建失败。回 true = 答了 200。没有秒数上限（文件头）。 */
+function waitForServer(url, buildStatus) {
+  return new Promise((resolve) => {
+    const once = () => {
+      let st = '';
+      try { st = buildStatus ? fs.readFileSync(buildStatus, 'utf8').trim() : ''; } catch (e) { /* 还没写 = 还在建 */ }
+      if (st === 'failed') { resolve(false); return; }
+      const req = http.get(url, (r) => { r.resume(); if (r.statusCode === 200) resolve(true); else setTimeout(once, 500); });
+      req.setTimeout(3000, () => req.destroy());
+      req.on('error', () => setTimeout(once, 500));
+    };
+    once();
+  });
+}
+
+function createStagedPreview({ rootDir, siteDir, emit, log = () => {}, dir, port = 0, keep = false, phases = BUILD_PHASES,
+  live = '', buildStatus = '', restartCmd = '' }) {
   const out = path.join(rootDir, 'out');
   fs.mkdirSync(dir, { recursive: true });
   // Rebuild：预览进程正在服上一次建好的站（entrypoint 把它挪进构建目录、out 换成指向它的链接）。① 的骨架不换上去 ——
   // 老板看到的仍是他的旧站，直到 ② 那一版建好。新建的站 out 还不存在，① 换上去让预览进程先有东西可服（不通知任何人）。
-  const hadSite = fs.existsSync(path.join(out, 'index.html'));
+  // #1668 换链接模式：同一条规则，问的是链接此刻指着的那份站有没有 brand.json（entrypoint 给 Rebuild 指着旧站的拷贝）。
+  const hadSite = live ? fs.existsSync(path.join(live, 'brand.json')) : fs.existsSync(path.join(out, 'index.html'));
   const nextBin = path.join(rootDir, 'node_modules', '.bin', 'next');
   const last = phases[phases.length - 1];
   let n = 0;
   let chain = Promise.resolve();
   let viewable = false;
   const result = { final: false, viewable: false, reloads: [] };
-  const live = [];   // 换上去过的构建目录，新的在后
+  const linked = [];  // #1668 换链接模式：链接指过的快照，新的在后
+  const swapped = [];   // 换上去过的构建目录，新的在后
 
   const writeResult = () => fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(result) + '\n');
 
@@ -122,16 +154,80 @@ function createStagedPreview({ rootDir, siteDir, emit, log = () => {}, dir, port
     fs.rmSync(tmp, { force: true });
     fs.symlinkSync(target, tmp);
     fs.renameSync(tmp, out);
-    live.push(target);
+    swapped.push(target);
     // 留两份：刚换下来的那份可能还有请求在读。更早的删掉（容器里 /tmp 的空间）。
-    if (!keep) while (live.length > 2) fs.rmSync(path.dirname(live.shift()), { recursive: true, force: true });
+    if (!keep) while (swapped.length > 2) fs.rmSync(path.dirname(swapped.shift()), { recursive: true, force: true });
+  }
+
+  // #1668 —— 把链接换到这一份快照（同 §swap 的 symlink + rename），留最近两份快照、更早的删掉。
+  function swapLink(snap) {
+    const tmp = `${live}.swap-${process.pid}`;
+    fs.rmSync(tmp, { force: true });
+    fs.symlinkSync(snap, tmp);
+    fs.renameSync(tmp, live);
+    linked.push(snap);
+    if (!keep) while (linked.length > 2) fs.rmSync(path.dirname(linked.shift()), { recursive: true, force: true });
+  }
+
+  function restartIfNeeded(k) {
+    if (!restartCmd) return Promise.resolve();
+    return new Promise((resolve) => {
+      const p = spawn('sh', ['-c', restartCmd], { cwd: rootDir, stdio: ['ignore', 2, 2] });
+      p.on('error', (e) => { log(`[staged-preview] #${k} 重启检查起不来：${e.message}`); resolve(); });
+      p.on('exit', (code) => { if (code !== 0) log(`[staged-preview] #${k} 重启检查退出 ${code}`); resolve(); });
+    });
+  }
+
+  // #1668 —— 换链接模式的一个阶段：派生（sync-config 读快照）→ 换链接 → 该重启就重启 → 发事件。不构建。
+  async function liveStage(k, phase, snap) {
+    const t0 = Date.now();
+    const env = { ...process.env, SYNC_SITE_DIR: snap };
+    const ok = await run(process.execPath, [path.join(rootDir, 'scripts', 'sync-config.js')], { cwd: rootDir, env, log });
+    const secs = ((Date.now() - t0) / 1000).toFixed(1);
+    if (!ok) {
+      log(`[staged-preview] #${k}（${phase} 之后）派生失败，${secs}s —— 预览不换，后面的阶段照常`);
+      if (!keep) fs.rmSync(path.dirname(snap), { recursive: true, force: true });
+      return;
+    }
+    const stage = stageOf(phase, phases);
+    if (stage === 'skeleton' && hadSite) {
+      log(`[staged-preview] #${k}（${phase} 之后，骨架）派生好了，${secs}s —— 预览上还是上一次建好的站，不换`);
+      if (!keep) fs.rmSync(path.dirname(snap), { recursive: true, force: true });
+      return;
+    }
+    swapLink(snap);
+    log(`[staged-preview] #${k}（${phase} 之后，${stage}）派生好了，${secs}s —— 预览的链接已换到这一份（不构建）`);
+    await restartIfNeeded(k);
+    if (phase === last) result.final = true;
+    if (stage === 'skeleton') { writeResult(); return; }
+    const remaining = phases.slice(phases.indexOf(phase) + 1);
+    if (!viewable) {
+      const previewUrl = port ? `http://localhost:${port}` : '';
+      if (port && !(await waitForServer(`http://127.0.0.1:${port}/`, buildStatus))) {
+        log(`[staged-preview] #${k}（${phase} 之后）并行那次预览构建失败 —— 不发 preview-viewable（这一刻没东西可看）`);
+        writeResult();
+        return;
+      }
+      viewable = true;
+      result.viewable = true;
+      emit('preview-viewable', { previewUrl, phase, remaining });
+      log(`[staged-preview] #${k}（${phase} 之后）预览服务答了 200 —— preview-viewable 已发`);
+    } else {
+      result.reloads.push(phase);
+      emit('preview-reload', { phase, remaining });
+    }
+    writeResult();
   }
 
   async function build(k, phase, snap) {
+    if (live) return liveStage(k, phase, snap);
     const exportDir = path.join(dir, String(k), 'out');
     const t0 = Date.now();
     const env = { ...process.env, SYNC_SITE_DIR: snap, NEXT_EXPORT_DIR: exportDir };
+    // #1668 第 7 条：每一次 next build 都在容器日志里打一行（这是老路 —— 模板认预览模式的站走 §liveStage，不构建）。
+    const say = () => { process.stderr.write(`Running next build (legacy, stage ${phase}) on ${env.SITE_CONFIG || path.basename(rootDir)}...\n`); return true; };
     const ok = await run(process.execPath, [path.join(rootDir, 'scripts', 'sync-config.js')], { cwd: rootDir, env, log })
+      && say()
       && await run(fs.existsSync(nextBin) ? nextBin : 'npx', fs.existsSync(nextBin) ? ['build', '--webpack'] : ['next', 'build', '--webpack'], { cwd: rootDir, env, log })
       && fs.existsSync(path.join(exportDir, 'index.html'));
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
