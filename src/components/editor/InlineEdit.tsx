@@ -376,7 +376,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       return;
     }
     if (!write(a.id, a.path, out.text, true)) { setNote('This section is no longer on the page.'); return; }
-    setNote('Done — press Ctrl+Z (⌘Z on a Mac) to undo.');
+    setNote('');   // Chris 2026-10-09：写完不说话 —— 文字换了就是反馈，撤销走左栏记录的 Revert（#1675）
   }
 
   if (!active || !pos || (!active.hint && !active.ai)) return null;
