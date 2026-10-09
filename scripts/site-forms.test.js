@@ -317,10 +317,11 @@ console.log('\n── AC4 新建站 · AC5 老站兼容（真跑 create-site.js 
   check(s2.status === 0, `老站（删掉两个 forms.json）跑 sync-config ⟹ 退出码 0（实测 ${s2.status}）`, (s2.stderr || '').slice(-300));
   check(/export const formsByLocale = \{"en":\[\],"fr":\[\]\};/.test(data2), '老站的 config-data.ts：两个语言都是空表单库');
   // 反向对照：把 forms.json 塞进必需文件表 ⟹ 同一个老站 exit 1（证明上一条测的是那张表，不是别的原因放行）。
-  const sc = path.join(work, 'scripts', 'sync-config.js');
+  // #1666 —— 那张表跟着校验一起搬进了 derive-site.js（sync-config.js 头一件事就是 require 它）。
+  const sc = path.join(work, 'scripts', 'derive-site.js');
   const orig = fs.readFileSync(sc, 'utf-8');
   const broken = orig.replace("['seo.json', 'services.json', 'navigation.json', 'pages/home.json']", "['seo.json', 'services.json', 'navigation.json', 'pages/home.json', 'forms.json']");
-  if (broken === orig) bad('反向对照没改到 sync-config.js（锚点找不到）—— 这一格什么都没证明');
+  if (broken === orig) bad('反向对照没改到 derive-site.js（锚点找不到）—— 这一格什么都没证明');
   else {
     fs.writeFileSync(sc, broken);
     const s3 = sync();

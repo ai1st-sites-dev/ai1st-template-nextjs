@@ -178,11 +178,12 @@ function createStagedPreview({ rootDir, siteDir, emit, log = () => {}, dir, port
     });
   }
 
-  // #1668 —— 换链接模式的一个阶段：派生（sync-config 读快照）→ 换链接 → 该重启就重启 → 发事件。不构建。
+  // #1668 —— 换链接模式的一个阶段：派生（读快照）→ 换链接 → 该重启就重启 → 发事件。不构建。
+  // #1666 —— 派生是 derive-site.js（预览模式：site.css 不剪、不写 config-data.ts），不再整份跑 sync-config。
   async function liveStage(k, phase, snap) {
     const t0 = Date.now();
-    const env = { ...process.env, SYNC_SITE_DIR: snap };
-    const ok = await run(process.execPath, [path.join(rootDir, 'scripts', 'sync-config.js')], { cwd: rootDir, env, log });
+    const env = { ...process.env, SYNC_SITE_DIR: snap, AI1ST_RENDER: 'preview' };
+    const ok = await run(process.execPath, [path.join(rootDir, 'scripts', 'derive-site.js')], { cwd: rootDir, env, log });
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     if (!ok) {
       log(`[staged-preview] #${k}（${phase} 之后）派生失败，${secs}s —— 预览不换，后面的阶段照常`);
@@ -214,7 +215,8 @@ function createStagedPreview({ rootDir, siteDir, emit, log = () => {}, dir, port
       log(`[staged-preview] #${k}（${phase} 之后）预览服务答了 200 —— preview-viewable 已发`);
     } else {
       result.reloads.push(phase);
-      emit('preview-reload', { phase, remaining });
+      // #1666 —— 内容路径上的事件统一叫 content-changed（之前是 preview-reload；字段不变）。
+      emit('content-changed', { phase, remaining });
     }
     writeResult();
   }
@@ -254,7 +256,8 @@ function createStagedPreview({ rootDir, siteDir, emit, log = () => {}, dir, port
       emit('preview-viewable', { previewUrl, phase, remaining });
     } else {
       result.reloads.push(phase);
-      emit('preview-reload', { phase, remaining });
+      // #1666 —— 内容路径上的事件统一叫 content-changed（之前是 preview-reload；字段不变）。
+      emit('content-changed', { phase, remaining });
     }
     writeResult();
   }

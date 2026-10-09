@@ -1,5 +1,6 @@
-// #1665 —— 这次构建是不是预览模式（`AI1ST_RENDER=preview`）。开关只在 `next.config.js` 一处读，那边经 `env` 把结果烤进包里；
-// 这里读的是烤进去的那个值，不是起服务时的环境变量。
+// #1665 —— 这次构建是不是预览模式（`AI1ST_RENDER=preview`）。应用代码里开关只在 `next.config.js` 一处读，那边经 `env`
+// 把结果烤进包里；这里读的是烤进去的那个值，不是起服务时的环境变量。
+// #1666 —— 应用之外还有一个读它的：`scripts/derive-site.js`（派生文件，同一套取值）—— 预览不剪 site.css、<lastmod> 只看文件改动时间。
 import { connection } from 'next/server';
 
 export const isPreviewRender = process.env.AI1ST_PREVIEW_RENDER === '1';

@@ -10,14 +10,14 @@
 //   A（图片成功、带第二语言 en）
 //     · 发 preview-viewable 那一刻，从 out/ 首页顺着站内链接把点得到的页全走一遍：没有一页 404，没有一页是骨架页（seo.placeholder）
 //       —— #1596 判成降级、留有 degraded 记录的那页除外。阳性：走到的页数 ≥ 导航里的页数
-//     · preview-reload 的集合 = BUILD_PHASES 里 pages 之后的每个阶段各一次（从那张表读）
+//     · content-changed（#1666 前叫 preview-reload） 的集合 = BUILD_PHASES 里 pages 之后的每个阶段各一次（从那张表读）
 //     · 最后一次之后 out/ 指着最后那次构建，那次构建的输入 = 建完时 site/ 里的站（逐字节）；result.json final = true
 //       （entrypoint 据它直接发 preview-started、不再构建）
 //     · 从 viewable 起每次重构建期间轮询首页，一次都不是非 200（阳性：轮询次数 > 0）
 //     · ① 骨架那一版先换上了、没发任何事件；② 之前的构建只带主语言（en 还没写）；最后一版带上 en
 //     · 预览的文件没进阶段提交（#1598 的不变量：images 那个提交里还没有 site/brand.json）
 //     · create-site 退出后 site/ public/ 下没有 git 看得见的未提交文件（#1613：entrypoint 据此判 archived，预览构建不能弄脏它）
-//   B（图阶段失败：生图全部离线）：照常建完、三次 preview-reload 都发、result.json final = true（⟹ entrypoint 发 preview-started）、
+//   B（图阶段失败：生图全部离线）：照常建完、三次 content-changed 都发、result.json final = true（⟹ entrypoint 发 preview-started）、
 //     关键词页照常补齐（最后那版 out/ 里有）、报告里图那一行 generated < requested
 //   C（反向对照）：把 ② 那一版里一个导航页（非首页）换成骨架页、不发 degraded（= 「② 没做完就发了事件」），A 那把尺子必须读红
 //   D（没打开）：不给 STAGED_PREVIEW_DIR ⟹ 不发任何预览事件、不建 out —— 跟改之前一样
@@ -26,9 +26,9 @@
 //     · 发 preview-viewable 那一刻经 HTTP 顺着站内链接把点得到的页全走一遍：全 200、有生意的真名字、没有骨架页，链接指着 ② 的快照
 //     · 分段建站本身一次 `next build` 都不跑（没有任何 <k>/out 目录），整跑「Running next build」只有并行那 1 行
 //     · images 阶段往 public/photos/ 写了图 ⟹ 服务重启过（进程号变了），之后页面引用的每张 /photos/ 图都 200；
-//       重启之后才发那一阶段的 preview-reload
+//       重启之后才发那一阶段的 content-changed（#1666 前叫 preview-reload）
 //     · 被链接指着的快照还在（今天 §build 构建完就删快照，新路不许）
-//   F（#1668，并行那次构建故意失败：交付树里弄坏一个块组件）：建站照常完成（rc 0），不发 preview-viewable、不发 preview-reload
+//   F（#1668，并行那次构建故意失败：交付树里弄坏一个块组件）：建站照常完成（rc 0），不发 preview-viewable、不发 content-changed（#1666 前叫 preview-reload）
 //   A / B 都按真 AI 时序跑（桩 §gate，r4）：② 那次构建结束之前 site/ 里一页都没有 —— 构建只许读快照（编辑器页偷读 site/ 那次，
 //   appdev 上两次阶段构建全红、preview-viewable 没发，而这份测试因为桩瞬时写满了 site/ 一直是绿的）
 'use strict';
@@ -492,7 +492,7 @@ async function liveRun(label, repo, payload, { cfg } = {}) {
         // 当场经 HTTP 量（同步的 onEvent 里起一个异步读数，跑完之前 create-site 照常往下走 —— 跟老板点开的那一刻一样）
         L.crawlAtViewable = httpCrawl(port, L.atViewable.target, 'zh');
       }
-      if (e.event === 'preview-reload') L.pidsAtReload[e.phase] = pid();
+      if (e.event === 'content-changed') L.pidsAtReload[e.phase] = pid();
       return undefined;
     },
   });
@@ -584,8 +584,8 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
     assert.deepStrictEqual([c.missing, c.placeholders], [[], []]);
     assert.ok(c.visited.length > vA.crawl.visited.length, `${c.visited.length} vs ${vA.crawl.visited.length}`);
   });
-  check('preview-reload 的集合 = BUILD_PHASES 里 pages 之后的每个阶段各一次，顺序相同', () => {
-    assert.deepStrictEqual(ofType(RA, 'preview-reload').map((e) => e.phase), fillPhases());
+  check('content-changed 的集合 = BUILD_PHASES 里 pages 之后的每个阶段各一次，顺序相同', () => {
+    assert.deepStrictEqual(ofType(RA, 'content-changed').map((e) => e.phase), fillPhases());
   });
   check('最后一次之后 out/ 指着最后那次构建，那次构建的输入 = 建完时 site/ 里的站（页面 / brand / services / seo 逐字节）；result.json final', () => {
     assert.ok(RA.result && RA.result.final === true, JSON.stringify(RA.result));
@@ -622,7 +622,7 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
     assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(A.work, 'site', 'site_meta.json'), 'utf8')).locales, ['zh', 'en']);
   });
   check('图那一次 reload 换上了图：images 那版有页面引用 /photos/，② 那版一页都没有', () => {
-    const imgEvent = RA.events.findIndex((e) => e.event === 'preview-reload' && e.phase === 'images');
+    const imgEvent = RA.events.findIndex((e) => e.event === 'content-changed' && e.phase === 'images');
     assert.ok(imgEvent >= 0);
     const builds = fs.readdirSync(A.builds).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => a - b);
     const viewableN = Number(path.basename(path.dirname(vA.outDir)));
@@ -657,10 +657,10 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
 
   console.log('── B：图阶段失败（生图全部离线）');
   check('真 AI 时序（单语言站）：同 A，② 构建期间 site/ 里还没有页面', heldBeforeSiteWritten(B));
-  check('照常建完：rc 0、三次 preview-reload 都发、result.json final（⟹ entrypoint 直接发 preview-started）', () => {
+  check('照常建完：rc 0、三次 content-changed 都发、result.json final（⟹ entrypoint 直接发 preview-started）', () => {
     assert.ok(RB.rc === 0 && !RB.error, `rc=${RB.rc} ${RB.error}\n${RB.stderr.slice(-1500)}`);
     assert.strictEqual(ofType(RB, 'preview-viewable').length, 1);
-    assert.deepStrictEqual(ofType(RB, 'preview-reload').map((e) => e.phase), fillPhases());
+    assert.deepStrictEqual(ofType(RB, 'content-changed').map((e) => e.phase), fillPhases());
     assert.ok(RB.result && RB.result.final === true, JSON.stringify(RB.result));
   });
   check('关键词页照常补齐：最后那版 out/ 里两张关键词页都在', () => {
@@ -724,8 +724,8 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
     assert.strictEqual(LE.buildLines, 1);
     assert.strictEqual((LE.buildLog.match(/Running next build/g) || []).length, 1);
   });
-  check('preview-reload 的集合 = pages 之后的每个阶段各一次；result.json final', () => {
-    assert.deepStrictEqual(ofType(RE, 'preview-reload').map((e) => e.phase), fillPhases());
+  check('content-changed 的集合 = pages 之后的每个阶段各一次；result.json final', () => {
+    assert.deepStrictEqual(ofType(RE, 'content-changed').map((e) => e.phase), fillPhases());
     assert.ok(RE.result && RE.result.final === true, JSON.stringify(RE.result));
   });
   check('AC「建站时新出现的图」：images 阶段写了 public/photos/* ⟹ 服务重启过（images 那次 reload 时的进程号 ≠ viewable 时的），重启之后才发 reload', () => {
@@ -765,8 +765,8 @@ const NAV_SLUG = 'services';   // 配方里顶部导航唯一那一页（非首�
   console.log('── F：#1668 并行那次预览构建失败（弄坏一个块组件）');
   check('构建确实失败了（阳性：替身写了 failed）', () => assert.notStrictEqual(RF.L.code, 0));
   check('建站照常完成（rc 0）—— 编译失败不打断内容生成', () => assert.ok(RF.rc === 0 && !RF.error, `rc=${RF.rc} ${RF.error}\n${RF.stderr.slice(-1500)}`));
-  check('不发 preview-viewable、不发 preview-reload（那一刻确实没东西可看）', () => {
-    assert.deepStrictEqual(RF.events.filter((e) => /^preview-/.test(e.event)).map((e) => e.event), []);
+  check('不发 preview-viewable、不发 content-changed（那一刻确实没东西可看）', () => {
+    assert.deepStrictEqual(RF.events.filter((e) => /^preview-|^content-changed$/.test(e.event)).map((e) => e.event), []);
     assert.ok(/并行那次预览构建失败/.test(RF.stderr), '日志里没有那一行原因');
   });
   killServer(RF);

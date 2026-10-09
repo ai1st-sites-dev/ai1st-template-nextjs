@@ -773,10 +773,10 @@ check('AC6 推送失败那一支照旧：archived:false、一条 warn kind=unarc
   assert.ok(EI.stderr.includes('Git push FAILED (rc='), EI.stderr.slice(-400));
   assert.ok(!(EI.stderr + JSON.stringify(EI.warns)).includes(TOKEN) && EI.stderr.includes('gone-***'), EI.stderr.slice(-600));
 });
-check('entrypoint.sh 里的顺序：create-site 退出 → 读 unsaved_build_files → sync-config → 推送', () => {
+check('entrypoint.sh 里的顺序：create-site 退出 → 读 unsaved_build_files → 派生（#1666 起是 §derive_site）→ 推送', () => {
   const create = EP.indexOf('node scripts/create-site.js < /tmp/input.json');
   const read = EP.indexOf('UNSAVED_FILES=$(unsaved_build_files)', create);
-  const sync = EP.indexOf('node scripts/sync-config.js >&2', create);
+  const sync = EP.indexOf('derive_site >&2', create);
   const push = EP.indexOf(EP_PUSH, create);
   assert.ok(create > 0 && read > create && sync > read && push > sync, JSON.stringify({ create, read, sync, push }));
 });

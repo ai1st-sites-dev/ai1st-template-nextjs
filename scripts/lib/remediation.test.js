@@ -248,7 +248,8 @@ function siteWithNav(dir, locale) {
 
 // ── ⑦ 接线:sync-config.js 真的用这几句话(否则模块再对,报错照样在说假话)──────────────────────
 {
-  const src = fs.readFileSync(path.join(NEXTJS, 'scripts', 'sync-config.js'), 'utf-8');
+  // #1666 —— 校验和它的报错跟着派生搬进了 derive-site.js（sync-config.js 头一件事就是 require 它；⑦b 真跑的仍是 sync-config.js）。
+  const src = fs.readFileSync(path.join(NEXTJS, 'scripts', 'derive-site.js'), 'utf-8');
   const bads = [];
   if (!/require\(['"]\.\/lib\/remediation(\.js)?['"]\)/.test(src)) bads.push('没 require lib/remediation');
   // 📌 #1425（T3）—— topbar 那几句的接线（topbarBullets / flat 传参 / themesWithoutOverlayHeader）随公告条
@@ -283,7 +284,7 @@ function siteWithNav(dir, locale) {
   if (/supports\.header 不是 transparent-overlay/.test(src)) {
     bads.push('还留着「supports.header 不是 transparent-overlay 的那些」——那个判据恒为真，一套都排除不掉');
   }
-  if (bads.length === 0) ok('⑦ sync-config.js 接上了换布局那句话，旧那几句假话也不在了');
+  if (bads.length === 0) ok('⑦ derive-site.js 接上了换布局那句话，旧那几句假话也不在了');
   else bads.forEach((b) => bad(`⑦ ${b}`));
 }
 

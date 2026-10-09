@@ -6,11 +6,11 @@
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 这里判的每一格，错法都是同一个方向：`sheetNameForTheme` 多说了一个「有」，那个站就写下一个
- * `css`，而 `sync-config.js` 的 `readThemeSheet()` 对着它 `process.exit(1)` —— 症状不是「没穿上
+ * `css`，而 `derive-site.js`（#1666 之前在 `sync-config.js`）的 `readThemeSheet()` 对着它 `process.exit(1)` —— 症状不是「没穿上
  * 皮」，是**这个站从此构建不出来**。所以下面既量「该说有的时候说了有」，也量三种该说没有的形状。
  *
- * 🔴 最后一格盯的是**两处正则会不会分叉**：形状判据在 `theme-sheet.js` 和 `sync-config.js` 里
- *    各有一条，写的一侧宽了就是上面那个后果。它读 sync-config.js 的原文来比，不是重抄一遍。
+ * 🔴 最后一格盯的是**两处正则会不会分叉**：形状判据在 `theme-sheet.js` 和 `derive-site.js` 里
+ *    各有一条，写的一侧宽了就是上面那个后果。它读 derive-site.js 的原文来比，不是重抄一遍。
  */
 
 'use strict';
@@ -73,15 +73,16 @@ for (const [why, id] of [
 
 console.log('\n── 写的一侧与读的一侧那条正则要一样 ──');
 {
-  const syncConfig = fs.readFileSync(path.join(__dirname, 'sync-config.js'), 'utf-8');
+  // #1666 —— readThemeSheet 跟着派生搬进了 derive-site.js。
+  const syncConfig = fs.readFileSync(path.join(__dirname, 'derive-site.js'), 'utf-8');
   const m = syncConfig.match(/if \(!(\/\^\[a-z0-9\][^/]*\/)\.test\(name\)\)/);
   if (!m) {
-    bad('在 sync-config.js 里找不到 readThemeSheet 那条 slug 正则了 —— 它被改写过，'
+    bad('在 derive-site.js 里找不到 readThemeSheet 那条 slug 正则了 —— 它被改写过，'
       + '本格量不了两处一不一致，去人工核对 theme-sheet.js 的 SHEET_NAME_OK');
   } else if (m[1] === SHEET_NAME_OK.toString()) {
     ok(`两处逐字相同：${m[1]}`);
   } else {
-    bad(`分叉了 —— sync-config.js 是 ${m[1]}，theme-sheet.js 是 ${SHEET_NAME_OK}。`
+    bad(`分叉了 —— derive-site.js 是 ${m[1]}，theme-sheet.js 是 ${SHEET_NAME_OK}。`
       + '写的一侧宽了 ⟹ 那个站构建不出来');
   }
 }

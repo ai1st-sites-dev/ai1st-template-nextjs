@@ -10,7 +10,7 @@
  *
  * ① `resolveRepeatVariants` 回的是布局钉的那份（逐字），notes 空
  * ② `validateLayout` 看得见「钉了一个清单里没有的形态」（这把尺没坏）
- * ③ 两个消费者读的是同一张表：`footerVariantsFor` 与 `sync-config.js` 都调 `resolveRepeatVariants`
+ * ③ 两个消费者读的是同一张表：`footerVariantsFor` 与 `derive-site.js`（#1666 之前在 `sync-config.js`）都调 `resolveRepeatVariants`
  *    （产物走后者、AI 编辑器的 notes 走前者，分叉 = 告诉编辑器这个站戴着一个它并没戴的形态）
  */
 
@@ -94,11 +94,12 @@ console.log('── ③ 两个消费者读的是同一张表 ──');
   } else {
     bad(`footerVariantsFor 里仍有直接读 layout.repeatVariants 的地方：${body.trim().slice(0, 200)}…`);
   }
-  const sync = stripComments(fs.readFileSync(path.join(NEXT, 'scripts', 'sync-config.js'), 'utf-8'));
+  // #1666 —— 拼 pageLayout 那段跟着派生搬进了 derive-site.js（sync-config.js 拿它的结果写 config-data.ts）。
+  const sync = stripComments(fs.readFileSync(path.join(NEXT, 'scripts', 'derive-site.js'), 'utf-8'));
   if (/resolveRepeatVariants\(picked\.layout,\s*regions\)/.test(sync)) {
-    ok('sync-config.js 写进产物的也是同一个函数的产出');
+    ok('derive-site.js 交给产物的也是同一个函数的产出');
   } else {
-    bad('sync-config.js 没走 resolveRepeatVariants —— 产物里会是布局原样那份');
+    bad('derive-site.js 没走 resolveRepeatVariants —— 产物里会是布局原样那份');
   }
 }
 

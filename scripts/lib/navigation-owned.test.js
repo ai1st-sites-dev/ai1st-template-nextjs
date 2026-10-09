@@ -34,7 +34,9 @@ if (typeof navigationEditRejection !== 'function') die('navigation-owned.js 没�
 if (!Array.isArray(OWNED) || OWNED.length === 0) die('navigation-owned.js 的 OWNED 是空的');
 
 const TEMPLATE_ROOT = path.join(__dirname, '..', '..');
-const SYNC_CONFIG = path.join(TEMPLATE_ROOT, 'scripts', 'sync-config.js');
+// #1666 —— 重写 navigation.json 的那段跟着派生一起搬进了 derive-site.js（sync-config.js 现在只是先跑它、再拼 config-data.ts）。
+//    写回磁盘那一句也换了形状：先记进 §pending（`writeOut(navPath, …)`），全部校验过完才一次写盘 —— 下面认的「写回」两种都算。
+const SYNC_CONFIG = path.join(TEMPLATE_ROOT, 'scripts', 'derive-site.js');
 // ⑩ 的判据源头：渲染那一侧是按这个 interface 写的（#1665 之前 tsc 还会经 src/lib/config.ts 的 cast 拿它去量构建生成的那份数据）。
 const TYPES_FILE = path.join(TEMPLATE_ROOT, 'src', 'lib', 'types', 'config.ts');
 
@@ -152,7 +154,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
     const src = fs.readFileSync(SYNC_CONFIG, 'utf-8');
     const V = found.navVar;
     // 锚点选「把整份写回磁盘」那一句：插在它正上方 = 真的会被写进文件里的改动。
-    const anchor = `  fs.writeFileSync(navPath, JSON.stringify(${V}, null, 2));`;
+    const anchor = `  writeOut(navPath, JSON.stringify(${V}, null, 2));`;
     if (!src.includes(anchor)) {
       bad(`③ 阳性对照立不起来：源码里找不到锚点 \`${anchor}\``);
     } else {
@@ -208,7 +210,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
       ok(`③ 唯一那处「对象流到别处去」（第 ${found.escapes[0].line} 行）在写回磁盘之后，够不着磁盘上那份`);
     }
     // 反向对照：把它挪到写回之前，这把尺子必须说不出来
-    const writeLine = `  fs.writeFileSync(navPath, JSON.stringify(${V}, null, 2));`;
+    const writeLine = `  writeOut(navPath, JSON.stringify(${V}, null, 2));`;
     const escLine = `  navigationByLocale[locale] = ${V};`;
     if (!src.includes(writeLine) || !src.includes(escLine)) {
       bad('③ 位置对照立不起来：找不到写回那句或流到别处那句');
@@ -225,7 +227,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
 
   // 构建把整份写回磁盘这件事本身也要钉一次：它不写回，本票整个前提（改了就生效）就不成立。
   const src = fs.readFileSync(SYNC_CONFIG, 'utf-8');
-  if (new RegExp(`fs\\.writeFileSync\\(navPath,[^)]*${found.navVar}`).test(src)) {
+  if (new RegExp(`(?:fs\\.writeFileSync|writeOut)\\(navPath,[^)]*${found.navVar}`).test(src)) {
     ok('③ sync-config.js 确实把 navigation.json 整份写回磁盘（本票"改了就生效"的前提）');
   } else {
     bad('③ 在 sync-config.js 里找不到把 navigation.json 写回磁盘那句 —— 本票的前提要重新量一次');
@@ -473,7 +475,7 @@ function navWritesInSyncConfig(file) {
   let writeBackPos = null;
   const findWriteBack = (node) => {
     if (ts.isCallExpression(node)
-        && node.expression.getText() === 'fs.writeFileSync'
+        && ['fs.writeFileSync', 'writeOut'].includes(node.expression.getText())
         && node.arguments.length > 0
         && node.arguments[0].getText() === pathVar) {
       if (writeBackPos === null) writeBackPos = node.getStart();

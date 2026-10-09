@@ -466,21 +466,32 @@ async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT }
 }
 
 /**
- * sync-config 调的那一个：编 + purge + 写 `public/site.css`。
- * 回 `{ bytes, rawBytes, ms }` 给日志用。
+ * 编 +（要剪就）purge，回 `{ css, primary, dir, purged, bytes, rawBytes, ms }`，不写盘。
+ * #1666 —— `purge: false` 给预览用（`derive-site.js` 在 `AI1ST_RENDER=preview` 时传）：预览改内容不重建，
+ *    按内容剪过的那份会少掉新内容要的规则；没剪的是超集，只多不少。RTL 镜像 / 图标翻转两种都照做。
  */
-async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr' }) {
+async function buildSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr', purge = true }) {
   const t0 = Date.now();
   const primary = primaryOf(brand);
   const raw = compileSiteCss(primary, { rootDir });
-  const css = await purgeSiteCss(dir === 'rtl' ? mirrorSiteCss(raw) : raw, { rootDir })
+  const mirrored = dir === 'rtl' ? mirrorSiteCss(raw) : raw;
+  const css = (purge ? await purgeSiteCss(mirrored, { rootDir }) : mirrored)
     + (dir === 'rtl' ? `\n${RTL_ICON_FLIP}` : '');
-  const publicDir = path.join(rootDir, 'public');
-  fs.writeFileSync(path.join(publicDir, 'site.css'), css);
-  return { primary, dir, bytes: Buffer.byteLength(css), rawBytes: Buffer.byteLength(raw), ms: Date.now() - t0 };
+  return { css, primary, dir, purged: purge, bytes: Buffer.byteLength(css), rawBytes: Buffer.byteLength(raw), ms: Date.now() - t0 };
+}
+
+/**
+ * 编 + purge（`purge: false` 不剪）+ 写 `public/site.css`。回 `{ bytes, rawBytes, ms, … }` 给日志用。
+ * 📌 `derive-site.js` 调的是上面的 §buildSiteCss（它要等全部校验过完才写盘）；这个留给只想要一份文件的人。
+ */
+async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr', purge = true }) {
+  const r = await buildSiteCss({ brand, rootDir, dir, purge });
+  fs.writeFileSync(path.join(rootDir, 'public', 'site.css'), r.css);
+  const { css, ...rest } = r;
+  return rest;
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_RADIUS, FORM_RADIUS, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
+  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, buildSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_RADIUS, FORM_RADIUS, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
   DEEP_COMMON, DEEP_COMMON_CSS, DEEP_TONES,
 };

@@ -137,8 +137,10 @@ function gitIndex(rootDir, pathspec) {
  * @param {string} pathspec  只看这个子树，相对 rootDir（本项目里是 'site'）
  * @param {string} buildTime 兜底用的构建时刻（ISO 字符串）
  */
-function createLastModifiedResolver({ rootDir, pathspec, buildTime }) {
-  const index = gitIndex(rootDir, pathspec);
+// #1666 —— `git: false`：不问 git，直接从第二档（文件 mtime）起算。`derive-site.js` 在预览模式（`AI1ST_RENDER=preview`）传它：
+//    每存一笔都跑一遍 git log 不值，预览站的 <lastmod> 请求时也是按文件改动时间取的（`lib/site-data.js` 预览那一档）。
+function createLastModifiedResolver({ rootDir, pathspec, buildTime, git: useGit = true }) {
+  const index = useGit ? gitIndex(rootDir, pathspec) : null;
 
   // 🔴 #1025 条 12 —— 上界。文件的 mtime 可以是未来（`touch -d 2030-01-01` 就够了，QA3 在 #1026
   //    实测过：`config-data.ts` 里当场写出 `"2030-01-01T00:00:00.000Z"`）。一个未来的 <lastmod>
