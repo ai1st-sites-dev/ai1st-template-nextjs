@@ -190,6 +190,21 @@ eq(run({ shared: { 'site-bar': { data: { [barText.slot]: 'x' }, was: {} } }, sit
   `${B} · ${barText.label} · more casual`, '共用块上按 AI');
 eq(run({ shared: { 'site-bar': { unlist: true } }, siteBlocks: { 'site-bar': { type: 'cta', data: {} } } }),
   `${B} (removed from this page)`, '从这一页拿掉共用块');
+// #1684 —— 共用块换预设（§describeSave 的 shared 段整块比那一行）。块库里那一份停在 Centered，老板在面板上点 Split：
+// 这一笔交的 `data` 是点完之后变了的那几格、`was` 是它们原来的值 —— 都用面板同一个函数（§presetClickProps）点出来再取差，
+// 不手写旋钮；预设名、形态 id、块名照样从 schema 现取。
+const sharedHero = { 'site-hero': { type: 'hero', data: fromCentered } };
+const toSplit = click(hero, fromCentered, presetNamed(hero, 'Split').name);
+const splitDiff = Object.keys(toSplit).filter((k) => JSON.stringify(toSplit[k]) !== JSON.stringify(fromCentered[k]));
+if (!splitDiff.length) die('从 Centered 点 Split 什么都没变 —— 这格测不到换预设');
+const sharedSwitch = {
+  data: Object.fromEntries(splitDiff.map((k) => [k, toSplit[k]])),
+  was: Object.fromEntries(splitDiff.filter((k) => k in fromCentered).map((k) => [k, fromCentered[k]])),
+};
+eq(run({ shared: { 'site-hero': sharedSwitch }, siteBlocks: sharedHero }),
+  `${H} · Layout → ${presetNamed(hero, 'Split').shape}`, '共用块：从 Centered 点 Split 预设 ⟹ 说成换了形态');
+const sharedText = run({ shared: { 'site-hero': { data: { headline: 'x' }, was: { headline: fromCentered.headline } } }, siteBlocks: sharedHero });
+eq(sharedText.includes('Layout →') ? sharedText : 'no-switch', 'no-switch', `共用块只改文字、没换预设 ⟹ 没有 Layout →（${sharedText}）`);
 
 console.log('⑧ 反向：比的底是「上一次存下去的那份」，不是打开时那份');
 // 第一笔改了 cta 并存下（saved 变成那一份），第二笔只改 headline：第二条记录不许把 cta 再说一遍。
