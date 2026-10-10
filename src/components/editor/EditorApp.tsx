@@ -1336,6 +1336,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     let dirty = true;
     try { dirty = planSave(g.appState.data) !== null; } catch { dirty = true; }
     if (dirty) save(g.appState.data);
+    // #1687 —— 没有要存的了（被拒的那一笔又改回了原样）：红字和「Try again」只有下一笔存盘才换得掉，而这里不会再有那一笔 ⟹ 复位。
+    else setStatus((s) => (s.kind === 'error' ? { kind: 'idle', text: '' } : s));
   }
   // §reportPending 上一次递出去的是什么（一样就不重复递）。
   const pendingKeyRef = useRef('');
