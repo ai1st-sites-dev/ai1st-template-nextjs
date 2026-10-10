@@ -44,6 +44,8 @@ export interface EditorComponent {
   label: string;
   fields: EditorField[];
   inline: EditorInlineSlot[];
+  /** #1660 —— 新块拖下去那一刻播几条列表项、条目里填哪几格（`seedListsOf`）；不播的块是 []。 */
+  seed: { slot: string; count: number; keys: string[] }[];
   carried: string[];
   shapes: { name: string; needs: string[] }[];
   defaultShape: string | null;
@@ -78,4 +80,6 @@ export function slotCoverageProblems(schema: EditorSchema, manifests: Map<string
 export function itemTopKeys(shape: unknown): string[];
 export function inlineSlotsOf(manifest: unknown): EditorInlineSlot[];
 export function isFactSlot(spec: unknown, sub: string | null, label: string): boolean;
+export function seedListsOf(manifest: unknown): { slot: string; count: number; keys: string[] }[];
+export const SEED_ITEMS: number;
 export const LINK_HREF: string;

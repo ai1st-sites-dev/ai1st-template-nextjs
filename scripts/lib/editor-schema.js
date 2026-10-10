@@ -326,6 +326,49 @@ function inlineSlotsOf(manifest) {
   }));
 }
 
+// ── #1660 —— 新块拖到画布那一刻播几条列表项 ──────────────────────────────────────────────────────────────
+//
+// 不写块名单，按一条规则现算（票正文「做什么 1」）：
+//   · manifest 里 `kind: list` 且 `required: true`；
+//   · 没写 `itemRequires`（条目非填不可的是图片这类，本票不配图 —— 播了画不出来，「写了条目但一条都不合格」整块不画）；
+//   · 每条的可改文字格（§inlineSlotsOf）至少一格 `ai: true`，且条目里没有【必填】的 `ai: false` 事实格（评分 / 数字
+//     必填的不播：AI 不编数字，占位也不编；留空的条目会被块滤掉、整块消失）。可选的事实格（features 的 `number?`、
+//     testimonials 的 `rating?`）不挡 —— 只是不填。判「必填」看项形状里那一格的顶层键带不带 `?`（§itemShapeEntries）。
+//     📌 #1686 给这两块补了可选事实格的编辑格之后，「全部 ai: true」那一版把它们俩踢出了集合（PM r4 验收量到）。
+// `keys` = 播出来的条目里填占位的那几格：项形状里**顶层的纯文字键**（值写法里不带 `[` / `{`）、有编辑格、`ai: true`。
+//   `[string]` 列表（features 的 `bullets`）不填 —— 写一句话进去类型就错；子对象（`link` / `cta`）不填 —— 带链接，
+//   只写文字等于一个死按钮。这也让 pricing 交给 fill 的格数停在 8 + 3×4 = 20（= manager 的 rewriteMaxFields）。
+// 条数 SEED_ITEMS 夹在这个槽的 `minItems` / `maxItems` 之间。今天命中 faq·items、features·items、pricing·plans、
+// team·members、testimonials·items —— 那是读数，`scripts/editor-placeholders.test.js` ⑤ 断言的就是这个集合。
+const SEED_ITEMS = 3;
+
+/** 一份 manifest → 新块落下时要播的列表：`[{ slot, count, keys }]`（顺序同 manifest 里槽位的书写顺序）。 */
+function seedListsOf(manifest) {
+  const slots = (manifest && manifest.slots) || {};
+  const cells = editableSlotPaths(manifest);
+  const out = [];
+  for (const [slot, spec] of Object.entries(slots)) {
+    if (!spec || spec.kind !== 'list' || spec.required !== true || spec.itemRequires !== undefined) continue;
+    const entries = new Map(itemShapeEntries(spec.shape).map((e) => [e.key, e]));
+    const own = cells.filter((e) => e.slot === slot);
+    const ai = own.filter((e) => !isFactSlot(spec, e.sub, e.label));
+    const requiredFact = own.some((e) => {
+      if (!isFactSlot(spec, e.sub, e.label)) return false;
+      const top = entries.get(String(e.sub || '').split('.')[0]);
+      return !top || !top.optional;
+    });
+    if (!ai.length || requiredFact) continue;
+    const keys = ai.map((e) => e.sub).filter((sub) => {
+      const top = entries.get(sub);
+      return !!top && !/[[{]/.test(top.value);
+    });
+    const min = Number.isInteger(spec.minItems) ? spec.minItems : 0;
+    const max = Number.isInteger(spec.maxItems) ? spec.maxItems : Infinity;
+    out.push({ slot, count: Math.min(max, Math.max(min, SEED_ITEMS)), keys });
+  }
+  return out;
+}
+
 function humanize(name) {
   const s = String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ');
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -372,6 +415,8 @@ function editorSchema(opts = {}) {
       fields,
       // #1657 —— 画布上的点击层据它判「点到的这段字能不能打、出不出 AI 按钮」（§inlineSlotsOf）。
       inline: inlineSlotsOf(m),
+      // #1660 —— 拖下去那一刻播几条列表项（§seedListsOf）。
+      seed: seedListsOf(m),
       carried: Object.keys(m.slots || {}).filter((s) => !fieldSlots.has(s)),
       shapes,
       defaultShape: shapeForBlock({ type, data: {} }, selection, manifestsObj, () => {}) || null,
@@ -503,4 +548,4 @@ function itemFieldCoverageProblems(schema, manifests, exempt = ITEM_FIELD_EXEMPT
   return out;
 }
 
-module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, itemTopKeys, itemShapeEntries, inlineSlotsOf, isFactSlot, LINK_HREF };
+module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, itemTopKeys, itemShapeEntries, inlineSlotsOf, isFactSlot, seedListsOf, SEED_ITEMS, LINK_HREF };

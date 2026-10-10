@@ -61,6 +61,14 @@
 // #1657 —— 画布里点字直接改 + 四个 AI 按钮（`InlineEdit.tsx` 文件头是全文）。这个页面多认 / 多发的：
 //   发  ai1st:ai-rewrite {id, action, blockType, page, locale, fields: [{name, text}]}   dashboard 带凭证打 manager 的改写接口
 //   收  ai1st:ai-rewrite-result {id, ok, fields?, message?}
+//
+// #1660 —— 新块拖到画布那一刻就有字（`scripts/lib/block-placeholders.js` 文件头是全文）：
+//   · `defaultProps` = 播种 + 按站语言的占位（§buildConfig）—— 插入那一下就带着，撤销历史只多「插入」这一步；
+//   · 插入之后（§onAction 的 `insert`）把这一块 `ai: true` 的格交给 AI 按这家生意写（§startFill）：
+//     发  ai1st:ai-fill-block {id, blockType, page, locale, fields: [{name, text}]}    dashboard 带凭证打改写接口 `action=fill`
+//     收  ai1st:ai-fill-block-result {id, ok, fields?, message?}
+//     等的时候块上一枚「AI is writing…」（§FillingContext）；回来只换**还是占位**的那几格（等的时候老板改过的不盖，同 T6），
+//     记一笔撤销历史。失败：占位留着，顶栏一句话（§FillNote），不弹窗。
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
@@ -82,7 +90,8 @@ import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contr
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
-import { setAt } from '../../../scripts/lib/inline-edit.js';
+import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
+import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, type InlineApi, type InlineFreeze, type RewriteResult } from './InlineEdit';
 import type { SiteData } from '@/lib/types/config';
 
@@ -571,7 +580,27 @@ const LiveSiteContext = createContext<SiteData | null>(null);
  * 数据的底是**归一化之后**那一块（`_src.view`，跟真页面同一份：列表已升格、`data-has-*` 已算好），
  * 老板改过的字段才换成新值 —— 用的是存盘时同一个合法（§dataFromProps），画布和落盘不会各说各的。
  */
-function CanvasBlock({ component, props: live, locale, pageSlug, site: built }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
+/** #1660 —— 正在等 AI 写字的新块（Puck id）。放在 context 里：它变了只让画布上的块重画，不换 config。 */
+const FillingContext = createContext<ReadonlySet<string>>(new Set());
+
+function CanvasBlock(args: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
+  const filling = useContext(FillingContext).has(String(args.props.id));
+  // #1660 —— 新块落下、AI 在按这家生意写：块上一枚标（不接鼠标，点它等于点这一块；块照样能选、能改）。
+  // 🔴 外面那层 div 常驻，只切那枚标（r4）：等不等 AI 都是同一棵树。原来是两支 —— 等的时候多包一层、等完摘掉 ——
+  //    元素类型一换 React 就把整块卸了重挂，老板正在打字的那一格连同焦点一起没了，回话之后打的字全部落空（QA3 R5）。
+  return (
+    <div style={{ position: 'relative' }}>
+      {filling && (
+        <span data-editor-ai-filling style={{ position: 'absolute', top: 8, right: 8, zIndex: 5, pointerEvents: 'none', padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: '#7a5af8', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+          AI is writing…
+        </span>
+      )}
+      <CanvasBlockBody {...args} />
+    </div>
+  );
+}
+
+function CanvasBlockBody({ component, props: live, locale, pageSlug, site: built }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
   // #1681 —— Page 面板里正在改的 Business info（名字 / 电话 / 邮箱 / 地址）：画布上的块按它画（「Call …」按钮等）。
   const site = useContext(LiveSiteContext) || built;
   // #1657 —— 老板正在画布上打这一块的某一格：那一格按打之前的值画（浏览器手上的字才是真的，React 不去重写那个文本节点，
@@ -655,7 +684,11 @@ export function buildConfig(site: SiteData, schema: EditorSchema, locale: string
         ? fields
         : { ...fields, _shape: { ...fields._shape, options } } as Fields;
     };
-    const defaultProps: Record<string, unknown> = { ...fieldProps(c, {}), _shape: THEME_DEFAULT };
+    // #1660 —— 新块拖下去就带着按站语言的占位、必填列表播 3 条（`block-placeholders.js` §seedProps；扁平老站 locale 是空串 ⟹ en）。
+    //    🔴 Puck 画布渲染时会把 defaultProps 浅合并在每个块的 props 底下（`@puckeditor/core` 0.23 dist/index.js:10767）。
+    //    老块的 props 来自 §fieldProps，每个字段键都写着（没值也是 undefined 占着键）⟹ 占位漏不到老块上
+    //    （`scripts/editor-placeholders.test.js` 钉着）。
+    const defaultProps: Record<string, unknown> = { ...seedProps(c, locale), _shape: THEME_DEFAULT };
     components[c.type] = {
       label: c.label,
       fields,
@@ -957,6 +990,20 @@ function noIndexes(h: PuckHistory): PuckHistory {
   const { indexes: _stale, ...state } = h.state as Record<string, unknown>; // eslint-disable-line @typescript-eslint/no-unused-vars
   return { ...h, state: state as PuckHistory['state'] };
 }
+/** #1660 —— §startFill 用到的那几样（`useGetPuck()` 的返回值上都有）。 */
+type FillPuck = {
+  // 🔴 id 不在了它**抛**，不回 undefined（dist：`getItemById: (id) => store.state.indexes.nodes[id].data`）⟹ 只经 §fillItem 调。
+  getItemById: (id: string) => { type: string; props: Record<string, unknown> };
+  // 这个是真的会回 undefined（dist §getSelectorForId：`if (!node) return;`）。
+  getSelectorForId: (id: string) => { index: number; zone: string } | undefined;
+  dispatch: (a: { type: 'replace'; destinationIndex: number; destinationZone: string; data: unknown; recordHistory: boolean }) => void;
+};
+/** #1660 r4 —— 这一块还在就给它和它的位置，不在了（等 AI 时被撤销 / 删掉 / 换了底稿）回 null。先问位置再取块：反过来取一个已删的 id 当场抛（QA3 R2）。 */
+function fillItem(g: FillPuck | null, id: string) {
+  const sel = g ? g.getSelectorForId(id) : undefined;
+  if (!g || !sel) return null;
+  return { item: g.getItemById(id), sel };
+}
 type GetPuck = () => {
   appState: { data: Data; ui?: unknown };
   history: { histories: PuckHistory[]; index: number; setHistories: (h: PuckHistory[]) => void; setHistoryIndex: (i: number) => void };
@@ -1028,6 +1075,9 @@ type EditorUi = {
   rawKey: 'blocks' | 'sections';
   sendChat: (text: string, scope: ChatScope | null) => void;
   revertChat: (messageId: number) => void;
+  /** #1660 —— 新块的 AI 文案没写成，顶栏那一句（null = 不说话）。 */
+  fillNote: string | null;
+  dismissFillNote: () => void;
 };
 const EditorUiContext = createContext<EditorUi | null>(null);
 
@@ -1039,8 +1089,20 @@ function EditorHeaderActions() {
       <DispatchHandle handle={ui.dispatchRef} getter={ui.getPuckRef} />
       <Autosave onChange={ui.onCanvasChange} />
       <HistoryNote aiStep={ui.aiStep} locked={ui.locked} />
+      <FillNote text={ui.fillNote} onDismiss={ui.dismissFillNote} />
       <SaveStatus status={ui.status} onRetry={ui.retrySave} hideError={!!ui.kept} />
     </>
+  );
+}
+
+/** #1660 —— 新块的 AI 文案没写成：一句话 + 关掉它的叉。占位还在块上，老板照样能改。 */
+function FillNote({ text, onDismiss }: { text: string | null; onDismiss: () => void }) {
+  if (!text) return null;
+  return (
+    <span data-editor-fill-note role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#b42318' }}>
+      {text}
+      <button type="button" aria-label="Dismiss" onClick={onDismiss} style={{ border: 0, background: 'none', color: '#b42318', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
+    </span>
   );
 }
 
@@ -1308,6 +1370,9 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   // #1657 —— 画布上正在打的那一格（§InlineFreezeContext）；在等 AI 改写回话的那几次（id → 回话交给谁）。
   const [freeze, setFreeze] = useState<InlineFreeze>(null);
   const rewritesRef = useRef(new Map<string, (r: RewriteResult) => void>());
+  // #1660 —— 正在等 AI 写字的新块（画布上那枚标）；没写成时顶栏那一句。
+  const [filling, setFilling] = useState<ReadonlySet<string>>(new Set());
+  const [fillNote, setFillNote] = useState<string | null>(null);
   const componentsByType = useMemo(() => new Map(schema.components.map((c) => [c.type, c])), [schema]);
 
   // #1453 —— autosave。画布每变一次（§Autosave）就重新数 AUTOSAVE_IDLE_MS；数到了存一笔（§flushAutosave）。
@@ -1425,8 +1490,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
         if (st && typeof st === 'object') setChat(st as EditorChatState);
         return;
       }
-      if (d.type === 'ai1st:ai-rewrite-result') {
-        // #1657 —— 只认手上在等的那一次（id 对得上）；回来的字段逐个按形状收。
+      if (d.type === 'ai1st:ai-rewrite-result' || d.type === 'ai1st:ai-fill-block-result') {
+        // #1657 —— 只认手上在等的那一次（id 对得上）；回来的字段逐个按形状收。#1660 的新块那一次形状相同，等它的也在这张表里。
         const r = d as { id?: unknown; fields?: unknown };
         const done = typeof r.id === 'string' ? rewritesRef.current.get(r.id) : undefined;
         if (!done) return;
@@ -1788,6 +1853,54 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     });
   }
 
+  // #1660 —— 新块落下：把它 `ai: true` 的格（带着占位）交给 AI 按这家生意写。回来只换还是占位的那几格 ——
+  //    等的这几秒里老板改过的格、删掉的块都不碰（同 T6 §runAi）。AI 正在改这一页（聊天）时不写：那一轮会换底稿。
+  function startFill(id: string, type: string) {
+    const c = componentsByType.get(type);
+    const g = getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck) : null;
+    const item = fillItem(g, id)?.item;
+    if (!c || !g || !item) return;
+    const sent = fillFields(c, item.props);
+    if (!sent.length) return;
+    const label = c.label;
+    if (!trustedOrigin || window.parent === window) {
+      setFillNote(`Open this editor from your dashboard so the AI can write the new ${label} section.`);
+      return;
+    }
+    const reqId = `fb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const stop = () => setFilling((s) => { const n = new Set(s); n.delete(id); return n; });
+    setFilling((s) => new Set(s).add(id));
+    setFillNote(null);
+    const timer = setTimeout(() => {
+      if (!rewritesRef.current.delete(reqId)) return;
+      stop();
+      setFillNote(`The AI did not answer in time. The new ${label} section still has sample text — you can change it yourself.`);
+    }, REWRITE_WAIT_MS);
+    rewritesRef.current.set(reqId, (r) => {
+      clearTimeout(timer);
+      stop();
+      const gg = getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck) : null;
+      const found = fillItem(gg, id);
+      if (!gg || !found) return; // 块已经删了 / 换了一份底稿：没有可写的地方
+      const { item: now, sel } = found;
+      if (!r.ok) { setFillNote(`${r.message} The new ${label} section still has sample text — you can change it yourself.`); return; }
+      if (lockedRef.current) { setFillNote(`The AI chat is editing this page, so the new ${label} section kept its sample text.`); return; }
+      const before = new Map(sent.map((f) => [f.name, f.text]));
+      let props = now.props;
+      let n = 0;
+      for (const f of r.fields) {
+        const was = before.get(f.name);
+        if (was === undefined || !f.text.trim()) continue;
+        const path = pathOfName(f.name);
+        if (getAt(props, path) !== was) continue;
+        props = setAt(props, path, f.text);
+        n++;
+      }
+      if (n) gg.dispatch({ type: 'replace', destinationIndex: sel.index, destinationZone: sel.zone, data: { ...now, props }, recordHistory: true });
+    });
+    postChat({ type: 'ai1st:ai-fill-block', id: reqId, blockType: type, page, locale, fields: sent });
+  }
+
   // #1448 —— 换页（dashboard 面板条上的下拉）。🔴 画布上没存的改动不许被换页静默丢掉：有就先存，
   // 存上了才回 ok；存不上 / AI 正在改这一页 ⟹ 回 ok: false 和一句话，dashboard 不换页。
   // 形状同「先存再发」（§releaseChat）：交出去的那一笔落盘（它自己的 `saved` 底稿）才放行，并且放行前再判一次。
@@ -1818,6 +1931,12 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
 
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
   function onAction(action: PuckAction, _next: unknown, prev: { data?: { content?: { props?: { id?: unknown } }[] } }) {
+    // #1660 —— 新块落下：等这一下 dispatch 走完再发（这里还在 Puck 的 reducer 里头）。
+    if (action.type === 'insert') {
+      const { id, componentType } = action as { id?: string; componentType: string };
+      if (typeof id === 'string' && id) setTimeout(() => startFill(id, componentType), 0);
+      return;
+    }
     if (action.type !== 'reorder' && action.type !== 'move') return;
     const item = prev?.data?.content?.[action.sourceIndex] as { props?: { id?: unknown; _src?: PuckItemSrc } } | undefined;
     const id = item?.props?.id;
@@ -1849,6 +1968,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     chat, chatNotice, chatPending, page, locale,
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
     sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
+    fillNote, dismissFillNote: () => setFillNote(null),
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
@@ -1864,6 +1984,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     <FormsContext.Provider value={formsCtx}>
     <InlineApiContext.Provider value={inlineApi}>
     <InlineFreezeContext.Provider value={freeze}>
+    <FillingContext.Provider value={filling}>
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
         key={canvas.key}
@@ -1891,6 +2012,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
         />
       )}
     </div>
+    </FillingContext.Provider>
     </InlineFreezeContext.Provider>
     </InlineApiContext.Provider>
     </FormsContext.Provider>
