@@ -75,7 +75,9 @@ function previewTrustedOriginOf(leadApi: string): string {
 //   in  ai1st:theme-preview-refresh → #1669: { clear?: boolean } fetch this page's own stylesheets again (the
 //                                    change was applied and written; the editor page is NOT reloaded), and once
 //                                    they are in, drop the paint unless clear === false. Answers with
-//   out ai1st:theme-preview-refreshed  when done. A build older than #1669 ignores it (the paint stays on).
+//   out ai1st:theme-preview-refreshed  when done. A build older than #1669 ignores it (the paint stays on) —
+//                                    which is why the ack below carries { refresh: true }: the dashboard reads its
+//                                    ABSENCE as "older build" and reloads the editor page instead (VisualEditorPanel §styleRefreshRef).
 //   out ai1st:theme-preview-ack    → the answer. Its ABSENCE within the modal's timeout is what
 //                                    tells the modal this site was built before this code existed.
 //
@@ -629,7 +631,7 @@ window.addEventListener('message',function(e){
   else if(d.type==='ai1st:theme-preview-reset'){clear();}
   else if(d.type==='ai1st:theme-preview-refresh'){refreshSheets(d.clear!==false);return;}
   else if(d.type!=='ai1st:theme-preview-ping'){return;}
-  try{window.parent.postMessage({type:'ai1st:theme-preview-ack'},T);}catch(err){}
+  try{window.parent.postMessage({type:'ai1st:theme-preview-ack',refresh:true},T);}catch(err){}
 });
 })();`;
 }
