@@ -72,6 +72,12 @@ function previewTrustedOriginOf(leadApi: string): string {
 //                                                googleFontsUrl } }
 //                                    paint it, then answer.
 //   in  ai1st:theme-preview-reset  → drop the paint (Cancel), then answer.
+//   in  ai1st:theme-preview-refresh → #1669: { clear?: boolean } fetch this page's own stylesheets again (the
+//                                    change was applied and written; the editor page is NOT reloaded), and once
+//                                    they are in, drop the paint unless clear === false. Answers with
+//   out ai1st:theme-preview-refreshed  when done. A build older than #1669 ignores it (the paint stays on) —
+//                                    which is why the ack below carries { refresh: true }: the dashboard reads its
+//                                    ABSENCE as "older build" and reloads the editor page instead (VisualEditorPanel §styleRefreshRef).
 //   out ai1st:theme-preview-ack    → the answer. Its ABSENCE within the modal's timeout is what
 //                                    tells the modal this site was built before this code existed.
 //
@@ -226,9 +232,25 @@ var shapeWas=null;
 // /theme.css 的前置条件就是它（理由写在 sheetEl 上面那段和 paint 里）。默认 false：
 // 没 paint 过就来一条只带 sheet 的消息时，失败方向是「画法不换」，不是「页面掉一半变量」。
 var setFull=false;
+// ── #1669 —— 这段脚本也跑在编辑器页（/~editor/…，同一份根布局）里，而画布是 Puck 的另一个 iframe ──────────
+// 画布里的样式是 Puck 从这一页的 head 镜像过去的（EditorApp 的 syncHostStyles）。它只看【子节点的增删】，
+// 不看属性，而且一个 style 被清成空串时它那一支直接短路（被删的文本节点已经没有 parentElement）——
+// PM 在 #1669 r2 用真 Chromium 量过。所以凡是「撤掉试色」的地方都遵守两条，真页面上渲染结果不变：
+//   ① style 不清成空串，清成 EMPTY 这条注释（新的文本节点 ⟹ 画布那份跟着换成注释）；
+//   ② 字体那条 link 不改 href，整条换掉（删一个元素、加一个新元素，两样 Puck 都看得见）。
+//      每条带一个递增的 data-seq：Puck 删镜像时按原元素算的哈希去销账、加的时候按镜像算，两个对不上，
+//      同一个地址第二次加进来会被它当成「已经有了」跳过 —— 让每一条的 outerHTML 都不一样就不会撞。
+var EMPTY='/* ai1st: no preview */',fSeq=0;
 function els(){
   if(!s){s=document.createElement('style');s.id='ai1st-theme-preview';document.head.appendChild(s);}
-  if(!f){f=document.createElement('link');f.id='ai1st-theme-preview-font';f.rel='stylesheet';document.head.appendChild(f);}
+}
+function font(href){
+  if(f&&f.getAttribute('href')===(href||null))return;
+  if(f&&f.parentNode){f.parentNode.removeChild(f);}
+  f=null;
+  if(!href)return;
+  f=document.createElement('link');f.id='ai1st-theme-preview-font';f.rel='stylesheet';
+  f.setAttribute('data-seq',String(++fSeq));f.href=href;document.head.appendChild(f);
 }
 function cssEl(){
   if(!c){c=document.createElement('style');c.id='ai1st-theme-preview-css';document.head.appendChild(c);}
@@ -488,9 +510,8 @@ function paint(t){
   }
   // 🔴 这个数是 paintSheet 停不停用 /theme.css 的**前置条件**，见那边那段。
   setFull=(scN>=SETN_N);
-  s.textContent=out.length?(':root{'+out.join('')+'}'):'';
-  if(t&&typeof t.googleFontsUrl==='string'&&/^https:\\/\\/fonts\\.googleapis\\.com\\//.test(t.googleFontsUrl)){f.href=t.googleFontsUrl;}
-  else{f.removeAttribute('href');}
+  s.textContent=out.length?(':root{'+out.join('')+'}'):EMPTY;
+  font(t&&typeof t.googleFontsUrl==='string'&&/^https:\\/\\/fonts\\.googleapis\\.com\\//.test(t.googleFontsUrl)?t.googleFontsUrl:'');
 }
 // 🔴 #1129 + #1123 合并形态：这一行上【两张票各自的撤回动作都要在】。Cancel 是两条预览通道
 // 共用的一个名字（ai1st:theme-preview-reset），而两张票各自停用了页面上的一张表 ——
@@ -500,7 +521,27 @@ function paint(t){
 // 🔴 这段注释里不许出现反引号：它住在 buildThemePreviewScript 那个**模板字符串**里面，一个反引号
 // 就把模板提前收尾 ⟹ 整个文件语法错、next build 当场死。我第一版就是这么红的（同族坑见上面 #1129
 // 那段里 hoistImports 的 split 那一处）。
-function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}hSeq++;dropSheet();restoreShapes();ownCssOff(false);st={ignored:[],refused:false};}
+// #1669 —— 改动已经写进站里、编辑器页又不重载：把这一页自己的那几张表（同源的那几张 .css，不碰 /_next/ 下按内容命名的那几张）
+// 原地换一条一模一样的 link —— 站发的是 Cache-Control: no-cache，新插的 link 会去重新验证、拿到新写的字节；带一个递增的
+// data-seq 让 Puck 那边当成新元素镜像进画布（同 font 那段说的哈希撞车）。全部到了再撤试穿，中间不闪回旧样子；10 秒兜底。
+function refreshSheets(drop){
+  var ls=document.querySelectorAll('link[rel="stylesheet"]'),i,l,u,n,left=0,done=false;
+  function fin(){if(done)return;done=true;if(drop){clear();}try{window.parent.postMessage({type:'ai1st:theme-preview-refreshed'},T);}catch(err){}}
+  function one(){left--;if(left<=0){fin();}}
+  for(i=0;i<ls.length;i++){
+    l=ls[i];
+    if(l.id==='ai1st-theme-preview-font')continue;
+    try{u=new URL(l.href,document.baseURI);}catch(err){continue;}
+    if(u.origin!==location.origin||u.pathname.indexOf('/_next/')===0)continue;
+    n=l.cloneNode(false);n.setAttribute('data-seq',String(++fSeq));n.removeAttribute('disabled');
+    n.onload=one;n.onerror=one;left++;
+    l.parentNode.insertBefore(n,l);l.parentNode.removeChild(l);
+  }
+  owq=false;ow=null;
+  if(left===0){fin();}
+  setTimeout(fin,10000);
+}
+function clear(){if(s){s.textContent=EMPTY;}font('');if(c){c.textContent=EMPTY;}hSeq++;dropSheet();restoreShapes();ownCssOff(false);st={ignored:[],refused:false};}
 var MAIN_FLEX='main{display:flex;flex-direction:column}';
 var st={ignored:[],refused:false};
 function blockList(){
@@ -562,7 +603,7 @@ function paintCss(text){
   now=unseen();
   for(i=0;i<now.length;i++){if(before.indexOf(now[i])<0){still.push(nameOf(now[i]));}}
   if(still.length){
-    el.textContent='';
+    el.textContent=EMPTY;
     ownCssOff(false);
     for(k=0;k<still.length;k++){if(ignored.indexOf(still[k])<0)ignored.push(still[k]);}
     st={ignored:ignored,refused:true};
@@ -588,8 +629,9 @@ window.addEventListener('message',function(e){
     if(Object.prototype.hasOwnProperty.call(d,'shapes')){paintShapes(d.shapes);}
   }
   else if(d.type==='ai1st:theme-preview-reset'){clear();}
+  else if(d.type==='ai1st:theme-preview-refresh'){refreshSheets(d.clear!==false);return;}
   else if(d.type!=='ai1st:theme-preview-ping'){return;}
-  try{window.parent.postMessage({type:'ai1st:theme-preview-ack'},T);}catch(err){}
+  try{window.parent.postMessage({type:'ai1st:theme-preview-ack',refresh:true},T);}catch(err){}
 });
 })();`;
 }

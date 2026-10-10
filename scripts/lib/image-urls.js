@@ -901,7 +901,7 @@ function collectAllowedImageUrls(o) {
  *    住在 `SYSTEM_PROMPT` 里，而 `SYSTEM_PROMPT` 唯一的去处是 §main 那个 `system: SYSTEM_PROMPT` 字段，
  *    也就是**发给模型**的，老板一个字看不到。照那句话去改「给老板看的文案」会改错文件。
  *    2026-08-26 逐处找过一遍：dashboard 里跟图片有关的老板可见字符串只有一个
- *    `aria-label="Remove image"`（`ChatPanel.tsx:1155`，删附件那个按钮），没有任何一段讲
+ *    `aria-label="Remove image"`（当时在 ChatPanel 里，删附件那个按钮；#1669 随老编辑页把 ChatPanel 删了，这个按钮也一起没了），没有任何一段讲
  *    「该怎么给图」的说明。⟹ 要给老板写这种文案的话，今天得**新造**一处，本文件里没有它的指路牌。
  *
  * 🔴 **措辞不许预设「它是一张图」（#1207 AC7）**：这道检查的判据从来是「这个地址有人给过吗」，
