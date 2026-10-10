@@ -80,17 +80,24 @@ function build(work) {
     return JSON.parse(m[1]);
   };
   // #1452 —— 外壳四样在构建里的那一份（编辑器页 page.tsx 喂给 rootToPuck 的就是这几样）。
-  lastRoot = { regions: grab('regions'), pageLayout: grab('pageLayout'), nav: grab('navigationByLocale') };
+  lastRoot = { regions: grab('regions'), pageLayout: grab('pageLayout'), nav: grab('navigationByLocale'), brand: grab('brand'), defaultLocale: grab('defaultLocale') };
   return grab('pagesByLocale');
 }
 let lastRoot = null;
 
 /** #1452 —— page.tsx 的 root 初值原样。#1425（T3）：公告条那两样（topbarMessage / topbarLink）随公告条那个区删了。 */
 function builtRoot(locale) {
+  const { brand, defaultLocale } = lastRoot;
+  const loc = (brand.locations || [])[0] || {};
   return {
     layout: lastRoot.pageLayout.id,
     headerShape: lastRoot.regions.header.shape,
     footerShape: lastRoot.regions.footer.shape,
+    // #1681 —— Business info 四样（page.tsx：名字同 getBrandName，其余取构建里的 brand）。
+    brandName: brand.name[locale] ?? brand.name[defaultLocale] ?? Object.values(brand.name)[0] ?? '',
+    email: brand.email ?? '',
+    phone: loc.phone ?? '',
+    address: loc.address ?? '',
   };
 }
 
@@ -217,7 +224,7 @@ console.log('④ 探针：子进程 stdout 只有那一份 JSON');
 }
 
 // ══ ⑥ #1452：外壳四样存了、没重建 ⟹ 底稿里是存下去的那份 ═════════════════════════════════════════
-console.log('⑥ #1452：外壳三样存盘之后（不重建），底稿带的是盘上的现值');
+console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存盘之后（不重建），底稿带的是盘上的现值');
 {
   const siteDir = path.join(multi, 'site');
   const localeDir = path.join(siteDir, 'en');
@@ -239,18 +246,24 @@ console.log('⑥ #1452：外壳三样存盘之后（不重建），底稿带的�
     layout: FIXTURE_LAYOUT,
     headerShape: other('header', before.headerShape),
     footerShape: other('footer', before.footerShape),
+    // #1681 —— brand.json 那四样也走同一条写路、同一个底稿。
+    brandName: `${before.brandName} 1681`,
+    email: 'changed-1681@example.com',
+    phone: '(416) 555-1681',
+    address: '1681 Changed St, Toronto, ON',
   };
   const writes = editorRoot.planRootWrite({
     siteDir, localeDir, locale: 'en', shape: { flat: false, locales: ['en'] }, root: change,
     layoutsDir: path.join(multi, 'page-layouts'),
   });
   for (const w of writes) fs.writeFileSync(w.file, w.content);
-  check(writes.length === 2, `写了 2 份文件（page-layout.json / theme.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
+  check(writes.length === 3, `写了 3 份文件（page-layout.json / theme.json / brand.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
   const got = editorBaseline({ rootDir: multi, page: 'home', locale: 'en' });
-  check(got.ok && JSON.stringify(got.root) === JSON.stringify(change), '底稿的 root 就是刚存下去的那三样', JSON.stringify(got.root));
+  const sameRoot = (a, b) => !!a && Object.keys(b).length === Object.keys(a).length && Object.keys(b).every((k) => a[k] === b[k]);
+  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那七样', JSON.stringify(got.root));
   // 反向：构建里（= 编辑器页烤进去的首屏）还是旧的 —— 不送 root 的话编辑器显示的就是这一份（票正文「不见了」）。
-  const stale = ['layout', 'headerShape', 'footerShape'].filter((k) => before[k] === (got.root || {})[k]);
-  check(stale.length === 0, '三样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
+  const stale = Object.keys(change).filter((k) => before[k] === (got.root || {})[k]);
+  check(stale.length === 0, '七样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
 
   // 读不出来 ⟹ 不带 root（编辑器沿用构建时那份），底稿其余照常。
   // #1425（T3）：弄坏的原来是 navigation.json（公告条那一样住在那儿，今天 root 不读它了）。root 今天读的站级文件
@@ -267,7 +280,7 @@ console.log('⑥ #1452：外壳三样存盘之后（不重建），底稿带的�
   const r = cp.spawnSync(process.execPath, ['-e', script, JSON.stringify({ page: 'home', locale: 'en' })], { cwd: multi, encoding: 'utf8', timeout: 60000 });
   let parsed = null;
   try { parsed = JSON.parse(r.stdout); } catch { parsed = null; }
-  check(parsed && JSON.stringify(parsed.root) === JSON.stringify(change), '子进程探针的 stdout 里也是这份 root');
+  check(parsed && sameRoot(parsed.root, change), '子进程探针的 stdout 里也是这份 root');
 }
 
 // ══ ⑤ 拒绝 ═══════════════════════════════════════════════════════════════════════════════════════

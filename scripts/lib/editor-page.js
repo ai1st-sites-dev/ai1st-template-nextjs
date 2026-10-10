@@ -212,7 +212,7 @@ function editorBaseline(opts) {
   // 🔴 `layoutsDir` 显式给（同 page.tsx 的 editorSchema 那条）：布局库在站仓根上的 `page-layouts/`。
   let root;
   try {
-    root = readRootValues({ siteDir, localeDir, layoutsDir: path.join(rootDir, 'page-layouts') });
+    root = readRootValues({ siteDir, localeDir, locale, layoutsDir: path.join(rootDir, 'page-layouts') });
   } catch {
     root = undefined;
   }

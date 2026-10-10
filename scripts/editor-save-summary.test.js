@@ -175,6 +175,13 @@ eq(run({ root: { headerShape: 'topbar' } }), `${rootLabels.headerShape} → topb
 eq(run({ root: { footerShape: '' } }), `${rootLabels.footerShape} → (default)`, '把 Footer style 改回默认');
 eq(run({ json: edit((j) => { at(j, 'home-cta-0').data[barText.slot] = 'x'; }), root: { layout: 'standard' } }),
   `${B} · ${barText.label} · "x"; ${rootLabels.layout} → standard`, '页面 + 外壳同一笔');
+// #1681 —— Business info 四样是文字框：跟块文字同一个规矩（写新值），清空写 (empty)。字段名照 EditorApp.tsx 的 ROOT_SAVE_LABELS 形状。
+const biz = { phone: 'Business info · Phone', brandName: 'Business info · Website name', address: 'Business info · Address' };
+eq(run({ root: { phone: '647-555-0199' }, rootLabels: biz }), 'Business info · Phone · "647-555-0199"', '改电话：写新号码');
+eq(run({ root: { brandName: '港湾面包坊' }, rootLabels: biz }), 'Business info · Website name · "港湾面包坊"', '改名字（中文）');
+eq(run({ root: { phone: '' }, rootLabels: biz }), 'Business info · Phone · (empty)', '清空电话');
+eq(run({ root: { address: 'A'.repeat(50), layout: 'standard' }, rootLabels: { ...rootLabels, ...biz } }),
+  `${rootLabels.layout} → standard; Business info · Address · "${'A'.repeat(40)}…"`, '长地址截 40 个字 + 同一笔改版式（按 schema.root.fields 的顺序）');
 
 console.log('⑦ 共用块：按块库里那一块的类型取名');
 eq(run({ shared: { 'site-bar': { data: { [barText.slot]: 'x' }, was: {} } }, siteBlocks: { 'site-bar': { type: 'cta', data: {} } } }),

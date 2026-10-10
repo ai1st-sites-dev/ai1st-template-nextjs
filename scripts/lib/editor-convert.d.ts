@@ -57,6 +57,11 @@ export interface RootValues {
   layout: string;
   headerShape: string;
   footerShape: string;
+  /** #1681 —— Page 面板「Business info」四样（`site/brand.json`）；名字是这种语言那一格 */
+  brandName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
 }
 export function rootToPuck(values: RootValues): Record<string, unknown>;
 export function puckRootChanges(args: {

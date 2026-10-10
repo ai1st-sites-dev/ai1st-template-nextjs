@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * editor-root.test.js — #1405：编辑器外壳三样（root 字段；#1425 T3 起公告条那一样退役）存回站级文件。
+ * editor-root.test.js — #1405：编辑器外壳三样（root 字段；#1425 T3 起公告条那一样退役）存回站级文件；
+ *   #1681：加 Page 面板「Business info」四样（网站名字 / 电话 / 邮箱 / 地址 → `site/brand.json`），见 ① 与 ⑨。
  *
  *   node scripts/editor-root.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -117,16 +118,16 @@ function writeRoot(root, locale) {
 function readRoot(locale) {
   const site = path.join(TEMPLATE, 'site');
   const shape = siteShape.readSiteShape(site);
-  return editorRoot.readRootValues({ siteDir: site, localeDir: shape.flat ? site : path.join(site, locale), layoutsDir: LAYOUTS_DIR });
+  return editorRoot.readRootValues({ siteDir: site, localeDir: shape.flat ? site : path.join(site, locale), locale: shape.flat ? '' : locale, layoutsDir: LAYOUTS_DIR });
 }
 function tryWrite(root, locale) {
   try { return { files: writeRoot(root, locale) }; } catch (e) { return { code: e.code, message: e.message }; }
 }
 
 /** 跑容器里那个脚本（在站根）。 */
-function runScript(loc, input) {
+function runScript(loc, input, env) {
   const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'write-editor-save.js'), JSON.stringify(loc)], {
-    cwd: TEMPLATE, input: JSON.stringify(input), encoding: 'utf8', timeout: 60000,
+    cwd: TEMPLATE, input: JSON.stringify(input), encoding: 'utf8', timeout: 60000, env: { ...process.env, ...(env || {}) },
   });
   let last = null;
   try { last = JSON.parse((r.stdout || '').trim().split('\n').pop()); } catch { last = null; }
@@ -145,18 +146,34 @@ function otherValues(cur) {
     layout: pick(layouts, cur.layout),
     headerShape: pick(header, cur.headerShape),
     footerShape: pick(footer, cur.footerShape),
+    // #1681 —— Business info 四样：跟现值不同的文字就行。
+    brandName: `${cur.brandName || 'Site'} Renamed`,
+    phone: cur.phone === '(416) 555-0199' ? '(416) 555-0100' : '(416) 555-0199',
+    email: cur.email === 'hello@renamed.example' ? 'hi@renamed.example' : 'hello@renamed.example',
+    address: cur.address === '100 Queen St W, Toronto, ON' ? '1 Yonge St, Toronto, ON' : '100 Queen St W, Toronto, ON',
   };
 }
+
+/** 站里有没有**语言目录下**的 brand.json（#1681：brand.json 整站一份，写到语言目录里就没有读者）。 */
+const localeBrandFiles = (site) => fs.readdirSync(site, { withFileTypes: true })
+  .filter((e) => e.isDirectory() && fs.existsSync(path.join(site, e.name, 'brand.json'))).map((e) => `${e.name}/brand.json`);
 
 /** 往返：每个字段各写一次（只写它自己），读回来必须等于写进去的；回点名的问题清单。 */
 function roundTripProblems() {
   const problems = [];
-  for (const f of ['layout', 'headerShape', 'footerShape']) {
+  // 🔴 这张名单故意手写、不照分派表遍历：守卫要量的就是「分派表少了谁」（下面那格反向把一行拿掉）。
+  for (const f of ['layout', 'headerShape', 'footerShape', 'brandName', 'phone', 'email', 'address']) {
     freshSite();
     const before = readRoot('en');
     const want = otherValues(before)[f];
     const r = tryWrite({ [f]: want }, 'en');
     if (r.code) { problems.push(`${f}（写不进去：${r.message.slice(0, 80)}）`); continue; }
+    // #1681 —— brand 那四样只许写站根那一份 brand.json；任何语言目录下都不许冒出一份。
+    if (['brandName', 'phone', 'email', 'address'].includes(f)) {
+      if (JSON.stringify(r.files) !== JSON.stringify(['brand.json'])) problems.push(`${f}（写的是 ${JSON.stringify(r.files)}，不是站根的 brand.json）`);
+      const stray = localeBrandFiles(path.join(TEMPLATE, 'site'));
+      if (stray.length) problems.push(`${f}（语言目录下多了 ${stray.join(', ')}）`);
+    }
     const after = readRoot('en');
     if (JSON.stringify(after[f]) !== JSON.stringify(want)) problems.push(`${f}（读回 ${JSON.stringify(after[f])}，写的是 ${JSON.stringify(want)}）`);
     for (const g of Object.keys(before)) {
@@ -170,7 +187,7 @@ function roundTripProblems() {
 console.log('① 往返（分派表每一行）');
 {
   const problems = roundTripProblems();
-  check(problems.length === 0, '3 个 root 字段各写一次都读得回来、不碰别的字段', problems.join(' · '));
+  check(problems.length === 0, '7 个 root 字段各写一次都读得回来、不碰别的字段（brand 四样只写站根的 brand.json）', problems.join(' · '));
 
   // 反向：把分派表的 footerShape 那一行拿掉（editor-root.js 拿的是同一个数组）。#1425（T3）：原来拿的是 topbarLink。
   const table = fieldsMod.ROOT_FIELDS;
@@ -399,6 +416,115 @@ console.log('⑧ 扁平老站');
   const mid = snapshot(site);
   r = tryWrite({ layout: FIXTURE_LAYOUT }, 'en');
   check(!r.code && JSON.stringify(changedFiles(mid, snapshot(site))) === JSON.stringify(['page-layout.json']), '扁平站：布局写进 site/page-layout.json', JSON.stringify(r));
+}
+
+// ══ ⑨ #1681 Business info：brand.json 的形状（门店数组 / 按语言的名字 / 老站的字符串名字）═══════════════
+console.log('⑨ Business info（brand.json）');
+{
+  const brandFile = () => path.join(TEMPLATE, 'site', 'brand.json');
+  const readBrand = () => JSON.parse(fs.readFileSync(brandFile(), 'utf-8'));
+  const setBrand = (mut) => { const b = readBrand(); mut(b); fs.writeFileSync(brandFile(), `${JSON.stringify(b, null, 2)}\n`); };
+  const SECOND = { label: 'Second shop', address: '9 King St E, Toronto, ON', phone: '(416) 555-0002', geo: { lat: 43.65, lng: -79.37 } };
+  const firstWithGeo = (b) => {
+    b.locations = Array.isArray(b.locations) && b.locations.length ? b.locations : [{ label: 'Main' }];
+    b.locations[0] = { ...b.locations[0], label: b.locations[0].label || 'Main', address: b.locations[0].address || '55 Bloor St W, Toronto, ON', geo: { lat: 43.67, lng: -79.39 } };
+  };
+
+  // 改电话：门店数组还是数组；第一家的 label / address / geo 原样；第二家一个字节不变。
+  freshSite();
+  setBrand((b) => { firstWithGeo(b); b.locations[1] = SECOND; });
+  const b0 = readBrand();
+  let r = tryWrite({ phone: '(647) 555-0123' }, 'en');
+  const b1 = readBrand();
+  check(!r.code && Array.isArray(b1.locations) && b1.locations.length === 2, '改电话 ⟹ locations 仍是数组、仍是两家', JSON.stringify(b1.locations));
+  check(b1.locations[0].phone === '(647) 555-0123', '第一家的电话是新号码');
+  check(['label', 'address', 'geo'].every((k) => JSON.stringify(b1.locations[0][k]) === JSON.stringify(b0.locations[0][k])),
+    '第一家的 label / address / geo 原样都在', JSON.stringify(b1.locations[0]));
+  check(JSON.stringify(b1.locations[1]) === JSON.stringify(b0.locations[1]), '第二家门店一个字节不变', JSON.stringify(b1.locations[1]));
+  const rest = (b) => { const c = { ...b }; delete c.locations; return JSON.stringify(c); };
+  check(rest(b0) === rest(b1), 'brand.json 其余键（颜色 / 字体 / 名字 …）一个不动');
+
+  // 改地址只动 address（坐标归写完之后那一步，见下面 write-editor-save 那几格）
+  r = tryWrite({ address: '200 Bay St, Toronto, ON' }, 'en');
+  const b2 = readBrand();
+  check(!r.code && b2.locations[0].address === '200 Bay St, Toronto, ON' && b2.locations[0].phone === '(647) 555-0123'
+    && JSON.stringify(b2.locations[1]) === JSON.stringify(SECOND), '改地址 ⟹ 只动第一家的 address');
+
+  // 清空 = 删键；网站名字不许空；类型不对 = 5
+  r = tryWrite({ phone: '' }, 'en');
+  check(!r.code && !('phone' in readBrand().locations[0]) && readRoot('en').phone === '', '清空电话 ⟹ 第一家没有 phone 这个键、读回 \'\'');
+  r = tryWrite({ email: '  ' }, 'en');
+  check(!r.code && !('email' in readBrand()), '清空邮箱（只有空格）⟹ 没有 email 这个键');
+  let before = snapshot(path.join(TEMPLATE, 'site'));
+  r = tryWrite({ brandName: '   ' }, 'en');
+  check(r.code === editorRoot.REFUSED && /website name can't be empty/.test(r.message) && changedFiles(before, snapshot(path.join(TEMPLATE, 'site'))).length === 0,
+    '网站名字清空 ⟹ 拒收（英文那句进状态栏）、什么都没写', JSON.stringify(r));
+  r = tryWrite({ phone: 5551234 }, 'en');
+  check(r.code === 5, '电话不是字符串 ⟹ 5');
+
+  // 门店数组是空的 / 没有：改电话新建第一家；清空电话不造一家空门店
+  freshSite();
+  setBrand((b) => { b.locations = []; });
+  r = tryWrite({ phone: '' }, 'en');
+  check(!r.code && JSON.stringify(readBrand().locations) === '[]', '没有门店时清空电话 ⟹ 不造一家空门店');
+  r = tryWrite({ phone: '(905) 555-0111' }, 'en');
+  check(!r.code && Array.isArray(readBrand().locations) && readBrand().locations[0].phone === '(905) 555-0111', '没有门店时填电话 ⟹ 新建第一家');
+
+  // 多语言：名字只动这种语言那一格；电话三种语言读回同一个
+  freshSite();
+  const nameBefore = readBrand().name;
+  check(nameBefore && typeof nameBefore === 'object', '夹具：新建的站 brand.name 是按语言的表', JSON.stringify(nameBefore));
+  r = tryWrite({ brandName: '北区汽修' }, 'zh');
+  const nameAfter = readBrand().name;
+  check(!r.code && nameAfter.zh === '北区汽修' && nameAfter.en === nameBefore.en && JSON.stringify({ ...nameAfter, zh: undefined }) === JSON.stringify({ ...nameBefore, zh: undefined }),
+    '在 zh 改名字 ⟹ 只有 name.zh 变', JSON.stringify(nameAfter));
+  check(readRoot('zh').brandName === '北区汽修' && readRoot('en').brandName === nameBefore.en, '读回：zh 是新名字、en 还是原名字');
+  check(readRoot('fr').brandName === (nameBefore.fr ?? nameBefore.en), 'fr 没有自己那一格时读回默认语言那一格（同 getBrandName）', readRoot('fr').brandName);
+  r = tryWrite({ phone: '(416) 555-0777' }, 'zh');
+  check(!r.code && ['en', 'fr', 'zh'].every((l) => readRoot(l).phone === '(416) 555-0777'), '在 zh 改电话 ⟹ 三种语言读回同一个号码');
+  check(localeBrandFiles(path.join(TEMPLATE, 'site')).length === 0, '语言目录下没有冒出 brand.json');
+
+  // 老站：name 还是字符串 ⟹ 改 zh 名字变成 {en: 原名字, zh: 新名字}
+  freshSite();
+  setBrand((b) => { b.name = 'Legacy Garage'; });
+  check(readRoot('zh').brandName === 'Legacy Garage', '老站（字符串名字）读回那个字符串');
+  r = tryWrite({ brandName: '老车行' }, 'zh');
+  check(!r.code && JSON.stringify(readBrand().name) === JSON.stringify({ en: 'Legacy Garage', zh: '老车行' }), '老站改 zh 名字 ⟹ {en: 原名字, zh: 新名字}', JSON.stringify(readBrand().name));
+
+  // 扁平老站：名字写进默认语言（en）那一格
+  freshSite((s) => {
+    for (const l of ['fr', 'zh']) fs.rmSync(path.join(s, l), { recursive: true });
+    for (const e of fs.readdirSync(path.join(s, 'en'))) fs.renameSync(path.join(s, 'en', e), path.join(s, e));
+    fs.rmSync(path.join(s, 'en'), { recursive: true });
+    fs.rmSync(path.join(s, 'site_meta.json'));
+  });
+  r = tryWrite({ brandName: 'Flat Renamed' }, 'en');
+  check(!r.code && readBrand().name.en === 'Flat Renamed' && readRoot('en').brandName === 'Flat Renamed', '扁平站：名字写进 name.en、读得回来', JSON.stringify(readBrand().name));
+
+  // 容器里那一步：地址变了 ⟹ 写完重查坐标写回同一份 brand.json；查不到 ⟹ 删旧坐标；两种都是保存成功。
+  // 网络用预加载脚本替掉（--require），不真发请求。
+  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'editor-root-geo-'));
+  temps.push(stubDir);
+  const stub = (body) => { const f = path.join(stubDir, `stub-${Math.random().toString(36).slice(2)}.js`); fs.writeFileSync(f, body); return { NODE_OPTIONS: `--require ${f}` }; };
+  const hitEnv = stub(`globalThis.__geoCalls = 0; globalThis.fetch = async () => { require('fs').appendFileSync(${JSON.stringify(path.join(stubDir, 'calls'))}, 'x'); return { ok: true, json: async () => [{ lat: '43.6487', lon: '-79.3817', address: { city: 'Toronto', road: 'Bay Street', house_number: '200', postcode: 'M5J 2J1' } }] }; };`);
+  const missEnv = stub(`globalThis.fetch = async () => { require('fs').appendFileSync(${JSON.stringify(path.join(stubDir, 'calls'))}, 'x'); throw new Error('network down'); };`);
+  const calls = () => (fs.existsSync(path.join(stubDir, 'calls')) ? fs.readFileSync(path.join(stubDir, 'calls'), 'utf-8').length : 0);
+
+  freshSite();
+  setBrand((b) => { firstWithGeo(b); b.locations[1] = SECOND; });
+  let s = runScript({ page: 'home', locale: 'en' }, { root: { address: '200 Bay St, Toronto, ON' } }, hitEnv);
+  let b = readBrand();
+  check(s.status === 0 && s.last && s.last.ok && JSON.stringify(s.last.files) === JSON.stringify(['site/brand.json']), '只改地址 ⟹ 成功、files 只有 site/brand.json', `${s.status} ${s.stdout} ${s.stderr}`);
+  check(b.locations[0].address === '200 Bay St, Toronto, ON' && b.locations[0].geo && b.locations[0].geo.lat === 43.6487 && b.locations[0].city === 'Toronto',
+    '地址变了 ⟹ 查到的新坐标 / 城市写回同一份 brand.json', JSON.stringify(b.locations[0]));
+  check(JSON.stringify(b.locations[1]) === JSON.stringify(SECOND), '查坐标那一步不碰第二家门店');
+  const n = calls();
+  s = runScript({ page: 'home', locale: 'en' }, { root: { phone: '(416) 555-0900' } }, hitEnv);
+  check(s.status === 0 && calls() === n && JSON.stringify(readBrand().locations[0].geo) === JSON.stringify(b.locations[0].geo), '只改电话（地址没变）⟹ 一个请求都不发、坐标不动', `calls ${n}→${calls()}`);
+  s = runScript({ page: 'home', locale: 'en' }, { root: { address: '1 Nowhere Rd' } }, missEnv);
+  b = readBrand();
+  check(s.status === 0 && s.last && s.last.ok && b.locations[0].address === '1 Nowhere Rd' && !('geo' in b.locations[0]) && !('city' in b.locations[0]),
+    '查不到（网络错）⟹ 保存照样成功、旧坐标删掉（不留一个指着老地方的钉子）', `${s.status} ${JSON.stringify(b.locations[0])} ${s.stderr}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

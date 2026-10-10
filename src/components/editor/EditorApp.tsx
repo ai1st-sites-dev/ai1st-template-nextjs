@@ -497,12 +497,20 @@ function sharedNoteField(id: string): Field {
 }
 
 /**
+ * #1681 —— 画布用的站点数据：构建时那份，Business info 四样换成 Page 面板里的现值。由 root 的 render 提供（§RootShell），
+ * 画布上的块从这里取 —— 存盘之后 `editor-baseline {reason: saved}` 只带 hash、不刷新站点数据，不靠它画布不会跟上。
+ */
+const LiveSiteContext = createContext<SiteData | null>(null);
+
+/**
  * 画布上的一块：真站那一个组件（经 `SectionRenderer`），不是示意图。
  *
  * 数据的底是**归一化之后**那一块（`_src.view`，跟真页面同一份：列表已升格、`data-has-*` 已算好），
  * 老板改过的字段才换成新值 —— 用的是存盘时同一个合法（§dataFromProps），画布和落盘不会各说各的。
  */
-function CanvasBlock({ component, props: live, locale, pageSlug, site }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
+function CanvasBlock({ component, props: live, locale, pageSlug, site: built }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
+  // #1681 —— Page 面板里正在改的 Business info（名字 / 电话 / 邮箱 / 地址）：画布上的块按它画（「Call …」按钮等）。
+  const site = useContext(LiveSiteContext) || built;
   // #1657 —— 老板正在画布上打这一块的某一格：那一格按打之前的值画（浏览器手上的字才是真的，React 不去重写那个文本节点，
   //    光标就不会每敲一个字跳回开头）。右栏和存盘读的是 Puck 里的新值，不受这里影响。
   const freeze = useContext(InlineFreezeContext);
@@ -658,8 +666,76 @@ type RootProps = {
   layout?: string;
   headerShape?: string;
   footerShape?: string;
+  brandName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
   children?: ReactNode;
 };
+
+/** #1681 —— Page 面板「Business info」四样（`site/brand.json`）的字段名。存盘记录写成 `Business info · Phone`。 */
+const BUSINESS_INFO_LABELS: Record<string, string> = {
+  brandName: 'Website name',
+  phone: 'Phone',
+  email: 'Email',
+  address: 'Address',
+};
+
+const BUSINESS_INFO_HEADING: Field = {
+  type: 'custom',
+  label: 'Business info',
+  render: () => (
+    <div data-editor-business-info>
+      <strong style={{ fontSize: 14 }}>Business info</strong>
+      <p style={{ ...NOTE_STYLE, marginTop: 4 }}>
+        Shown in the header, footer and contact buttons on every page. Phone, email and address are the same in every language.
+      </p>
+    </div>
+  ),
+} as Field;
+
+/** 构建时那份站点数据，Business info 换成面板里的现值（没带的那一样原样）。名字只换这种语言那一格。 */
+function withBusinessInfo(site: SiteData, locale: string, p: RootProps): SiteData {
+  const { brandName, phone, email, address } = p;
+  if ([brandName, phone, email, address].every((v) => typeof v !== 'string')) return site;
+  const brand = { ...site.brand };
+  let regions = site.regions;
+  if (typeof brandName === 'string') {
+    const key = locale || site.defaultLocale;
+    brand.name = { ...brand.name, [key]: brandName };
+    // 顶栏 / 页脚上的名字是构建时按语言烤进 `regions.*.dataByLocale` 的（`sync-config.js` → `lib/shell-data.js`），
+    // 不是渲染时从 brand 读的 ⟹ 这两份也换上（取法同 SiteShell §shellBlockData：这种语言，没有就默认语言那一份）。
+    regions = { ...regions };
+    for (const r of ['header', 'footer'] as const) {
+      const byLocale = regions[r].dataByLocale || {};
+      const cur = byLocale[key] ?? byLocale[site.defaultLocale];
+      if (cur && typeof cur === 'object') regions[r] = { ...regions[r], dataByLocale: { ...byLocale, [key]: { ...cur, brandName } } };
+    }
+  }
+  if (typeof email === 'string') brand.email = email;
+  if (typeof phone === 'string' || typeof address === 'string') {
+    const locations = [...(brand.locations || [])];
+    const first = { ...(locations[0] || { label: '' }) };
+    if (typeof phone === 'string') first.phone = phone;
+    if (typeof address === 'string') first.address = address;
+    locations[0] = first;
+    brand.locations = locations;
+  }
+  return { ...site, brand, regions };
+}
+
+/** root 的画法：外壳 + 把面板里的 Business info 交给画布上的块（§LiveSiteContext）。 */
+function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: { layout: { regions: string[]; repeatVariants: Record<string, string> }; headerShape: string; footerShape: string }; children?: ReactNode }) {
+  const { brandName, phone, email, address } = props;
+  const live = useMemo(() => withBusinessInfo(site, locale, { brandName, phone, email, address }), [site, locale, brandName, phone, email, address]);
+  return (
+    <LiveSiteContext.Provider value={live}>
+      <SiteShell site={live} locale={locale} shell={shell}>
+        {children}
+      </SiteShell>
+    </LiveSiteContext.Provider>
+  );
+}
 
 /**
  * #1405 —— 外壳三样：Puck 的 root 字段（整页一份，不在块列表里）。可选值全部来自构建时的 schema
@@ -677,10 +753,21 @@ const ROOT_FIELD_LABELS: Record<string, string> = {
   headerShape: 'Header style (whole website)',
   footerShape: 'Footer style (whole website)',
 };
+/** 存盘记录（§describeSave）用的那一份：外壳三样同面板，Business info 带上组名。 */
+const ROOT_SAVE_LABELS: Record<string, string> = {
+  ...ROOT_FIELD_LABELS,
+  ...Object.fromEntries(Object.entries(BUSINESS_INFO_LABELS).map(([k, v]) => [k, `Business info · ${v}`])),
+};
 
 function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
   const opts = (names: string[]) => names.map((n) => ({ value: n, label: n }));
   const fields: Fields = {
+    // #1681 —— Business info 放在三个下拉上面（票正文做什么 6）。
+    _businessInfo: BUSINESS_INFO_HEADING,
+    brandName: { type: 'text', label: BUSINESS_INFO_LABELS.brandName },
+    phone: { type: 'text', label: BUSINESS_INFO_LABELS.phone },
+    email: { type: 'text', label: BUSINESS_INFO_LABELS.email },
+    address: { type: 'text', label: BUSINESS_INFO_LABELS.address },
     layout: { type: 'select', label: ROOT_FIELD_LABELS.layout, options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
     headerShape: { type: 'select', label: ROOT_FIELD_LABELS.headerShape, options: opts(schema.root.header) },
     footerShape: { type: 'select', label: ROOT_FIELD_LABELS.footerShape, options: opts(schema.root.footer) },
@@ -709,12 +796,13 @@ function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
         } as Field,
       };
     },
-    render: ({ children, layout, headerShape, footerShape }: RootProps) => {
+    render: ({ children, layout, headerShape, footerShape, ...rest }: RootProps) => {
       const l = layoutOf(layout) || schema.root.layouts[0];
       return (
-        <SiteShell
+        <RootShell
           site={site}
           locale={locale}
+          props={rest}
           shell={{
             layout: { regions: l ? l.regions : ['header', 'content', 'footer'], repeatVariants: l ? l.repeatVariants : {} },
             headerShape: headerShape || '',
@@ -722,7 +810,7 @@ function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
           }}
         >
           {children}
-        </SiteShell>
+        </RootShell>
       );
     },
   };
@@ -738,7 +826,7 @@ function openRoot(built: PuckLikeData['root'], sent: unknown): PuckLikeData['roo
   if (!sent || typeof sent !== 'object' || Array.isArray(sent)) return built;
   const v = sent as Record<string, unknown>;
   const str = (k: string) => (typeof v[k] === 'string' ? { [k]: v[k] as string } : {});
-  const got = { ...str('layout'), ...str('headerShape'), ...str('footerShape') };
+  const got = { ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...str('brandName'), ...str('phone'), ...str('email'), ...str('address') };
   if (!Object.keys(got).length) return built;
   return { ...built, props: rootToPuck({ ...built.props, ...got } as never) };
 }
@@ -1521,7 +1609,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     if (pageChanged || Object.keys(root).length || hasShared) try {
       summary = describeSave({
         saved: base.saved, json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
-        schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_FIELD_LABELS, shapeLabel: SHAPE_FIELD_LABEL, aiNotes, dragged,
+        schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_SAVE_LABELS, shapeLabel: SHAPE_FIELD_LABEL, aiNotes, dragged,
       });
     } catch { /* 记录退回 manager 那句通用话 */ }
     // #1634 —— 改了表单文案：说一句是哪张表单（只改了表单时它就是这一笔的全部说明）。

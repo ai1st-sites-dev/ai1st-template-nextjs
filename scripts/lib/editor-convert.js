@@ -655,14 +655,18 @@ function applySharedChanges(siteBlocks, changes, slug) {
 
 /**
  * 站级文件的现值 → Puck root 的 props。
- * @param {{ layout: string, headerShape: string, footerShape: string }} values
+ * #1681 —— 加 Business info 四样（网站名字 / 电话 / 邮箱 / 地址，`site/brand.json`）；没带的那一样不放键
+ * （老站仓里的底稿不带它们，编辑器那头就留构建时那份）。
+ * @param {{ layout: string, headerShape: string, footerShape: string, brandName?: string, phone?: string, email?: string, address?: string }} values
  */
 function rootToPuck(values) {
-  return {
+  const out = {
     layout: values.layout,
     headerShape: values.headerShape,
     footerShape: values.footerShape,
   };
+  for (const k of ['brandName', 'phone', 'email', 'address']) if (typeof values[k] === 'string') out[k] = values[k];
+  return out;
 }
 
 /**
@@ -1023,7 +1027,9 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
       if (!has(root, field)) continue;
       const name = (rootLabels && rootLabels[field]) || field;
       const v = root[field];
-      parts.push(typeof v === 'string' && ROOT_CHOICE_FIELDS.has(field) ? `${name} → ${v || '(default)'}` : name);
+      // #1681 —— Business info 四样是文字框：跟块文字同一个规矩（手改写新值），清空 = `(empty)`。
+      if (typeof v !== 'string') parts.push(name);
+      else parts.push(ROOT_CHOICE_FIELDS.has(field) ? `${name} → ${v || '(default)'}` : `${name} · ${quoteText(v)}`);
     }
   }
   return parts.length ? parts.join('; ') : 'Saved changes in the page editor.';

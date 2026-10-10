@@ -32,7 +32,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import path from 'path';
 import EditorApp from '@/components/editor/EditorApp';
-import { getPage, getForms } from '@/lib/config';
+import { getPage, getForms, getBrandName } from '@/lib/config';
 import { isPreviewRender } from '@/lib/render-mode';
 import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
@@ -120,6 +120,11 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
         layout: pageLayout.id,
         headerShape: regions.header.shape,
         footerShape: regions.footer.shape,
+        // #1681 —— Business info 四样：同一份构建算出来的 brand（名字取这种语言那一格，同站上顶栏的读法）。
+        brandName: getBrandName(site, locale),
+        phone: site.brand.locations?.[0]?.phone ?? '',
+        email: site.brand.email ?? '',
+        address: site.brand.locations?.[0]?.address ?? '',
       }),
     },
   };

@@ -35,6 +35,11 @@
 //    住在 `lib/page-write.js` §planPageWrite / `lib/editor-root.js` §planRootWrite（都只算字节），最后
 //    一起交给 §commitWrites。
 // 🔴 页面那一半的判据跟 `write-page.js` 是同一份代码（`lib/page-write.js`），不是这里另写。
+//
+// #1681 —— 这一笔写了 `site/brand.json`、而第一家门店的地址跟写之前不一样 ⟹ 写完之后重查一次坐标写回同一份文件
+//    （`lib/geocode.js` §refreshGeoAfterEdit，AI 改站那条路 `edit-site.js` 同一个函数），跟这一笔一起被 worker
+//    `git add` / commit。地址没变 = 一个请求都不发。最坏约 9 秒（`geocode.js` TIMEOUT_MS 8000 + 节流 1100）。
+//    🔴 查坐标的任何失败只记 stderr，**不让这一笔保存失败**：文字已经写下去了。
 
 const fs = require('fs');
 const path = require('path');
@@ -47,6 +52,7 @@ function die(code, msg) {
 }
 
 let blocks;
+let geocode;
 let pageFiles;
 let siteShape;
 let pageWrite;
@@ -61,6 +67,7 @@ try {
   editorRoot = require(path.join(ROOT, 'scripts', 'lib', 'editor-root.js'));
   sharedWrite = require(path.join(ROOT, 'scripts', 'lib', 'shared-blocks-write.js'));
   formsWrite = require(path.join(ROOT, 'scripts', 'lib', 'forms-write.js'));
+  geocode = require(path.join(ROOT, 'scripts', 'lib', 'geocode.js'));
 } catch (e) {
   die(5, `读不到构建脚本：${e.message}`);
 }
@@ -91,7 +98,27 @@ const forms = Object.prototype.hasOwnProperty.call(input, 'forms') && input.form
 const hasRoot = !!root && typeof root === 'object' && Object.keys(root).length > 0;
 if (!hasPage && !hasRoot && !shared && !forms) die(5, '这次存盘既没有页面、也没有 root 字段、也没有共用块、也没有表单');
 
-try {
+/**
+ * #1681 —— 写下去的 brand.json 里地址变了 ⟹ 重查坐标。`before` = 这一笔写之前那份字节（文件原来不在 ⟹ null）。
+ * 写回走 `opts.write`：只在盘上还是我们刚写的那一份时才写（查坐标那几秒里别处存过 ⟹ 不写，同 edit-site.js）。
+ */
+async function refreshGeo(brandWrite, before) {
+  try {
+    const r = await geocode.refreshGeoAfterEdit(brandWrite.file, before, {
+      log: (m) => process.stderr.write(`${m}\n`),
+      write: (p, bytes) => {
+        if (fs.readFileSync(p, 'utf-8') !== brandWrite.content) return false;
+        fs.writeFileSync(p, bytes);
+        return true;
+      },
+    });
+    process.stderr.write(`geocode after editor save: ${r}\n`);
+  } catch (e) {
+    process.stderr.write(`geocode after editor save failed (the save itself stands): ${e && e.message ? e.message : e}\n`);
+  }
+}
+
+(async () => { try {
   const target = pageWrite.resolveTarget(ROOT, siteShape, localeIn);
   const writes = [];
   let pageHash = '';
@@ -113,7 +140,11 @@ try {
     shape: target.shape,
     root,
   }));
+  const brandFile = path.join(ROOT, 'site', 'brand.json');
+  const brandWrite = writes.find((w) => w.file === brandFile);
+  const brandBefore = brandWrite && fs.existsSync(brandFile) ? fs.readFileSync(brandFile) : null;
   pageWrite.commitWrites(writes);
+  if (brandWrite) await refreshGeo(brandWrite, brandBefore);
   const files = writes.map((w) => path.relative(ROOT, w.file).split(path.sep).join('/'));
   // #1420 —— `notice`：这一笔替换掉了别处刚改过的同一个共用块字段（§shared-blocks-write overwrittenFields），worker 原样带进 page-saved。
   const out = { ok: true, files, ...(pageHash ? { hash: pageHash } : {}), ...(s && s.notice ? { notice: s.notice } : {}) };
@@ -133,4 +164,4 @@ try {
   if (e instanceof pageWrite.PageWriteError || e instanceof editorRoot.RootWriteError || e instanceof sharedWrite.SharedWriteError
     || e instanceof formsWrite.FormsWriteError) die(e.code, e.message);
   throw e;
-}
+} })();
