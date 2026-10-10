@@ -40,7 +40,9 @@ export const InlineFreezeContext = createContext<InlineFreeze>(null);
 
 export const REWRITE_ACTIONS = ['longer', 'shorter', 'casual', 'professional'] as const;
 export type RewriteAction = (typeof REWRITE_ACTIONS)[number];
-const ACTION_LABELS: Record<RewriteAction, string> = { longer: 'Longer', shorter: 'Shorter', casual: 'Casual', professional: 'Professional' };
+const ACTION_LABELS: Record<RewriteAction, string> = { longer: 'Make longer', shorter: 'Make shorter', casual: 'More casual', professional: 'More professional' };
+/** #1683 —— 卡片第一行的输入框：老板用自己的话说怎么改（`action: 'custom'`）。不在 REWRITE_ACTIONS 里 —— 那是四个药丸的清单。 */
+type AiBusy = RewriteAction | 'custom';
 
 export type RewriteResult = { ok: true; fields: { name: string; text: string }[] } | { ok: false; message: string };
 
@@ -54,7 +56,8 @@ export type InlineApi = {
   site: SiteData;
   components: Map<string, EditorComponent>;
   setFreeze: (f: InlineFreeze) => void;
-  rewrite: (req: { action: RewriteAction; blockType: string; fields: { name: string; text: string }[] }) => Promise<RewriteResult>;
+  /** `instruction` 只跟 `action: 'custom'` 一起出现（#1683）。 */
+  rewrite: (req: { action: RewriteAction | 'custom'; instruction?: string; blockType: string; fields: { name: string; text: string }[] }) => Promise<RewriteResult>;
   /** #1676 —— AI 写进去了：记一条说明，下一笔存盘的记录写 `Hero · Headline · made shorter`（EditorApp §aiNotesRef）。 */
   noteAi: (n: { id: string; path: InlinePath; action: RewriteAction; text: string }) => void;
 };
@@ -117,6 +120,12 @@ const BTN: CSSProperties = {
   padding: '4px 10px', borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', color: '#344054',
   fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
 };
+// #1683 —— AI 那一种：一张圆角卡片贴在字段下方（Durable 那种形状），宽同字段、最窄 CARD_MIN_W（屏幕像素）。
+const CARD_MIN_W = 360;
+const CARD: CSSProperties = {
+  ...BAR, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 10, borderRadius: 12, maxWidth: 'none',
+};
+const PILL: CSSProperties = { ...BTN, borderRadius: 999, padding: '5px 12px' };
 
 /**
  * 挂在 Puck 的 `iframe` override 里（EditorApp §CanvasLinkGuard）：拿到的 `doc` 就是画布那份 document。
@@ -129,10 +138,12 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
   const [active, setActive] = useState<Active | null>(null);
   const activeRef = useRef<Active | null>(null);
   activeRef.current = active;
-  const [busy, setBusy] = useState<RewriteAction | null>(null);
+  const [busy, setBusy] = useState<AiBusy | null>(null);
+  const [ask, setAsk] = useState(''); // #1683 输入框里那句
   const [note, setNote] = useState('');
-  const [pos, setPos] = useState<{ top: number; left: number; scale: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; scale: number; width: number } | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
+  const askRef = useRef<HTMLInputElement | null>(null);
   // 正在打字的那一格：结束它的函数（失焦 / 回车 / 换一段 / 元素没了都走它）。
   const typingRef = useRef<{ el: HTMLElement; end: (keep: boolean) => void } | null>(null);
 
@@ -313,6 +324,24 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc]);
 
+  // #1683 —— 换了一段字（或工具条收起）：输入框里那句是说给上一段听的，清掉。
+  useEffect(() => { setAsk(''); }, [active?.id, active?.slot]);
+  // #1683 —— 键盘只归输入框（同打字那一格的 onKey）：Puck 在画布 document 上收快捷键，而它「焦点在输入框里就不删块」
+  //    那道判断用的是 `instanceof HTMLElement` —— 画布是另一个 window，这一判恒假 ⟹ 在这里按一次 Backspace / Delete
+  //    就删掉右栏选中的那一块（实测一次删了五块）。Ctrl+Z 同理会把整页撤一步。原生监听、在输入框上就截住。
+  //    每次渲染后重挂（输入框随工具条出现 / 收起，挂在哪一个元素上以提交之后的为准）。
+  useEffect(() => {
+    const el = askRef.current;
+    if (!el) return;
+    // 截在元素上 ⟹ React 挂在画布 body 上的 onKeyDown 也收不到了，回车（发送）就在这里处理。
+    const stop = (e: KeyboardEvent) => {
+      e.stopPropagation();
+      if (e.type === 'keydown' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); void runAi('custom'); }
+    };
+    for (const t of ['keydown', 'keyup', 'keypress'] as const) el.addEventListener(t, stop);
+    return () => { for (const t of ['keydown', 'keyup', 'keypress'] as const) el.removeEventListener(t, stop); };
+  });
+
   // AI 开始改这一页：手上在打的那一格收尾（打的字留着、记一笔），工具条收起。
   useEffect(() => {
     if (!api?.locked) return;
@@ -342,14 +371,20 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       const frame = win.frameElement as HTMLElement | null;
       const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
       const r = el.getBoundingClientRect();
+      // #1683 —— AI 卡片：宽同字段（屏幕上量）、最窄 CARD_MIN_W，贴在字段下方，下面放不下才放上面。提示那种小条照旧在上方。
+      const card = a.ai && !a.hint;
+      const width = card ? Math.max(Math.round(r.width * zoom), CARD_MIN_W) : 0;
       const h = (barRef.current ? barRef.current.offsetHeight : 36) / zoom;
-      const w = (barRef.current ? barRef.current.offsetWidth : 320) / zoom;
+      const w = (card ? width : barRef.current ? barRef.current.offsetWidth : 320) / zoom;
       const gap = 8 / zoom;
       const above = r.top - h - gap;
-      const top = (above >= 0 ? above : r.bottom + gap) + win.scrollY;
+      const below = r.bottom + gap;
+      const top = (card
+        ? (below + h <= win.innerHeight || above < 0 ? below : above)
+        : (above >= 0 ? above : below)) + win.scrollY;
       const left = Math.max(gap, Math.min(r.left, win.innerWidth - w - gap)) + win.scrollX;
       const scale = 1 / zoom;
-      setPos((p) => (p && p.top === top && p.left === left && p.scale === scale ? p : { top, left, scale }));
+      setPos((p) => (p && p.top === top && p.left === left && p.scale === scale && p.width === width ? p : { top, left, scale, width }));
       raf = win.requestAnimationFrame(tick);
     };
     raf = win.requestAnimationFrame(tick);
@@ -357,17 +392,19 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, doc]);
 
-  async function runAi(action: RewriteAction) {
+  async function runAi(action: AiBusy) {
     const a = activeRef.current;
     const ap = apiRef.current;
     if (!a || !a.path || !ap || busy) return;
+    const instruction = action === 'custom' ? ask.trim() : '';
+    if (action === 'custom' && !instruction) return; // 空指令不发
     typingRef.current?.end(true); // 手上打的字先落下（记一笔），AI 改的是落下之后的那一版
     const cur = getAt(itemById(a.id)?.props, a.path);
     const text = typeof cur === 'string' ? cur : String(cur ?? '');
     if (!text.trim()) { setNote('There is no text here for the AI to rewrite yet.'); return; }
     setBusy(action);
     setNote('');
-    const res = await ap.rewrite({ action, blockType: a.blockType, fields: [{ name: a.name, text }] });
+    const res = await ap.rewrite({ action, ...(instruction ? { instruction } : {}), blockType: a.blockType, fields: [{ name: a.name, text }] });
     setBusy(null);
     if (!res.ok) { setNote(res.message); return; }
     const out = res.fields.find((f) => f.name === a.name);
@@ -378,18 +415,21 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       return;
     }
     if (!write(a.id, a.path, out.text, true)) { setNote('This section is no longer on the page.'); return; }
-    ap.noteAi({ id: a.id, path: a.path, action, text: out.text });
+    // 输入框那一路不记 AI 说明（#1683 第 4 条）：记录按今天的规则写成新值，跟手改一样。
+    if (action === 'custom') setAsk('');
+    else ap.noteAi({ id: a.id, path: a.path, action, text: out.text });
     setNote('');   // Chris 2026-10-09：写完不说话 —— 文字换了就是反馈，撤销走左栏记录的 Revert（#1675）
   }
 
   if (!active || !pos || (!active.hint && !active.ai)) return null;
   const locked = !!api?.locked;
+  const off = !!busy || locked;
   return createPortal(
     <div
       ref={barRef}
       data-editor-inline-toolbar=""
       data-editor-inline-for={active.slot}
-      style={{ ...BAR, top: pos.top, left: pos.left, transform: pos.scale !== 1 ? `scale(${pos.scale})` : undefined, transformOrigin: 'top left' }}
+      style={{ ...(active.hint ? BAR : CARD), top: pos.top, left: pos.left, ...(pos.width ? { width: pos.width } : {}), transform: pos.scale !== 1 ? `scale(${pos.scale})` : undefined, transformOrigin: 'top left' }}
       // 按钮按下去不抢焦点：正在打的那一格不失焦，AI 那一支自己先把它收尾。
       onMouseDown={(e) => e.preventDefault()}
       // 🔴 portal 出去的 click 仍顺着 React 组件树往上冒，会冒到 Puck 预览框的 onClick —— 它见目标不是块就清掉选中
@@ -400,15 +440,40 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         <span data-editor-inline-hint="" style={{ padding: '2px 6px' }}>{active.hint}</span>
       ) : (
         <>
-          <span style={{ padding: '0 6px', fontWeight: 600, color: '#1d4ed8' }} aria-hidden="true">AI</span>
-          {REWRITE_ACTIONS.map((act) => (
-            <button key={act} type="button" data-editor-ai-action={act} disabled={!!busy || locked}
-              onClick={() => { void runAi(act); }}
-              style={{ ...BTN, opacity: busy && busy !== act ? 0.5 : 1, cursor: busy || locked ? 'default' : 'pointer' }}>
-              {busy === act ? 'Writing…' : ACTION_LABELS[act]}
-            </button>
-          ))}
-          {note && <span data-editor-inline-note="" style={{ padding: '0 6px', color: note.startsWith('Done') ? '#067647' : '#b42318' }}>{note}</span>}
+          {/* #1683 —— 第一行：老板用自己的话说怎么改。回车或右边的发送 = `custom`。
+              按下去要能拿到焦点 ⟹ 截住冒到工具条那句 preventDefault（它是给按钮用的：按钮不抢正在打的那一格的焦点）。 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onMouseDown={(e) => e.stopPropagation()}>
+            <input
+              ref={askRef}
+              data-editor-ai-instruction=""
+              type="text"
+              value={ask}
+              disabled={off}
+              placeholder={busy === 'custom' ? 'Writing…' : 'Ask AI to rewrite this text…'}
+              aria-label="Ask AI to rewrite this text"
+              onChange={(e) => setAsk(e.target.value)}
+              style={{ flex: 1, minWidth: 0, border: 0, outline: 'none', background: 'transparent', padding: '6px 4px', fontSize: 14, fontFamily: 'inherit', color: '#101828' }}
+            />
+            {busy === 'custom' ? (
+              <span data-editor-ai-writing="" style={{ padding: '0 4px', color: '#475467', whiteSpace: 'nowrap' }}>Writing…</span>
+            ) : (
+              <button type="button" data-editor-ai-send="" aria-label="Rewrite with AI" disabled={off || !ask.trim()}
+                onClick={() => { void runAi('custom'); }}
+                style={{ ...PILL, padding: 6, lineHeight: 0, border: 0, background: !off && ask.trim() ? '#1d4ed8' : '#e4e7ec', color: '#fff', cursor: off || !ask.trim() ? 'default' : 'pointer' }}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {REWRITE_ACTIONS.map((act) => (
+              <button key={act} type="button" data-editor-ai-action={act} disabled={off}
+                onClick={() => { void runAi(act); }}
+                style={{ ...PILL, opacity: busy && busy !== act ? 0.5 : 1, cursor: off ? 'default' : 'pointer' }}>
+                {busy === act ? 'Writing…' : ACTION_LABELS[act]}
+              </button>
+            ))}
+          </div>
+          {note && <span data-editor-inline-note="" style={{ padding: '0 4px', color: note.startsWith('Done') ? '#067647' : '#b42318' }}>{note}</span>}
         </>
       )}
     </div>,

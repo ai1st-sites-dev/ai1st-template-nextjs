@@ -1781,7 +1781,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
         if (rewritesRef.current.delete(id)) resolve({ ok: false, message: 'The AI did not answer in time. Please try again.' });
       }, REWRITE_WAIT_MS);
       rewritesRef.current.set(id, (r) => { clearTimeout(timer); resolve(r); });
-      postChat({ type: 'ai1st:ai-rewrite', id, action: req.action, blockType: req.blockType, page, locale, fields: req.fields });
+      // #1683 —— `instruction`（输入框那一路，`action: 'custom'`）也要带上：dashboard 只转白名单里的键。
+      postChat({ type: 'ai1st:ai-rewrite', id, action: req.action, ...(req.instruction ? { instruction: req.instruction } : {}), blockType: req.blockType, page, locale, fields: req.fields });
     });
   }
 
