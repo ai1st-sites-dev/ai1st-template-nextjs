@@ -202,7 +202,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
                             {it.text ? <p className="text-muted mb-0" data-slot={`items.${i}.text`}>{it.text}</p> : null}
                             {bullets.length ? (
                               <ul className="fx-bullets list-unstyled text-muted mt-3 mb-0" data-part="bullets">
-                                {bullets.map((b, j) => <li key={j} className="d-flex align-items-start gap-2">{icon('check', 'fx-check flex-shrink-0')}<span>{b}</span></li>)}
+                                {bullets.map((b, j) => <li key={j} className="d-flex align-items-start gap-2">{icon('check', 'fx-check flex-shrink-0')}<span data-slot={`items.${i}.bullets.${j}`}>{b}</span></li>)}
                               </ul>
                             ) : null}
                             {link ? <div className="mt-3" data-part="link">{button(link, 0, 'link', `items.${i}.link.label`)}</div> : null}

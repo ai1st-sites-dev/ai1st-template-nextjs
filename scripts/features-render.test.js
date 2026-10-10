@@ -392,7 +392,8 @@ console.log('\n── AC13 编辑器 schema');
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
     && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), `第一个字段：预设 ${M.presets.length} 个 → 十一个旋钮（控件顺序 intro → items → item）`);
   const items = on.fields.find((f) => f.slot === 'items');
-  check(items.control === 'list' && items.subs.map((x) => x.sub).join() === 'title,text', `items 是列表字段、每项可改 title / text（${items.control} · ${items.subs.map((x) => x.sub).join(' / ')}）`);
+  // #1686 —— 编号、小列表、链接也有格子了（number 一格文字、bullets 一列字、link 文字 + Link 两格）。
+  check(items.control === 'list' && items.subs.map((x) => x.sub).join() === 'number,title,text,bullets,link', `items 是列表字段、每项可改 number / title / text / bullets / link（${items.control} · ${items.subs.map((x) => x.sub).join(' / ')}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[1].knobs) === 'Cards' && presetNameFor(man, { ...M.presets[1].knobs, itemsColumns: '4' }) === 'custom',
     '点 Cards = 那一组旋钮；拧偏一个（itemsColumns=4）⟹ custom');
@@ -452,7 +453,8 @@ console.log('\n── #1527 items[].bullets');
     check(JSON.stringify(got) === JSON.stringify(want), `${sh}：每项的 bullets 条数 ${got.join(' / ')}`, `要 ${want.join(' / ')}`);
   }
   const g = render('grid', clone(DEMO));
-  check(DEMO.items.flatMap((it) => it.bullets || []).every((b) => g.includes(`<span>${b.replace(/&/g, '&amp;')}</span></li>`)), '每一条的文字原样出现在 <li> 里');
+  // #1686 —— 每一条挂 data-slot（`items.<i>.bullets.<j>`，编辑器画布据它就地改字），文字照旧原样。
+  check(DEMO.items.flatMap((it) => it.bullets || []).every((b) => new RegExp(`<span data-slot="items\\.\\d+\\.bullets\\.\\d+">${b.replace(/&/g, '&amp;').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</span></li>`).test(g)), '每一条的文字原样出现在 <li> 里（挂着 data-slot）');
   // 勾号走服务端图标表（BLOCK_ICONS 的 features 那一行登记了 check）：每行一个 <svg>；表里没有 check ⟹ 行照画、只是没勾号。
   const lis = g.split('data-part="bullets"').slice(1).map((h) => h.split('</ul>')[0]);
   check(lis.length === 2 && lis.every((h) => count(h, '<li ') === count(h, '<svg')), `每行一个勾号 <svg>（${lis.map((h) => `${count(h, '<svg')}/${count(h, '<li ')}`).join(' · ')}）`);

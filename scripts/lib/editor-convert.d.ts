@@ -43,7 +43,7 @@ export function dataFromProps(component: EditorComponent, base: unknown, props: 
 export function assignWeights(slots: { anchor: number | null }[]): number[];
 export function deepEqual(a: unknown, b: unknown): boolean;
 /** #1670 —— 列表项里拆成几格的对象（`price`）改了一格之后的值：只换那个键；清空删键；全空 ⟹ undefined */
-export function nestedPartSet(value: unknown, sub: string, text: string): Record<string, unknown> | undefined;
+export function nestedPartSet(value: unknown, sub: string, text: unknown): Record<string, unknown> | undefined;
 export const ITEM_ORIG: string;
 export const UNKNOWN_TYPE: string;
 /** #1443 —— 形态下拉「跟着主题走」那一项的值：存盘时删掉 `shape` 键 */

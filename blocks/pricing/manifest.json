@@ -279,6 +279,8 @@
         "name": "Plan name",
         "period": "Period",
         "description": "Plan description",
+        "features": "Features",
+        "cta.label": "Button text",
         "badge": "Badge"
       }
     },

@@ -401,7 +401,8 @@ console.log('\n── AC12 编辑器 schema');
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
     && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), '第一个字段：预设 5 个 → 八个旋钮');
   const it = on.fields.find((f) => f.slot === 'items');
-  check(it.control === 'list' && it.subs.map((x) => x.sub).join() === 'quote,name,role,source', `items 是列表字段、每条可改 quote / name / role / source（${it.subs.map((x) => x.sub).join(' / ')}）`);
+  // #1686 —— 每条评价的星级（rating）也有一格了。
+  check(it.control === 'list' && it.subs.map((x) => x.sub).join() === 'quote,name,role,rating,source', `items 是列表字段、每条可改 quote / name / role / rating / source（${it.subs.map((x) => x.sub).join(' / ')}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[2].knobs) === 'Big quote' && presetNameFor(man, { ...M.presets[2].knobs, itemsColumns: '2' }) === 'custom',
     '点 Big quote = 那一组旋钮；拧偏一个（itemsColumns=2）⟹ custom');
@@ -592,7 +593,7 @@ console.log('\n── #1500 summary：一组平台');
   const blind = presetClickProps({ ...opt, partDemos: {} }, start, 'Ratings');
   check(blind.summary === undefined && nameOf(blind) === 'custom', '阳性对照：没有 partDemos ⟹ 点 Ratings 不填、不亮（上面「填上」是槽上 demo 带来的）');
   const sf = comp.fields.find((f) => f.slot === 'summary');
-  check(sf && sf.control === 'list' && sf.subs.map((x) => x.sub).join() === 'source,rating,count', `Puck 里 summary 是列表字段（能增删平台），每项改 source / rating / count（${sf && sf.subs.map((x) => x.sub).join(' / ')}）`);
+  check(sf && sf.control === 'list' && sf.subs.map((x) => x.sub).join() === 'source,rating,count,href', `Puck 里 summary 是列表字段（能增删平台），每项改 source / rating / count / href（#1686 补了 href）（${sf && sf.subs.map((x) => x.sub).join(' / ')}）`);
   // PM 07:32 第 2 条：logoUrl 不被当成内容图槽（建站不编平台 logo）—— 靠字段名，两向守住
   const all = manifestLib.loadManifests();
   check(!manifestLib.imageSlotsOf(all.get('testimonials')).some((x) => x.name === 'summary'), 'imageSlotsOf(testimonials) 不含 summary ⟹ 建站不给平台生成 logo');
@@ -604,6 +605,16 @@ console.log('\n── #1500 summary：一组平台');
   check(imgLine.includes('data.items[].photo.imageUrl') && imgLine.includes('data.summary[].logoUrl'), `edit-site.js ## Images 段 testimonials 那一行同时有 items[].photo.imageUrl 与 summary[].logoUrl`);
   const sumLine = (M.prompt.lines || []).find((l) => /^summary\b/.test(l)) || '';
   check(/logoUrl only when the owner gave you that platform's logo image — without one leave it out/.test(sumLine) && /href/.test(sumLine), 'prompt.lines 的 summary 那句写了 logoUrl 与「没有就不写」、href');
+}
+
+// #1686 —— 每条评价的星级在编辑器里是一格普通文字（同 reviews 的平台评分），写回来是字符串：照样画星；画布点字靠 data-slot。
+console.log('\n#1686 每条评价的 rating：字符串照样画、星星挂 data-slot');
+{
+  const one = (rating) => itemsOf(render('cards', { ...clone(DEMO), items: [{ quote: 'q', name: 'N', rating }] }))[0] || '';
+  const stars = (html) => (/data-part="stars" data-rating="(\d)"/.exec(html) || [])[1];
+  check(stars(one(3)) === '3' && stars(one('3')) === '3', `rating 3 与 "3" 都画 3 颗实心（${stars(one(3))} / ${stars(one('3'))}）`);
+  check(one('3').includes('data-slot="items.0.rating"'), '星星挂着 data-slot="items.0.rating"');
+  for (const bad of ['3.5', '6', '0', 'abc', '']) check(stars(one(bad)) === undefined, `rating ${JSON.stringify(bad)} ⟹ 不画星（范围 1–5 的整数，跟原来一样）`);
 }
 
 // 📌 #1425（T3）—— 这里原来测 AC13「旧 testimonials 相对 merge-base 与工作区零改动」；旧 testimonials 随旧库删了（这个名字今天是新块）。

@@ -129,10 +129,14 @@ const EXTRA = {
   //    link 自带 href、值就是标题 ⟹ 用 link 才每条都画得出来（没有 kind 的条目组件整条不画）。
   'contact': { _item: { kind: 'link', href: '/x' } },
   // #1483 —— 同上（logo 行只在有图时画）；月付 / 年付切换只在有套餐填了 price.yearly 时画，价格那一行（带 period）只在有价时画。
-  'pricing': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] }, _item: { price: { monthly: '$1', yearly: '$2' } } },
+  //    #1686 —— 每行 feature 要是字符串数组里的一项；按钮只在 cta 有 label 时画（label 由 `cta.label` 那条 editLabel 写进来）。
+  'pricing': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] }, _item: { price: { monthly: '$1', yearly: '$2' }, features: ['feature-a', 'feature-b'], cta: { href: '/x' } } },
+  // #1686 —— 每项的小列表是字符串数组；链接只在 link 有 label 时画（label 由 `link.label` 那条 editLabel 写进来）。
+  'features': { _item: { bullets: ['bullet-a', 'bullet-b'], link: { href: '/x' } } },
   // #1488 —— 总评分那一行只在 `summary.rating` 是一个真数字（0–5）时画；夹具造的 `summary-rating` 画不出来。
   //    #1500 —— summary 改成一组平台：每个平台要 rating 0–5、count 正数才画，所以整份给（同下面 reviews 那条）。
-  'testimonials': { summary: [{ source: 'summary-0-source', rating: 4.5, count: 10 }, { source: 'summary-1-source', rating: 4, count: 3 }] },
+  //    #1686 —— 每条评价的星星只在 rating 是 1–5 时画（夹具造的 `items-0-rating` 画不出来）。
+  'testimonials': { _item: { rating: 5 }, summary: [{ source: 'summary-0-source', rating: 4.5, count: 10 }, { source: 'summary-1-source', rating: 4, count: 3 }] },
   // #1495 —— 照片墙的每一项没有图就不画（`slots.items.itemRequires`，validateSite 也拦）。
   'gallery': { _item: { image: { imageUrl: '/a.png', alt: '' } } },
   // #1536 —— logo 条目没有 `imageUrl` 就丢掉；一条都不剩时整块不画（做什么 2 ③）。items 槽不带 editLabel，
@@ -159,8 +163,15 @@ function fixtureFor(type, manifest) {
       case 'list': {
         data[slot] = Array.from({ length: LIST_ITEMS }, (_, i) => {
           if (!subs.length) return `${slot}-${i}`;       // 裸字符串列表
-          const item = { ...(extra._item || {}) };
-          for (const k of subs) item[k] = `${slot}-${i}-${k}`;
+          const item = JSON.parse(JSON.stringify(extra._item || {}));
+          for (const k of subs) {
+            // #1686 —— `EXTRA._item` 给了真形状的（字符串列表 `features`、星级 `rating`）不拿字符串盖掉；
+            //    带点的（`cta.label`）是项里那个对象的键，写进那个对象，不写成平键 "cta.label"。
+            if (Object.prototype.hasOwnProperty.call(item, k)) continue;
+            const [head, tail] = k.split('.');
+            if (tail) item[head] = { ...(item[head] || {}), [tail]: `${slot}-${i}-${k}` };
+            else item[k] = `${slot}-${i}-${k}`;
+          }
           return item;
         });
         break;

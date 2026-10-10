@@ -29,6 +29,11 @@
 //                                                它跟 link 那格一样带 `sources`（本店电话 / 邮箱，#1521）
 //                       kind list 且项形状里有 `price: {monthly, yearly?}`（价格块的套餐）→ 每项多一个 `price`，
 //                                                里面两格 Price / Yearly price（`nested`，#1670）
+//                       kind list 且某条 editLabel 在项形状里是 `[string]`（`features` / `bullets`）→ 那一格是一列字（`strings: true`，#1686）
+//                       kind list 且 editLabel 带点（`cta.label` / `link.label`）→ 合成项里那个对象的一格（`nested`）；对象是按钮
+//                                                （`{label, href, …}`）时再补 Link，带 `sources`（#1686，§itemSubs）
+//                       kind list 且项形状顶层有可选 `href?`（点评平台 / logo）→ 每项多一格 Link，不带 `sources`（#1686，§addOptionalHref）
+// 列表项里**不给格子**的字段逐条登记在 §ITEM_FIELD_EXEMPT（带理由），§itemFieldCoverageProblems 守「每个字段要么有格子、要么在名单里」。
 // 🔴 「带 `sub`」≠「列表」：`link`（`{label, href}`）和 `object`（`hero-with-form.form`）也带 `sub`。
 //    把它们做成 array 字段，Puck 会把一个对象当数组编辑，存回去就坏了。
 //
@@ -123,7 +128,10 @@ function fieldsOf(manifest) {
     const entries = bySlot.get(slot);
     if (!entries && spec && spec.editItems === true) {
       // 没有可改的字，只有「几项、什么顺序」可改（`hero.band`）。每项的摘要用它的 alt。
-      fields.push({ slot, kind: spec.kind, label: humanize(slot), control: 'list', subs: [], summary: ['alt'] });
+      // #1686 —— 项上有可选链接（`logos.items` 的 `href?`）照样给一格，见下面 §addOptionalHref。
+      const subs = [];
+      addOptionalHref(subs, spec);
+      fields.push({ slot, kind: spec.kind, label: humanize(slot), control: 'list', subs, summary: ['alt'] });
       continue;
     }
     if (!entries) continue;
@@ -134,7 +142,7 @@ function fieldsOf(manifest) {
       continue;
     }
     const choices = (spec && spec.choices) || {};
-    const subs = entries.map((e) => ({ sub: e.sub, label: e.label }));
+    const subs = kind === 'list' ? itemSubs(entries, spec) : entries.map((e) => ({ sub: e.sub, label: e.label }));
     // #1463 —— `choices` 里有、又不是 editLabel 的子字段（`eyebrow.style`）：一格下拉。取值是数组的
     //    （`form.fields`）不出字段 —— 一个多选框不是这张票的活，它由转换器原样携带。
     for (const [sub, vals] of Object.entries(choices)) {
@@ -176,11 +184,10 @@ function fieldsOf(manifest) {
       //    理由同 #1404 r3 那条：价格那一格（`pr-amount`）不挂 `data-slot`、月付年付由组件状态切换，往 `editLabel` 里加就得
       //    动守卫；这里只在编辑器自己的 schema 里补，按形状认、不写块名单。项是整项携带的（editor-convert §toProp 的 list），
       //    `price` 对象里其余的键原样带着。位置照项形状里的键序（`name` 之后、`period` 之前）。
-      const topKeys = itemTopKeys(spec && spec.shape);
       if (ITEM_PRICE_SHAPE.test(String((spec && spec.shape) || '')) && !subs.some((x) => x.sub === ITEM_PRICE.sub)) {
-        const at = subs.findIndex((x) => topKeys.indexOf(x.sub) > topKeys.indexOf(ITEM_PRICE.sub));
-        subs.splice(at < 0 ? subs.length : at, 0, { sub: ITEM_PRICE.sub, label: ITEM_PRICE.label, nested: ITEM_PRICE.nested.map((n) => ({ ...n })) });
+        insertByShape(subs, { sub: ITEM_PRICE.sub, label: ITEM_PRICE.label, nested: ITEM_PRICE.nested.map((n) => ({ ...n })) }, spec);
       }
+      addOptionalHref(subs, spec);
     }
     fields.push({
       slot,
@@ -195,31 +202,100 @@ function fieldsOf(manifest) {
 }
 
 /**
+ * #1686 —— 列表槽 `editLabel` 的几条 → 每项的子字段。普通的一条就是一格文字；另外两种按**项形状**认（不写块名单）：
+ *   · 值是字符串列表（`features: [string]`）⟹ `strings: true`，EditorApp 画成能加 / 删 / 拖动排序的一列（值仍是字符串数组）；
+ *   · 带点的（`cta.label` / `link.label`：项里一个对象的某个键）⟹ 按点前那一段合成一格 `nested`（同 #1670 的 `price`）。
+ *     那个对象在形状里是按钮（`{label, href, …}`，`href` 必有）⟹ 再补一格 Link，带 `sources`（本店电话 / 邮箱，同 #1521 的
+ *     按钮列表那一格）：构建侧 `item-sources.js` §resolveButtons 一路往下找「有 label 又有 href」的对象展开，项里的按钮在射程里。
+ * 🔴 带点的那几条必须真是项形状里某个对象的键：画布上那段字的 `data-slot`（`plans.0.cta.label`）跟它一模一样，
+ *    `block-slots.test.js` 两个方向守着。
+ */
+function itemSubs(entries, spec) {
+  const shape = new Map(itemShapeEntries(spec && spec.shape).map((e) => [e.key, e]));
+  const subs = [];
+  for (const e of entries) {
+    const dot = e.sub.indexOf('.');
+    if (dot < 0) {
+      const se = shape.get(e.sub);
+      subs.push(se && /^\[\s*string\s*\]$/.test(se.value) ? { sub: e.sub, label: e.label, strings: true } : { sub: e.sub, label: e.label });
+      continue;
+    }
+    const head = e.sub.slice(0, dot);
+    const part = { sub: e.sub.slice(dot + 1), label: e.label };
+    const group = subs.find((x) => x.sub === head && x.nested);
+    if (group) { group.nested.push(part); continue; }
+    subs.push({ sub: head, label: humanize(head), nested: [part] });
+  }
+  for (const g of subs) {
+    if (!g.nested || g.sub === ITEM_PRICE.sub) continue;
+    const se = shape.get(g.sub);
+    const inner = se && /^\{([\s\S]*)\}$/.exec(se.value) ? objectEntries(se.value.slice(1, -1)) : [];
+    const required = (k) => inner.some((x) => x.key === k && !x.optional);
+    if (required('label') && required(LINK_HREF) && !g.nested.some((x) => x.sub === LINK_HREF)) {
+      g.nested.push({ sub: LINK_HREF, label: 'Link', sources: BUTTON_SOURCES.slice() });
+    }
+  }
+  return subs;
+}
+
+/**
+ * #1686 —— 项形状里有**可选**的 `href?`（点评平台 / logo 点出去的链接：`reviews.platforms`、`testimonials.summary`、`logos.items`）
+ * ⟹ 每项补一格 Link。🔴 不带 `sources`：这几项不是按钮（没有 `label`），指向的是点评站或别人的网站；`item-sources.js` 也只
+ * 展开「有 label 又有 href」的对象，写一个电话引用进去这一项就坏了。必有的 `href`（按钮列表）在上面 #1518 那条。
+ */
+function addOptionalHref(subs, spec) {
+  const e = itemShapeEntries(spec && spec.shape).find((x) => x.key === LINK_HREF);
+  if (!e || !e.optional || subs.some((x) => x.sub === LINK_HREF)) return;
+  insertByShape(subs, { sub: LINK_HREF, label: 'Link' }, spec);
+}
+
+/** 照项形状里的键序把一个子字段插进去（插在形状里排它后面的第一格之前；都没有就放最后）。 */
+function insertByShape(subs, item, spec) {
+  const keys = itemShapeEntries(spec && spec.shape).map((e) => e.key);
+  const at = subs.findIndex((x) => keys.indexOf(x.sub) > keys.indexOf(item.sub));
+  subs.splice(at < 0 ? subs.length : at, 0, item);
+}
+
+/**
  * 列表槽项形状（`[{label, href, style: "solid" | "outline", icon?, …}]`）的**顶层**必填键名。
  * 嵌套的 `{…}` / `[…]` 和引号里的东西不算；带 `?` 的（可选）不算。形状不是**一个** `[{…}]` ⟹ []
  * （两项示例 `[{…}, {…}]` 不是项形状，不认 —— 当初的例子是 page-header 的 breadcrumbs 槽，#1630 随面包屑删了）。
  */
 function itemTopKeys(shape) {
+  return itemShapeEntries(shape).filter((e) => !e.optional).map((e) => e.key);
+}
+
+/**
+ * #1686 —— 列表槽项形状的**全部**顶层键（含带 `?` 的可选键），每个带上它的值写法：
+ * `[{name, features: [string], cta: {label, href, style?}, badge?}]` →
+ * `[{key:'name', optional:false, value:''}, {key:'features', …, value:'[string]'}, {key:'cta', …, value:'{label, href, style?}'}, {key:'badge', optional:true, value:''}]`。
+ * 引号里的东西不算；形状不是**一个** `[{…}]` ⟹ []（同 §itemTopKeys）。
+ */
+function itemShapeEntries(shape) {
   const m = /^\s*\[\s*\{([\s\S]*)\}\s*\]\s*$/.exec(typeof shape === 'string' ? shape : '');
-  if (!m) return [];
-  const keys = [];
+  return m ? objectEntries(m[1]) : [];
+}
+
+/** 一个对象形状的花括号**里面**（`label, href, style?: "solid"`）→ 顶层键。§itemShapeEntries 和项里的对象（`cta`）共用。 */
+function objectEntries(body) {
+  const out = [];
   let depth = 0;
   let quote = '';
   let cur = '';
-  for (const ch of m[1] + ',') {
-    if (quote) { if (ch === quote) quote = ''; continue; }
-    if (ch === '"' || ch === "'") { quote = ch; continue; }
+  for (const ch of body + ',') {
+    if (quote) { if (ch === quote) quote = ''; cur += ch; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
     if (ch === '{' || ch === '[') depth++;
     else if (ch === '}' || ch === ']') { if (--depth < 0) return []; }
     else if (ch === ',' && depth === 0) {
-      const k = /^\s*(\w+)(\??)/.exec(cur);
-      if (k && !k[2]) keys.push(k[1]);
+      const k = /^\s*(\w+)(\??)\s*(?::\s*([\s\S]*))?$/.exec(cur);
+      if (k) out.push({ key: k[1], optional: !!k[2], value: (k[3] || '').trim() });
       cur = '';
       continue;
     }
-    if (depth === 0) cur += ch;
+    cur += ch;
   }
-  return keys;
+  return out;
 }
 
 // ── #1657 —— 画布里点字直接改：哪几段字能就地打字、哪几段出 AI 按钮 ─────────────────────────────────────────
@@ -367,4 +443,64 @@ function slotCoverageProblems(schema, manifests) {
   return out;
 }
 
-module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemTopKeys, inlineSlotsOf, isFactSlot, LINK_HREF };
+/**
+ * #1686 —— 列表项里**不给格子**的字段：「块.列表.字段」→ 理由。§itemFieldCoverageProblems 拿它当豁免名单。
+ * 🔴 逐条写、不按字段名一刀切：别的块以后新加一个同名、但看得见的字段（一个 `icon` 下面带说明字），不该被顺带放过。
+ *    这里没有、又没有格子 ⟹ 那道检查点名它；要么给格子，要么在这里加一条并写明理由。
+ */
+const BUTTON_STYLE = '按钮的样式设置，不是字';
+const ICON = '图标';
+const IMAGE = '图片。换图不在编辑器范围里（本文件头「换图不做」）';
+const IMAGE_ALT = '图片的替代文字，跟着图片走：描述的是那张图，等换图做的时候一起给';
+const ITEM_FIELD_EXEMPT = Object.freeze({
+  ...Object.fromEntries(['content.ctas', 'cta.ctas', 'features.introCtas', 'hero.ctas', 'milestones.introCtas', 'page-header.ctas']
+    .flatMap((l) => ['style', 'icon', 'arrow', 'size'].map((f) => [`${l}.${f}`, BUTTON_STYLE]))),
+  'features.items.icon': ICON,
+  'milestones.stats.icon': ICON,
+  'pricing.highlights.icon': ICON,
+  'features.items.image': IMAGE,
+  'gallery.items.image': IMAGE,
+  'team.members.photo': IMAGE,
+  'testimonials.items.photo': IMAGE,
+  'hero.band.imageUrl': IMAGE,
+  'logos.items.imageUrl': IMAGE,
+  'reviews.platforms.logoUrl': IMAGE,
+  'testimonials.summary.logoUrl': IMAGE,
+  'hero.band.alt': IMAGE_ALT,
+  'logos.items.alt': IMAGE_ALT,
+  'pricing.plans.featured': '「推荐套餐」高亮开关，是样式',
+  'team.members.links': '成员的社交图标链接，是图标',
+});
+
+/**
+ * #1686 —— 每份非 region manifest 的每个列表槽，项形状里的每个顶层字段（含可选的）：要么在编辑器 schema 里有一格
+ * （这个槽位的字段里有同名的 `sub`），要么在豁免名单里。§slotCoverageProblems 只管槽位这一层 —— 价格块的 `plans`
+ * 有格子它就算过了，项里漏掉的 `features` / `cta` 没人报（#1686 的病根）。
+ * 名单那一侧也查：一条豁免在形状里找不到（字段改名 / 删了）、或者它其实已经有格子了，都点名 —— 名单不许比现实多。
+ * 回字符串数组，空 = 对得上。
+ */
+function itemFieldCoverageProblems(schema, manifests, exempt = ITEM_FIELD_EXEMPT) {
+  const byType = new Map(schema.components.map((c) => [c.type, c]));
+  const out = [];
+  const seen = new Set();
+  for (const [type, m] of manifests) {
+    if (!m || m.region === true) continue;
+    const c = byType.get(type);
+    for (const [slot, spec] of Object.entries(m.slots || {})) {
+      if (!spec || spec.kind !== 'list') continue;
+      const field = c && c.fields.find((f) => f.slot === slot);
+      const subs = new Set(((field && field.subs) || []).map((x) => x.sub));
+      for (const { key } of itemShapeEntries(spec.shape)) {
+        const id = `${type}.${slot}.${key}`;
+        const excused = Object.prototype.hasOwnProperty.call(exempt, id);
+        if (excused) seen.add(id);
+        if (subs.has(key)) { if (excused) out.push(`${id}（有格子，却还在豁免名单里）`); continue; }
+        if (!excused) out.push(id);
+      }
+    }
+  }
+  for (const id of Object.keys(exempt)) if (!seen.has(id)) out.push(`${id}（豁免名单里有，列表项形状里没有这个字段）`);
+  return out;
+}
+
+module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, itemTopKeys, itemShapeEntries, inlineSlotsOf, isFactSlot, LINK_HREF };

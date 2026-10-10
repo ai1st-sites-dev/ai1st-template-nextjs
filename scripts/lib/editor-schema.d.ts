@@ -11,7 +11,9 @@ export interface EditorField {
   /** `choices` 有值的子字段是下拉（#1463，`eyebrow.style`） */
   /** `sources` 有值的子字段是链接格：手填地址，或选一个联系方式引用（#1506，`kind: link` 的 `href`；#1521 起按钮列表每一项的 `href` 也是） */
   /** `nested` 有值的子字段是项里的一个对象、拆成几格平铺（#1670，价格块套餐的 `price` → Price / Yearly price） */
-  subs: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; nested?: { sub: string; label: string }[] }[];
+  /** `strings` 是 true 的子字段是项里的一列字（#1686，`plans[].features` / `items[].bullets`）：值是字符串数组，能加 / 删 / 排序 */
+  /** `nested` 的某一格带 `sources`：项里按钮 / 链接对象的 Link 格（#1686，`plans[].cta.href` / `items[].link.href`） */
+  subs: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; strings?: boolean; nested?: { sub: string; label: string; sources?: string[] }[] }[];
   /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
   summary?: string[];
   /** color：预设色板（`#rrggbb` / `brand`） */

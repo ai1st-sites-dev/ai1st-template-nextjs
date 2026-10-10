@@ -90,7 +90,11 @@ const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Arra
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
 const imgOf = (v: unknown): TestimonialsNewImage | null => (isObj(v) && str((v as TestimonialsNewImage).imageUrl) ? (v as TestimonialsNewImage) : null);
 // 每条的星级：1–5 的整数才画（validateSite 拦别的值）。
-const itemRating = (v: unknown): number => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5 ? v : 0);
+// #1686 —— 编辑器（Puck）里改过的是字符串（「Rating」那一格是普通文字格，同 reviews 的平台评分），照样认（同下面 `num`）。
+const itemRating = (v: unknown): number => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*\d+\s*$/.test(v) ? Number(v) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : 0;
+};
 // 平台的数：编辑器（Puck）里改过的是字符串，照样认。
 const num = (v: unknown): number => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN);
 
@@ -116,8 +120,9 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
 
   const icon = (name: string) => <InlineIcon name={name} icons={iconTable} />;
   // 星级：n 颗实心、剩下空心，一共 5 颗。平台评分是小数（4.9），先四舍五入成整数颗（#1500：4.5 → 5、4.4 → 4，不画半颗）。
-  const stars = (n: number, slot?: string) => ratingStars(n, iconTable, {
-    root: (full, label) => ({ className: 'tn-stars d-inline-flex gap-1 text-warning', 'data-part': 'stars', 'data-rating': full, 'aria-label': label, role: 'img', ...(slot ? { 'data-for': slot } : {}) }),
+  // #1686 —— `editSlot`：每条评价的星星挂 `data-slot`（编辑器画布点它 = 选中这一块、提示去右栏 Rating 格改；星星里没有字可打）。
+  const stars = (n: number, slot?: string, editSlot?: string) => ratingStars(n, iconTable, {
+    root: (full, label) => ({ className: 'tn-stars d-inline-flex gap-1 text-warning', 'data-part': 'stars', 'data-rating': full, 'aria-label': label, role: 'img', ...(slot ? { 'data-for': slot } : {}), ...(editSlot ? { 'data-slot': editSlot } : {}) }),
     fillEmpty: true,
     wrap: (s) => ({ className: 'tn-star d-inline-flex', 'data-star': s, 'aria-hidden': 'true' }),
   });
@@ -193,7 +198,7 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
           </figcaption>
           {rating || source ? (
             <div className="tn-meta d-flex align-items-center gap-3" data-part="meta">
-              {rating ? stars(rating) : null}
+              {rating ? stars(rating, undefined, `items.${i}.rating`) : null}
               {source ? <span className="tn-source text-xs text-muted" data-slot={`items.${i}.source`}>{source}</span> : null}
             </div>
           ) : null}

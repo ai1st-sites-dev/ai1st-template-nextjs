@@ -269,7 +269,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                       {p.description ? <p className="pr-desc text-muted text-sm mb-4" data-slot={`plans.${i}.description`}>{p.description}</p> : null}
                       {cta ? (
                         <Link href={cta.href || '#'} className={`pr-cta btn ${ctaStyle === 'solid' ? 'btn-primary' : 'btn-outline-primary'} w-100`} data-cta={ctaStyle}>
-                          {cta.label}
+                          <span data-slot={`plans.${i}.cta.label`}>{cta.label}</span>
                         </Link>
                       ) : null}
                     </div>
@@ -278,7 +278,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                         {features.map((f, j) => (
                           <li key={j} className="d-flex align-items-start text-sm mb-3">
                             <InlineIcon name="check" icons={iconTable} className="pr-check flex-shrink-0 me-3" />
-                            <span>{f}</span>
+                            <span data-slot={`plans.${i}.features.${j}`}>{f}</span>
                           </li>
                         ))}
                       </ul>

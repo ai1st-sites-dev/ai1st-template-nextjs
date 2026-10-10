@@ -228,8 +228,9 @@ function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: u
 }
 
 /** 一个子字段：词表里有它（`choices`）就是下拉；带 `sources` 的是链接格（#1506）；否则是一格文字。 */
-function subField(s: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; nested?: { sub: string; label: string }[] }, site: SiteData): Field {
-  if (s.nested && s.nested.length) return nestedTextField(s.sub, s.nested);
+function subField(s: EditorField['subs'][number], site: SiteData): Field {
+  if (s.nested && s.nested.length) return nestedTextField(s.sub, s.label, s.nested, site);
+  if (s.strings) return stringListField(s.label);
   if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources, site);
   if (s.choices && s.choiceDefault && s.choiceDefault !== s.choices[0]) return choiceField(s.label, s.choices, s.choiceDefault);
   return s.choices
@@ -239,25 +240,87 @@ function subField(s: { sub: string; label: string; choices?: string[]; choiceDef
 
 // #1670 —— 列表项里的一个对象拆成几格平铺（价格块套餐的 `price` → Price / Yearly price，editor-schema.js §fieldsOf）。
 //    值是整个对象，改一格之后变成什么由 editor-convert.js §nestedPartSet 定（往返守卫测的是同一个函数）。
-function nestedTextField(key: string, parts: { sub: string; label: string }[]): Field {
+// #1686 —— 项里的按钮 / 链接（`plans[].cta`、`items[].link`）也走这里：文字一格 + Link 一格，Link 那格带 `sources` 时
+//    跟别处按钮一样能选本店电话 / 邮箱（§LinkHrefControl，写进去的引用对象经 §nestedPartSet 原样放进 `href`）。
+function nestedTextField(key: string, label: string, parts: { sub: string; label: string; sources?: string[] }[], site: SiteData): Field {
   return {
     type: 'custom',
-    label: key,
+    label,
     render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => {
       const obj = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-      const set = (sub: string, v: string) => onChange(nestedPartSet(obj, sub, v));
+      const set = (sub: string, v: unknown) => onChange(nestedPartSet(obj, sub, v));
       return (
         <div data-editor-nested={key}>
           {parts.map((p) => (
             <div key={p.sub} data-editor-nested-part={p.sub} style={{ marginBottom: 8 }}>
-              <FieldLabel label={p.label} el="div" readOnly={readOnly} />
-              <input type="text" value={typeof obj[p.sub] === 'string' || typeof obj[p.sub] === 'number' ? String(obj[p.sub]) : ''} readOnly={readOnly}
-                onChange={(e) => set(p.sub, e.target.value)} style={INPUT_STYLE} />
+              {p.sources && p.sources.length ? (
+                <LinkHrefControl label={p.label} sources={p.sources} value={obj[p.sub]} onChange={(v) => set(p.sub, v)} readOnly={readOnly} site={site} />
+              ) : (
+                <>
+                  <FieldLabel label={p.label} el="div" readOnly={readOnly} />
+                  <input type="text" value={typeof obj[p.sub] === 'string' || typeof obj[p.sub] === 'number' ? String(obj[p.sub]) : ''} readOnly={readOnly}
+                    onChange={(e) => set(p.sub, e.target.value)} style={INPUT_STYLE} />
+                </>
+              )}
             </div>
           ))}
         </div>
       );
     },
+  } as unknown as Field;
+}
+
+// #1686 —— 列表项里的一列字（价格块套餐的 `features`、features 块每项的 `bullets`）：能改、能加、能删、拖把手排序。
+//    值就是那个字符串数组本身（不包成 `{value}`）—— 画布点字（InlineEdit 按 `plans.0.features.2` 写回）和存盘（项整份携带）
+//    读写的都是同一份，JSON 形状不变。不是字符串的项（畸形数据）原样留着、那一格不可改。
+function StringListControl({ label, value, onChange, readOnly }: { label: string; value: unknown; onChange: (v: unknown[]) => void; readOnly?: boolean }) {
+  const list = Array.isArray(value) ? value : [];
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const move = (from: number, to: number) => {
+    if (from === to) return;
+    const next = list.slice();
+    const [x] = next.splice(from, 1);
+    next.splice(to, 0, x);
+    onChange(next);
+  };
+  const small = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } as const;
+  return (
+    <div data-editor-strings={label}>
+      <FieldLabel label={label} el="div" readOnly={readOnly} />
+      {list.map((v, i) => (
+        <div key={i} data-editor-strings-row={i}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+          onDrop={(e) => { e.preventDefault(); if (dragFrom !== null && !readOnly) move(dragFrom, i); setDragFrom(null); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, opacity: dragFrom === i ? 0.5 : 1 }}>
+          {/* 只有把手可拖：整行可拖的话，输入框里没法用鼠标选字（同 FormCopyEditor）。 */}
+          <span data-editor-strings-handle draggable={!readOnly} aria-hidden="true" title="Drag to reorder"
+            onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }}
+            onDragEnd={() => setDragFrom(null)}
+            style={{ cursor: readOnly ? 'default' : 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none' }}>⋮⋮</span>
+          <input data-editor-strings-input={i} type="text" value={typeof v === 'string' ? v : ''} readOnly={readOnly || typeof v !== 'string'}
+            aria-label={`${label} ${i + 1}`}
+            onChange={(e) => { const next = list.slice(); next[i] = e.target.value; onChange(next); }}
+            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }} />
+          {!readOnly && (
+            <button type="button" data-editor-strings-remove={i} aria-label={`Remove ${label} ${i + 1}`} title="Remove"
+              onClick={() => onChange(list.filter((_, j) => j !== i))} style={small}>✕</button>
+          )}
+        </div>
+      ))}
+      {!readOnly && (
+        <button type="button" data-editor-strings-add="" onClick={() => onChange([...list, ''])} style={small}>+ Add</button>
+      )}
+    </div>
+  );
+}
+
+function stringListField(label: string): Field {
+  return {
+    type: 'custom',
+    label,
+    render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown[]) => void; readOnly?: boolean }) => (
+      <StringListControl label={label} value={value} onChange={onChange} readOnly={readOnly} />
+    ),
   } as unknown as Field;
 }
 

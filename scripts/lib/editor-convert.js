@@ -139,6 +139,7 @@ function toProp(field, value) {
  * #1670 —— 列表项里一个对象被拆成几格平铺（价格块套餐的 `price` → Price / Yearly price，editor-schema.js §fieldsOf）：
  * 改其中一格之后，那个对象变成什么。只换那一个键、其余键原样；清空一格 ⟹ 删掉那个键（不留 `"yearly": ""`）；
  * 全清空 ⟹ undefined（整个键不写 —— 跟 AI 写的形状一样：没有价格就没有 `price`）。EditorApp 的输入框调的就是它。
+ * #1686 —— 项里的按钮 / 链接（`cta` / `link`）也走它：Link 那格的值可以是一个联系方式引用对象（`{source: "phone"}`），原样放进去。
  */
 function nestedPartSet(value, sub, text) {
   const next = isPlainObject(value) ? { ...value } : {};

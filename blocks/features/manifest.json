@@ -314,8 +314,11 @@
       "maxItems": 8,
       "shape": "[{number?, icon?, image?: {imageUrl, alt}, title, text, bullets?: [string], link?: {label, href, style?: \"solid\" | \"outline\" | \"link\", icon?, arrow?}}]",
       "editLabel": {
+        "number": "Number",
         "title": "Title",
-        "text": "Text"
+        "text": "Text",
+        "bullets": "Bullets",
+        "link.label": "Link text"
       }
     },
     "bg": { "ref": "bg" }

@@ -132,5 +132,35 @@ console.log('④ 写回：只换那一格，同列表别的项、别的键原样
   check(typedValue('two\nlines') === 'two lines', '粘贴进来的换行折成空格（单行字段）');
 }
 
+// ══ #1686 列表项里再套一列字 / 项里的按钮 ═══════════════════════════════════════════════════════════
+console.log('#1686 两层序号（plans.0.features.2）与项里的按钮（plans.0.cta.label）');
+{
+  const pricing = comp('pricing');
+  const props = { id: 'p', plans: [
+    { name: 'A', features: ['Full acupuncture treatment', 'Free consultation'], cta: { label: 'Book Appointment', href: '/c' } },
+    { name: 'B', features: ['', 'Tuina therapeutic massage', 'Free consultation'], cta: { label: 'Join', href: '/c' } },
+  ] };
+  const r1 = resolveInlineSlot({ component: pricing, props, slot: 'plans.0.features.0', text: 'Full acupuncture treatment' });
+  check(r1.ok && JSON.stringify(r1.path) === JSON.stringify(['plans', 0, 'features', 0]) && r1.typing && r1.ai, '一行 feature ⟹ plans[0].features[0]，能打字、出 AI', r1);
+  // 画布序号是筛过空行的：第二个套餐画出来的第 0 行是数据里的第 1 行 ⟹ 按内容找回
+  const r2 = resolveInlineSlot({ component: pricing, props, slot: 'plans.1.features.0', text: 'Tuina therapeutic massage' });
+  check(r2.ok && JSON.stringify(r2.path) === JSON.stringify(['plans', 1, 'features', 1]), '画布序号 ≠ 数据下标（空行被筛掉）⟹ 按内容对回 plans[1].features[1]', r2);
+  const r3 = resolveInlineSlot({ component: pricing, props, slot: 'plans.0.features.1', text: 'Free consultation' });
+  check(!r3.ok && r3.why === 'ambiguous', '两个套餐里一字不差的同一行 ⟹ 不让改（不猜）', r3);
+  const r4 = resolveInlineSlot({ component: pricing, props, slot: 'plans.0.features.0', text: 'Something else' });
+  check(!r4.ok && r4.why === 'mismatch', '内容对不上 ⟹ 不让改', r4);
+  const r5 = resolveInlineSlot({ component: pricing, props, slot: 'plans.1.cta.label', text: 'Join' });
+  check(r5.ok && JSON.stringify(r5.path) === JSON.stringify(['plans', 1, 'cta', 'label']), '按钮字 ⟹ plans[1].cta.label', r5);
+  const next = setAt(props, r1.path, 'Acupuncture');
+  check(JSON.stringify(next.plans[0].features) === JSON.stringify(['Acupuncture', 'Free consultation']) && next.plans[1] === props.plans[1], '写回只换那一行，还是字符串数组');
+  const feats = comp('features');
+  const r6 = resolveInlineSlot({ component: feats, props: { items: [{ title: 'x', bullets: ['a', 'b'] }] }, slot: 'items.0.bullets.1', text: 'b' });
+  check(r6.ok && r6.name === 'items.0.bullets.1', 'features 每项的小列表 ⟹ items[0].bullets[1]', r6);
+  // 星星里没有字：点到 ⟹ mismatch（工具条提示去右栏 Rating 格），不会把空串写进评分
+  const tn = comp('testimonials');
+  const r7 = resolveInlineSlot({ component: tn, props: { items: [{ quote: 'q', rating: 5 }] }, slot: 'items.0.rating', text: '' });
+  check(!r7.ok && r7.why === 'mismatch', '每条评价的星星（没有字）⟹ 不就地打字，提示去右栏', r7);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

@@ -320,7 +320,7 @@ console.log('\n── AC14 编辑器 schema');
   const opt = on && on.fields[0];
   check(!!opt && opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join() && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), '第一个字段：预设 3 个 → 六个旋钮');
   const pl = on && on.fields.find((f) => f.slot === 'platforms');
-  check(!!pl && pl.control === 'list' && pl.subs.map((x) => x.sub).join() === 'source,rating,count', `platforms 是列表字段、每项可改 source / rating / count（${pl ? pl.subs.map((x) => x.sub).join(' / ') : '—'}）`);
+  check(!!pl && pl.control === 'list' && pl.subs.map((x) => x.sub).join() === 'source,rating,count,href', `platforms 是列表字段、每项可改 source / rating / count / href（#1686 补了 href）（${pl ? pl.subs.map((x) => x.sub).join(' / ') : '—'}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[2].knobs) === 'Strip' && presetNameFor(man, { ...M.presets[2].knobs, itemStyle: 'plain' }) === 'custom', '点 Strip = 那一组旋钮；拧偏一个（itemStyle=plain）⟹ custom');
 }

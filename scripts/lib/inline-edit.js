@@ -89,6 +89,22 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
     if (hits.length === 0) return { ok: false, why: 'mismatch' };
     if (hits.length > 1) return { ok: false, why: 'ambiguous' };
     path = [...segs.slice(0, at), hits[0], ...rest];
+  } else if (nums.length === 2) {
+    // #1686 —— 列表项里再套一列字（`plans.0.features.2`、`items.1.bullets.0`）：两层序号都是画布上的（套餐、每一行都先筛过），
+    //    同一条规矩扩到两层 —— 在外层每一项的那一列里逐行比内容，全块恰好一行对得上才算数（两个套餐里有一字不差的同一行 ⟹ 不让改）。
+    const [a, b] = nums;
+    const list = getAt(props, segs.slice(0, a));
+    const mid = segs.slice(a + 1, b);
+    const rest = segs.slice(b + 1);
+    if (!Array.isArray(list)) return { ok: false, why: 'mismatch' };
+    const hits = [];
+    list.forEach((item, i) => {
+      const inner = getAt(item, mid);
+      if (Array.isArray(inner)) inner.forEach((x, j) => { if (norm(getAt(x, rest)) === shown) hits.push([i, j]); });
+    });
+    if (hits.length === 0) return { ok: false, why: 'mismatch' };
+    if (hits.length > 1) return { ok: false, why: 'ambiguous' };
+    path = [...segs.slice(0, a), hits[0][0], ...mid, hits[0][1], ...rest];
   } else {
     return { ok: false, why: 'ambiguous' };
   }

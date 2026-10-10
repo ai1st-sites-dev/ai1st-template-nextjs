@@ -37,9 +37,9 @@ function tmpdir(label) {
   return d;
 }
 
-let editorSchema; let slotCoverageProblems; let itemTopKeys; let convert; let blocksLib; let manifestLib; let catalogLib; let editorPage;
+let editorSchema; let slotCoverageProblems; let itemTopKeys; let itemShapeEntries; let convert; let blocksLib; let manifestLib; let catalogLib; let editorPage;
 try {
-  ({ editorSchema, slotCoverageProblems, itemTopKeys } = require('./lib/editor-schema.js'));
+  ({ editorSchema, slotCoverageProblems, itemTopKeys, itemShapeEntries } = require('./lib/editor-schema.js'));
   convert = require('./lib/editor-convert.js');
   blocksLib = require('./blocks.js');
   manifestLib = require('./lib/block-manifest.js');
@@ -104,7 +104,9 @@ console.log('② 字段两层比');
       // #1489 —— 列表槽**每一项**的词表（`itemChoices`，一格下拉）与 `itemNeeds` 点名的必填子字段（一格文字）也各算一个子字段。
       const itemSubs = f.kind === 'list'
         ? [...Object.keys((slots[f.slot] || {}).itemChoices || {}), ...Object.values((slots[f.slot] || {}).itemNeeds || {}).flat()] : [];
-      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...choiceSubs, ...itemSubs,
+      // #1686 —— 带点的 editLabel（`cta.label`）合成项里那个对象的一格（`cta`）；项形状里可选的 `href?` 多一格 Link。
+      const optHref = f.kind === 'list' && itemShapeEntries((slots[f.slot] || {}).shape).some((e) => e.key === 'href' && e.optional) ? ['href'] : [];
+      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub.split('.')[0]), ...choiceSubs, ...itemSubs, ...optHref,
         ...(f.kind === 'link' ? ['href'] : []), ...(special(f.slot) === 'formRef' ? ['id'] : []),
         // #1518 —— 项形状里必有 `href` 的列表槽（按钮列表）也多一个 `href`。哪几个槽算数由下面 #1518 那一节逐个钉死。
         ...(f.kind === 'list' && itemTopKeys((slots[f.slot] || {}).shape).includes('href') ? ['href'] : []),
@@ -1105,9 +1107,17 @@ console.log('\n#1518 按钮列表的 Link 格');
   for (const c of schema.components) for (const f of c.fields) {
     if (f.kind === 'list' && f.subs.some((x) => x.sub === 'href' && x.label === 'Link')) listWithLink.push(`${c.type}.${f.slot}`);
   }
-  const want = ['contact.items', 'content.ctas', 'cta.ctas', 'features.introCtas', 'hero.ctas', 'milestones.introCtas', 'page-header.ctas'];
-  check(JSON.stringify(listWithLink.sort()) === JSON.stringify(want), `有 Link 格的列表槽 = 六个按钮列表 + contact.items（${listWithLink.length}）`, listWithLink.join(' · '));
-  for (const k of want.slice(1)) {
+  // #1686 —— 项形状里有可选 `href?` 的三个（logos.items / reviews.platforms / testimonials.summary）也有了，不带 sources（§addOptionalHref）。
+  const optional = ['logos.items', 'reviews.platforms', 'testimonials.summary'];
+  const buttons = ['content.ctas', 'cta.ctas', 'features.introCtas', 'hero.ctas', 'milestones.introCtas', 'page-header.ctas'];
+  const want = ['contact.items', ...buttons, ...optional].sort();
+  check(JSON.stringify(listWithLink.sort()) === JSON.stringify(want), `有 Link 格的列表槽 = 六个按钮列表 + contact.items + 三个可选链接（${listWithLink.length}）`, listWithLink.join(' · '));
+  for (const k of optional) {
+    const [type, slot] = k.split('.');
+    const h = compOf(type).fields.find((x) => x.slot === slot).subs.find((x) => x.sub === 'href');
+    check(h && !h.sources, `${k} 的 Link 格不带本店电话 / 邮箱（不是按钮）`, JSON.stringify(h));
+  }
+  for (const k of buttons) {
     const [type, slot] = k.split('.');
     check(JSON.stringify(subsOf(type, slot)) === JSON.stringify(['label:Button text', 'href:Link']), `${k} 的子字段 = Button text + Link（顺序）`, JSON.stringify(subsOf(type, slot)));
   }
@@ -1120,7 +1130,8 @@ console.log('\n#1518 按钮列表的 Link 格');
   //   team.members 的 href 在项里再套一层的 links? 列表里
   //   📌 #1425（T3）—— 原来还有一臂 page-header.breadcrumbs（两项示例 `[{…}, {…}]`，不是项形状）；新 page-header 没有
   //      breadcrumbs 槽（面包屑按页面路径算），新库里也没有别的「示例写法」的列表槽，这一类反向臂今天没有对象。
-  for (const [type, slot] of [['testimonials', 'items'], ['features', 'items'], ['logos', 'items'], ['team', 'members']]) {
+  //   📌 #1686 —— logos.items 移出这一臂：可选 href? 起有了一格 Link（上面 optional 那三个）。
+  for (const [type, slot] of [['testimonials', 'items'], ['features', 'items'], ['team', 'members']]) {
     const got = subsOf(type, slot);
     check(Array.isArray(got) && !got.some((x) => x.startsWith('href:')), `${type}.${slot} 没有 Link 格`, JSON.stringify(got));
   }
@@ -1204,18 +1215,24 @@ console.log('\n#1670 价格块套餐的价格两格');
   for (const c of schema.components) for (const f of c.fields) for (const x of f.subs || []) {
     if (x.nested) nestedAt.push(`${c.type}.${f.slot}.${x.sub}=${x.nested.map((n) => `${f.slot}[*].${x.sub}.${n.sub}:${n.label}`).join('+')}`);
   }
-  check(JSON.stringify(nestedAt) === JSON.stringify(['pricing.plans.price=plans[*].price.monthly:Price+plans[*].price.yearly:Yearly price']),
-    '拆成几格的对象只有一处：pricing.plans 每项的 price → price.monthly「Price」+ price.yearly「Yearly price」', JSON.stringify(nestedAt));
+  // #1686 —— 又多两处：项里的按钮 / 链接（plans[*].cta、items[*].link）→ 文字一格 + Link 一格。
+  check(JSON.stringify(nestedAt) === JSON.stringify([
+    'features.items.link=items[*].link.label:Link text+items[*].link.href:Link',
+    'pricing.plans.price=plans[*].price.monthly:Price+plans[*].price.yearly:Yearly price',
+    'pricing.plans.cta=plans[*].cta.label:Button text+plans[*].cta.href:Link']),
+    '拆成几格的对象：pricing.plans 的 price（Price + Yearly price）· cta 与 features.items 的 link（文字 + Link）', JSON.stringify(nestedAt));
   const plansF = compOf('pricing').fields.find((f) => f.slot === 'plans');
-  check(plansF && plansF.control === 'list' && JSON.stringify(plansF.subs.map((x) => x.sub)) === JSON.stringify(['name', 'price', 'period', 'description', 'badge']),
+  check(plansF && plansF.control === 'list' && JSON.stringify(plansF.subs.map((x) => x.sub)) === JSON.stringify(['name', 'price', 'period', 'description', 'features', 'cta', 'badge']),
     'plans 仍是列表控件，price 排在 name 之后、period 之前（照项形状的键序）', JSON.stringify(plansF && plansF.subs.map((x) => x.sub)));
   // 反向：项形状里没有那个价格对象 ⟹ 不长这两格（形状判据分得开）；按钮对象 cta 不被当成价格拆格
   const { fieldsOf } = require('./lib/editor-schema.js');
   const pm = JSON.parse(JSON.stringify(manifests.get('pricing')));
   pm.slots.plans.shape = pm.slots.plans.shape.replace(/price:\s*\{monthly, yearly\?\},\s*/, '');
   const noPrice = fieldsOf(pm).find((f) => f.slot === 'plans');
-  check(noPrice && !noPrice.subs.some((x) => x.sub === 'price' || x.nested), '反向对照：项形状里去掉 price 对象 ⟹ 不长价格两格', JSON.stringify(noPrice && noPrice.subs));
-  check(!plansF.subs.some((x) => x.sub === 'cta'), 'cta 按钮对象不出格子（本票不做，正文「不做」第 1 条）');
+  check(noPrice && !noPrice.subs.some((x) => x.sub === 'price'), '反向对照：项形状里去掉 price 对象 ⟹ 不长价格两格', JSON.stringify(noPrice && noPrice.subs));
+  // 📌 #1686 —— 这里原来钉着「cta 按钮对象不出格子（#1670 不做）」；#1686 把它补上了，按钮那一格不被当成价格拆（没有 monthly）。
+  const ctaF = plansF.subs.find((x) => x.sub === 'cta');
+  check(ctaF && !ctaF.nested.some((n) => n.sub === 'monthly'), 'cta 按钮对象出的是文字 + Link，不是价格两格', JSON.stringify(ctaF));
 
   // AC2 下半：存盘往返。站上那份（site-3cd07ef6 首页价格块，取自 appdev 的形状）
   const plans = [
@@ -1256,6 +1273,123 @@ console.log('\n#1670 价格块套餐的价格两格');
   // 锁住的块：价格那一格也是只读（Puck 键 `plans[*].price`）
   const locked = convert.pageToPuck({ raw, blocks: raw.blocks, located: [{ at: 0, writable: false, reason: 'x' }], schema });
   check(locked.content[0].readOnly && locked.content[0].readOnly['plans[*].price'] === true, '锁住的价格块：plans[*].price 只读', JSON.stringify(locked.content[0].readOnly));
+}
+
+// ══ #1686：列表项里看得见的字段都有格子 + 列表项字段覆盖检查（itemFieldCoverageProblems）═══════════════════
+console.log('\n#1686 列表项里的字段：格子 + 覆盖检查');
+{
+  const { itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, fieldsOf } = require('./lib/editor-schema.js');
+  const subOf = (type, slot, sub) => {
+    const f = compOf(type).fields.find((x) => x.slot === slot);
+    return f && f.subs.find((x) => x.sub === sub);
+  };
+  // AC1：正文第一张表里每个字段都有对应的格子
+  const feat = subOf('pricing', 'plans', 'features');
+  check(feat && feat.strings === true && !feat.nested, 'pricing.plans 每项有 features（一列字：strings）', JSON.stringify(feat));
+  const cta = subOf('pricing', 'plans', 'cta');
+  check(cta && JSON.stringify(cta.nested.map((n) => [n.sub, n.label, !!n.sources])) === JSON.stringify([['label', 'Button text', false], ['href', 'Link', true]]),
+    'pricing.plans 每项有 cta 的文字（Button text）和链接（Link，能选本店电话 / 邮箱）', JSON.stringify(cta));
+  check(JSON.stringify(subOf('features', 'items', 'number')) === JSON.stringify({ sub: 'number', label: 'Number' }), 'features.items 每项有 number（一格文字）');
+  const bl = subOf('features', 'items', 'bullets');
+  check(bl && bl.strings === true, 'features.items 每项有 bullets（一列字：strings）', JSON.stringify(bl));
+  const ln = subOf('features', 'items', 'link');
+  check(ln && JSON.stringify(ln.nested.map((n) => [n.sub, n.label, !!n.sources])) === JSON.stringify([['label', 'Link text', false], ['href', 'Link', true]]),
+    'features.items 每项有 link 的文字（Link text）和链接（Link，能选本店电话 / 邮箱）', JSON.stringify(ln));
+  // PM 裁定 1：rating 跟 reviews.platforms.rating 今天一模一样（普通子字段格），不新造范围格子
+  check(JSON.stringify(subOf('testimonials', 'items', 'rating')) === JSON.stringify(subOf('reviews', 'platforms', 'rating')),
+    'testimonials.items 的 rating 跟 reviews.platforms.rating 是同一种格子', JSON.stringify([subOf('testimonials', 'items', 'rating'), subOf('reviews', 'platforms', 'rating')]));
+  for (const [type, slot] of [['reviews', 'platforms'], ['testimonials', 'summary'], ['logos', 'items']]) {
+    const h = subOf(type, slot, 'href');
+    check(h && h.label === 'Link' && !h.sources && !h.nested, `${type}.${slot} 每项有 href（一格链接，不带电话 / 邮箱选项）`, JSON.stringify(h));
+  }
+  // 画布点字：看得见的那几个都在 inline 清单里；number / rating 不出 AI 按钮（§isFactSlot 的现有规则）
+  const inl = (type) => new Map(compOf(type).inline.map((e) => [e.path, e]));
+  for (const [type, p] of [['pricing', 'plans.features'], ['pricing', 'plans.cta.label'], ['features', 'items.number'], ['features', 'items.bullets'], ['features', 'items.link.label'], ['testimonials', 'items.rating']]) {
+    check(inl(type).has(p) && inl(type).get(p).typing, `画布上 ${type}.${p} 在点字清单里`);
+  }
+  check(inl('features').get('items.number').ai === false && inl('testimonials').get('items.rating').ai === false, 'number / rating 不出 AI 按钮');
+  check(inl('pricing').get('plans.features').ai && inl('pricing').get('plans.cta.label').ai, 'features / 按钮字出 AI 按钮（文案）');
+
+  // AC2：检查今天报 0
+  const p0 = itemFieldCoverageProblems(schema, manifests);
+  check(p0.length === 0, '列表项里每个字段要么有格子、要么在豁免名单里（今天 0 条）', p0.join(' / '));
+  // AC2：「名单在、格子还没补」⟹ 报出的正好是第一张表（先证明它量得到）。拿今天的 schema 把本票补的那几格摘掉。
+  const FIRST_TABLE = ['pricing.plans.features', 'pricing.plans.cta', 'features.items.number', 'features.items.bullets', 'features.items.link',
+    'testimonials.items.rating', 'reviews.platforms.href', 'testimonials.summary.href', 'logos.items.href'];
+  const unfilled = JSON.parse(JSON.stringify(schema));
+  for (const id of FIRST_TABLE) {
+    const [type, slot, sub] = id.split('.');
+    const f = unfilled.components.find((c) => c.type === type).fields.find((x) => x.slot === slot);
+    f.subs = f.subs.filter((x) => x.sub !== sub);
+  }
+  const pU = itemFieldCoverageProblems(unfilled, manifests);
+  check(JSON.stringify([...pU].sort()) === JSON.stringify([...FIRST_TABLE].sort()), `格子没补 ⟹ 报出的正好是第一张表（${pU.length} 条，不多不少）`, pU.join(' / '));
+  // AC2：往一个块的列表项 shape 里随便加一个字段、不给格子也不进名单 ⟹ 红，点名它
+  const dir = tmpdir('blocks-item-field');
+  cp.execSync(`cp -a "${path.join(NEXT, 'blocks')}/." "${dir}"`);
+  const mf = path.join(dir, 'pricing', 'manifest.json');
+  const j = JSON.parse(fs.readFileSync(mf, 'utf-8'));
+  j.slots.plans.shape = j.slots.plans.shape.replace(/badge\?\}\]$/, 'badge?, ribbon?}]');
+  fs.writeFileSync(mf, JSON.stringify(j, null, 2));
+  const mm = manifestLib.loadManifests(dir);
+  const pR = itemFieldCoverageProblems(editorSchema({ blocksDir: dir }), mm);
+  check(JSON.stringify(pR) === JSON.stringify(['pricing.plans.ribbon']), '反向：plans 的项形状加一个 ribbon?（没格子、没进名单）⟹ 点名 pricing.plans.ribbon', pR.join(' / '));
+  // 名单那一侧：一条豁免在形状里找不到 / 已经有格子了，都点名（名单不许比现实多）
+  const pS = itemFieldCoverageProblems(schema, manifests, { ...ITEM_FIELD_EXEMPT, 'pricing.plans.ghost': 'x' });
+  check(pS.length === 1 && pS[0].startsWith('pricing.plans.ghost'), '反向：名单里多一条形状里没有的 ⟹ 点名它', pS.join(' / '));
+  const pT = itemFieldCoverageProblems(schema, manifests, { ...ITEM_FIELD_EXEMPT, 'pricing.plans.features': 'x' });
+  check(pT.length === 1 && pT[0].startsWith('pricing.plans.features'), '反向：名单里写了一个已经有格子的 ⟹ 点名它', pT.join(' / '));
+  // 名单按「块.列表.字段」逐条：同名字段在别的块上不被顺带放过（ITEM_FIELD_EXEMPT 有 features.items.icon，不等于 pricing.plans.icon）
+  const fake = JSON.parse(JSON.stringify(manifests.get('pricing')));
+  fake.slots.plans.shape = fake.slots.plans.shape.replace(/badge\?\}\]$/, 'badge?, icon?}]');
+  const pI = itemFieldCoverageProblems({ components: schema.components.map((c) => (c.type === 'pricing' ? { ...c, fields: fieldsOf(fake) } : c)) },
+    new Map([...manifests].map(([t, m]) => [t, t === 'pricing' ? fake : m])));
+  check(JSON.stringify(pI) === JSON.stringify(['pricing.plans.icon']), '反向：pricing.plans 加一个 icon?（别的块的 icon 在名单里）⟹ 照样点名', pI.join(' / '));
+  // 正文第二张表 == 名单（逐条），名单 48 - 9 = 39 条
+  check(Object.keys(ITEM_FIELD_EXEMPT).length === 39 && Object.values(ITEM_FIELD_EXEMPT).every((r) => typeof r === 'string' && r.trim()), `豁免名单 ${Object.keys(ITEM_FIELD_EXEMPT).length} 条，每条带理由`);
+
+  // AC3：存盘往返 —— 改一行 feature、改按钮字，页面 JSON 里只有那两处变了，其余字段逐字不变
+  const plans = [
+    { name: 'Acupuncture + Tuina', price: { monthly: '$80' }, period: 'per visit', description: 'Full session', features: ['Full acupuncture treatment', 'Tuina therapeutic massage', 'Improved circulation & mobility'], cta: { label: 'Book Appointment', href: '/contact', style: 'solid' } },
+    { name: 'Membership', price: { monthly: '$49', yearly: '$39' }, period: '/ month', description: 'Monthly care', features: ['Two visits'], cta: { label: 'Join', href: { source: 'phone' } }, featured: true, badge: 'Most popular' },
+  ];
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-pricing-0', type: 'pricing', data: { headline: 'Prices', plans, highlights: [{ icon: 'leaf', title: 'Calm', text: 'x' }] } }] };
+  check(convert.deepEqual(roundTrip(raw), raw), '价格块（带 features / 按钮 / 电话引用）：打开就存，deepEqual');
+  const { initial, data } = openPage(raw);
+  const c = data.content.find((x) => x.type === 'pricing');
+  check(Array.isArray(c.props.plans[0].features) && c.props.plans[0].features[0] === 'Full acupuncture treatment', 'Puck 里 features 就是那个字符串数组（不包成 {value}）');
+  // 面板：Features 那一列改第一行（StringListControl 交回的就是新数组）；Button text 那一格改字（nestedPartSet）
+  c.props.plans[0].features = ['Full acupuncture & cupping', ...c.props.plans[0].features.slice(1)];
+  c.props.plans[0].cta = convert.nestedPartSet(c.props.plans[0].cta, 'label', 'Book now');
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const want = JSON.parse(JSON.stringify(raw));
+  want.blocks[0].data.plans[0].features[0] = 'Full acupuncture & cupping';
+  want.blocks[0].data.plans[0].cta.label = 'Book now';
+  check(convert.deepEqual(out, want), '改一行 feature + 改按钮字 ⟹ 只有那两处变了（cta 的 href / style、另一个套餐、其余槽位逐字不变）', JSON.stringify(out.blocks[0].data.plans[0]));
+  // 按钮的 Link 格选「Business phone」：引用对象原样放进 href，label / style 不动
+  const { initial: i2, data: d2 } = openPage(raw);
+  const c2 = d2.content.find((x) => x.type === 'pricing');
+  c2.props.plans[0].cta = convert.nestedPartSet(c2.props.plans[0].cta, 'href', { source: 'email' });
+  c2.props.plans[0].features = [...c2.props.plans[0].features, ''].filter((_, k) => k !== 1); // 加一行空的、删第二行
+  const o2 = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' }).blocks[0].data.plans[0];
+  check(JSON.stringify(o2.cta) === JSON.stringify({ label: 'Book Appointment', href: { source: 'email' }, style: 'solid' }), 'Link 选本店邮箱 ⟹ href 写成 {source: "email"}，label / style 原样', JSON.stringify(o2.cta));
+  check(JSON.stringify(o2.features) === JSON.stringify(['Full acupuncture treatment', 'Improved circulation & mobility', '']), '删一行、加一行 ⟹ 还是字符串数组', JSON.stringify(o2.features));
+  // features 块：编号 / 小列表 / 链接
+  const items = [{ number: '01', title: 'Book', text: 't', bullets: ['a', 'b'], link: { label: 'Learn more', href: '/x', arrow: true }, icon: 'leaf' }];
+  const rawF = { slug: 'home', title: 'T', blocks: [{ id: 'home-features-0', type: 'features', data: { headline: 'H', items } }] };
+  check(convert.deepEqual(roundTrip(rawF), rawF), 'features 块（带 number / bullets / link / icon）：打开就存，deepEqual');
+  const { initial: i3, data: d3 } = openPage(rawF);
+  const c3 = d3.content.find((x) => x.type === 'features');
+  c3.props.items[0].number = '1';
+  c3.props.items[0].bullets = ['b', 'a'];
+  c3.props.items[0].link = convert.nestedPartSet(c3.props.items[0].link, 'label', 'Read');
+  const o3 = convert.puckToPage({ raw: rawF, data: d3, initial: i3, schema, slug: 'home' }).blocks[0].data.items[0];
+  check(JSON.stringify(o3) === JSON.stringify({ number: '1', title: 'Book', text: 't', bullets: ['b', 'a'], link: { label: 'Read', href: '/x', arrow: true }, icon: 'leaf' }),
+    '改编号 / 小列表排序 / 链接字 ⟹ 只有这三处变，icon / arrow / 键序原样', JSON.stringify(o3));
+  // 锁住的块：新格子也是只读
+  const locked = convert.pageToPuck({ raw, blocks: raw.blocks, located: [{ at: 0, writable: false, reason: 'x' }], schema });
+  const ro = locked.content[0].readOnly || {};
+  check(ro['plans[*].features'] === true && ro['plans[*].cta'] === true, '锁住的价格块：plans[*].features / plans[*].cta 只读', JSON.stringify(ro));
 }
 
 console.log(`\n${pass} 过 · ${fail} 败`);
