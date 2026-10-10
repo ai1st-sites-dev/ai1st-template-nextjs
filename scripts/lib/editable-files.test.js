@@ -71,7 +71,6 @@ const canWrite = (p) => writeRejection(p) === null;
   //   「在页面编辑器里改」+ 一句祈使「别自己写」（#1096 B2：祈使那半才是行为差异的来源）。
   const PAGE_LAYOUT_ALSO = [
     'the "standard" layout',            // ① 说清缺文件时的真实行为
-    '"Edit page"',                      // ② 承重：dashboard 上那个按钮的原文（EditPage.tsx）
     'do not write this file yourself',  // ③ 祈使：这条路不写它
   ];
   const problems = [];
@@ -204,7 +203,7 @@ const canWrite = (p) => writeRejection(p) === null;
     { mustNot: 'It is auto-regenerated from page metadata.',
       why: 'SYSTEM_PROMPT 里那句「整份由页面元数据自动重建」又回来了 —— header.cta 恰恰不是' },
     // page-layout.json —— #1405 之后的真话：在页面编辑器里改（原来钉的是「没人改得了」，那句本票之后是假的）
-    { must: 'the owner changes it in the page editor: "Edit page", then "Page layout (whole website)"',
+    { must: 'the owner changes it in the page editor: "Page layout (whole website)" on the right',
       why: 'SYSTEM_PROMPT 没把老板指到页面编辑器 —— 模型会说布局换不了，而编辑器里就能换' },
     { mustNot: 'nothing in the product changes it today',
       why: 'SYSTEM_PROMPT 里「没人改得了 page-layout.json」又回来了 —— #1405 之后页面编辑器写它' },
@@ -666,8 +665,8 @@ const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigat
   }
 }
 
-// ── ⑪ #1405 —— 给模型的那两个名字在界面上真的存在 ────────────────────────────────────────────
-// page-layout.json 的理由把老板指到「Edit page」→「Page layout (whole website)」。哪一个改了名，
+// ── ⑪ #1405 —— 给模型的那个名字在界面上真的存在 ──────────────────────────────────────────────
+// page-layout.json 的理由把老板指到「Page layout (whole website)」。它一改名，
 // 这句话就又成了指向一个不存在的地方（#1087 r3 治过的同一个病），所以拿界面源码当被审对象。
 {
   const fsx = require('fs');
@@ -681,12 +680,6 @@ const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigat
   const inLabels = editorSrc.includes(`layout: '${field}'`) && editorSrc.includes('label: ROOT_FIELD_LABELS.layout');
   if (why.includes(field) && (editorSrc.includes(`label: '${field}'`) || inLabels)) ok(`⑪ 「${field}」是编辑器里那个 root 字段的原文`);
   else bad(`⑪ 理由里的「${field}」在 EditorApp.tsx 的 root 字段里找不到（或理由里没有它）`);
-  // dashboard 那个按钮住在模板外面（dashboard/src）；模板单独发布时它不在，那时这一半跳过、不当成通过。
-  const dash = pathx.join(tpl, '..', '..', 'dashboard', 'src', 'pages', 'sites', 'EditPage.tsx');
-  if (fsx.existsSync(dash)) {
-    if (why.includes('"Edit page"') && fsx.readFileSync(dash, 'utf-8').includes("'Edit page'")) ok('⑪ 「Edit page」是 dashboard 上那个按钮的原文');
-    else bad('⑪ 理由里的「Edit page」在 dashboard 的 EditPage.tsx 里找不到');
-  } else console.log('  ⏭  ⑪ dashboard 不在这棵树里（模板单独发布），「Edit page」那一半没量');
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
