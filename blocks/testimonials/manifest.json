@@ -211,7 +211,8 @@
       "editLabel": {
         "source": "Review site",
         "rating": "Rating",
-        "count": "Number of reviews"
+        "count": "Number of reviews",
+        "logoUrl": "Logo"
       },
       "demo": [
         {

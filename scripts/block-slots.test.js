@@ -139,7 +139,8 @@ const EXTRA = {
   // #1488 —— 总评分那一行只在 `summary.rating` 是一个真数字（0–5）时画；夹具造的 `summary-rating` 画不出来。
   //    #1500 —— summary 改成一组平台：每个平台要 rating 0–5、count 正数才画，所以整份给（同下面 reviews 那条）。
   //    #1686 —— 每条评价的星星只在 rating 是 1–5 时画（夹具造的 `items-0-rating` 画不出来）。
-  'testimonials': { _item: { rating: 5 }, summary: [{ source: 'summary-0-source', rating: 4.5, count: 10 }, { source: 'summary-1-source', rating: 4, count: 3 }] },
+  //    #1694 —— 平台 logo 只在上传了 `logoUrl` 时是一张 `<img>`（否则是内置图标 / 名字），那条 data-slot 挂在图上 ⟹ 给一张。
+  'testimonials': { _item: { rating: 5 }, summary: [{ source: 'summary-0-source', rating: 4.5, count: 10, logoUrl: '/s0.png' }, { source: 'summary-1-source', rating: 4, count: 3, logoUrl: '/s1.png' }] },
   // #1495 —— 照片墙的每一项没有图就不画（`slots.items.itemRequires`，validateSite 也拦）。
   'gallery': { _item: { image: { imageUrl: '/a.png', alt: '' } } },
   // #1536 —— logo 条目没有 `imageUrl` 就丢掉；一条都不剩时整块不画（做什么 2 ③）。items 槽不带 editLabel，
@@ -147,7 +148,8 @@ const EXTRA = {
   'logos': { items: [{ imageUrl: '/a.png', alt: '' }] },
   // #1504 —— 平台那一格只在 rating 是 0–5 的数、count 是正数时画（夹具造的 `platforms-0-rating` 画不出来 —— 它会盖掉 `_item`，
   //    所以整份给）。
-  'reviews': { platforms: [{ source: 'platforms-0-source', rating: 4.5, count: 10 }, { source: 'platforms-1-source', rating: 4, count: 3 }] },
+  //    #1694 —— 同 testimonials：平台 logo 那条 data-slot 挂在上传的 `<img>` 上 ⟹ 给 `logoUrl`。
+  'reviews': { platforms: [{ source: 'platforms-0-source', rating: 4.5, count: 10, logoUrl: '/p0.png' }, { source: 'platforms-1-source', rating: 4, count: 3, logoUrl: '/p1.png' }] },
 };
 
 // #1463 —— 同一个块、互斥的两支：hero 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。
@@ -195,7 +197,14 @@ function fixtureFor(type, manifest) {
         break;
       case 'object':
         // #1693 —— 一张图的对象槽（hero.image 那种）：造一张真图，不然组件不画 `<img>`、它那条 data-slot 无从谈起。
-        data[slot] = isOneImage(s.shape) ? { ...FIXTURE_IMG } : Object.fromEntries(subs.map((k) => [k, `${slot}-${k}`]));
+        //    #1694 —— 带点的（`avatars.imageUrl`）是对象里包着的一列图：造 LIST_ITEMS 项、每项那个键一张图，不写成平键 "avatars.imageUrl"。
+        data[slot] = isOneImage(s.shape) ? { ...FIXTURE_IMG } : {};
+        if (!isOneImage(s.shape)) {
+          for (const k of subs) {
+            const [head, tail] = k.split('.');
+            data[slot][head] = tail ? Array.from({ length: LIST_ITEMS }, (_, i) => ({ [tail]: `/${slot}-${head}-${i}.png` })) : `${slot}-${k}`;
+          }
+        }
         break;
       case 'image':
         data[slot] = s.shape && s.shape.startsWith('[') ? ['/a.png'] : '/a.png';

@@ -415,11 +415,6 @@ function checkManifestShape(name, m) {
     if (typeof s.required !== 'boolean') bad(`slots.${slot}.required 必须是 true/false（现在是 ${JSON.stringify(s.required)}）`);
     if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
     if (s.shape !== undefined && !isStr(s.shape)) bad(`slots.${slot}.shape 有的话必须是非空字符串`);
-    // #1463 —— `editItems: true`：一个没有可改文字的列表槽（纯图片的 `hero.band`），编辑器里照样给它
-    //    一个列表字段 —— 能挪、能删，每项整份原样带着。不写就跟今天一样不出字段（`hero.imageBand` 不受影响）。
-    if (s.editItems !== undefined && (s.editItems !== true || s.kind !== 'list' || s.editLabel !== undefined)) {
-      bad(`slots.${slot}.editItems 只能写 true，而且只给没有 editLabel 的 list 槽`);
-    }
     // #1475 —— 槽级条数上下限（validateSite ⑨ 据它拦）：只给列表槽，非负整数，下限不大于上限。
     //    写成字符串 `"8"` 的失败方向是静默的（`Number.isInteger` 不认 ⟹ 那道检查整个不跑），所以在这儿当场拒。
     for (const key of ['minItems', 'maxItems']) {
@@ -438,6 +433,16 @@ function checkManifestShape(name, m) {
     }
     if (Number.isInteger(s.minItems) && Number.isInteger(s.maxItems) && s.minItems > s.maxItems) {
       bad(`slots.${slot}.minItems（${s.minItems}）大于 maxItems（${s.maxItems}）`);
+    }
+    // #1694 —— `listMax: { 列表键: 正整数 }`：对象槽里包着的列表最多几项（`hero.logos` 的 `{ items: 6 }`、`proof` 的
+    //    `{ avatars: 4 }`）。`maxItems` 只给 list 槽，对象里的列表没地方写；块据它截（Section.tsx），编辑器面板据它把
+    //    「+ Add」灰掉 —— 两边读同一个数，面板上加得进去的就画得出来。写歪了（键不是形状里的一列 / 不是正整数）的失败方向
+    //    是静默的（两边都读不到 ⟹ 页面不截、面板不封顶），所以这里当场拒。
+    if (s.listMax !== undefined) {
+      const okShape = s.listMax && typeof s.listMax === 'object' && !Array.isArray(s.listMax)
+        && Object.entries(s.listMax).every(([k, n]) => /^[A-Za-z0-9_]+$/.test(k) && Number.isInteger(n) && n >= 1
+          && typeof s.shape === 'string' && new RegExp(`[{,]\\s*${k}\\s*:\\s*\\[`).test(s.shape));
+      if (!okShape || s.kind !== 'object') bad(`slots.${slot}.listMax 只能写 { 列表键: 正整数 }，键必须是 shape 里的一列，而且只给 object 槽（现在是 ${JSON.stringify(s.listMax)}，kind ${s.kind}）`);
     }
     // #1483 —— `maxTrue`：list 槽里每项的某个布尔子字段最多几项为 true（`pricing.plans` 的 `{ featured: 1 }`：
     //    最多一个高亮套餐）。validateSite ⑨ 据它拦；形状 `{ 子字段: 正整数 }`，只给 list 槽。

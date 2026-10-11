@@ -15,6 +15,7 @@
 //
 // #1693 —— 图片格（`entry.image`，画布上是 `<img data-slot="items.2.image">`）同一条规矩，「内容」换成图的地址：
 //    调用方把 `<img>` 的 `src` 当 `text` 交进来，跟数据里那一项的 `imageUrl` 比（gallery 先筛掉没图的项，序号同样不可信）。
+// #1694 —— 成排的图那一格的值是地址字符串本身（`logos.items.2.imageUrl`、`platforms.0.logoUrl`），直接跟它比。
 //
 // 🔴 两种块点不动（画布上照样有 `data-slot`）：
 //    · 列表写成引用的（`items: { source: "services" }`）：判据是展开时写下的 `data._sourced`（item-sources.js），
@@ -75,8 +76,9 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
   if (locked) return { ok: false, why: 'locked' };
   if (sourced.includes(segs[0])) return { ok: false, why: 'sourced', slot: segs[0] };
   const shown = norm(text);
-  // 比内容用的那一格：字就是它自己；图片格是那个图片对象的 `imageUrl`。
-  const key = (v) => (entry.image ? norm(v !== null && typeof v === 'object' ? v.imageUrl : undefined) : norm(v));
+  // 比内容用的那一格：字就是它自己；图片格是那个图片对象的 `imageUrl`（#1694：值本身就是地址字符串时比它自己）。
+  const urlOf = (v) => (typeof v === 'string' ? v : v !== null && typeof v === 'object' ? v.imageUrl : undefined);
+  const key = (v) => (entry.image ? norm(urlOf(v)) : norm(v));
   const nums = segs.map((s, i) => (/^\d+$/.test(s) ? i : -1)).filter((i) => i >= 0);
   let path;
   if (nums.length === 0) {
@@ -113,7 +115,7 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
   } else {
     return { ok: false, why: 'ambiguous' };
   }
-  const value = entry.image ? getAt(props, [...path, 'imageUrl']) : getAt(props, path);
+  const value = entry.image ? urlOf(getAt(props, path)) : getAt(props, path);
   return {
     ok: true,
     path,

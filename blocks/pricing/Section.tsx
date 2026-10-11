@@ -77,11 +77,11 @@ interface Props {
 }
 
 // plans 1–4、highlights 1–4（manifest `slots.<槽>.maxItems`，validateSite 拦超出的）。演示内容包按守卫 (c)
-// 给 6 条，多出来的在这里截掉。头像 4 个、logo 6 个同 hero。
+// 给 6 条，多出来的在这里截掉。头像 4 个、logo 6 个同 hero —— #1694 起从 manifest 的 `listMax` 读（编辑器面板读同一个数）。
 const MAX_PLANS = manifest.slots.plans.maxItems;
 const MAX_HIGHLIGHTS = manifest.slots.highlights.maxItems;
-const MAX_AVATARS = 4;
-const MAX_LOGOS = 6;
+const MAX_AVATARS = manifest.slots.proof.listMax.avatars;
+const MAX_LOGOS = manifest.slots.logos.listMax.items;
 
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
@@ -174,7 +174,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
               {imgs(proof.avatars).length ? (
                 <div className="d-flex">
                   {imgs(proof.avatars).slice(0, MAX_AVATARS).map((a, i) => (
-                    slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover pr-avatar' } })
+                    slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover pr-avatar' }, slot: `proof.avatars.${i}.imageUrl` })
                   ))}
                 </div>
               ) : null}
@@ -192,7 +192,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                 <div className="text-sm text-muted mb-3" data-slot="logos.caption">{d.logos.caption}</div>
               ) : null}
               <div className="pr-logo-row d-flex flex-wrap align-items-center gap-4">
-                {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'pr-logo' } }))}
+                {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'pr-logo' }, slot: `logos.items.${i}.imageUrl` }))}
               </div>
             </div>
           ) : null}

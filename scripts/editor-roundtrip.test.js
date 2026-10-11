@@ -80,14 +80,13 @@ console.log('② 字段两层比');
     const c = compOf(m.type);
     if (!c) { problems.push(`${m.type} 整块缺`); continue; }
     const esp = manifestLib.editableSlotPaths(m);
-    // #1463 —— 另外三种槽位也出字段，判据全从 manifest 读：`kind: color`（色板）、声明了 `knobs` 的
-    //    `options`（预设 + 旋钮）、`editItems: true` 的列表（纯图片、只能挪 / 删）。
+    // #1463 —— 另外几种槽位也出字段，判据全从 manifest 读：`kind: color`（色板）、声明了 `knobs` 的
+    //    `options`（预设 + 旋钮）。📌 #1463 的 `editItems: true`（纯图片列表、只能挪 / 删）#1694 退役：那两列现在标 editLabel、是一列图。
     const slots = m.slots || {};
     const special = (slot) => {
       const sp = slots[slot] || {};
       if (sp.kind === 'color') return 'color';
       if (slot === 'options' && Array.isArray(sp.knobs) && sp.knobs.length) return 'options';
-      if (sp.editItems === true) return 'items';
       // #1471 —— 选站级表单的槽（`form: { id? }`）：一个对象字段、子字段只有 id（编辑器画成表单下拉）。
       if (slot === 'form' && sp.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(sp.shape || ''))) return 'formRef';
       if (Array.isArray(sp.intRange) && typeof sp.editLabel === 'string') return 'int'; // #1497 —— 整数设置（postCount）
@@ -108,7 +107,11 @@ console.log('② 字段两层比');
         ? [...Object.keys((slots[f.slot] || {}).itemChoices || {}), ...Object.values((slots[f.slot] || {}).itemNeeds || {}).flat()] : [];
       // #1686 —— 带点的 editLabel（`cta.label`）合成项里那个对象的一格（`cta`）；项形状里可选的 `href?` 多一格 Link。
       const optHref = f.kind === 'list' && itemShapeEntries((slots[f.slot] || {}).shape).some((e) => e.key === 'href' && e.optional) ? ['href'] : [];
-      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub.split('.')[0]), ...choiceSubs, ...itemSubs, ...optHref,
+      // #1694 —— 一列图（项的顶层键只有 imageUrl + alt? + href?，editLabel 标了 imageUrl）：图的名字 / 说明 `alt` 也是一格。
+      const rowKeys = itemShapeEntries((slots[f.slot] || {}).shape).map((e) => e.key);
+      const rowAlt = f.kind === 'list' && rowKeys.includes('imageUrl') && rowKeys.includes('alt') && rowKeys.every((k) => ['imageUrl', 'alt', 'href'].includes(k))
+        && esp.some((e) => e.slot === f.slot && e.sub === 'imageUrl') ? ['alt'] : [];
+      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub.split('.')[0]), ...choiceSubs, ...itemSubs, ...optHref, ...rowAlt,
         ...(f.kind === 'link' ? ['href'] : []), ...(special(f.slot) === 'formRef' ? ['id'] : []),
         // #1518 —— 项形状里必有 `href` 的列表槽（按钮列表）也多一个 `href`。哪几个槽算数由下面 #1518 那一节逐个钉死。
         ...(f.kind === 'list' && itemTopKeys((slots[f.slot] || {}).shape).includes('href') ? ['href'] : []),
@@ -118,7 +121,7 @@ console.log('② 字段两层比');
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
       const sp = special(f.slot);
-      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list' : sp === 'formRef' ? 'object' : sp === 'int' ? 'int' : sp === 'image' ? 'image'
+      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'formRef' ? 'object' : sp === 'int' ? 'int' : sp === 'image' ? 'image'
         : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : f.kind === 'richtext' ? 'richtext' : 'text') : (f.kind === 'list' ? 'list' : 'object');
       if (f.control !== wantControl) problems.push(`${m.type}.${f.slot} 控件 ${f.control} ≠ ${wantControl}（kind ${f.kind}）`);
       paths += f.subs.length || 1;
@@ -1351,8 +1354,9 @@ console.log('\n#1686 列表项里的字段：格子 + 覆盖检查');
     new Map([...manifests].map(([t, m]) => [t, t === 'pricing' ? fake : m])));
   check(JSON.stringify(pI) === JSON.stringify(['pricing.plans.icon']), '反向：pricing.plans 加一个 icon?（别的块的 icon 在名单里）⟹ 照样点名', pI.join(' / '));
   // 正文第二张表 == 名单（逐条），名单 48 - 9 = 39 条；#1693 给「一个位置一张」的 4 条图（features / gallery / team / testimonials
-  //    每项的图）补了格子、从名单删掉 ⟹ 35 条（逐条读数在 editor-images.test.js ①）。
-  check(Object.keys(ITEM_FIELD_EXEMPT).length === 35 && Object.values(ITEM_FIELD_EXEMPT).every((r) => typeof r === 'string' && r.trim()), `豁免名单 ${Object.keys(ITEM_FIELD_EXEMPT).length} 条，每条带理由`);
+  //    每项的图）补了格子、从名单删掉 ⟹ 35 条（逐条读数在 editor-images.test.js ①）；#1694 给成排的图那 6 条补了格子 ⟹ 29 条
+  //    （逐条读数在 editor-image-rows.test.js）。
+  check(Object.keys(ITEM_FIELD_EXEMPT).length === 29 && Object.values(ITEM_FIELD_EXEMPT).every((r) => typeof r === 'string' && r.trim()), `豁免名单 ${Object.keys(ITEM_FIELD_EXEMPT).length} 条，每条带理由`);
 
   // AC3：存盘往返 —— 改一行 feature、改按钮字，页面 JSON 里只有那两处变了，其余字段逐字不变
   const plans = [

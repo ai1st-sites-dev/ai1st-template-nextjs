@@ -1,4 +1,11 @@
 // #1404 —— `editor-schema.js` 产物的结构（编辑器页是 TypeScript，客户端那一半照它拼 Puck config）。
+export interface EditorSub {
+  sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; strings?: boolean;
+  image?: boolean; url?: boolean; optional?: boolean; nested?: { sub: string; label: string; sources?: string[] }[];
+  imageRow?: boolean; subs?: EditorSub[];
+  /** #1694 —— `imageRow` 子字段的条数上限（manifest 对象槽的 `listMax`；没写就不带） */
+  max?: number;
+}
 export interface EditorField {
   slot: string;
   kind: string;
@@ -17,7 +24,14 @@ export interface EditorField {
   /** `strings` 是 true 的子字段是项里的一列字（#1686，`plans[].features` / `items[].bullets`）：值是字符串数组，能加 / 删 / 排序 */
   /** `nested` 的某一格带 `sources`：项里按钮 / 链接对象的 Link 格（#1686，`plans[].cta.href` / `items[].link.href`） */
   /** `image` 是 true 的子字段是项里的一张图（#1693，`items[].image` / `members[].photo`）；`optional` = 项形状里那个键带 `?`（有 Remove） */
-  subs: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; strings?: boolean; image?: boolean; optional?: boolean; nested?: { sub: string; label: string; sources?: string[] }[] }[];
+  /** `url` 是 true（#1694）：那张图的值是一个地址字符串（`platforms[].logoUrl`、一列图每项的 `imageUrl`），没有说明 */
+  /** `imageRow` 是 true 的子字段是对象里包着的一列图（#1694，`logos.items` / `proof.avatars`）：它自己的 `subs` 是每项的格子 */
+  subs: EditorSub[];
+  /** #1694 —— list 是一列图（项本身就是一张图：`logos.items`、`hero.band`）：缩略图 + Change + 名字 / 说明 + 链接，加的时候先选图 */
+  imageRow?: boolean;
+  /** #1694 —— 带图的列表的条数上下限（manifest `minItems` / `maxItems`；没写就不带） */
+  min?: number;
+  max?: number;
   /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
   summary?: string[];
   /** color：预设色板（`#rrggbb` / `brand`） */
@@ -44,6 +58,8 @@ export interface EditorInlineSlot {
   ai: boolean;
   /** #1693 —— 这一格是一张图（`<img data-slot>`）：点它 = 选图，不打字、不出 AI 按钮 */
   image?: boolean;
+  /** #1694 —— 成排的图那一格：值是地址字符串（`logos.items.2.imageUrl`），不是 `{imageUrl, alt}` 对象 */
+  url?: boolean;
 }
 export interface EditorComponent {
   type: string;

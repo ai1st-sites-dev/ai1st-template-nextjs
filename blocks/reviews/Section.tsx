@@ -108,7 +108,7 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
     if (l.kind === 'image') {
       return (
         <span className="rv-logo rv-logo-img" data-part="logo" data-logo="image">
-          <img src={l.logoUrl} alt={p.source} loading="lazy" />
+          <img src={l.logoUrl} alt={p.source} loading="lazy" data-slot={`platforms.${i}.logoUrl`} />
           {hidden}
         </span>
       );

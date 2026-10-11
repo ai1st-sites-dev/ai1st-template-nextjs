@@ -227,6 +227,47 @@ console.log('\n── AC6 对齐');
     'introAlign=center ⟹ highlights 排成一排；right ⟹ 图标在右（行反向）');
 }
 
+// ══ #1694：编辑器面板最多几张 = 页面最多画几张 ══════════════════════════════════════════════════════
+// QA2 退回：头像 4 / logo 6 写死在 Section 里 ⟹ 面板「+ Add」不灰，加到第 7 个 logo 存了却不画。现在两边读 manifest 的
+// `listMax`。给 max 张画 max 张、给 max+1 张还是 max 张 ⟹ 截断点恰好是面板上限（hero-render.test.js 同一段）。
+console.log('\n── #1694 面板上限 = 画出来的张数');
+{
+  const { fieldsOf } = require(path.join(NEXT, 'scripts', 'lib', 'editor-schema.js'));
+  const fields = fieldsOf(M);
+  const panelMax = (slot, list) => { const f = fields.find((x) => x.slot === slot); const h = f && f.subs.find((s) => s.sub === list); return h && h.max; };
+  const imgs = (n, tag) => Array.from({ length: n }, (_, i) => ({ imageUrl: `/${tag}-${i}.svg`, alt: `${tag} ${i}` }));
+  for (const [id, slot, list] of [['proof.avatars', 'proof', 'avatars'], ['logos.items', 'logos', 'items']]) {
+    const max = panelMax(slot, list);
+    const drawn = (n) => {
+      const d = clone(THREE); d[slot] = { ...d[slot], [list]: imgs(n, list) };
+      return (render('plan-cards', d).match(new RegExp(`data-slot="${slot}\\.${list}\\.\\d+\\.imageUrl"`, 'g')) || []).length;
+    };
+    check(Number.isInteger(max) && drawn(max) === max && drawn(max + 1) === max,
+      `${id}：面板上限 ${max}，给 ${max} 张画 ${Number.isInteger(max) ? drawn(max) : '-'}、给 ${Number.isInteger(max) ? max + 1 : '-'} 张画 ${Number.isInteger(max) ? drawn(max + 1) : '-'}`);
+  }
+  // `listMax` 写歪的失败方向是静默的（两边都读不到 ⟹ 页面不截、面板不封顶）⟹ loadManifests 当场拒。
+  const badDecl = (mutate) => {
+    const d2 = fs.mkdtempSync(path.join(require('os').tmpdir(), 'fx-1694-'));
+    try {
+      fs.cpSync(path.join(NEXT, 'blocks'), d2, { recursive: true });
+      const p2 = path.join(d2, 'pricing', 'manifest.json');
+      const m2 = JSON.parse(fs.readFileSync(p2, 'utf-8'));
+      mutate(m2);
+      fs.writeFileSync(p2, JSON.stringify(m2));
+      try { manifestLib.loadManifests(d2); return null; } catch (e) { return e.message; }
+    } finally { fs.rmSync(d2, { recursive: true, force: true }); }
+  };
+  const errs = [
+    badDecl((m2) => { m2.slots.logos.listMax = { items: '6' }; }),
+    badDecl((m2) => { m2.slots.logos.listMax = { caption: 6 }; }),
+    badDecl((m2) => { m2.slots.logos.listMax = { logos: 6 }; }),
+    badDecl((m2) => { m2.slots.plans.listMax = { items: 6 }; }),
+  ];
+  check(errs.every((e) => e && e.includes('listMax')),
+    `listMax 写歪当场拒：值写成 "6" / 键不是一列（caption）/ 键不在形状里 / 挂在 list 槽（${errs.map((e) => (e ? 'listMax ✓' : 'null')).join(' | ')}）`);
+  check(badDecl(() => {}) === null, '对照：原样那一份 loadManifests 不抛');
+}
+
 // ══ AC7：部件 ═════════════════════════════════════════════════════════════════════════════════════
 console.log('\n── AC7 部件');
 {

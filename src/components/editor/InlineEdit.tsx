@@ -101,11 +101,13 @@ type Active = {
 
 const LOCKED_HINT = "This section can't be edited here. It is kept as is when you save.";
 const PANEL_HINT = 'Change this text in the panel on the right.';
+// #1694 —— 点到的是一张图、却对不上唯一一项（同一张图在一排里出现两次 ⟹ ambiguous）：说 image，不说 text（QA2 观察 1）。
+const PANEL_IMAGE_HINT = 'Change this image in the panel on the right.';
 
-function hintFor(why: string, sourcedRef: unknown): string {
+function hintFor(why: string, sourcedRef: unknown, isImage = false): string {
   if (why === 'sourced') return `${describeRef(sourcedRef)} Change them there, or use “Write these items by hand” in the panel on the right.`;
   if (why === 'locked') return LOCKED_HINT;
-  return PANEL_HINT;
+  return isImage ? PANEL_IMAGE_HINT : PANEL_HINT;
 }
 
 /** 这一块展开时写下的 `_sourced` 的键（写成引用的槽名）—— 跟画布同一个函数、同一份站点数据。 */
@@ -317,7 +319,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       setNote('');
       if (!r.ok) {
         const ref = r.slot ? item.props[r.slot] : undefined;
-        setActive({ id, slot, blockType: item.type, el, path: null, name: '', typing: false, ai: false, hint: hintFor(r.why, ref) });
+        setActive({ id, slot, blockType: item.type, el, path: null, name: '', typing: false, ai: false, hint: hintFor(r.why, ref, el.tagName === 'IMG') });
         return;
       }
       if (r.image) { setActive(null); void pickFor(id, slot, item.type, el, r.path, r.value); return; }
@@ -418,7 +420,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, doc]);
 
-  /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。 */
+  /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。
+   *  #1694 —— 成排的图那一格的值就是地址字符串（`logos.items.2.imageUrl`、`platforms.0.logoUrl`）：直接换成新地址。 */
   async function pickFor(id: string, slot: string, blockType: string, el: HTMLElement, path: InlinePath, before: string) {
     const ap = apiRef.current;
     if (!ap) return;
@@ -427,13 +430,13 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (!res.cancelled) setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: res.message });
       return;
     }
-    const cur = getAt(itemById(id)?.props, path) as Record<string, unknown> | undefined;
-    const now = cur && typeof cur === 'object' && typeof cur.imageUrl === 'string' ? cur.imageUrl : '';
+    const cur = getAt(itemById(id)?.props, path) as Record<string, unknown> | string | undefined;
+    const now = typeof cur === 'string' ? cur : cur && typeof cur === 'object' && typeof cur.imageUrl === 'string' ? cur.imageUrl : '';
     if (now !== before) {
       setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: 'This image was changed while you were choosing, so your choice was not used.' });
       return;
     }
-    if (!write(id, path, { ...cur, imageUrl: res.url }, true)) {
+    if (!write(id, path, typeof cur === 'string' ? res.url : { ...cur, imageUrl: res.url }, true)) {
       setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: 'This section is no longer on the page.' });
     }
   }

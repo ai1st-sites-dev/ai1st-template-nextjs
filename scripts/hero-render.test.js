@@ -276,6 +276,27 @@ console.log('\n── AC5 部件');
   check(count(render('split', withOpts({})), 'data-slot="stats.') === 6, `stats 给 ${DEMO.stats.length} 条，只画 3 条（值 + 说明 = 6 个钩子）`);
 }
 
+// ══ #1694：编辑器面板最多几张 = 页面最多画几张 ══════════════════════════════════════════════════════
+// QA2 退回：上限写死在 Section 里、manifest 没有 ⟹ 面板「+ Add」不灰，加到第 7 个 logo 存了却不画。现在两边读 manifest
+// 同一个数（`band.maxItems`、对象里那一列的 `listMax`）。给 max 张画 max 张、给 max+1 张还是 max 张 ⟹ 截断点恰好是面板上限。
+console.log('\n── #1694 面板上限 = 画出来的张数');
+{
+  const { fieldsOf } = require(path.join(NEXT, 'scripts', 'lib', 'editor-schema.js'));
+  const fields = fieldsOf(M);
+  const panelMax = (slot, list) => { const f = fields.find((x) => x.slot === slot); const h = list ? f && f.subs.find((s) => s.sub === list) : f; return h && h.max; };
+  const imgs = (n, tag) => Array.from({ length: n }, (_, i) => ({ imageUrl: `/${tag}-${i}.svg`, alt: `${tag} ${i}` }));
+  for (const [id, slot, list, put] of [
+    ['proof.avatars', 'proof', 'avatars', (n) => ({ proof: { ...DEMO.proof, avatars: imgs(n, 'av') } })],
+    ['logos.items', 'logos', 'items', (n) => ({ logos: { ...DEMO.logos, items: imgs(n, 'lg') } })],
+    ['band', 'band', null, (n) => ({ band: imgs(n, 'bd') })],
+  ]) {
+    const max = panelMax(slot, list);
+    const drawn = (n) => (render('split', { ...withOpts({}), ...put(n) }).match(new RegExp(`data-slot="${id.replace('.', '\\.')}\\.\\d+\\.imageUrl"`, 'g')) || []).length;
+    check(Number.isInteger(max) && drawn(max) === max && drawn(max + 1) === max,
+      `${id}：面板上限 ${max}，给 ${max} 张画 ${Number.isInteger(max) ? drawn(max) : '-'}、给 ${Number.isInteger(max) ? max + 1 : '-'} 张画 ${Number.isInteger(max) ? drawn(max + 1) : '-'}`);
+  }
+}
+
 // ══ AC6：表单 —— 校验器那一半 ═══════════════════════════════════════════════════════════════════
 console.log('\n── AC6 表单（validateSite）');
 {

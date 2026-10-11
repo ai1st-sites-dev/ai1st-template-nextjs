@@ -64,7 +64,8 @@ const got = new Map();
 for (const c of schema.components) {
   for (const f of c.fields) {
     if (f.control === 'image') got.set(`${c.type}.${f.slot}`, !!f.optional);
-    for (const s of f.subs || []) if (s.image) got.set(`${c.type}.${f.slot}.${s.sub}`, !!s.optional);
+    // #1694 —— 成排的图（`url: true`，值是地址字符串）归 editor-image-rows.test.js，这里只数「一个位置一张」。
+    for (const s of f.subs || []) if (s.image && !s.url) got.set(`${c.type}.${f.slot}.${s.sub}`, !!s.optional);
   }
 }
 const ids = (mp) => [...mp.keys()].sort();
@@ -77,10 +78,10 @@ const optMismatch = ids(want).filter((id) => want.get(id) !== got.get(id));
 check(optMismatch.length === 0, '带不带 Remove 跟形状一致（顶层 required: false / 列表项键带 ?）', optMismatch.join(' '));
 const required = ids(got).filter((id) => !got.get(id));
 check(JSON.stringify(required) === JSON.stringify(['gallery.items.image']), `没有 Remove 的只有 gallery 每项的图（${required.join(' ')}）`);
-// 成排的图不在射程（T9）：形状是 `[{imageUrl, alt?}]` 的那些照旧没有格子。
+// 成排的图（形状 `[{imageUrl, alt?}]`）不是「一张图」那种格子：#1694 起它们是一列图（`imageRow`），不是 `control: 'image'`。
 for (const [type, slot] of [['hero', 'band'], ['logos', 'items']]) {
   const f = compOf(type) && compOf(type).fields.find((x) => x.slot === slot);
-  check(!f || f.control !== 'image', `${type}.${slot}（成排的图）不是图片格 —— T9 的事`, f && f.control);
+  check(!!f && f.control === 'list' && f.imageRow === true, `${type}.${slot}（成排的图）是一列图（imageRow），不是一张图的格子 —— #1694`, f && f.control);
 }
 
 console.log('   豁免名单（#1686）');
@@ -101,7 +102,7 @@ check(schemaLib.slotCoverageProblems(schema, manifests).length === 0, '槽位归
 console.log('   画布点击层（AI 按钮那一半 —— PM 留言「还剩什么 1」要的读数）');
 {
   const cells = [];
-  for (const c of schema.components) for (const e of c.inline) if (e.image) cells.push({ id: `${c.type}.${e.path}`, ...e });
+  for (const c of schema.components) for (const e of c.inline) if (e.image && !e.url) cells.push({ id: `${c.type}.${e.path}`, ...e });
   check(JSON.stringify(cells.map((x) => x.id).sort()) === JSON.stringify(ids(want)), `inline 清单里 image: true 的 = 那 ${want.size} 个位置`,
     cells.map((x) => x.id).sort().join(' '));
   const wrong = cells.filter((x) => x.typing !== false || x.ai !== false).map((x) => x.id);

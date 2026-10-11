@@ -73,7 +73,15 @@ interface Props {
 
 // 上限写在这里、也写在 manifest 的槽位说明里：演示内容包按守卫 (c) 给每个列表槽 6 条，数据里多出来的
 // 在这里截掉，不画出一排八个按钮。
-const MAX = { ctas: 2, stats: 3, avatars: 4, logos: 6, band: 6 } as const;
+// #1694 —— 成排的图（头像 / logo / band）的上限从 manifest 读（`band.maxItems`、对象里那一列的 `listMax`）：编辑器面板
+//    据同一个数把「+ Add」灰掉，加得进去的就画得出来。这里写死时面板不知道，加到第 7 个 logo 存了却不出来（QA2）。
+const MAX = {
+  ctas: 2,
+  stats: 3,
+  avatars: manifest.slots.proof.listMax.avatars,
+  logos: manifest.slots.logos.listMax.items,
+  band: manifest.slots.band.maxItems,
+} as const;
 
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const imgs = (v: unknown): HeroNewImage[] =>
@@ -191,7 +199,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
                 {imgs(proof.avatars).length ? (
                   <div className="d-flex">
                     {imgs(proof.avatars).slice(0, MAX.avatars).map((a, i) => (
-                      slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover hro-avatar' } })
+                      slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover hro-avatar' }, slot: `proof.avatars.${i}.imageUrl` })
                     ))}
                   </div>
                 ) : null}
@@ -219,7 +227,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
                   <div className="text-sm text-muted mb-4" data-slot="logos.caption">{d.logos.caption}</div>
                 ) : null}
                 <div className={`d-flex flex-wrap align-items-center gap-4 gap-md-5${just}`}>
-                  {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'hro-logo' } }))}
+                  {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'hro-logo' }, slot: `logos.items.${i}.imageUrl` }))}
                 </div>
               </div>
             ) : null}
@@ -228,7 +236,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
             <div className="row g-5 mt-10 justify-content-center" data-part="band" data-band-count={band.length}>
               {band.map((b, i) => (
                 <div key={i} className="col-6 col-md" data-part="band-col">
-                  {slotImg(b, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-band-img' } })}
+                  {slotImg(b, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-band-img' }, slot: `band.${i}.imageUrl` })}
                 </div>
               ))}
             </div>

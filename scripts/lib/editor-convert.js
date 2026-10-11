@@ -121,7 +121,8 @@ function toProp(field, value) {
       return isPlainObject(value) ? clone(value) : undefined;
     case 'object': {
       const out = {};
-      for (const { sub } of field.subs) out[sub] = isPlainObject(value) ? value[sub] : undefined;
+      // #1694 —— 对象里包着的一列图（`logos.items`）：数组带副本，面板改它不碰原始那一份。
+      for (const { sub } of field.subs) out[sub] = isPlainObject(value) ? clone(value[sub]) : undefined;
       return out;
     }
     case 'list':

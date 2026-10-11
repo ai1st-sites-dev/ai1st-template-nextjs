@@ -135,7 +135,7 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
     if (l.kind === 'image') {
       return (
         <span className="tn-logo tn-logo-img d-inline-flex align-items-center" data-part="logo" data-logo="image">
-          <img src={l.logoUrl} alt={p.source} loading="lazy" />
+          <img src={l.logoUrl} alt={p.source} loading="lazy" data-slot={`summary.${p.index}.logoUrl`} />
           {hidden}
         </span>
       );

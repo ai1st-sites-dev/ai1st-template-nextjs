@@ -241,7 +241,9 @@
       "required": false,
       "promptOptional": true,
       "shape": "{avatars: [{imageUrl}], rating, text}",
+      "listMax": { "avatars": 4 },
       "editLabel": {
+        "avatars.imageUrl": "Photo",
         "text": "Review line"
       }
     },
@@ -250,8 +252,10 @@
       "required": false,
       "promptOptional": true,
       "shape": "{caption, items: [{imageUrl, alt}]}",
+      "listMax": { "items": 6 },
       "editLabel": {
-        "caption": "Logos caption"
+        "caption": "Logos caption",
+        "items.imageUrl": "Logo"
       }
     },
     "billing": {

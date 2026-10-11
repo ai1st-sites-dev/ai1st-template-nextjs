@@ -98,7 +98,7 @@ import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from 
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
-import { imageField } from './ImageField';
+import { imageField, imageRowField, imageUrlField } from './ImageField';
 import type { SiteData } from '@/lib/types/config';
 
 export interface EditorAppProps {
@@ -244,6 +244,8 @@ function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: u
 
 /** 一个子字段：词表里有它（`choices`）就是下拉；带 `sources` 的是链接格（#1506）；否则是一格文字。 */
 function subField(s: EditorField['subs'][number], site: SiteData): Field {
+  if (s.imageRow) return imageRowField(s.label, s.subs || [], undefined, s.max); // #1694 —— 对象里包着的一列图（logos.items、proof.avatars），上限 = manifest 的 `listMax`
+  if (s.image && s.url) return imageUrlField(s.label, !!s.optional); // #1694 —— 项里一格图片地址（点评平台的 logoUrl）
   if (s.image) return imageField(s.label, !!s.optional); // #1693 —— 项里的一张图（features 每项的 image、team 的 photo …）
   if (s.nested && s.nested.length) return nestedTextField(s.sub, s.label, s.nested, site);
   if (s.strings) return stringListField(s.label);
@@ -478,12 +480,17 @@ function puckField(f: EditorField, forms: EditorFormChoice[], site: SiteData): F
           : subField(s, site)])),
       } as Field;
     case 'list':
+      // #1694 —— 一列图（logos.items、hero.band）：自己画（加一项要先选图，Puck 自带的「+」只会塞一个空项）。
+      if (f.imageRow) return imageRowField(f.label, f.subs, f.min, f.max);
       return {
         type: 'array',
         label: f.label,
         arrayFields: Object.fromEntries(f.subs.map((s) => [s.sub, subField(s, site)])),
         defaultItemProps: {},
         getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, f.summary || f.subs.map((s) => s.sub)),
+        // #1694 —— 条数上下限（点评平台 1–4）：Puck 到了就把加 / 删灰掉。没写就不带。
+        ...(f.min !== undefined ? { min: f.min } : {}),
+        ...(f.max !== undefined ? { max: f.max } : {}),
       } as Field;
     case 'strings':
       return {

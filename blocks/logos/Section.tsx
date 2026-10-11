@@ -126,7 +126,7 @@ export default function LogosNewSection({ data, block }: Props) {
         <div className="col-12 lo-itemscol" data-part="items">
           <div className="lo-grid">
             {items.map((it, i) => {
-              const img = slotImg(it, { before: { className: 'lo-logo' }, after: { loading: 'lazy' } });
+              const img = slotImg(it, { before: { className: 'lo-logo' }, after: { loading: 'lazy' }, slot: `items.${i}.imageUrl` });
               return (
                 <div key={i} data-part="item">
                   {str(it.href) ? (

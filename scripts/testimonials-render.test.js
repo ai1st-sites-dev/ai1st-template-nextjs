@@ -593,7 +593,7 @@ console.log('\n── #1500 summary：一组平台');
   const blind = presetClickProps({ ...opt, partDemos: {} }, start, 'Ratings');
   check(blind.summary === undefined && nameOf(blind) === 'custom', '阳性对照：没有 partDemos ⟹ 点 Ratings 不填、不亮（上面「填上」是槽上 demo 带来的）');
   const sf = comp.fields.find((f) => f.slot === 'summary');
-  check(sf && sf.control === 'list' && sf.subs.map((x) => x.sub).join() === 'source,rating,count,href', `Puck 里 summary 是列表字段（能增删平台），每项改 source / rating / count / href（#1686 补了 href）（${sf && sf.subs.map((x) => x.sub).join(' / ')}）`);
+  check(sf && sf.control === 'list' && sf.subs.map((x) => x.sub).join() === 'source,rating,count,href,logoUrl', `Puck 里 summary 是列表字段（能增删平台），每项改 source / rating / count / href / logoUrl（#1686 补了 href，#1694 补了 logo）（${sf && sf.subs.map((x) => x.sub).join(' / ')}）`);
   // PM 07:32 第 2 条：logoUrl 不被当成内容图槽（建站不编平台 logo）—— 靠字段名，两向守住
   const all = manifestLib.loadManifests();
   check(!manifestLib.imageSlotsOf(all.get('testimonials')).some((x) => x.name === 'summary'), 'imageSlotsOf(testimonials) 不含 summary ⟹ 建站不给平台生成 logo');

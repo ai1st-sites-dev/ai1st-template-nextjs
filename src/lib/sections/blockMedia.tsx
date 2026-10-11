@@ -13,7 +13,8 @@
 //    - ratingStars：根节点的属性整组由 `root(n, label)` 给（两个块 role / aria-label 的先后不同）。
 // 📌 `key` 单独传：React 不许把 key 混在展开的 props 里。
 // 📌 #1693 —— `slot`：编辑器里能换的图（「一个位置一张」，manifest 标了 `editLabel`）挂上它的槽位路径 `data-slot`
-//    （`image`、`items.2.image`），排在所有属性最后；不给就一个字节不多（成排的图 / 灯箱里那份不挂）。
+//    （`image`、`items.2.image`），排在所有属性最后；不给就一个字节不多（灯箱里那份不挂）。
+//    #1694 —— 成排的图也挂，路径指到那一项的地址键（`items.2.imageUrl`、`logos.items.0.imageUrl`、`proof.avatars.1.imageUrl`）。
 //    `scripts/block-slots.test.js` ① 两向守着「标了 editLabel 的图都挂了、挂了的都标了」。
 
 import type { Key } from 'react';
