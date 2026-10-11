@@ -122,10 +122,11 @@ const BUTTON_SHAPE = {
 // 档位名跟客户的 Corner style（`theme-presets.js` 的 CORNERS）同名同值 —— CORNERS 直接读这张表，不另写一份数。
 // 🔴 sharp 不是 0：大面积色底块的纯直角在屏幕上生硬，留一点点（#1718 正文「做什么 1」）。按钮的 sharp 仍是 0px（BUTTON_SHAPE）。
 // 📌 今天每一档的 card 与 image 取值相同：分两个变量是给「图片和卡片角不一样」留的位置（#1718 正文「做什么 2」）。
+// 📌 subtle 是 0.75rem 不是 1rem：Chris 2026-10-11 看过三档并排图定的 —— 1rem 跟 round 的 1.5rem 台阶不明显，2px / 12px / 24px 才分得清（#1718 r3）。
 // 主题（数值形状）不查这张表：两个都 = `radius`px（见 numericSettingsToCssVars）；枚举形状的档位词照这张表翻。
 const SURFACE_RADIUS = {
   sharp: { card: '2px', image: '2px' },
-  subtle: { card: '1rem', image: '1rem' },
+  subtle: { card: '0.75rem', image: '0.75rem' },
   round: { card: '1.5rem', image: '1.5rem' },
 };
 

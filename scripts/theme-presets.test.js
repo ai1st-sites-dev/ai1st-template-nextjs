@@ -617,7 +617,7 @@ const BASE = [
   //    字面量写在这里、不从 theme-settings.js 读 —— 从它读就成了自己跟自己比（② 那格已经守着「同一份数」）。
   const WANT = {
     sharp: { '--radius-button': '0px', '--radius-card': '2px', '--radius-image': '2px' },
-    subtle: { '--radius-button': '0.5rem', '--radius-card': '1rem', '--radius-image': '1rem' },
+    subtle: { '--radius-button': '0.5rem', '--radius-card': '0.75rem', '--radius-image': '0.75rem' },
     round: { '--radius-button': '9999px', '--radius-card': '1.5rem', '--radius-image': '1.5rem' },
   };
   const declsOf = (css) => new Map([...css.matchAll(/^\s*(--[A-Za-z0-9-]+):\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()]));
@@ -637,7 +637,7 @@ const BASE = [
     bad(`radiusScale 叠到了卡片 / 图片上（或按钮没被乘、对照失效）：card=${scaled.get('--radius-card')} image=${scaled.get('--radius-image')} button=${scaled.get('--radius-button')}`);
   }
   // 没选圆角档、只拖了 radiusScale：基准里（globals.css :root）有 --radius-card / --radius-image，也不许被乘出一行来。
-  const baseWithSurface = [...BASE, ['--radius-card', '1rem'], ['--radius-image', '1rem'], ['--radius-button', '0.5rem']];
+  const baseWithSurface = [...BASE, ['--radius-card', '0.75rem'], ['--radius-image', '0.75rem'], ['--radius-button', '0.5rem']];
   const onlyScale = declsOf(tweaks.buildCustomCss(baseWithSurface, { radiusScale: 1.25 }));
   if (!onlyScale.has('--radius-card') && !onlyScale.has('--radius-image') && onlyScale.get('--radius-button') === '0.625rem') {
     ok('只拖 radiusScale 1.25 ⟹ custom.css 里没有 --radius-card / --radius-image 这两行；--radius-button 照乘成 0.625rem（对照）');
