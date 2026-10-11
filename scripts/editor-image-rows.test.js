@@ -13,6 +13,8 @@
  *   ③ 存盘往返（AC3）：走编辑器真用的那条路（归一化 → pageToPuck → 改 props → puckToPage）：删掉价格块 logo 里的 Google、把 Yelp
  *      拖到第一个 ⟹ `logos.items` 只剩 3 项、顺序 Yelp / OMVIC / CAA，别的字段一字不变；logos 块 / 平台 logo 同理。
  *   ④ 画布上点到的那张 → 数据里的哪一项（§resolveInlineSlot：值是地址字符串，按地址对，不按画布序号）。
+ *   ⑤ #1707：一列图里哪几格是必填（`required`）—— 按槽自己的 `itemRequires` 现取（非图片键），跟 schema 逐个相等；别的位置一格都不带；
+ *      `validateSite(scope:'edit')` 两臂：名字空 ⟹ 拒「第 3 项没有 alt」，补上 ⟹ 这一条不在。
  *
  * 🔴 判据不抄票面那张表（#643）：集合按谓词现取；8 只作为今天的读数打出来、并钉一次（变了要有人看一眼）。
  */
@@ -319,6 +321,49 @@ console.log('④ 画布上点到的那张 → 数据里的哪一项（按地址�
   check(pl.ok && JSON.stringify(pl.path) === JSON.stringify(['platforms', 1, 'logoUrl']) && pl.image === true && pl.value === '/yelp.png', '平台 logo ⟹ platforms[1].logoUrl', pl);
   const miss = inline.resolveInlineSlot({ component: compOf('logos'), props: { items: [{ imageUrl: '/l1.svg', alt: '' }] }, slot: 'items.0.imageUrl', text: '/zzz.svg' });
   check(!miss.ok && miss.why === 'mismatch', '地址对不上任何一项 ⟹ mismatch', miss);
+}
+
+// ══ ⑤ 必填的格（#1707）══════════════════════════════════════════════════════════════════════════
+console.log('⑤ 一列图里必填的格 = 槽的 itemRequires 里的文字键（#1707）');
+{
+  // 本文件自己的谓词：位置是顶层列表槽（对象里包着的列表没有 itemRequires —— manifest 自检只许 list 槽写它），
+  //   必填格 = itemRequires 里不是那个图片地址键的那几条。
+  const wantReq = ids.flatMap((id) => {
+    const w = want.get(id);
+    const req = w.spec && Array.isArray(w.spec.itemRequires) ? w.spec.itemRequires : [];
+    return req.filter((k) => k !== w.urlKey).map((k) => `${id}.${k}`);
+  }).sort();
+  const gotReq = ids.flatMap((id) => (cellsAt(id) ? cellsAt(id).subs.filter((s) => s.required === true).map((s) => `${id}.${s.sub}`) : [])).sort();
+  console.log(`     读数：${gotReq.join(' ') || '(无)'}`);
+  check(JSON.stringify(gotReq) === JSON.stringify(wantReq), `schema 里带 required 的格 = itemRequires 现取的那一份（${wantReq.join(' ')}）`, gotReq);
+  check(JSON.stringify(gotReq) === JSON.stringify(['logos.items.alt']), '今天的读数只有 logos.items 的名字（变了要有人看一眼）', gotReq);
+  // 反向：摘掉 logos 的 itemRequires 里的 alt ⟹ 那一格不再必填（证明 required 是从声明来的，不是写死在 logos 上）。
+  const fakeDir = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'tmp-1707-blocks-'));
+  try {
+    const src = path.join(__dirname, '..', 'blocks');
+    require('fs').cpSync(src, fakeDir, { recursive: true });
+    const mf = path.join(fakeDir, 'logos', 'manifest.json');
+    const m = JSON.parse(require('fs').readFileSync(mf, 'utf8'));
+    m.slots.items.itemRequires = ['imageUrl'];
+    require('fs').writeFileSync(mf, JSON.stringify(m, null, 2));
+    const s2 = schemaLib.editorSchema({ blocksDir: fakeDir });
+    const f2 = s2.components.find((c) => c.type === 'logos').fields.find((f) => f.slot === 'items');
+    const alt2 = f2 && f2.subs.find((x) => x.sub === 'alt');
+    check(!!alt2 && alt2.required === undefined, 'itemRequires 只留 imageUrl ⟹ 名字那一格不再带 required', alt2);
+  } catch (e) {
+    bad(`反向臂跑不起来：${e.message}`);
+  } finally {
+    require('fs').rmSync(fakeDir, { recursive: true, force: true });
+  }
+  // AC2：AI 改站那一关（scope:'edit'）对这一页的读数。
+  const page = (alt3) => ({ pages: [{ slug: 'p', blocks: [{ type: 'logos', data: { items: [
+    { imageUrl: '/l1.svg', alt: 'Acme' }, { imageUrl: '/l2.svg', alt: 'Globex' }, { imageUrl: '/l3.svg', alt: alt3 },
+  ] } }] }], scope: 'edit' });
+  const altProb = (r) => r.problems.filter((x) => /"items" 第 .* 项没有 alt/.test(x));
+  const empty = altProb(manifestLib.validateSite(page('')));
+  check(empty.length === 1 && /第 3 项没有 alt/.test(empty[0]), '名字空着 ⟹ scope:edit 拒「第 3 项没有 alt」（这就是面板要当场说出来的那件事）', empty);
+  const filled = altProb(manifestLib.validateSite(page('Initech')));
+  check(filled.length === 0, '名字补上 ⟹ scope:edit 的 problems 里没有这一条', filled);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

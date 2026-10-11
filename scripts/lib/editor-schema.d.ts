@@ -3,6 +3,8 @@ export interface EditorSub {
   sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; strings?: boolean;
   image?: boolean; url?: boolean; optional?: boolean; nested?: { sub: string; label: string; sources?: string[] }[];
   imageRow?: boolean; subs?: EditorSub[];
+  /** #1707 —— 一列图的文字格（`alt` / `href`）在槽的 `itemRequires` 里：每一项都必须填（面板加完图把焦点给它、空着标出来） */
+  required?: boolean;
   /** #1694 —— `imageRow` 子字段的条数上限（manifest 对象槽的 `listMax`；没写就不带） */
   max?: number;
 }

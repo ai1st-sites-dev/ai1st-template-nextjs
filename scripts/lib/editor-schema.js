@@ -122,13 +122,17 @@ function imageCellOf(spec, sub) {
 /**
  * #1694 —— 一列图（项本身就是一张图，§imageRowKeyOf）的子字段，照项形状的键序：图（`image + url`）· `alt`（logo 叫 Name，别的叫
  * Image description）· `href?`（Link，不带 `sources`，同 §addOptionalHref）。`urlLabel` = manifest 给那个地址键的 editLabel。
+ * #1707 —— `itemRequires` = 槽自己的「每一项都必须有」声明：文字格（`alt` / `href`）在里面 ⟹ 那一格带 `required: true`，面板加完图
+ *    把焦点给它、空着就标出来（AI 改站那一关 `scope: 'edit'` 会拒空的）。按声明现算，不写块名 —— 今天命中的只有 `logos.items` 的 `alt`。
  */
-function imageRowSubs(itemShape, urlLabel) {
+function imageRowSubs(itemShape, urlLabel, itemRequires) {
+  const req = Array.isArray(itemRequires) ? itemRequires : [];
+  const need = (sub) => (req.includes(sub) ? { required: true } : {});
   const out = [];
   for (const e of itemShapeEntries(itemShape)) {
     if (isImageUrlEntry(e)) out.push({ sub: e.key, label: urlLabel, image: true, url: true, optional: false });
-    else if (e.key === 'alt') out.push({ sub: 'alt', label: /\blogo\b/i.test(urlLabel) ? 'Name' : 'Image description' });
-    else if (e.key === LINK_HREF) out.push({ sub: LINK_HREF, label: 'Link' });
+    else if (e.key === 'alt') out.push({ sub: 'alt', label: /\blogo\b/i.test(urlLabel) ? 'Name' : 'Image description', ...need('alt') });
+    else if (e.key === LINK_HREF) out.push({ sub: LINK_HREF, label: 'Link', ...need(LINK_HREF) });
   }
   return out;
 }
@@ -214,7 +218,7 @@ function fieldsOf(manifest) {
     const row = spec && spec.kind === 'list' ? imageRowKeyOf(spec.shape) : null;
     if (row && entries.some((e) => e.sub === row.key)) {
       const label = entries.find((e) => e.sub === row.key).label;
-      fields.push({ slot, kind: spec.kind, label: humanize(slot), control: 'list', imageRow: true, subs: imageRowSubs(spec.shape, label), summary: ['alt'], ...itemBounds(spec) });
+      fields.push({ slot, kind: spec.kind, label: humanize(slot), control: 'list', imageRow: true, subs: imageRowSubs(spec.shape, label, spec.itemRequires), summary: ['alt'], ...itemBounds(spec) });
       continue;
     }
     const kind = entries[0].kind;

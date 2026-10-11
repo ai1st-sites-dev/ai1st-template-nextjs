@@ -15,8 +15,12 @@
 //     （`alt`）+ 链接（`href`），把手拖动排序、✕ 删；「+ Add」先开图片库，选了图才加一项（放最后）。条数夹在 `min` / `max` 之间，
 //     到了就把按钮灰掉。删空了面板上明说「这一排在页面上不显示」—— 块对空的一列是整排不画（logos 块整块不画）。
 //     不是对象的项（畸形数据）原样留在原位，那一行不可改。
+//
+// #1707 —— 子字段带 `required`（槽的 `itemRequires` 点了它，editor-schema §imageRowSubs；今天只有 logos 块的名字）：
+//     「+ Add」选完图，新那一项的这一格拿到焦点；哪一项这一格空着，输入框标红 + 下面一句「This logo still needs a name.」。
+//     不拦存盘（PM 裁定）—— 空着存得下，只是 AI 改这一页会被退回（`scope: 'edit'` 拒空的必填项），所以在这里当场说出来。
 
-import { useContext, useState, type CSSProperties } from 'react';
+import { useContext, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { FieldLabel, type Field } from '@puckeditor/core';
 import { InlineApiContext } from './InlineEdit';
 
@@ -98,7 +102,7 @@ export function imageField(label: string, optional: boolean): Field {
   } as unknown as Field;
 }
 
-type Sub = { sub: string; label: string; image?: boolean; url?: boolean; optional?: boolean };
+type Sub = { sub: string; label: string; image?: boolean; url?: boolean; optional?: boolean; required?: boolean };
 
 /** #1694 —— 画一个缩略图框（有图画图，没图写 No image）。 */
 function Thumb({ src, size }: { src: string; size: { width: number; height: number } }) {
@@ -175,9 +179,21 @@ export function ImageRowControl({ label, subs, min, max, value, onChange, readOn
   const [busy, setBusy] = useState<number | 'add' | null>(null);
   const [note, setNote] = useState('');
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [focusAt, setFocusAt] = useState<number | null>(null);
+  const firstInput = useRef(new Map<number, HTMLInputElement>());
   const list = Array.isArray(value) ? value : [];
-  const urlKey = (subs.find((s) => s.image) || { sub: 'imageUrl' }).sub;
+  const urlSub = subs.find((s) => s.image);
+  const urlKey = (urlSub || { sub: 'imageUrl' }).sub;
+  const noun = urlSub && urlSub.label ? urlSub.label.toLowerCase() : 'image';
   const text = subs.filter((s) => !s.image);
+  const firstRequired = text.find((s) => s.required);
+  // 新加的那一项画出来之后（值是 Puck 回灌的，晚一拍）把焦点给它的必填格。
+  useEffect(() => {
+    if (focusAt === null || focusAt >= list.length) return;
+    const el = firstInput.current.get(focusAt);
+    if (el) el.focus();
+    setFocusAt(null);
+  }, [focusAt, list.length]);
   const off = !!readOnly || !api || api.locked || busy !== null;
   const canAdd = !off && (max === undefined || list.length < max);
   const canRemove = !off && list.length > (min ?? 0);
@@ -195,6 +211,7 @@ export function ImageRowControl({ label, subs, min, max, value, onChange, readOn
       const fresh: Record<string, unknown> = { [urlKey]: r.url };
       if (text.some((s) => s.sub === 'alt')) fresh.alt = '';
       onChange([...list, fresh]);
+      if (firstRequired) setFocusAt(list.length);
       return;
     }
     const next = list.slice();
@@ -243,12 +260,26 @@ export function ImageRowControl({ label, subs, min, max, value, onChange, readOn
                   title={canRemove ? 'Remove' : `At least ${min} needed`}
                   onClick={() => onChange(list.filter((_, j) => j !== i))} style={btn(canRemove)}>✕</button>
               </div>
-              {text.map((s) => (
-                <input key={s.sub} type="text" data-editor-image-text={s.sub} aria-label={`${s.label} ${i + 1}`} placeholder={s.label}
-                  value={ok && typeof it[s.sub] === 'string' ? (it[s.sub] as string) : ''} readOnly={!!readOnly || !ok}
-                  onChange={(e) => setText(i, s.sub, e.target.value)}
-                  style={{ ...INPUT, marginBottom: 4 }} />
-              ))}
+              {text.map((s) => {
+                const val = ok && typeof it[s.sub] === 'string' ? (it[s.sub] as string) : '';
+                const missing = ok && !!s.required && !val.trim();
+                return (
+                  <div key={s.sub}>
+                    <input type="text" data-editor-image-text={s.sub} aria-label={`${s.label} ${i + 1}`}
+                      placeholder={s.required ? `${s.label} (required)` : s.label}
+                      ref={s === firstRequired ? (el) => { if (el) firstInput.current.set(i, el); else firstInput.current.delete(i); } : undefined}
+                      value={val} readOnly={!!readOnly || !ok} required={!!s.required} aria-required={s.required ? true : undefined}
+                      aria-invalid={missing ? true : undefined}
+                      onChange={(e) => setText(i, s.sub, e.target.value)}
+                      style={{ ...INPUT, marginBottom: 4, ...(missing ? { borderColor: '#f04438' } : {}) }} />
+                    {missing && (
+                      <p data-editor-image-missing={s.sub} style={{ margin: '0 0 4px', fontSize: 12, color: '#b42318' }}>
+                        This {noun} still needs a {s.label.toLowerCase()}.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
