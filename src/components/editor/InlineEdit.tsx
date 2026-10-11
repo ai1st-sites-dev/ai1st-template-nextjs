@@ -30,7 +30,7 @@
 //   直接 `InlineApi.pickImage`（EditorApp 经 dashboard 开图片库），选了一张就经同一个 `replace` 把 `imageUrl` 换掉、记一笔撤销历史。
 //   对回数据用图的地址（`<img>` 的 `src` 属性，§resolveInlineSlot）。等老板挑图的时候那张图被改过（撤销、AI 聊天换了底稿）⟹ 不覆盖，说一句。
 
-import { createContext, useContext, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { registerOverlayPortal, useGetPuck } from '@puckeditor/core';
 import type { EditorComponent } from '../../../scripts/lib/editor-schema';
@@ -70,6 +70,19 @@ export type InlineApi = {
   pickImage: (current: string) => Promise<PickImageResult>;
 };
 export const InlineApiContext = createContext<InlineApi | null>(null);
+
+// #1658 —— 点中的是一段字（工具条 / 打字）还是块的空白处：块的浮动条（EditorApp §BlockActionBar）看这一位让位，同一时刻只出一条。
+//    两边不在同一棵 DOM 里（这一层画在画布 document 上，浮动条在 Puck 的 overlay 里），又都只有一份 ⟹ 模块级的一位 + 订阅。
+let inlineOpen = false;
+const inlineSubs = new Set<() => void>();
+function setInlineOpen(v: boolean) {
+  if (inlineOpen === v) return;
+  inlineOpen = v;
+  inlineSubs.forEach((f) => f());
+}
+export function useInlineOpen(): boolean {
+  return useSyncExternalStore((f) => { inlineSubs.add(f); return () => { inlineSubs.delete(f); }; }, () => inlineOpen, () => false);
+}
 
 type Item = { type: string; props: Record<string, unknown> & { id: string; _src?: { locked?: boolean } } };
 
@@ -335,6 +348,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc]);
 
+  useEffect(() => { setInlineOpen(!!active); }, [active]);
+  useEffect(() => () => setInlineOpen(false), []);
   // #1683 —— 换了一段字（或工具条收起）：输入框里那句是说给上一段听的，清掉。
   useEffect(() => { setAsk(''); }, [active?.id, active?.slot]);
   // #1683 —— 键盘只归输入框（同打字那一格的 onKey）：Puck 在画布 document 上收快捷键，而它「焦点在输入框里就不删块」

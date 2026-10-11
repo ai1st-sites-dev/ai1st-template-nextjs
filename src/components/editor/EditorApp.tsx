@@ -75,8 +75,8 @@
 //   收  ai1st:pick-image-result {id, ok, url?, cancelled?, message?}   选了一张 = 新地址；取消 = cancelled
 //   同一时刻只等一次：再点一次 Change，上一次算取消。不设超时 —— 老板在弹窗里挑多久都行。
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Puck, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
+import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Puck, ActionBar, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
 import SiteShell from '@/components/SiteShell';
@@ -97,7 +97,7 @@ import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type Edit
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
-import { InlineApiContext, InlineEditLayer, InlineFreezeContext, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
+import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
 import { imageField } from './ImageField';
 import type { SiteData } from '@/lib/types/config';
 
@@ -1127,6 +1127,7 @@ function EditorShell({ children }: { children: ReactNode }) {
   const at = useCanvasBox(shellRef, !!(ui && ui.kept));
   return (
     <div ref={shellRef} style={{ position: 'relative', height: '100vh', overflow: 'hidden' }}>
+      <style>{FIELD_MARK_CSS}</style>
       {children}
       {/* #1442 —— 浮在画布底部，不进顶栏：这几句放进顶栏会把它撑成一长条竖排、画布被挤没（真机量到过）。 */}
       {ui && ui.kept && (
@@ -1234,10 +1235,152 @@ function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; doc
     doc.addEventListener('click', onClick, true);
     return () => doc.removeEventListener('click', onClick, true);
   }, [doc]);
-  return <>{children}{doc && <InlineEditLayer doc={doc} />}</>;
+  return <>{children}{doc && <InlineEditLayer doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
 }
 
-const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard };
+/**
+ * #1658 —— 点中块之后块自己的那条浮动条：Edit content · AI Edit ｜ ↑ · ↓ · 🗑。换掉 Puck 自带那条（块名 + 复制 + 删除 + ⤴）。
+ * Puck 只告诉这个组件 `label` / `children`（它那几颗按钮），不告诉「是哪一块」⟹ 块从 `selectedItem` 取。
+ * 🔴 Puck 给悬停着的块也渲染一份（`opacity: 0`，不是 `display: none`）—— 只认外面那层 overlay 带 `--isSelected` 的那一份，
+ *    否则页面上同时有两条，第二条透明却点得着。
+ * 定位（块下沿居中）在画布 document 里的 §BLOCKBAR_CSS。
+ */
+function BlockActionBar() {
+  const selected = usePuck((s) => s.selectedItem);
+  const dispatch = usePuck((s) => s.dispatch);
+  const getPermissions = usePuck((s) => s.getPermissions);
+  const getSelectorForId = usePuck((s) => s.getSelectorForId);
+  const count = usePuck((s) => s.appState.data.content.length);
+  const inlineOpen = useInlineOpen();
+  const inline = useContext(InlineApiContext);
+  const probeRef = useRef<HTMLSpanElement>(null);
+  const [mine, setMine] = useState(false);
+  // 没有依赖：overlay 的 class 在 Puck 重画这一层时变，这个组件跟着重画 ⟹ 每次都重读。
+  useLayoutEffect(() => {
+    const o = probeRef.current?.closest('[data-puck-overlay]');
+    const v = !!o && /DraggableComponent--isSelected/.test(o.className);
+    if (v !== mine) setMine(v);
+  });
+  const props = (selected?.props || {}) as ItemProps;
+  const sel = selected ? getSelectorForId(String(props.id)) : undefined;
+  // 锁住的块（定位不到 / 未知类型）：不出条，面板顶上那句「This section can't be edited here」照旧。#1406 共用块不算（它能改能挪）。
+  const show = mine && !!selected && !!sel && !props._src?.locked && !inlineOpen;
+  if (!show) return <span ref={probeRef} hidden data-editor-blockbar-probe="" />;
+  const perm = getPermissions({ item: selected as never });
+  const { index, zone } = sel;
+  // ↑ / ↓ 照 Puck 自己拖完那一下的做法（dist/index.js §moveComponent + 落下后的 setUi）：先挪、不记撤销，再把选中跟到新位置、
+  //    这一下记撤销 ⟹ 一次 Ctrl+Z 退回挪之前。`move` 经 Puck 的 dispatch 走到 EditorApp §onAction，跟拖拽一样记进
+  //    draggedRef（#1676：相邻两块对调要靠它才写得出 `Moved X up`）。
+  const moveTo = (to: number) => {
+    dispatch({ type: 'move', sourceIndex: index, sourceZone: zone, destinationIndex: to, destinationZone: zone, recordHistory: false } as never);
+    dispatch({ type: 'setUi', ui: { itemSelector: { index: to, zone } }, recordHistory: true } as never);
+  };
+  const editContent = () => {
+    dispatch({ type: 'setUi', ui: { rightSideBarVisible: true } });
+    // 「这一块的第一个文字字段」按谓词现算（schema 里 `kind: 'text'` 的第一个；hero 是 headline）—— PM 2026-10-11 裁定，不写块名单。
+    const slot = inline?.components.get(selected.type)?.fields.find((f) => f.kind === 'text')?.slot;
+    revealField(slot);
+  };
+  const aiEdit = () => {
+    dispatch({ type: 'setUi', ui: { leftSideBarVisible: true, plugin: { current: AI_PLUGIN_NAME } } } as never);
+    whenFound(() => Array.from(document.querySelectorAll<HTMLTextAreaElement>('[data-editor-chat-input]:not(:disabled)')).find((el) => el.getClientRects().length > 0), (el) => el.focus());
+  };
+  return (
+    <span ref={probeRef} data-editor-blockbar="" data-editor-blockbar-for={String(props.id)} style={{ display: 'inline-flex' }}>
+      <ActionBar>
+        <ActionBar.Group>
+          <ActionBar.Action label="Edit content" onClick={editContent} data-editor-block-action="edit">
+            <span style={BLOCKBAR_TEXT}>Edit content</span>
+          </ActionBar.Action>
+          <ActionBar.Action label="AI Edit" onClick={aiEdit} data-editor-block-action="ai">
+            <span style={BLOCKBAR_TEXT}>AI Edit</span>
+          </ActionBar.Action>
+        </ActionBar.Group>
+        <ActionBar.Group>
+          <ActionBar.Action label="Move up" disabled={!perm.drag || index <= 0} onClick={() => moveTo(index - 1)} data-editor-block-action="up">
+            {BLOCKBAR_ICON.up}
+          </ActionBar.Action>
+          <ActionBar.Action label="Move down" disabled={!perm.drag || index >= count - 1} onClick={() => moveTo(index + 1)} data-editor-block-action="down">
+            {BLOCKBAR_ICON.down}
+          </ActionBar.Action>
+          <ActionBar.Action label="Delete" disabled={!perm.delete} onClick={() => dispatch({ type: 'remove', index, zone })} data-editor-block-action="delete">
+            {BLOCKBAR_ICON.trash}
+          </ActionBar.Action>
+        </ActionBar.Group>
+      </ActionBar>
+    </span>
+  );
+}
+
+/** 每帧找一次，找到就交给 `then`；1.5 秒还没有就算了（面板没打开 / 字段还在 resolve）。 */
+function whenFound<T>(find: () => T | null | undefined, then: (v: T) => void) {
+  const until = Date.now() + 1500;
+  const tick = () => {
+    const v = find();
+    if (v) { then(v); return; }
+    if (Date.now() < until) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/** 右栏滚到这个字段、焦点放进它的第一个输入框。没有文字字段的块（`slot` 空）就是右栏第一个字段。
+ *  🔴 Puck 同时渲染两份字段面板（另一份是窄屏布局用的，看不见）⟹ 只认看得见的那一份。 */
+function revealField(slot: string | undefined) {
+  const sel = slot ? `[data-editor-field="${slot}"]` : '[data-editor-field]';
+  whenFound(() => Array.from(document.querySelectorAll<HTMLElement>(sel)).find((el) => el.getClientRects().length > 0), (box) => {
+    box.scrollIntoView({ block: 'start' });
+    const input = box.querySelector<HTMLElement>('input:not([type=hidden]):not(:disabled), textarea:not(:disabled), select:not(:disabled)');
+    input?.focus({ preventScroll: true });
+  });
+}
+
+const BLOCKBAR_TEXT = { fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', padding: '0 2px' } as const;
+// 同 AI_ICON 那一套 lucide 线条（仓里没有 lucide-react，手写），16px 跟 Puck 那条的图标一样大。
+const blockbarSvg = (d: ReactNode) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>
+);
+const BLOCKBAR_ICON = {
+  up: blockbarSvg(<><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></>),
+  down: blockbarSvg(<><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>),
+  trash: blockbarSvg(<><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></>),
+};
+
+// #1658 —— 画布 document 里：浮动条从块右上角挪到块下沿居中（贴着下沿、在块里面，不压到下一块、最后一块也不被页面底裁掉）。
+//    只动带我们这条的 overlay（`:has`），Puck 的类名带 hash ⟹ 按前缀认。`!important` 是因为 Puck 把 top / right / transform
+//    写在行内（还会在出界时改 left / top，§syncActionsPosition）；它那个 `scale(1/zoom)` 的 transform 留着，居中用独立的 `translate`。
+const BLOCKBAR_CSS = `
+[data-puck-overlay]:has([data-editor-blockbar]) [class*="DraggableComponent-actionsOverlay"] {
+  position: absolute !important; top: auto !important; bottom: 0; left: 0; right: 0; height: 0;
+}
+[data-puck-overlay]:has([data-editor-blockbar]) [class*="DraggableComponent-actions_"] {
+  top: auto !important; bottom: 12px; left: 50% !important; right: auto !important;
+  translate: -50% 0; transform-origin: center bottom !important; padding: 0 !important; cursor: default;
+}`;
+
+/**
+ * #1658 —— 右栏每个顶层字段外面包一层 `data-editor-field="<slot 名>"`（Edit content 和 e2e 都靠它找；Puck 只给子字段 id）。
+ * 挂在 Puck 的 `fields` override 上：它拿到的子元素就是一字段一个、按字段名的那一列（dist §FieldsInternal 的 `fieldNames.map`）。
+ * 包一层会让 Puck 那条 `.field + .field` 分隔线选择器失效 ⟹ §FIELD_MARK_CSS 补一条等价的，右栏样子不变。
+ */
+function EditorFields({ children }: { children?: ReactNode }) {
+  return (
+    <>
+      {Children.map(children, (c) => {
+        const name = isValidElement(c) ? (c.props as { fieldName?: unknown }).fieldName : undefined;
+        return typeof name === 'string' ? <div data-editor-field={name}>{c}</div> : c;
+      })}
+    </>
+  );
+}
+// Puck 原来那条：`.PuckFields--wrapFields .PuckFields-field + .PuckFields-field { border-top; margin-top }`。包一层之后两个
+// field 不再是兄弟 ⟹ 照「前面有过一个真画出来的字段」重写（Puck 不画的字段 FieldsChild 返回 null，包着的 div 是空的）。
+const FIELD_MARK_CSS = `
+[class*="PuckFields--wrapFields"] [data-editor-field]:has(> [class*="PuckFields-field_"]) ~ [data-editor-field] > [class*="PuckFields-field_"] {
+  border-top: var(--puck-border-width-regular) solid var(--puck-color-border);
+  margin-top: var(--puck-space-2);
+}`;
+
+const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard, actionBar: BlockActionBar, fields: EditorFields };
 // #1657 —— 🔴 必须是模块级常量，不许写回 JSX 里的字面量。Puck 的画布有一个 effect（依赖里有 `iframe`）：历史里只有一条时，
 //    它每跑一次就把那一条换成**当前**画布。字面量每次 EditorApp 重画都是新对象 ⟹ 那个 effect 每次都跑 ⟹ 打开后的第一笔改动
 //    （画布上打字、AI 改写，都是先写进画布、停手才记历史）在记进历史之前碰上一次重画，「改之前」那一条就被换成改之后，Ctrl+Z 退不回去。
