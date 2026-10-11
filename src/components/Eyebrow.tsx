@@ -10,6 +10,9 @@
 // 🔴 类名要**逐字**写在这里：`site.css` 按源码 purge（`site-css.js` §PURGE_CONTENT 含 `src/**/*.tsx`），拼出来的看不见。
 // 🔴 外面那层 `<div data-part="eyebrow">` 不在这里：各块的间距 / 包裹类不一样（`mb-4` · `mb-5` · `lo-eyebrow-wrap` …），
 //    那是块头排版的事，不是 eyebrow 自己的样子。
+// 🔴 pill 的字是 `text-primary-emphasis`（主色掺黑 60%），不是 `text-primary`（#1701，Chris 选 A）：底是主色掺白 80%，
+//    字若是主色本身，两个颜色同源，中间调的主色上只有 3.2–3.5:1。`scripts/theme-presets.test.js` 的 #1701 那一节从这张表现读这一档、
+//    按池里每套主题 × 6 套配色 × 31 档色相判 ≥ 4.5 —— 换回 `text-primary` 那一格会红。
 //
 // 「哪个样式算生效」也各块不同（hero / cta：没写或写错 ⟹ pill；其余：没写 ⟹ pill、写错 ⟹ 不画），由块自己判，
 // 用 `isEyebrowStyle` 问「这是不是一种样式」。
@@ -18,7 +21,7 @@ export const EYEBROW_STYLES = ['pill', 'outline', 'dash', 'plain'] as const;
 export type EyebrowStyle = typeof EYEBROW_STYLES[number];
 
 const CLASS: Record<EyebrowStyle, string> = {
-  pill: 'badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
+  pill: 'badge rounded-pill bg-primary-subtle text-primary-emphasis fw-semibold text-xs px-3 py-2',
   outline: 'badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
   dash: 'text-uppercase text-xs fw-semibold ls-wider text-muted',
   plain: 'text-uppercase text-xs fw-semibold ls-wider text-muted',

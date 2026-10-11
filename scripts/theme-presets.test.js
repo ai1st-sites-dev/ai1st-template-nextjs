@@ -1478,6 +1478,120 @@ console.log('\n── #1464 验收 8：theme-pool 的 footer 选择单 ──');
   else bad(`阳性对照失效：不存在的名字读成 ${ghost.got}、fellBack=${ghost.fellBack} —— 上面那几格证明不了什么`);
 }
 
+// ── #1701：eyebrow 的 pill —— 字压它自己的浅底，每一种主色都要 ≥ 4.5:1 ──────────────────────────────────
+//
+// pill 的底是 `bg-primary-subtle`（主色掺白 80%），字原来是 `text-primary`（主色本身）：两个颜色同源，中间调的主色上
+// 只有 3.2–3.5:1。Chris 选 A：字换成 `text-primary-emphasis`（主色掺黑 60%）。
+//
+// 🔴 字和底**从 Eyebrow.tsx 那张表现读**，不在这里抄类名 —— 抄一份的话，表改回 `text-primary` 这里照样绿。
+// 🔴 「每一种主色」= 池里每套主题的 primary-500（没选配色）+ 6 套配色的 primary-500，各乘色相滑块的 31 档。选了配色
+//    主色就是配色那一个、跟主题无关（`presetVars` 直接盖 `--color-primary-*`，色相再叠在它上面，见 ⑦），所以
+//    「主题 × 配色」收拢成这两组的并集。#1697 之前 site.css 的 `$primary` 恒是主题原色 —— 那是这里的一个子集。
+// 🔴 派生公式是 Bootstrap 5.3 的 tint-color / shade-color（`_variables.scss` 亮色那几条）。**它对不对不靠抄对**：
+//    下面先拿 Sass 真编两份 site.css，把 `:root` 里那两个变量跟公式逐值对账，对不上就退 2（尺子坏了，不是配色不合格）。
+console.log('\n── #1701：eyebrow pill 的字压 subtle 底 ──');
+{
+  const fs = require('fs');
+  const path = require('path');
+  const contrastP = require('./theme-contrast.js');
+  const { compileSiteCss } = require('./lib/site-css.js');
+
+  const SRC = path.join(__dirname, '..', 'src', 'components', 'Eyebrow.tsx');
+  const pillRow = /\bpill:\s*'([^']+)'/.exec(fs.readFileSync(SRC, 'utf8'));
+  if (!pillRow) die(`从 ${path.relative(process.cwd(), SRC)} 读不到 pill 那一行的类名 —— 这一节会空过`);
+  const PILL_CLASS = pillRow[1];
+
+  // Sass 的 mix 逐通道、不取整；浏览器画的时候取整成字节。
+  const mixTo = (rgb, k, w) => rgb.map((v) => k * w + v * (1 - w));
+  const DERIVE = {
+    'text-primary': (c) => c,
+    'text-primary-emphasis': (c) => mixTo(c, 0, 0.6),
+    'bg-primary-subtle': (c) => mixTo(c, 255, 0.8),
+  };
+  const SASS_VAR = { 'text-primary-emphasis': '--x-primary-text-emphasis', 'bg-primary-subtle': '--x-primary-bg-subtle' };
+  // 一个类串 → 字 / 底各是哪一个派生。认不出的颜色类不许当成「没有」：那是这把尺判不了的形状，退 2。
+  const COLOUR_TOKEN = /^(text|bg)-(primary|secondary|success|info|warning|danger|light|dark|body|muted|white|black|reset|transparent)/;
+  const inkAndGround = (cls) => {
+    const colourTokens = cls.split(/\s+/).filter((t) => COLOUR_TOKEN.test(t));
+    const unknown = colourTokens.filter((t) => !(t in DERIVE));
+    if (unknown.length) die(`pill 的类名里有这把尺认不出的颜色类：${unknown.join(' · ')}（类名：${cls}）`);
+    const fg = colourTokens.filter((t) => t.startsWith('text-'));
+    const bg = colourTokens.filter((t) => t.startsWith('bg-'));
+    if (fg.length !== 1 || bg.length !== 1) die(`pill 的类名要正好一个字色类、一个底色类，读到字 ${fg.length} 个、底 ${bg.length} 个（类名：${cls}）`);
+    return { fg: fg[0], bg: bg[0] };
+  };
+
+  // 对账：公式 vs Sass 真编出来的值。两份主色（池里第一套主题、第一套配色），两个变量。
+  const fmt = (c) => `rgb(${c.map((v) => String(Math.round(v * 1e10) / 1e10)).join(', ')})`;
+  const rootVars = (css) => {
+    const block = /:root,\s*\[data-bs-theme=light\]\s*\{([^}]*)\}/.exec(css);
+    if (!block) die('Sass 编出来的 site.css 里找不到 `:root, [data-bs-theme=light]` 那一块 —— 对账做不了');
+    const out = {};
+    for (const m of block[1].matchAll(/(--x-primary-(?:text-emphasis|bg-subtle))\s*:\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+    return out;
+  };
+
+  const pool = require('./theme-pool.json');
+  const primaries = [
+    ...Object.entries(pool).map(([id, t]) => [`主题 ${id}`, t.colors && t.colors.primary && t.colors.primary['500']]),
+    ...Object.entries(presets.PALETTES).map(([id, p]) => [`配色 ${id}`, p.colors.primary['500']]),
+  ];
+  const poolN = Object.keys(pool).length;
+  const palN = Object.keys(presets.PALETTES).length;
+  if (!poolN || !palN) die(`主色分母为空（池 ${poolN} 套 · 配色 ${palN} 套）—— 这一节会空过`);
+  for (const [who, hex] of primaries) if (!/^#[0-9a-fA-F]{6}$/.test(String(hex))) die(`${who} 的 primary-500 读成 ${JSON.stringify(hex)}`);
+
+  for (const [who, hex] of [primaries[0], primaries[poolN]]) {
+    const got = rootVars(compileSiteCss(hex));
+    const c = contrastP.hexToRgb(hex);
+    for (const [cls, v] of Object.entries(SASS_VAR)) {
+      const want = fmt(DERIVE[cls](c));
+      if (got[v] !== want) die(`对账：${who} ${hex} 的 ${v}，Sass 编出 ${got[v]}，公式算 ${want} —— 派生公式跟 Sass 不是一把尺`);
+    }
+  }
+  ok(`对账：${primaries[0][0]} 与 ${primaries[poolN][0]} 两份主色，Sass 真编出来的 --x-primary-text-emphasis / --x-primary-bg-subtle 跟这里的公式逐值相同`);
+
+  const hues = contrastP.hueSteps();
+  const judge = (cls) => {
+    const { fg, bg } = inkAndGround(cls);
+    const red = [];
+    let worst = null;
+    let cells = 0;
+    for (const [who, base] of primaries) {
+      for (const hue of hues) {
+        const c = contrastP.hexToRgb(tweaks.shiftHue(base, hue));
+        const ground = DERIVE[bg](c).map(Math.round);
+        const ink = DERIVE[fg](c).map(Math.round);
+        const r = contrastP.contrast(contrastP.mixBytes(ink, ground, contrastP.PAINT_BLEND), ground);
+        cells += 1;
+        if (!worst || r < worst.ratio) worst = { ratio: r, who, hue };
+        if (r < contrastP.MIN_CONTRAST) red.push({ ratio: r, who, hue });
+      }
+    }
+    return { fg, bg, red, worst, cells };
+  };
+
+  const live = judge(PILL_CLASS);
+  const shape = `${primaries.length} 个主色（池 ${poolN} 套主题 + ${palN} 套配色）× 色相 ${hues[0]}…${hues[hues.length - 1]}° 共 ${hues.length} 档 = ${live.cells} 格`;
+  if (!live.red.length) {
+    ok(`pill「${live.fg}」压「${live.bg}」× ${shape}：最差 ${live.worst.ratio.toFixed(2)}:1（${live.worst.who} @${live.worst.hue}°，≥ ${contrastP.MIN_CONTRAST}）`);
+  } else {
+    const w = live.red.sort((a, b) => a.ratio - b.ratio).slice(0, 3).map((x) => `${x.who} @${x.hue}° ${x.ratio.toFixed(2)}`).join(' · ');
+    bad(`pill「${live.fg}」压「${live.bg}」× ${shape}：${live.red.length} 格低于 ${contrastP.MIN_CONTRAST}:1（最差：${w}）`);
+  }
+
+  // 阳性对照：同一个判据喂「字换回 text-primary」的类串，必须当场红 —— 而且滑块归零那一档就红（票正文那张表）。
+  const reverted = PILL_CLASS.split(/\s+/).map((t) => (t === 'text-primary-emphasis' ? 'text-primary' : t)).join(' ');
+  if (reverted === PILL_CLASS) {
+    bad(`阳性对照做不了：pill 的类名里没有 text-primary-emphasis（${PILL_CLASS}）`);
+  } else {
+    const ctl = judge(reverted);
+    const atZero = ctl.red.filter((x) => x.hue === 0).length;
+    if (ctl.red.length && atZero) ok(`阳性对照：字换回 text-primary ⟹ ${ctl.red.length}/${ctl.cells} 格红（色相 0 那一档就有 ${atZero} 格），最差 ${ctl.worst.ratio.toFixed(2)}:1（${ctl.worst.who} @${ctl.worst.hue}°）`);
+    else bad(`阳性对照失效：字换回 text-primary 读到 ${ctl.red.length} 格红、色相 0 档 ${atZero} 格 —— 上面那格绿证明不了什么`);
+  }
+}
+
 console.log(`\n${fail ? '❌' : '✅'} theme-presets.test.js — ${pass} 过 / ${fail} 失败`
   + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : ''));
 process.exit(fail ? 1 : 0);
