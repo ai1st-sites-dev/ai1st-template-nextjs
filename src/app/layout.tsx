@@ -225,7 +225,7 @@ function buildThemePreviewScript(trustedOrigin: string): string {
   return `(function(){
 if(window.parent===window)return;
 var T=${JSON.stringify(trustedOrigin)};
-var s=null,f=null,c=null,ow=null,owq=false,h=null,hSeq=0;
+var s=null,f=null,c=null,h=null,hSeq=0;
 // #1318 —— 试穿期间每个块根原来的 data-shape（没有就记 null），Cancel 按它还原。
 var shapeWas=null;
 // #1123 r2 —— 上一次 paint() 有没有把【风格设定那几个变量】全都补齐。paintSheet 停用
@@ -256,17 +256,33 @@ function cssEl(){
   if(!c){c=document.createElement('style');c.id='ai1st-theme-preview-css';document.head.appendChild(c);}
   return c;
 }
+// #1704 —— 站自己那份 /custom.css 的【全部】link：这一页的，加上画布里 Puck 拷过去的那几份。
+// 🔴 每次现查，不记。Puck 的副本只跟着增删、不跟属性（停用这一页那条，画布那几条照样生效），
+//    而 Apply 之后它会再拷一轮（在 next dev 上量到每张表各两份）—— 记住任何一个元素都会在下一轮失效。
+//    画布是同源的 iframe（srcdoc），拿不到 contentDocument 的跳过。
 function ownCss(){
-  if(owq){return ow;}
-  owq=true;
-  var ls=document.querySelectorAll('link[rel="stylesheet"]'),i,u;
-  for(i=0;i<ls.length;i++){
-    try{u=new URL(ls[i].href,document.baseURI);}catch(e){continue;}
-    if(u.pathname==='/custom.css'){ow=ls[i];break;}
+  var out=[],docs=[document],fs=document.querySelectorAll('iframe'),i,j,d,ls,u;
+  for(i=0;i<fs.length;i++){try{d=fs[i].contentDocument;}catch(e){d=null;}if(d&&d.head){docs.push(d);}}
+  for(i=0;i<docs.length;i++){
+    ls=docs[i].querySelectorAll('link[rel="stylesheet"]');
+    for(j=0;j<ls.length;j++){
+      try{u=new URL(ls[j].href,document.baseURI);}catch(e){continue;}
+      if(u.origin===location.origin&&u.pathname==='/custom.css'){out.push(ls[j]);}
+    }
   }
-  return ow;
+  return out;
 }
-function ownCssOff(off){var l=ownCss();if(l){l.disabled=!!off;}}
+function ownCssOff(off){var ls=ownCss(),i;for(i=0;i<ls.length;i++){ls[i].disabled=!!off;}}
+// #1704 —— 把我们自己的一张 style 换成一个新元素、排到 head 末尾。refreshSheets 换完 link 之后用：
+// Puck 把新 link 拷进画布时是追加在画布 head 末尾的，排在注入的那份后面 ⟹ 同等特异性下后来者胜、试穿被盖掉。
+// 🔴 只能换新元素，不能原地挪：Puck 对挪动的同一个元素先删副本、再按「已经拷过了」只改文字不重新加，副本就没了。
+//    data-seq 让新元素的 outerHTML 跟旧的不一样（理由同上面 font 那段说的哈希撞车）。
+function restack(el){
+  if(!el||!el.parentNode){return el;}
+  var n=document.createElement('style');n.id=el.id;n.setAttribute('data-seq',String(++fSeq));n.textContent=el.textContent;
+  el.parentNode.removeChild(el);document.head.appendChild(n);
+  return n;
+}
 // ── #1123 —— 试穿那套主题【自己的画法表】，而且是【顶掉】不是【叠加】 ─────────────────────────
 //
 // 🔴 为什么不能沿用上面那个 cssEl()：它是 appendChild，也就是**叠加**。后来的样式表只压得过它自己
@@ -537,7 +553,7 @@ function refreshSheets(drop){
     n.onload=one;n.onerror=one;left++;
     l.parentNode.insertBefore(n,l);l.parentNode.removeChild(l);
   }
-  owq=false;ow=null;
+  s=restack(s);c=restack(c);
   if(left===0){fin();}
   setTimeout(fin,10000);
 }
