@@ -295,6 +295,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       const t = e.target as Element | null;
       if (!t || typeof t.closest !== 'function') return;
       if (barRef.current && barRef.current.contains(t)) return;
+      // #1700 —— Design 弹层里的点击归弹层自己（缩略图里的字不是画布上的字）。
+      if (t.closest('[data-editor-popover]')) return;
       const el = t.closest('[data-editor-inline]') as HTMLElement | null;
       if (!el) return;
       const comp = el.closest('[data-puck-component]');
@@ -333,6 +335,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (!a) return;
       const t = e.target as Node | null;
       if (t && barRef.current && barRef.current.contains(t)) return;
+      if (t && (t as Element).closest?.('[data-editor-popover]')) return; // #1700 —— 点在 Design 弹层里不算点到别处
       if (t && a.el.contains(t)) return;
       if (t && (t as Element).closest?.('[data-editor-inline]')) return; // 点另一段字：交给 click 那一支
       setActive(null);

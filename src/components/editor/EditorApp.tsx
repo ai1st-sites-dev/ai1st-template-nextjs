@@ -75,7 +75,8 @@
 //   收  ai1st:pick-image-result {id, ok, url?, cancelled?, message?}   选了一张 = 新地址；取消 = cancelled
 //   同一时刻只等一次：再点一次 Change，上一次算取消。不设超时 —— 老板在弹窗里挑多久都行。
 
-import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Puck, ActionBar, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
@@ -158,6 +159,27 @@ const SUB_LABEL = { fontSize: 12, fontWeight: 600, color: '#475467', margin: '6p
 
 type OptionsValue = Record<string, unknown>;
 
+/** 每个旋钮现在是哪个值（没写的按下面 #1470 那条兜底链补上）。右栏一排排旋钮和 §presetNameOf 共用。 */
+function knobValues(f: EditorField, v: OptionsValue): Record<string, unknown> {
+  const knobs = f.knobs || [];
+  // 🔴 #1470 —— 没写的旋钮先落回 `presets[0]`（默认形态的那一组），再落回 `values[0]`：跟 `header-knobs.js`
+  //    §normalizeKnobs、admin 的 `catalogKnobs.ts` 同一条兜底链。这里以前直接落 `values[0]`，只因为 hero
+  //    旧的 `values[0]` 那一组恰好就是 Split 才没露馅；#1470 把 `image` 的 `none` 排到第一位之后，一块没写
+  //    `options` 的 hero 侧栏会说 Text only、画布却画成 Split。
+  const fallback: Record<string, unknown> = (f.presets && f.presets[0] && f.presets[0].knobs) || {};
+  return Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name]
+    : k.values.includes(fallback[k.name] as string) ? fallback[k.name] : knobDefault(k)]));
+}
+
+/**
+ * 亮的是哪个预设（对不上 = `custom`）。右栏那排芯片和 Design 弹层的 Layout 页（#1700）都用它，两处判据是同一份。
+ * #1483 / #1487 —— 带颜色 / 部件的预设要连这一块的那几个字段一起比，所以要整块的 props（没有就只按旋钮比）。
+ */
+function presetNameOf(f: EditorField, v: OptionsValue, props: Record<string, unknown> | null): string {
+  const extra = props ? Object.fromEntries((f.colorSlots || []).concat(Object.keys(f.partDemos || {})).map((c) => [c, props[c]])) : {};
+  return presetNameFor({ slots: { options: { knobs: f.knobs || [] } }, presets: f.presets || [] }, { ...knobValues(f, v), ...extra });
+}
+
 /**
  * 预设一排 + 每个旋钮一排单选 + 布尔修饰的勾选框。点预设 = 三个旋钮一次设好；拧偏了第一排显示 Custom。
  * 判「是哪个预设」用 `block-knobs.js` §presetNameFor —— Section 渲染时算形态用的是同一个模块。
@@ -165,13 +187,7 @@ type OptionsValue = Record<string, unknown>;
 function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value: OptionsValue; onChange: (v: OptionsValue) => void; readOnly?: boolean }) {
   const v = value && typeof value === 'object' ? value : {};
   const knobs = f.knobs || [];
-  // 🔴 #1470 —— 没写的旋钮先落回 `presets[0]`（默认形态的那一组），再落回 `values[0]`：跟 `header-knobs.js`
-  //    §normalizeKnobs、admin 的 `catalogKnobs.ts` 同一条兜底链。这里以前直接落 `values[0]`，只因为 hero
-  //    旧的 `values[0]` 那一组恰好就是 Split 才没露馅；#1470 把 `image` 的 `none` 排到第一位之后，一块没写
-  //    `options` 的 hero 侧栏会说 Text only、画布却画成 Split。
-  const fallback: Record<string, unknown> = (f.presets && f.presets[0] && f.presets[0].knobs) || {};
-  const current = Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name]
-    : k.values.includes(fallback[k.name] as string) ? fallback[k.name] : knobDefault(k)]));
+  const current = knobValues(f, v);
   // #1483 —— 带颜色的预设（pricing 的 Rainbow）：判「是哪个预设」要连这一块的颜色字段一起比，点预设要连颜色字段一起写。
   //    颜色是这一块的另外两个字段（bg / featuredColor），这个字段的 onChange 只改得动 `options` ⟹ 从 Puck 读出选中的那一块、
   //    按 block-knobs.js §presetClickProps 算出整块的新 props，一次 `replace` 写回。没有带颜色预设的块（colorSlots 空）
@@ -183,8 +199,7 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
   const selected = usePuck((s) => (colorSlots.length || partSlots.length ? s.selectedItem : null));
   const dispatch = usePuck((s) => s.dispatch);
   const selectorFor = usePuck((s) => s.getSelectorForId);
-  const colorsNow = selected ? Object.fromEntries(colorSlots.concat(partSlots).map((c) => [c, (selected.props as Record<string, unknown>)[c]])) : {};
-  const name = presetNameFor({ slots: { options: { knobs } }, presets: f.presets || [] }, { ...current, ...colorsNow });
+  const name = presetNameOf(f, v, selected ? (selected.props as Record<string, unknown>) : null);
   const pick = (p: NonNullable<EditorField['presets']>[number]) => {
     const sel = selected ? selectorFor(String((selected.props as Record<string, unknown>).id)) : undefined;
     if (!selected || !sel) { onChange({ ...v, ...p.knobs }); return; }
@@ -1095,6 +1110,12 @@ type EditorUi = {
   /** #1660 —— 新块的 AI 文案没写成，顶栏那一句（null = 不说话）。 */
   fillNote: string | null;
   dismissFillNote: () => void;
+  /** #1700 —— Design 弹层开着的那一块（Puck id；null = 没开）和它的四个动作（§openDesign 那段注释是规矩的全文）。 */
+  design: string | null;
+  openDesign: (id: string) => void;
+  pickDesign: (preset: string) => void;
+  cancelDesign: () => void;
+  doneDesign: () => void;
 };
 const EditorUiContext = createContext<EditorUi | null>(null);
 
@@ -1242,7 +1263,7 @@ function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; doc
     doc.addEventListener('click', onClick, true);
     return () => doc.removeEventListener('click', onClick, true);
   }, [doc]);
-  return <>{children}{doc && <InlineEditLayer doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
+  return <>{children}{doc && <InlineEditLayer doc={doc} />}{doc && <DesignPopover doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
 }
 
 /**
@@ -1260,6 +1281,7 @@ function BlockActionBar() {
   const count = usePuck((s) => s.appState.data.content.length);
   const inlineOpen = useInlineOpen();
   const inline = useContext(InlineApiContext);
+  const ui = useContext(EditorUiContext);
   const probeRef = useRef<HTMLSpanElement>(null);
   const [mine, setMine] = useState(false);
   // 没有依赖：overlay 的 class 在 Puck 重画这一层时变，这个组件跟着重画 ⟹ 每次都重读。
@@ -1288,6 +1310,10 @@ function BlockActionBar() {
     const slot = inline?.components.get(selected.type)?.fields.find((f) => f.kind === 'text')?.slot;
     revealField(slot);
   };
+  // #1700 —— 有预设的块才有 Design（15 种页面块今天都有）。再点一下 = Cancel（弹层开着时它是唯一不算「点到外面」的地方，§DesignPopover）。
+  const hasPresets = !!inline?.components.get(selected.type)?.fields.some((f) => f.control === 'options' && (f.presets || []).length);
+  const designOpen = !!ui && ui.design === String(props.id);
+  const design = () => { if (!ui) return; if (designOpen) ui.cancelDesign(); else ui.openDesign(String(props.id)); };
   const aiEdit = () => {
     dispatch({ type: 'setUi', ui: { leftSideBarVisible: true, plugin: { current: AI_PLUGIN_NAME } } } as never);
     whenFound(() => Array.from(document.querySelectorAll<HTMLTextAreaElement>('[data-editor-chat-input]:not(:disabled)')).find((el) => el.getClientRects().length > 0), (el) => el.focus());
@@ -1296,6 +1322,11 @@ function BlockActionBar() {
     <span ref={probeRef} data-editor-blockbar="" data-editor-blockbar-for={String(props.id)} style={{ display: 'inline-flex' }}>
       <ActionBar>
         <ActionBar.Group>
+          {hasPresets && (
+            <ActionBar.Action label="Design" onClick={design} disabled={!ui || ui.locked} data-editor-block-action="design" active={designOpen} aria-expanded={designOpen}>
+              <span style={BLOCKBAR_TEXT}>Design</span>
+            </ActionBar.Action>
+          )}
           <ActionBar.Action label="Edit content" onClick={editContent} data-editor-block-action="edit">
             <span style={BLOCKBAR_TEXT}>Edit content</span>
           </ActionBar.Action>
@@ -1363,6 +1394,207 @@ const BLOCKBAR_CSS = `
   top: auto !important; bottom: 12px; left: 50% !important; right: auto !important;
   translate: -50% 0; transform-origin: center bottom !important; padding: 0 !important; cursor: default;
 }`;
+
+/**
+ * #1700 —— Design 弹层：块浮动条上点 Design 弹出，贴着浮动条。顶上一排标签（本票只有 Layout；T10b-2 往这排加 Customize），
+ * 底部 Cancel / Done。事务规矩（改了什么、什么时候存、撤销怎么记）在 EditorApp §openDesign，这里只管画和截出口。
+ *
+ * 画在画布 iframe 里（`CanvasLinkGuard` 拿到的那份 document，portal 进它的 body）：缩略图要用站的样式表和块组件，它们只在画布里有。
+ * `position: fixed` 浮在最上层，不被块裁；画布是缩放过的（Puck 的 Auto zoom），整个弹层按 1/zoom 放大，屏幕上是正常字号（同 InlineEdit 的工具条）。
+ *
+ * Layout 页一格一个预设，格里是「点这一格之后这一块会变成的样子」：props = `presetClickProps(字段, 当前 props, 预设名)`，
+ * 跟右栏点芯片同一份（含预设自带的颜色 #1483、空部件用 demo 填 #1487）；用画布同一个 §CanvasBlockBody 再渲染一份，缩进格子。
+ * 🔴 缩略图不许被编辑器当成真块：它不在任何 `[data-puck-component]` 里（InlineEdit 只登记那里面的字，点它对不回任何一块），
+ *    id 也换成 `<块 id>~design-<n>`（画布上的 `data-block-id` 不跟真块撞）。
+ *
+ * 出口（PM 2026-10-11 裁定 1：一律先 Cancel 再做它自己）在这里截的几样：
+ *   · 画布里按下鼠标、不在弹层上也不在 Design 那颗按钮上（点别的块 / 空白处 / 点字 / 浮动条上别的按钮）。
+ *     🔴 弹层当场收起，但退回要等这一下点击走完（松开之后）：按下就退回的话，块从试看的样子换回原样、整块重排，
+ *        松开时那一下点击落到挪了位的别的东西上 —— 点标题却开不出字的工具条（e2e ⑧ 量到的）。点到的是哪一段字、
+ *        哪一块，按老板按下时看到的那一份算；退回之后 InlineEdit 按块 id + slot 自己跟到新位置（§relocate）。
+ *   · 编辑器页上按下鼠标（右栏、左栏、顶栏）；撤销 / 前进那两颗按钮只 Cancel，不让它再退一步
+ *   · Ctrl+Z / Ctrl+Y（两个 window，捕获阶段，同 §useAiLockGuard）：只 Cancel · Esc：Cancel
+ *   · 选中的块换了（大纲里点了别的块之类）
+ * 🔴 弹层自己的鼠标 / 键盘事件不往外冒：React 的事件顺着组件树冒到 Puck 的预览框，它见目标不是块就把选中清掉；
+ *    键盘冒到画布 document，Backspace 会被 Puck 当成「删掉选中的块」（#1683 那一条）。
+ */
+const POPOVER_W = 520;
+const THUMB_W = 236;
+const THUMB_H = 148;
+const POPOVER: CSSProperties = {
+  position: 'fixed', zIndex: 2147483000, width: POPOVER_W, boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
+  background: '#fff', border: '1px solid #d0d5dd', borderRadius: 12, boxShadow: '0 12px 32px rgba(16, 24, 40, 0.18)',
+  fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#344054', lineHeight: 1.3, transformOrigin: 'top left',
+};
+const POPOVER_BTN: CSSProperties = { padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' };
+
+function DesignPopover({ doc }: { doc: Document }) {
+  const ui = useContext(EditorUiContext);
+  const api = useContext(InlineApiContext);
+  const id = ui ? ui.design : null;
+  const item = usePuck((s) => (id ? (s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null) : null));
+  const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; scale: number; maxH: number } | null>(null);
+  // 画布里点到了外面：弹层已经收起、等那一下点击走完再退回（见文件头那段 🔴）。换了一块 / 关掉之后复位。
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => { setLeaving(false); }, [id]);
+  // 监听里要的是最新的那一份（它们只在弹层开 / 关时挂一次）。
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
+
+  // 选中的块换了 / 这一块没了（被撤销、删掉、换了底稿）⟹ Cancel。
+  useEffect(() => {
+    if (id && (selectedId !== id || !item)) ui?.cancelDesign();
+  }, [id, selectedId, item, ui]);
+
+  // 出口：画布里 / 编辑器页上按下鼠标、撤销键、Esc。
+  useEffect(() => {
+    if (!id) return;
+    const cancel = () => uiRef.current?.cancelDesign();
+    const inside = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function'
+      && !!(t as Element).closest('[data-editor-popover], [data-editor-block-action="design"]');
+    const win = doc.defaultView;
+    let leaving = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const finish = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      win?.removeEventListener('pointerup', afterUp, true);
+      win?.removeEventListener('pointercancel', finish, true);
+      cancel();
+    };
+    // click 跟在 pointerup 后面派发 ⟹ pointerup 之后再排一个任务，退回就落在 click 之后。按住不放 / 拖走了也有兜底。
+    const afterUp = () => { setTimeout(finish, 0); };
+    const onCanvasDown = (e: Event) => {
+      if (inside(e.target) || leaving) return;
+      leaving = true;
+      setLeaving(true);
+      win?.addEventListener('pointerup', afterUp, true);
+      win?.addEventListener('pointercancel', finish, true);
+      timer = setTimeout(finish, 1500);
+    };
+    const isHistoryBtn = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function' && !!(t as Element).closest(HISTORY_BUTTONS);
+    const onPageDown = (e: Event) => {
+      if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); }
+      cancel();
+    };
+    // 撤销 / 前进那两颗：按下时已经 Cancel 了，紧跟着的 click 也不许落到 Puck 手里（那样就多退了一步）。
+    const onPageClick = (e: Event) => { if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (isHistoryKey(e)) { e.preventDefault(); e.stopImmediatePropagation(); cancel(); return; }
+      if (e.key === 'Escape') cancel();
+    };
+    doc.addEventListener('pointerdown', onCanvasDown, true);
+    document.addEventListener('pointerdown', onPageDown, true);
+    document.addEventListener('click', onPageClick, true);
+    window.addEventListener('keydown', onKey, true);
+    if (win && win !== window) win.addEventListener('keydown', onKey, true);
+    return () => {
+      if (timer) clearTimeout(timer);
+      win?.removeEventListener('pointerup', afterUp, true);
+      win?.removeEventListener('pointercancel', finish, true);
+      doc.removeEventListener('pointerdown', onCanvasDown, true);
+      document.removeEventListener('pointerdown', onPageDown, true);
+      document.removeEventListener('click', onPageClick, true);
+      window.removeEventListener('keydown', onKey, true);
+      if (win && win !== window) win.removeEventListener('keydown', onKey, true);
+    };
+  }, [id, doc]);
+
+  // 弹层自己的键盘事件截在元素上（原生，同 #1683）：Esc 收起，其余不往画布 document 冒。
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const stop = (e: KeyboardEvent) => {
+      if (isHistoryKey(e)) return; // 撤销键已经在 window 捕获阶段处理过
+      e.stopPropagation();
+      if (e.type === 'keydown' && e.key === 'Escape') uiRef.current?.cancelDesign();
+    };
+    for (const t of ['keydown', 'keyup', 'keypress'] as const) el.addEventListener(t, stop);
+    return () => { for (const t of ['keydown', 'keyup', 'keypress'] as const) el.removeEventListener(t, stop); };
+  });
+
+  // 贴着浮动条：下面放得下放下面，放不下放上面；跟着滚动 / 块变高（换了预设）走。浮动条找不到就贴块的下沿。
+  useEffect(() => {
+    if (!id) { setPos(null); return; }
+    const win = doc.defaultView!;
+    let raf = 0;
+    const tick = () => {
+      const anchor = doc.querySelector(`[data-editor-blockbar-for="${CSS.escape(id)}"]`) || doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+      const frame = win.frameElement as HTMLElement | null;
+      const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
+      if (anchor) {
+        const r = anchor.getBoundingClientRect();
+        const box = boxRef.current;
+        const gap = 8 / zoom;
+        const maxH = Math.max(240, win.innerHeight * zoom - 32);
+        const h = (box ? box.offsetHeight : 400) / zoom;
+        const w = POPOVER_W / zoom;
+        const below = r.bottom + gap;
+        const top = below + h <= win.innerHeight ? below : Math.max(gap, r.top - gap - h);
+        const left = Math.max(gap, Math.min(r.left + r.width / 2 - w / 2, win.innerWidth - w - gap));
+        const scale = 1 / zoom;
+        setPos((p) => (p && p.top === top && p.left === left && p.scale === scale && p.maxH === maxH ? p : { top, left, scale, maxH }));
+      }
+      raf = win.requestAnimationFrame(tick);
+    };
+    raf = win.requestAnimationFrame(tick);
+    return () => win.cancelAnimationFrame(raf);
+  }, [id, doc]);
+
+  if (!ui || !api || !id || !item || leaving) return null;
+  const component = api.components.get(item.type);
+  const f = component?.fields.find((x) => x.control === 'options' && (x.presets || []).length);
+  if (!component || !f) return null;
+  const props = item.props as ItemProps;
+  const options = (props[f.slot] && typeof props[f.slot] === 'object' ? props[f.slot] : {}) as OptionsValue;
+  const current = presetNameOf(f, options, props);
+  const readOnly = !!((item as { readOnly?: Record<string, boolean> }).readOnly || {})[f.slot];
+  const vw = doc.defaultView ? doc.defaultView.innerWidth : 1280;
+  const pageSlug = api.page === 'home' ? undefined : api.page;
+  const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
+  return createPortal(
+    <div ref={boxRef} data-editor-popover="" data-editor-popover-for={id} role="dialog" aria-label="Design"
+      onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
+      style={{ ...POPOVER, top: pos ? pos.top : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
+      <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
+        <button type="button" role="tab" aria-selected data-editor-design-tab="layout"
+          style={{ padding: '6px 10px 8px', border: 0, borderBottom: '2px solid #1d4ed8', background: 'none', color: '#1d4ed8', fontSize: 13, fontWeight: 600, cursor: 'default', fontFamily: 'inherit' }}>
+          Layout
+        </button>
+      </div>
+      <div data-editor-design-layout="" style={{ display: 'grid', gridTemplateColumns: `repeat(2, ${THUMB_W}px)`, gap: 12, padding: 12, overflowY: 'auto', justifyContent: 'center' }}>
+        {(f.presets || []).map((p, i) => {
+          const on = current === p.name;
+          const thumbProps = { ...presetClickProps(f, props, p.name), id: `${id}~design-${i}` } as ItemProps;
+          return (
+            // 🔴 格子不是 <button>：缩略图里的块自己就有按钮，按钮套按钮是不合法的 HTML（React 当场报两条错）。
+            <div key={p.name} role="button" tabIndex={readOnly ? -1 : 0} aria-disabled={readOnly || undefined} data-editor-design-preset={p.name} aria-pressed={on}
+              onClick={() => { if (!readOnly) ui.pickDesign(p.name); }}
+              onKeyDown={(e) => { if (!readOnly && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ui.pickDesign(p.name); } }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: readOnly ? 'default' : 'pointer', outlineOffset: 2 }}>
+              <div data-editor-design-thumb="" style={{ width: THUMB_W, height: THUMB_H, overflow: 'hidden', borderRadius: 8, position: 'relative', background: '#fff',
+                boxShadow: on ? '0 0 0 2px #1d4ed8' : '0 0 0 1px #d0d5dd' }}>
+                <div style={{ width: vw, transform: `scale(${THUMB_W / vw})`, transformOrigin: 'top left', pointerEvents: 'none' }} aria-hidden="true">
+                  <CanvasBlockBody component={component} props={thumbProps} locale={api.locale} pageSlug={pageSlug} site={api.site} />
+                </div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: on ? 600 : 500, color: on ? '#1d4ed8' : '#344054' }}>{p.name}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
+        <button type="button" data-editor-design-cancel="" onClick={() => ui.cancelDesign()}
+          style={{ ...POPOVER_BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
+        <button type="button" data-editor-design-done="" onClick={() => ui.doneDesign()}
+          style={{ ...POPOVER_BTN, border: 0, background: '#1d4ed8', color: '#fff' }}>Done</button>
+      </div>
+    </div>,
+    doc.body,
+  );
+}
 
 /**
  * #1658 —— 右栏每个顶层字段外面包一层 `data-editor-field="<slot 名>"`（Edit content 和 e2e 都靠它找；Puck 只给子字段 id）。
@@ -1537,6 +1769,10 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   const [fillNote, setFillNote] = useState<string | null>(null);
   const componentsByType = useMemo(() => new Map(schema.components.map((c) => [c.type, c])), [schema]);
 
+  // #1700 —— Design 弹层开着的那一块：打开那一刻这一块的 props（Cancel 退回到它，Done 跟它比有没有改）。
+  const designRef = useRef<{ id: string; before: Record<string, unknown> } | null>(null);
+  const [design, setDesign] = useState<string | null>(null);
+
   // #1453 —— autosave。画布每变一次（§Autosave）就重新数 AUTOSAVE_IDLE_MS；数到了存一笔（§flushAutosave）。
   // 停着的时候（AI 在改 · 浮条在问他要哪一版）不数；停的原因一解除就重新数一次（下面那个 effect）——
   // 解除时画布已经是 AI 那份 / 他选的那份，planSave 对着新的底判，不会把锁住之前的旧画布冲出去。
@@ -1547,7 +1783,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   // 「这一笔现在不该发」的唯一判据（QA1 r2 / QA2 r2：它曾散在几处、各查各的，漏了 AI 锁）。autosave、换页 / 发消息前的先存、
   // 递给面板的 `paused`（§reportPending，面板的卸载兜底与面板条都据它）全读这一个。
   //   kept = 浮条在问他要哪一版（不替他选）· ai = AI 在改这一页（§useAiLockGuard）
-  const holdReason = (): 'kept' | 'ai' | '' => (keptRef.current ? 'kept' : lockedRef.current ? 'ai' : '');
+  //   design = Design 弹层开着（#1700）：弹层里点的预设只是试看，Done 才算数（§openDesign）
+  const holdReason = (): 'kept' | 'ai' | 'design' | '' => (keptRef.current ? 'kept' : lockedRef.current ? 'ai' : designRef.current ? 'design' : '');
   const autosavePaused = () => holdReason() !== '';
   function scheduleAutosave() {
     cancelAutosave();
@@ -1573,6 +1810,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   // 身份不变：它经 context 递给 §Autosave，换身份只会多一次无用的重订阅。
   const onCanvasChange = useMemo(() => (d: Data) => onCanvasChangeRef.current(d), []);
   useEffect(() => {
+    if (locked) cancelDesign(); // #1700 —— AI 开始改这一页：弹层里试看的那一下退回（规矩同别的出口）
     reportPending(undefined); // 浮条出来 / 收起、上锁 / 解锁 ⟹ `paused` 变了
     if (locked || kept) { cancelAutosave(); return; }
     scheduleAutosave();
@@ -1638,6 +1876,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
       }
       if (d.type === 'ai1st:editor-flush') {
         // #1453 QA2 r1 —— dashboard 那一页要被刷新 / 关掉：不等停手，现在就存（浮条在问的时候照样不替他选）。
+        // #1700 —— 弹层里试看的那一下不算：先退回再存（存的是弹开之前就有、还没存的那些）。
+        cancelDesign();
         flushAutosave();
         return;
       }
@@ -1737,6 +1977,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
       if (!hashOk) return;
       if (d.reason !== 'open' && d.reason !== 'external' && d.reason !== 'ai') return;
       if (!d.raw || typeof d.raw !== 'object' || !Array.isArray(d.blocks) || !Array.isArray(d.located)) return;
+      // #1700 —— 画布要被别处的一份换掉：弹层里试看的那一下先退回，下面「画布上有没有没存的改动」问的才是老板真改过的。
+      cancelDesign();
       const nextRaw = d.raw as Record<string, unknown>;
       const nextLib = isObj(d.siteBlocks) ? d.siteBlocks : {};
       let next: PuckLikeData;
@@ -1968,6 +2210,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
       setChatNotice({ kind: 'error', text: 'Open this editor from your dashboard to use the AI chat.' });
       return;
     }
+    cancelDesign(); // #1700 —— 先退回弹层里试看的那一下，「先存再发」存的才不会带上它
     const g = getPuckRef.current ? getPuckRef.current() : null;
     if (!g) return;
     setChatNotice(null);
@@ -2094,6 +2337,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     postChat({ type: 'ai1st:editor-leave-result', id, ok, ...(message ? { message } : {}) });
   }
   function releaseLeave(id: string) {
+    cancelDesign(); // #1700 —— 换页 / 关编辑器：弹层里试看的那一下先退回，不跟着存下去
     cancelAutosave(); // 不等停手：这一笔现在就存
     if (lockedRef.current) {
       pendingLeaveRef.current = null;
@@ -2114,6 +2358,64 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     pendingLeaveRef.current = null;
     answerLeave(id, false, 'Your changes could not be saved, so the editor stayed on this page. See the message at the top of the editor.');
   }
+
+  /**
+   * #1700 —— Design 弹层是一个事务：只有 Done 提交（PM 2026-10-11 裁定 1）。
+   *   打开   记下这一块此刻的 props；弹层开着时自动存停着（§holdReason 的 `design`），面板条说「点 Done 或 Cancel」。
+   *   点一格 整块换成 §presetClickProps 算出来的 props（右栏点芯片同一份），`recordHistory: false` ⟹ 不在撤销里留中间步。
+   *   Done   跟打开时比改过了 ⟹ 撤销历史补记一步（打开之前 → 现在），再照常数停手存一笔；没改 ⟹ 不存、不记。
+   *   Cancel 退回打开时那份 props（`recordHistory: false`），不存、不记。
+   * 🔴 任何把注意力移出弹层的动作都先 Cancel，再做它自己：点画布别处 / 点字 / 右栏 / 撤销键（只 Cancel，不再多退一步）
+   *    —— 这几样在 §DesignPopover 里截；发聊天 / 回退 / 换页 / 关编辑器 / 刷新 / 换底稿 / AI 上锁在这个文件里各自的入口先调 §cancelDesign。
+   *    `save()` 自己不看 §holdReason（先存再发的语义靠它），所以退回必须发生在它们调 save 之前。
+   */
+  function puckForDesign() {
+    return getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck & ReturnType<GetPuck>) : null;
+  }
+  function openDesign(id: string) {
+    if (lockedRef.current || designRef.current) return;
+    const found = fillItem(puckForDesign(), id);
+    if (!found) return;
+    designRef.current = { id, before: found.item.props };
+    setDesign(id);
+    cancelAutosave();
+    reportPending(undefined);
+  }
+  function pickDesign(preset: string) {
+    const d = designRef.current;
+    const g = puckForDesign();
+    const found = d ? fillItem(g, d.id) : null;
+    if (!d || !g || !found) return;
+    const f = componentsByType.get(found.item.type)?.fields.find((x) => x.control === 'options' && (x.presets || []).length);
+    if (!f) return;
+    const props = presetClickProps(f, found.item.props, preset);
+    g.dispatch({ type: 'replace', destinationIndex: found.sel.index, destinationZone: found.sel.zone, data: { ...found.item, props }, recordHistory: false });
+  }
+  /** 收起弹层。`commit` = Done。弹层没开着 ⟹ 什么都不做（各个出口都无条件调 Cancel）。 */
+  function closeDesign(commit: boolean) {
+    const d = designRef.current;
+    if (!d) return;
+    designRef.current = null;
+    setDesign(null);
+    const g = puckForDesign();
+    const found = fillItem(g, d.id);
+    if (g && found && !deepEqual(found.item.props, d.before)) {
+      if (commit) {
+        // 同 AI 那一步（§onMessage 的 `reason: ai`）：自己拼进历史，不走 `setData({recordHistory: true})` 的 250ms 防抖。
+        // 当前那一条还是打开之前的画布（弹层里每一下都没记），在它后面接一条「现在」⟹ 一次 Ctrl+Z 回到打开之前。
+        const at = g.history.index;
+        const { indexes: _stale, ...cur } = g.appState as unknown as Record<string, unknown>; // eslint-disable-line @typescript-eslint/no-unused-vars
+        g.history.setHistories([...g.history.histories.slice(0, at + 1).map(noIndexes), { id: `design-${Date.now()}`, state: cur as PuckHistory['state'] }]);
+      } else {
+        g.dispatch({ type: 'replace', destinationIndex: found.sel.index, destinationZone: found.sel.zone, data: { ...found.item, props: d.before }, recordHistory: false });
+      }
+    }
+    // 停着的那段时间里画布上要是还有别的没存的（打开之前就在数停手的那一笔），现在接着数。
+    reportPending(undefined);
+    scheduleAutosave();
+  }
+  function cancelDesign() { closeDesign(false); }
+  function doneDesign() { closeDesign(true); }
 
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
   function onAction(action: PuckAction, _next: unknown, prev: { data?: { content?: { props?: { id?: unknown } }[] } }) {
@@ -2153,8 +2455,9 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     retrySave: () => flushAutosave(),
     chat, chatNotice, chatPending, page, locale,
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
-    sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
+    sendChat, revertChat: (messageId) => { cancelDesign(); postChat({ type: 'ai1st:chat-revert', messageId }); },
     fillNote, dismissFillNote: () => setFillNote(null),
+    design, openDesign, pickDesign, cancelDesign, doneDesign,
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
