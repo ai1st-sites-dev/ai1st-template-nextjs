@@ -423,7 +423,9 @@ async function cropAndResizeLogo(logoBuf, targetOccupancyPct = 80) {
 // fall back to `inline_data` historically.
 // #1251 —— 图片那两条 cost 事件要说出自己用的是哪个模型，而它本来只存在于下面这条 URL 里。
 // 把它单拎出来并用它拼 URL，两边就不会分岔 —— 拄一份“记录用”的副本，下一个升级 URL 的人会把它留在原地。
-const NANO_BANANA_MODEL = 'gemini-2.5-flash-image';
+// #1715 —— 原来是 2.5 那一代的 Nano Banana，Google 价目页写它 2026-10-02 停用（10-11 实测还活着，但随时会真停）。
+// 换成 Chris 2026-10-11 拍板的 Nano Banana 2 Lite；id 是 flash-LITE-image，写成 flash-image-lite 真调时 404。
+const NANO_BANANA_MODEL = 'gemini-3.1-flash-lite-image';
 const NANO_BANANA_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${NANO_BANANA_MODEL}:generateContent`;
 
@@ -531,7 +533,8 @@ async function generateSlotPhotos({ pages, manifests, industry, primaryColor, th
         operation: 'nano-banana-photo',
         provider: 'Google',
         model: NANO_BANANA_MODEL, // #1251
-        cost: 0.005,
+        // #1715：Google 价目页 2026-10-11 读：$30.00 / 1M image output tokens，页面自己写 "Equivalent to $0.0336 per 1K resolution image"。
+        cost: 0.0336,
         duration: Date.now() - startMs,
         detail: key,
       });
@@ -3580,7 +3583,8 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
         operation: 'nano-banana-logo',
         provider: 'Google',
         model: NANO_BANANA_MODEL, // #1251
-        cost: 0.005,
+        // #1715：Google 价目页 2026-10-11 读：$30.00 / 1M image output tokens，页面自己写 "Equivalent to $0.0336 per 1K resolution image"。
+        cost: 0.0336,
         duration: Date.now() - logoStart,
         detail: `Logo for ${companyName}`,
       });
