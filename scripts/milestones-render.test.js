@@ -343,8 +343,9 @@ console.log('\n── AC13 编辑器 schema');
   const on = editorSchema({}).components.find((c) => c.type === 'milestones');
   check(!!on, 'Puck 组件里有 milestones（能从左栏拖进页面）');
   const order = on.fields.map((f) => f.slot);
-  check(JSON.stringify(order) === JSON.stringify(['options', 'introEyebrow', 'headline', 'body', 'introCtas', 'stats', 'bg']),
-    `字段顺序 = 旋钮 → 眉标 → 块头 → 按钮 → stats → bg（${order.join(' → ')}）`);
+  // #1693 —— 两张图（blockImage / introImage）各一格图片，位置照 manifest 槽位的书写顺序（blockImage 在 options 之后）。
+  check(JSON.stringify(order) === JSON.stringify(['options', 'blockImage', 'introEyebrow', 'headline', 'body', 'introCtas', 'introImage', 'stats', 'bg']),
+    `字段顺序 = 旋钮 → 块图 → 眉标 → 块头 → 按钮 → 引言图 → stats → bg（${order.join(' → ')}）`);
   const opt = on.fields[0];
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
     && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), '第一个字段：预设 5 个 → 八个旋钮（控件顺序 块 → intro → stats）');

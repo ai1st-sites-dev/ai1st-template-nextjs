@@ -138,7 +138,7 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
         </div>
         {img ? (
           <div className="co-img" data-part="image">
-            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
+            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' }, slot: 'image' })}
           </div>
         ) : null}
       </div>

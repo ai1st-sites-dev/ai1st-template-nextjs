@@ -297,13 +297,15 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{imageUrl, alt}"
+      "shape": "{imageUrl, alt}",
+      "editLabel": "Intro image"
     },
     "itemsImage": {
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{imageUrl, alt}"
+      "shape": "{imageUrl, alt}",
+      "editLabel": "Items image"
     },
     "items": {
       "kind": "list",
@@ -315,6 +317,7 @@
       "shape": "[{number?, icon?, image?: {imageUrl, alt}, title, text, bullets?: [string], link?: {label, href, style?: \"solid\" | \"outline\" | \"link\", icon?, arrow?}}]",
       "editLabel": {
         "number": "Number",
+        "image": "Image",
         "title": "Title",
         "text": "Text",
         "bullets": "Bullets",

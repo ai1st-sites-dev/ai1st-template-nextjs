@@ -31,12 +31,16 @@
 //                       kind list 且 editLabel 带点（`cta.label` / `link.label` / `price.monthly`）→ 合成项里那个对象的一格（`nested`）；对象是按钮
 //                                                （`{label, href, …}`）时再补 Link，带 `sources`（#1686，§itemSubs）
 //                       kind list 且项形状顶层有可选 `href?`（点评平台 / logo）→ 每项多一格 Link，不带 `sources`（#1686，§addOptionalHref）
+//   一张图（#1693）      形状是 `{imageUrl, alt}` 的对象槽 → 一格图片（`control: 'image'`）：缩略图 + Change + 图片说明（alt），
+//                        可选的（`required: false`）再给 Remove；列表项里值是 `{imageUrl, alt}` 的那个键 → 同样一格（`image: true`，
+//                        可选 = 项形状里那个键带 `?`）。判据是形状（§isOneImage），不写块名单；成排的图（`[{imageUrl, alt}]`）不在射程（T9）。
 // 列表项里**不给格子**的字段逐条登记在 §ITEM_FIELD_EXEMPT（带理由），§itemFieldCoverageProblems 守「每个字段要么有格子、要么在名单里」。
 // 🔴 「带 `sub`」≠「列表」：`link`（`{label, href}`）和 `object`（`hero-with-form.form`）也带 `sub`。
 //    把它们做成 array 字段，Puck 会把一个对象当数组编辑，存回去就坏了。
 //
-// 没有 `editLabel` 的槽位（图片、`NON_EDITABLE_TEXT_SLOTS`、`flag` …）**不出字段** —— 它们的值由
-// 转换器原样携带（`editor-convert.js`），画布照样渲染。图片槽因此在面板里不出现（票正文「换图不做」）。
+// 没有 `editLabel` 的槽位（成排的图、`NON_EDITABLE_TEXT_SLOTS`、`flag` …）**不出字段** —— 它们的值由
+// 转换器原样携带（`editor-convert.js`），画布照样渲染。
+// 📌 #1693 之前图片槽一律在这一类里（#1404 票正文「换图不做」）；「一个位置一张」的图现在标了 `editLabel`，出一格图片。
 
 const path = require('path');
 const { blockShapeCatalog } = require('./block-catalog');
@@ -52,6 +56,26 @@ const { BUTTON_SOURCES } = require('./item-sources');
 
 /** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
 const LINK_HREF = 'href';
+
+/** #1693 —— 「一个位置一张图」的形状：对象槽的 `shape`、或列表项里某个键的值写法恰好是 `{imageUrl, alt}`。 */
+const ONE_IMAGE_SHAPE = /^\{\s*imageUrl\s*,\s*alt\s*\}$/;
+function isOneImage(shape) {
+  return typeof shape === 'string' && ONE_IMAGE_SHAPE.test(shape.trim());
+}
+
+/**
+ * #1693 —— §editableSlotPaths 的一条是不是一张图：顶层 = 对象槽、形状 `{imageUrl, alt}`；列表项 = 项形状里那个键的值是 `{imageUrl, alt}`。
+ * 是 ⟹ `{ optional }`（顶层看 `required === false`，列表项看键带不带 `?` —— PM 2026-10-10 裁定）；不是 ⟹ null。
+ */
+function imageCellOf(spec, sub) {
+  if (!spec) return null;
+  if (sub === null || sub === undefined) {
+    return spec.kind === 'object' && isOneImage(spec.shape) ? { optional: spec.required === false } : null;
+  }
+  if (spec.kind !== 'list') return null;
+  const e = itemShapeEntries(spec.shape).find((x) => x.key === sub);
+  return e && isOneImage(e.value) ? { optional: e.optional } : null;
+}
 
 /**
  * 一份 manifest → 字段清单（顺序照 manifest 里槽位的书写顺序）。
@@ -130,6 +154,12 @@ function fieldsOf(manifest) {
     }
     if (!entries) continue;
     const kind = entries[0].kind;
+    const img = entries.length === 1 && entries[0].sub === null ? imageCellOf(spec, null) : null;
+    if (img) {
+      // #1693 —— 一张图：缩略图 + Change + 图片说明（alt），可选的再给 Remove。值整份对象进出（editor-convert §toProp 的 `image`）。
+      fields.push({ slot, kind, label: entries[0].label, control: 'image', subs: [], optional: img.optional });
+      continue;
+    }
     if (entries.length === 1 && entries[0].sub === null) {
       // #1498 —— `richtext`（content.body）是一段带段落 / 列表的正文：多行文本框，不是单行 text。
       fields.push({ slot, kind, label: entries[0].label, control: kind === 'list' ? 'strings' : kind === 'richtext' ? 'richtext' : 'text', subs: [] });
@@ -205,6 +235,8 @@ function itemSubs(entries, spec) {
     const dot = e.sub.indexOf('.');
     if (dot < 0) {
       const se = shape.get(e.sub);
+      // #1693 —— 项里的一张图（`image?: {imageUrl, alt}` / `photo?`）：一格图片，可选的带 Remove。
+      if (se && isOneImage(se.value)) { subs.push({ sub: e.sub, label: e.label, image: true, optional: se.optional }); continue; }
       subs.push(se && /^\[\s*string\s*\]$/.test(se.value) ? { sub: e.sub, label: e.label, strings: true } : { sub: e.sub, label: e.label });
       continue;
     }
@@ -292,6 +324,7 @@ function objectEntries(body) {
 //   · `typing`：能不能在画布上直接打字。只有 `richtext`（content.body，我们自己的 markdown）不能 —— 就地编辑是纯文本，
 //                点进去会露出 markdown 原文，打歪一个字符就能把链接写坏；它只出 AI 按钮，打字仍去右栏。
 //   · `ai`：出不出 AI 按钮。数字 / 价格 / 事实这一类不出（AI 不该编数字），见 §isFactSlot。
+//   · `image`（#1693）：这一格是一张图（§imageCellOf）⟹ 不打字、不出 AI 按钮，点它 = 面板上点 Change（选图）。
 // 🔴 按字段性质判，不按块名写名单（PM 裁定，#643 的老规矩）：今天命中的 6 个只是读数。
 //
 // 「数字 / 价格 / 事实」的判据（任一条）：
@@ -303,15 +336,18 @@ function isFactSlot(spec, sub, label) {
   return /\b(number|price|rating)\b/i.test(String(label || ''));
 }
 
-/** 一份 manifest → 画布上每一段可改的字（顺序同 §editableSlotPaths）：`{ path, kind, typing, ai }`。 */
+/** 一份 manifest → 画布上每一段可改的字（顺序同 §editableSlotPaths）：`{ path, kind, typing, ai, image? }`。 */
 function inlineSlotsOf(manifest) {
   const slots = (manifest && manifest.slots) || {};
-  return editableSlotPaths(manifest).map((e) => ({
-    path: e.path,
-    kind: e.kind,
-    typing: e.kind !== 'richtext',
-    ai: !isFactSlot(slots[e.slot], e.sub, e.label),
-  }));
+  return editableSlotPaths(manifest).map((e) => {
+    if (imageCellOf(slots[e.slot], e.sub)) return { path: e.path, kind: e.kind, typing: false, ai: false, image: true };
+    return {
+      path: e.path,
+      kind: e.kind,
+      typing: e.kind !== 'richtext',
+      ai: !isFactSlot(slots[e.slot], e.sub, e.label),
+    };
+  });
 }
 
 // ── #1660 —— 新块拖到画布那一刻播几条列表项 ──────────────────────────────────────────────────────────────
@@ -338,7 +374,8 @@ function seedListsOf(manifest) {
   for (const [slot, spec] of Object.entries(slots)) {
     if (!spec || spec.kind !== 'list' || spec.required !== true || spec.itemRequires !== undefined) continue;
     const entries = new Map(itemShapeEntries(spec.shape).map((e) => [e.key, e]));
-    const own = cells.filter((e) => e.slot === slot);
+    // #1693 —— 图片格不是字：不算「能让 AI 写的格」，也不算事实格（它没有占位可播）。
+    const own = cells.filter((e) => e.slot === slot && !imageCellOf(spec, e.sub));
     const ai = own.filter((e) => !isFactSlot(spec, e.sub, e.label));
     const requiredFact = own.some((e) => {
       // #1692 —— 只有播种会填的格才参与「播不播」：播种只填项形状里顶层的纯文字键（下面的 `keys`），子对象里的格
@@ -486,18 +523,16 @@ function slotCoverageProblems(schema, manifests) {
  */
 const BUTTON_STYLE = '按钮的样式设置，不是字';
 const ICON = '图标';
-const IMAGE = '图片。换图不在编辑器范围里（本文件头「换图不做」）';
-const IMAGE_ALT = '图片的替代文字，跟着图片走：描述的是那张图，等换图做的时候一起给';
+// #1693 —— 「一个位置一张图」的那 4 条（features / gallery / team / testimonials 每项的图）有格子了，从名单里删掉；
+//    剩下的是成排的图（logo 一排、hero 的 band、点评平台 logo），归 T9。
+const IMAGE = '成排的图里的一张。换图做了「一个位置一张」（#1693），成排的归 T9';
+const IMAGE_ALT = '成排的图里那一张的替代文字，跟着图片走：等 T9 做成排换图时一起给';
 const ITEM_FIELD_EXEMPT = Object.freeze({
   ...Object.fromEntries(['content.ctas', 'cta.ctas', 'features.introCtas', 'hero.ctas', 'milestones.introCtas', 'page-header.ctas']
     .flatMap((l) => ['style', 'icon', 'arrow', 'size'].map((f) => [`${l}.${f}`, BUTTON_STYLE]))),
   'features.items.icon': ICON,
   'milestones.stats.icon': ICON,
   'pricing.highlights.icon': ICON,
-  'features.items.image': IMAGE,
-  'gallery.items.image': IMAGE,
-  'team.members.photo': IMAGE,
-  'testimonials.items.photo': IMAGE,
   'hero.band.imageUrl': IMAGE,
   'logos.items.imageUrl': IMAGE,
   'reviews.platforms.logoUrl': IMAGE,
@@ -539,4 +574,4 @@ function itemFieldCoverageProblems(schema, manifests, exempt = ITEM_FIELD_EXEMPT
   return out;
 }
 
-module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, itemTopKeys, itemShapeEntries, inlineSlotsOf, isFactSlot, seedListsOf, SEED_ITEMS, LINK_HREF };
+module.exports = { editorSchema, fieldsOf, isOneImage, imageCellOf, slotCoverageProblems, itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, itemTopKeys, itemShapeEntries, inlineSlotsOf, isFactSlot, seedListsOf, SEED_ITEMS, LINK_HREF };

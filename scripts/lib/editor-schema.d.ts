@@ -4,8 +4,11 @@ export interface EditorField {
   kind: string;
   label: string;
   /** text = 一个输入框 · object = 子字段对象 · list = 对象数组 · strings = 字符串数组
-   *  · color = 色板 + 取色器（#1463）· options = 预设 + 旋钮 + 布尔修饰（#1463） */
-  control: 'text' | 'richtext' | 'object' | 'list' | 'strings' | 'color' | 'options' | 'int';
+   *  · color = 色板 + 取色器（#1463）· options = 预设 + 旋钮 + 布尔修饰（#1463）
+   *  · image = 一张图：缩略图 + Change + 图片说明（#1693，值是 `{imageUrl, alt}` 整份对象） */
+  control: 'text' | 'richtext' | 'object' | 'list' | 'strings' | 'color' | 'options' | 'int' | 'image';
+  /** #1693 —— `control: 'image'`：可选的图（manifest `required: false`），面板多一个 Remove。 */
+  optional?: boolean;
   /** #1497 —— `control: 'int'` 的取值（字符串形式的整数，从 manifest `intRange` 现算）。 */
   values?: string[];
   /** `choices` 有值的子字段是下拉（#1463，`eyebrow.style`） */
@@ -13,7 +16,8 @@ export interface EditorField {
   /** `nested` 有值的子字段是项里的一个对象、拆成几格平铺（#1670，价格块套餐的 `price` → Price / Yearly price） */
   /** `strings` 是 true 的子字段是项里的一列字（#1686，`plans[].features` / `items[].bullets`）：值是字符串数组，能加 / 删 / 排序 */
   /** `nested` 的某一格带 `sources`：项里按钮 / 链接对象的 Link 格（#1686，`plans[].cta.href` / `items[].link.href`） */
-  subs: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; strings?: boolean; nested?: { sub: string; label: string; sources?: string[] }[] }[];
+  /** `image` 是 true 的子字段是项里的一张图（#1693，`items[].image` / `members[].photo`）；`optional` = 项形状里那个键带 `?`（有 Remove） */
+  subs: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[]; strings?: boolean; image?: boolean; optional?: boolean; nested?: { sub: string; label: string; sources?: string[] }[] }[];
   /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
   summary?: string[];
   /** color：预设色板（`#rrggbb` / `brand`） */
@@ -38,6 +42,8 @@ export interface EditorInlineSlot {
   typing: boolean;
   /** false = 数字 / 价格 / 事实，不出 AI 按钮 */
   ai: boolean;
+  /** #1693 —— 这一格是一张图（`<img data-slot>`）：点它 = 选图，不打字、不出 AI 按钮 */
+  image?: boolean;
 }
 export interface EditorComponent {
   type: string;
@@ -79,6 +85,8 @@ export function slotCoverageProblems(schema: EditorSchema, manifests: Map<string
 /** #1518 —— 列表槽项形状 `[{…}]` 的顶层必填键名（嵌套 / 带 `?` 的不算；不是一个 `[{…}]` ⟹ []）。 */
 export function itemTopKeys(shape: unknown): string[];
 export function inlineSlotsOf(manifest: unknown): EditorInlineSlot[];
+/** #1693 —— 形状恰好是 `{imageUrl, alt}`（一个位置一张图）。 */
+export function isOneImage(shape: unknown): boolean;
 export function isFactSlot(spec: unknown, sub: string | null, label: string): boolean;
 export function seedListsOf(manifest: unknown): { slot: string; count: number; keys: string[] }[];
 export const SEED_ITEMS: number;

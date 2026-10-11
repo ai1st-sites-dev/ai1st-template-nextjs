@@ -161,6 +161,7 @@
       ],
       "shape": "[{image: {imageUrl, alt}, title?, caption?}]",
       "editLabel": {
+        "image": "Image",
         "title": "Title",
         "caption": "Caption"
       }

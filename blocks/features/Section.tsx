@@ -166,7 +166,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
             {introText}
             {introImg ? (
               <div className="fx-intro-img" data-part="intro-image">
-                {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+                {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' }, slot: 'introImage' })}
               </div>
             ) : null}
           </div>
@@ -186,7 +186,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
                       <div className="fx-inner h-100">
                         {img ? (
                           <div className="fx-img" data-part="item-image">
-                            {slotImg(img, { before: { className: 'w-100 h-100 object-fit-cover' } })}
+                            {slotImg(img, { before: { className: 'w-100 h-100 object-fit-cover' }, slot: `items.${i}.image` })}
                           </div>
                         ) : null}
                         <div className="fx-content">
@@ -216,7 +216,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
             </div>
             {itemsImg ? (
               <div className="fx-itemsimg" data-part="items-image">
-                {slotImg(itemsImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+                {slotImg(itemsImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' }, slot: 'itemsImage' })}
               </div>
             ) : null}
           </div>

@@ -284,8 +284,9 @@ console.log('\n── AC13 编辑器 schema');
   const on = editorSchema({}).components.find((c) => c.type === 'page-header');
   check(!!on, 'Puck 组件里有 page-header（能从左栏拖进页面）');
   const order = on.fields.map((f) => f.slot);
-  check(JSON.stringify(order) === JSON.stringify(['options', 'introEyebrow', 'headline', 'subheadline', 'ctas', 'bg']),
-    `字段顺序 = 旋钮 → eyebrow → 内容 → bg；没有 breadcrumbs（${order.join(' → ')}）`);
+  // #1693 —— image 一格图片（照 manifest 槽位的书写顺序，在 ctas 之后）。
+  check(JSON.stringify(order) === JSON.stringify(['options', 'introEyebrow', 'headline', 'subheadline', 'ctas', 'image', 'bg']),
+    `字段顺序 = 旋钮 → eyebrow → 内容 → image → bg；没有 breadcrumbs（${order.join(' → ')}）`);
 }
 
 // ══ AC14：零改动 / SubPage 只两处 ═════════════════════════════════════════════════════════════════

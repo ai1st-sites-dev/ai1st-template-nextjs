@@ -327,10 +327,10 @@ console.log('\n── AC12 编辑器 schema');
   const on = editorSchema({}).components.find((c) => c.type === 'cta');
   check(!!on, 'Puck 组件里有 cta（能从左栏拖进页面）');
   const order = on.fields.map((f) => f.slot);
-  // image 槽不带 editLabel ⟹ 不出侧栏字段（同 hero）：图在画布上换。#1471 起 form 槽（`{id?}`）出一格「选哪张站级表单」
-  // 的下拉（露多少仍由 form 旋钮管），位置照 manifest 槽位的书写顺序。
-  check(JSON.stringify(order) === JSON.stringify(['options', 'eyebrow', 'headline', 'body', 'ctas', 'form', 'bg']),
-    `字段顺序 = 旋钮 → eyebrow → 内容 → form → bg（${order.join(' → ')}）`);
+  // #1693 起 image 槽标了 editLabel ⟹ 出一格图片（缩略图 + Change + 图片说明，同 hero）。#1471 起 form 槽（`{id?}`）出一格
+  // 「选哪张站级表单」的下拉（露多少仍由 form 旋钮管）。位置都照 manifest 槽位的书写顺序。
+  check(JSON.stringify(order) === JSON.stringify(['options', 'eyebrow', 'headline', 'body', 'ctas', 'image', 'form', 'bg']),
+    `字段顺序 = 旋钮 → eyebrow → 内容 → image → form → bg（${order.join(' → ')}）`);
   const opt = on.fields[0];
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
     && opt.knobs.map((k) => k.name).join() === 'layout,frame,textAlign,image,form', '第一个字段：预设 6 个 → 旋钮 layout / frame / textAlign / image / form');

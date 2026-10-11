@@ -25,6 +25,10 @@
 //      回来的字经同一个 `replace` 写进去、记一笔撤销历史。等 AI 的这几秒里那一格被改过 ⟹ 不覆盖，说一句。
 //
 // 数字 / 价格 / 事实类字段（`ai: false`）能打字、不出工具条；`content.body`（`typing: false`）只出工具条、打字去右栏。
+//
+// #1693 —— 图片格（`<img data-slot>`，inline 清单里 `image: true`）：点它 = 面板上点 Change —— 不打字、不出工具条，
+//   直接 `InlineApi.pickImage`（EditorApp 经 dashboard 开图片库），选了一张就经同一个 `replace` 把 `imageUrl` 换掉、记一笔撤销历史。
+//   对回数据用图的地址（`<img>` 的 `src` 属性，§resolveInlineSlot）。等老板挑图的时候那张图被改过（撤销、AI 聊天换了底稿）⟹ 不覆盖，说一句。
 
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
@@ -45,6 +49,8 @@ const ACTION_LABELS: Record<RewriteAction, string> = { longer: 'Make longer', sh
 type AiBusy = RewriteAction | 'custom';
 
 export type RewriteResult = { ok: true; fields: { name: string; text: string }[] } | { ok: false; message: string };
+/** #1693 —— 选图的结果：一张新图的地址 / 老板点了取消 / 没选成（说一句）。 */
+export type PickImageResult = { ok: true; url: string } | { ok: false; cancelled: true } | { ok: false; cancelled?: false; message: string };
 
 /** EditorApp 递进来的那几样（context：它随 AI 锁等变，换它不该让 Puck 重建）。 */
 export type InlineApi = {
@@ -60,6 +66,8 @@ export type InlineApi = {
   rewrite: (req: { action: RewriteAction | 'custom'; instruction?: string; blockType: string; fields: { name: string; text: string }[] }) => Promise<RewriteResult>;
   /** #1676 —— AI 写进去了：记一条说明，下一笔存盘的记录写 `Hero · Headline · made shorter`（EditorApp §aiNotesRef）。 */
   noteAi: (n: { id: string; path: InlinePath; action: RewriteAction; text: string }) => void;
+  /** #1693 —— 开 dashboard 的图片库选一张（`current` = 现在那张的地址，没有就是空串）。面板的 Change 和画布里点图共用。 */
+  pickImage: (current: string) => Promise<PickImageResult>;
 };
 export const InlineApiContext = createContext<InlineApi | null>(null);
 
@@ -290,13 +298,16 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (!item || !component) return;
       const slot = el.getAttribute('data-slot') || '';
       const sourced = sourcedSlots(item, a.site, a.locale, a.page);
-      const r = resolveInlineSlot({ component, props: item.props, slot, text: el.textContent || '', sourced, locked: !!item.props._src?.locked });
+      // #1693 —— 图片格拿图的地址去对（`src` 属性原样，不是 `.src` —— 那个是补全过的绝对地址）。
+      const text = el.tagName === 'IMG' ? el.getAttribute('src') || '' : el.textContent || '';
+      const r = resolveInlineSlot({ component, props: item.props, slot, text, sourced, locked: !!item.props._src?.locked });
       setNote('');
       if (!r.ok) {
         const ref = r.slot ? item.props[r.slot] : undefined;
         setActive({ id, slot, blockType: item.type, el, path: null, name: '', typing: false, ai: false, hint: hintFor(r.why, ref) });
         return;
       }
+      if (r.image) { setActive(null); void pickFor(id, slot, item.type, el, r.path, r.value); return; }
       const next: Active = { id, slot, blockType: item.type, el, path: r.path, name: r.name, typing: r.typing, ai: r.ai, hint: '' };
       setActive(next);
       if (r.typing) startTyping(next, e.clientX, e.clientY);
@@ -391,6 +402,26 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     return () => win.cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, doc]);
+
+  /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。 */
+  async function pickFor(id: string, slot: string, blockType: string, el: HTMLElement, path: InlinePath, before: string) {
+    const ap = apiRef.current;
+    if (!ap) return;
+    const res = await ap.pickImage(before);
+    if (!res.ok) {
+      if (!res.cancelled) setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: res.message });
+      return;
+    }
+    const cur = getAt(itemById(id)?.props, path) as Record<string, unknown> | undefined;
+    const now = cur && typeof cur === 'object' && typeof cur.imageUrl === 'string' ? cur.imageUrl : '';
+    if (now !== before) {
+      setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: 'This image was changed while you were choosing, so your choice was not used.' });
+      return;
+    }
+    if (!write(id, path, { ...cur, imageUrl: res.url }, true)) {
+      setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: 'This section is no longer on the page.' });
+    }
+  }
 
   async function runAi(action: AiBusy) {
     const a = activeRef.current;

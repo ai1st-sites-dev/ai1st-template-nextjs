@@ -153,7 +153,7 @@ export default function GalleryNewSection({ data, block }: Props) {
               <figure key={i} className="gl-item" data-part="item">
                 <a className="gl-img d-block" href={`#${lbId}`} data-bs-toggle="modal" data-gl-index={i}
                   aria-label={`Open photo${it.title ? `: ${it.title}` : ` ${i + 1}`}`}>
-                  {slotImg(it.image!, { alt: altOf(it) })}
+                  {slotImg(it.image!, { alt: altOf(it), slot: `items.${i}.image` })}
                 </a>
                 {it.title || it.caption ? (
                   <figcaption className="gl-cap" data-part="caption">

@@ -166,7 +166,7 @@ export default function CtaNewSection({ data, locale = 'en', block, site }: Prop
           </div>
           {side && img ? (
             <div className="cta-img" data-part="image">
-              {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+              {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' }, slot: 'image' })}
             </div>
           ) : null}
         </div>

@@ -185,7 +185,7 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
           <blockquote className="tn-quote m-0"><span data-slot={`items.${i}.quote`}>{it.quote}</span></blockquote>
           <figcaption className="tn-author d-flex align-items-center gap-3">
             {photo ? (
-              slotImg(photo, { before: { className: 'tn-avatar', 'data-part': 'photo' } })
+              slotImg(photo, { before: { className: 'tn-avatar', 'data-part': 'photo' }, slot: `items.${i}.photo` })
             ) : name ? (
               <span className="tn-avatar tn-initials d-inline-flex align-items-center justify-content-center fw-semibold bg-primary-subtle text-primary" data-part="initials" aria-hidden="true">
                 {initialsOf(name)}

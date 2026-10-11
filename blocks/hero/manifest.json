@@ -109,7 +109,8 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{imageUrl, alt}"
+      "shape": "{imageUrl, alt}",
+      "editLabel": "Image"
     },
     "form": {
       "kind": "object",

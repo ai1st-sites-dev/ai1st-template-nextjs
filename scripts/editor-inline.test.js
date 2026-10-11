@@ -42,8 +42,14 @@ check(all.length > 0 && all.length === expected.length && all.every((x, i) => x.
   `inline 清单逐条等于 editableSlotPaths（${all.length} 条，同序）`);
 const noTyping = all.filter((x) => !x.typing).map((x) => x.id);
 const noAi = all.filter((x) => !x.ai).map((x) => x.id);
-check(noTyping.length === all.filter((x) => x.kind === 'richtext').length && noTyping.every((id) => all.find((x) => x.id === id).kind === 'richtext'),
-  '不能就地打字的 = 全部 richtext，别的都能', noTyping);
+// #1693 —— 图片格（`image: true`，「一个位置一张」的图）点了是选图：不打字、不出 AI 按钮。
+const images = all.filter((x) => x.image === true);
+const textNoTyping = noTyping.filter((id) => !images.some((x) => x.id === id));
+check(textNoTyping.length === all.filter((x) => x.kind === 'richtext').length && textNoTyping.every((id) => all.find((x) => x.id === id).kind === 'richtext'),
+  '不能就地打字的字 = 全部 richtext，别的字都能', textNoTyping);
+check(images.length > 0 && images.every((x) => x.typing === false && x.ai === false),
+  `图片格（${images.length} 个）全部不打字、不出 AI 按钮`, images.filter((x) => x.typing || x.ai).map((x) => x.id));
+console.log(`     图片格：${images.map((x) => x.id).join(' ')}`);
 console.log(`     读数：全集 ${all.length} · 能就地打字 ${all.length - noTyping.length} · 有 AI 按钮 ${all.length - noAi.length}`);
 console.log(`     不能打字：${noTyping.join(' ')}`);
 console.log(`     没有 AI 按钮：${noAi.join(' ')}`);

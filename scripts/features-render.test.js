@@ -386,14 +386,15 @@ console.log('\n── AC13 编辑器 schema');
   const on = editorSchema({}).components.find((c) => c.type === 'features');
   check(!!on, 'Puck 组件里有 features（能从左栏拖进页面）');
   const order = on.fields.map((f) => f.slot);
-  check(JSON.stringify(order) === JSON.stringify(['options', 'introEyebrow', 'headline', 'body', 'introCtas', 'items', 'bg']),
-    `字段顺序 = 旋钮 → 眉标 → 块头 → 按钮 → items → bg（${order.join(' → ')}）`);
+  // #1693 —— 两张块级图（introImage / itemsImage）各一格图片，位置照 manifest 槽位的书写顺序。
+  check(JSON.stringify(order) === JSON.stringify(['options', 'introEyebrow', 'headline', 'body', 'introCtas', 'introImage', 'itemsImage', 'items', 'bg']),
+    `字段顺序 = 旋钮 → 眉标 → 块头 → 按钮 → 两张图 → items → bg（${order.join(' → ')}）`);
   const opt = on.fields[0];
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
     && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), `第一个字段：预设 ${M.presets.length} 个 → 十一个旋钮（控件顺序 intro → items → item）`);
   const items = on.fields.find((f) => f.slot === 'items');
-  // #1686 —— 编号、小列表、链接也有格子了（number 一格文字、bullets 一列字、link 文字 + Link 两格）。
-  check(items.control === 'list' && items.subs.map((x) => x.sub).join() === 'number,title,text,bullets,link', `items 是列表字段、每项可改 number / title / text / bullets / link（${items.control} · ${items.subs.map((x) => x.sub).join(' / ')}）`);
+  // #1686 —— 编号、小列表、链接也有格子了（number 一格文字、bullets 一列字、link 文字 + Link 两格）。#1693 —— 每项的图一格图片（带 Remove）。
+  check(items.control === 'list' && items.subs.map((x) => x.sub).join() === 'number,image,title,text,bullets,link', `items 是列表字段、每项可改 number / image / title / text / bullets / link（${items.control} · ${items.subs.map((x) => x.sub).join(' / ')}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[1].knobs) === 'Cards' && presetNameFor(man, { ...M.presets[1].knobs, itemsColumns: '4' }) === 'custom',
     '点 Cards = 那一组旋钮；拧偏一个（itemsColumns=4）⟹ custom');

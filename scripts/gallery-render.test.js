@@ -457,7 +457,9 @@ console.log('\n── AC11 编辑器 schema');
   check(JSON.stringify(order) === JSON.stringify(['options', 'introEyebrow', 'headline', 'body', 'items', 'bg']),
     `字段顺序 = 旋钮 → 眉标 → 块头 → 照片 → bg（${order.join(' → ')}）`);
   const it = on.fields.find((f) => f.slot === 'items');
-  check(it.control === 'list' && it.subs.map((x) => x.sub).join() === 'title,caption', `items 是列表字段、每张可改 title / caption（${it.subs.map((x) => x.sub).join(' / ')}）`);
+  // #1693 —— 每张的图也有一格（图片，必填 ⟹ 没有 Remove）。
+  check(it.control === 'list' && it.subs.map((x) => x.sub).join() === 'image,title,caption' && it.subs[0].image === true && !it.subs[0].optional,
+    `items 是列表字段、每张可改 image / title / caption，图不带 Remove（${it.subs.map((x) => x.sub).join(' / ')}）`);
   const h = render('grid', clone(DEMO));
   const paths = manifestLib.editableSlotPaths(M).map((e) => (e.sub ? `${e.slot}.${e.kind === 'list' ? '0.' : ''}${e.sub}` : e.slot));
   const missing = paths.filter((p) => !h.includes(`data-slot="${p}"`));

@@ -13,6 +13,9 @@
 //    顶层 / 对象里的字没有序号，也要内容对得上：块对这段字做过加工（拼了别的字、换了格式）时，
 //    把画布上的样子写回数据就是写错，同样不让改。只出 AI 按钮、不打字的那种（`content.body`）不比 —— 见下。
 //
+// #1693 —— 图片格（`entry.image`，画布上是 `<img data-slot="items.2.image">`）同一条规矩，「内容」换成图的地址：
+//    调用方把 `<img>` 的 `src` 当 `text` 交进来，跟数据里那一项的 `imageUrl` 比（gallery 先筛掉没图的项，序号同样不可信）。
+//
 // 🔴 两种块点不动（画布上照样有 `data-slot`）：
 //    · 列表写成引用的（`items: { source: "services" }`）：判据是展开时写下的 `data._sourced`（item-sources.js），
 //      调用方把那份标记的键（槽名）交进来。打字会把引用覆盖成一份写死的数组。
@@ -56,12 +59,12 @@ function stripIndex(attr) {
  * @param {{ inline: Array<{path:string, typing:boolean, ai:boolean}> }} args.component  editor-schema 里这一块
  * @param {object}   args.props      Puck 里这一块的 props（字段 prop 跟 data 同形：`props.items[1].title`）
  * @param {string}   args.slot       元素上的 `data-slot`
- * @param {string}   args.text       元素现在显示的字（`textContent`，不是 `innerText` —— 后者会带上 CSS 的大写变换）
+ * @param {string}   args.text       元素现在显示的字（`textContent`，不是 `innerText` —— 后者会带上 CSS 的大写变换）；图片格是 `<img>` 的 `src`
  * @param {string[]} [args.sourced]  这一块展开时写下的 `_sourced` 的键（写成引用的槽名）
  * @param {boolean}  [args.locked]   这一块是锁住的（`_src.locked`）
- * @returns {{ ok: true, path: (string|number)[], name: string, value: string, typing: boolean, ai: boolean }
+ * @returns {{ ok: true, path: (string|number)[], name: string, value: string, typing: boolean, ai: boolean, image: boolean }
  *          | { ok: false, why: 'unknown'|'sourced'|'locked'|'mismatch'|'ambiguous', slot?: string }}
- *   `name` = 数据里的路径（真实下标），交给 AI 接口的字段名就是它。
+ *   `name` = 数据里的路径（真实下标），交给 AI 接口的字段名就是它。图片格的 `value` 是现在那张图的地址。
  */
 function resolveInlineSlot({ component, props, slot, text, sourced = [], locked = false }) {
   const segs = String(slot || '').split('.').filter(Boolean);
@@ -72,20 +75,22 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
   if (locked) return { ok: false, why: 'locked' };
   if (sourced.includes(segs[0])) return { ok: false, why: 'sourced', slot: segs[0] };
   const shown = norm(text);
+  // 比内容用的那一格：字就是它自己；图片格是那个图片对象的 `imageUrl`。
+  const key = (v) => (entry.image ? norm(v !== null && typeof v === 'object' ? v.imageUrl : undefined) : norm(v));
   const nums = segs.map((s, i) => (/^\d+$/.test(s) ? i : -1)).filter((i) => i >= 0);
   let path;
   if (nums.length === 0) {
     path = segs;
     // 不就地打字的那种（`content.body`：画布上是排过版的段落 / 列表，跟 markdown 原文按构造对不上）不比：
     // 它不会把画布上的字写回去，AI 改的是数据里那一份。
-    if (entry.typing !== false && norm(getAt(props, path)) !== shown) return { ok: false, why: 'mismatch' };
+    if ((entry.typing !== false || entry.image) && key(getAt(props, path)) !== shown) return { ok: false, why: 'mismatch' };
   } else if (nums.length === 1) {
     const at = nums[0];
     const list = getAt(props, segs.slice(0, at));
     const rest = segs.slice(at + 1);
     if (!Array.isArray(list)) return { ok: false, why: 'mismatch' };
     const hits = [];
-    list.forEach((item, j) => { if (norm(getAt(item, rest)) === shown) hits.push(j); });
+    list.forEach((item, j) => { if (key(getAt(item, rest)) === shown) hits.push(j); });
     if (hits.length === 0) return { ok: false, why: 'mismatch' };
     if (hits.length > 1) return { ok: false, why: 'ambiguous' };
     path = [...segs.slice(0, at), hits[0], ...rest];
@@ -100,7 +105,7 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
     const hits = [];
     list.forEach((item, i) => {
       const inner = getAt(item, mid);
-      if (Array.isArray(inner)) inner.forEach((x, j) => { if (norm(getAt(x, rest)) === shown) hits.push([i, j]); });
+      if (Array.isArray(inner)) inner.forEach((x, j) => { if (key(getAt(x, rest)) === shown) hits.push([i, j]); });
     });
     if (hits.length === 0) return { ok: false, why: 'mismatch' };
     if (hits.length > 1) return { ok: false, why: 'ambiguous' };
@@ -108,7 +113,7 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
   } else {
     return { ok: false, why: 'ambiguous' };
   }
-  const value = getAt(props, path);
+  const value = entry.image ? getAt(props, [...path, 'imageUrl']) : getAt(props, path);
   return {
     ok: true,
     path,
@@ -116,6 +121,7 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
     value: value === undefined || value === null ? '' : String(value),
     typing: entry.typing !== false,
     ai: entry.ai !== false,
+    image: entry.image === true,
   };
 }
 

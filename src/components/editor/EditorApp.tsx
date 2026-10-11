@@ -69,6 +69,11 @@
 //     收  ai1st:ai-fill-block-result {id, ok, fields?, message?}
 //     等的时候块上一枚「AI is writing…」（§FillingContext）；回来只换**还是占位**的那几格（等的时候老板改过的不盖，同 T6），
 //     记一笔撤销历史。失败：占位留着，顶栏一句话（§FillNote），不弹窗。
+//
+// #1693 —— 换图（「一个位置一张」的图，面板 §ImageField.tsx + 画布里点图 §InlineEdit.tsx）：选图用 dashboard 的图片库，
+//   发  ai1st:pick-image {id, current}                    dashboard 开图片库弹窗（单选；上传 / 选已有的都在它那边，带它自己的凭证）
+//   收  ai1st:pick-image-result {id, ok, url?, cancelled?, message?}   选了一张 = 新地址；取消 = cancelled
+//   同一时刻只等一次：再点一次 Change，上一次算取消。不设超时 —— 老板在弹窗里挑多久都行。
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
@@ -92,7 +97,8 @@ import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type Edit
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
-import { InlineApiContext, InlineEditLayer, InlineFreezeContext, type InlineApi, type InlineFreeze, type RewriteResult } from './InlineEdit';
+import { InlineApiContext, InlineEditLayer, InlineFreezeContext, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
+import { imageField } from './ImageField';
 import type { SiteData } from '@/lib/types/config';
 
 export interface EditorAppProps {
@@ -238,6 +244,7 @@ function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: u
 
 /** 一个子字段：词表里有它（`choices`）就是下拉；带 `sources` 的是链接格（#1506）；否则是一格文字。 */
 function subField(s: EditorField['subs'][number], site: SiteData): Field {
+  if (s.image) return imageField(s.label, !!s.optional); // #1693 —— 项里的一张图（features 每项的 image、team 的 photo …）
   if (s.nested && s.nested.length) return nestedTextField(s.sub, s.label, s.nested, site);
   if (s.strings) return stringListField(s.label);
   if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources, site);
@@ -410,6 +417,9 @@ function puckField(f: EditorField, forms: EditorFormChoice[], site: SiteData): F
   switch (f.control) {
     case 'text':
       return { type: 'text', label: f.label };
+    // #1693 —— 一张图（hero.image 那种）：缩略图 + Change + 图片说明，可选的带 Remove（§ImageField.tsx）。
+    case 'image':
+      return imageField(f.label, !!f.optional);
     // #1497 —— 一个整数设置（blog 的 postCount 2–6）：一格下拉。第一项「Default」= 不写（块按自己的默认值走），
     //    免得没写过的块在侧栏里显示成 2、看起来像是老板选过。
     case 'int':
@@ -1370,6 +1380,8 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   // #1657 —— 画布上正在打的那一格（§InlineFreezeContext）；在等 AI 改写回话的那几次（id → 回话交给谁）。
   const [freeze, setFreeze] = useState<InlineFreeze>(null);
   const rewritesRef = useRef(new Map<string, (r: RewriteResult) => void>());
+  // #1693 —— 正在等的那一次选图（同一时刻只有一次）。
+  const pickRef = useRef<{ id: string; done: (r: PickImageResult) => void } | null>(null);
   // #1660 —— 正在等 AI 写字的新块（画布上那枚标）；没写成时顶栏那一句。
   const [filling, setFilling] = useState<ReadonlySet<string>>(new Set());
   const [fillNote, setFillNote] = useState<string | null>(null);
@@ -1504,6 +1516,17 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
         } else {
           done({ ok: false, message: typeof d.message === 'string' && d.message ? d.message : 'The AI could not rewrite this text. Please try again.' });
         }
+        return;
+      }
+      if (d.type === 'ai1st:pick-image-result') {
+        // #1693 —— 只认手上在等的那一次；地址只收非空字符串（别的形状当失败）。
+        const r = d as { id?: unknown; url?: unknown; cancelled?: unknown; message?: unknown };
+        const p = pickRef.current;
+        if (!p || r.id !== p.id) return;
+        pickRef.current = null;
+        if (d.ok === true && typeof r.url === 'string' && r.url.trim()) p.done({ ok: true, url: r.url.trim() });
+        else if (r.cancelled === true) p.done({ ok: false, cancelled: true });
+        else p.done({ ok: false, message: typeof r.message === 'string' && r.message ? r.message : 'The image could not be chosen. Please try again.' });
         return;
       }
       if (d.type === 'ai1st:chat-sent') {
@@ -1853,6 +1876,19 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     });
   }
 
+  // #1693 —— 选一张图：交给 dashboard 开图片库（它带凭证上传 / 列图库），回话在 §onMessage 的 `ai1st:pick-image-result`。
+  function pickImage(current: string): Promise<PickImageResult> {
+    if (!trustedOrigin || window.parent === window) {
+      return Promise.resolve({ ok: false, message: 'Open this editor from your dashboard to change images.' });
+    }
+    if (pickRef.current) { pickRef.current.done({ ok: false, cancelled: true }); pickRef.current = null; }
+    const id = `pi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return new Promise((resolve) => {
+      pickRef.current = { id, done: resolve };
+      postChat({ type: 'ai1st:pick-image', id, current });
+    });
+  }
+
   // #1660 —— 新块落下：把它 `ai: true` 的格（带着占位）交给 AI 按这家生意写。回来只换还是占位的那几格 ——
   //    等的这几秒里老板改过的格、删掉的块都不碰（同 T6 §runAi）。AI 正在改这一页（聊天）时不写：那一轮会换底稿。
   function startFill(id: string, type: string) {
@@ -1972,7 +2008,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
-  const inlineApi: InlineApi = { locked, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi };
+  const inlineApi: InlineApi = { locked, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, pickImage };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };

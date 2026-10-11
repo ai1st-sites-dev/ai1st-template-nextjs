@@ -12,6 +12,9 @@
 //      alt 不给就是 `img.alt || ''`；page-header 铺底那张写死 `alt: ''`（不读数据里的 alt，那是本票之外的事）。
 //    - ratingStars：根节点的属性整组由 `root(n, label)` 给（两个块 role / aria-label 的先后不同）。
 // 📌 `key` 单独传：React 不许把 key 混在展开的 props 里。
+// 📌 #1693 —— `slot`：编辑器里能换的图（「一个位置一张」，manifest 标了 `editLabel`）挂上它的槽位路径 `data-slot`
+//    （`image`、`items.2.image`），排在所有属性最后；不给就一个字节不多（成排的图 / 灯箱里那份不挂）。
+//    `scripts/block-slots.test.js` ① 两向守着「标了 editLabel 的图都挂了、挂了的都标了」。
 
 import type { Key } from 'react';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -21,9 +24,9 @@ type Attrs = Record<string, unknown>;
 
 export function slotImg(
   img: SlotImage,
-  { key, before, between, alt, after }: { key?: Key; before?: Attrs; between?: Attrs; alt?: string; after?: Attrs } = {},
+  { key, before, between, alt, after, slot }: { key?: Key; before?: Attrs; between?: Attrs; alt?: string; after?: Attrs; slot?: string } = {},
 ) {
-  return <img key={key} {...before} src={img.imageUrl} {...between} alt={alt ?? (img.alt || '')} {...after} />;
+  return <img key={key} {...before} src={img.imageUrl} {...between} alt={alt ?? (img.alt || '')} {...after} {...(slot ? { 'data-slot': slot } : {})} />;
 }
 
 /**

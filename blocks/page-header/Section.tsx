@@ -88,7 +88,7 @@ export default function PageHeaderNewSection({ data, block }: Props) {
       containerClassName="container position-relative"
       layer={cover && img ? (
         <div className="phn-bgimg" data-part="bg" aria-hidden="true">
-          {slotImg(img, { alt: '' })}
+          {slotImg(img, { alt: '', slot: 'image' })}
         </div>
       ) : null}
     >
@@ -123,7 +123,7 @@ export default function PageHeaderNewSection({ data, block }: Props) {
         </div>
         {side && img ? (
           <div className="phn-img" data-part="image">
-            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
+            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' }, slot: 'image' })}
           </div>
         ) : null}
       </div>

@@ -190,6 +190,7 @@
       "editLabel": {
         "name": "Name",
         "role": "Role",
+        "photo": "Photo",
         "bio": "Bio"
       }
     },

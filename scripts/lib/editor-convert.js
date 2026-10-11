@@ -116,6 +116,9 @@ function toProp(field, value) {
     // #1463 —— 旋钮 + 布尔修饰：整份对象带着（没有字段的键也在里面，存盘原样还回去）。
     case 'options':
       return isPlainObject(value) ? clone(value) : {};
+    // #1693 —— 一张图 `{imageUrl, alt}`：整份对象带着（副本；对象里别的键原样留着）。没有图 = undefined。
+    case 'image':
+      return isPlainObject(value) ? clone(value) : undefined;
     case 'object': {
       const out = {};
       for (const { sub } of field.subs) out[sub] = isPlainObject(value) ? value[sub] : undefined;
@@ -188,6 +191,13 @@ function mergeSlot(data, field, prop) {
       data[slot] = base;
       return;
     }
+    case 'image':
+      // #1693 —— 换图 / 改图片说明 ⟹ 写回整份对象（面板只换 `imageUrl` / `alt` 两个键，其余原样）；Remove ⟹ undefined ⟹ 删掉这个键。
+      //    🔴 原值不是对象（畸形数据）时 toProp 给的也是 undefined —— 那不是老板点了 Remove，原样留着。
+      if (deepEqual(prop, before)) return;
+      if (prop === undefined || prop === null) { if (isPlainObject(before)) delete data[slot]; return; }
+      data[slot] = clone(prop);
+      return;
     case 'object': {
       const base = isPlainObject(before) ? { ...before } : {};
       let touched = false;

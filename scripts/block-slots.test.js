@@ -38,6 +38,9 @@ const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); 
 
 const manifestLib = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
 const { editableSlotPaths, stripSlotIndex, NO_SLOT_PATH_BLOCKS } = manifestLib;
+// #1693 —— 「一个位置一张图」的判据跟编辑器同一个函数（形状恰好 `{imageUrl, alt}`）：夹具给这种槽 / 项里这种键造一张真图。
+const { isOneImage, itemShapeEntries } = require(path.join(NEXT, 'scripts', 'lib', 'editor-schema.js'));
+const FIXTURE_IMG = { imageUrl: '/a.png', alt: '' };
 
 // ── 让 node 能 require 这些 .tsx ────────────────────────────────────────────────────────────────
 //
@@ -150,8 +153,15 @@ const EXTRA = {
 // #1463 —— 同一个块、互斥的两支：hero 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。
 // 一份夹具按构造只走得到一支，所以这种块渲染**几次**、每次换一组旋钮，钩子取并集。每一支都要真的渲染
 // 出东西 —— 并集只是把两次读数合起来，不是放宽判据。
+// #1693 —— 图片也是这种：每个图片旋钮默认 `none`（不画图），`<img data-slot>` 只在把旋钮拧到一侧时才画。
+//    所以带图的块多渲染一次（同一个块几张图分开拧，免得某种排版里两张图互斥、并集靠运气凑齐）。
 const VARIANTS = {
-  'hero': [{ options: { form: 'none' } }, { options: { form: 'full' } }],   // #1470：form 旋钮 none | teaser | full
+  'hero': [{ options: { form: 'none', image: 'right' } }, { options: { form: 'full' } }],   // #1470：form 旋钮 none | teaser | full
+  'content': [{}, { options: { image: 'right' } }],
+  'cta': [{}, { options: { image: 'right' } }],
+  'page-header': [{}, { options: { image: 'right' } }],
+  'features': [{}, { options: { introImage: 'left' } }, { options: { itemsImage: 'left' } }, { options: { itemImage: 'top' } }],
+  'milestones': [{}, { options: { blockImage: 'left' } }, { options: { introImage: 'left' } }],
 };
 
 function fixtureFor(type, manifest) {
@@ -161,10 +171,13 @@ function fixtureFor(type, manifest) {
     const subs = (s.editLabel && typeof s.editLabel === 'object') ? Object.keys(s.editLabel) : [];
     switch (s.kind) {
       case 'list': {
+        const imgKeys = new Set(itemShapeEntries(s.shape).filter((e) => isOneImage(e.value)).map((e) => e.key));
         data[slot] = Array.from({ length: LIST_ITEMS }, (_, i) => {
           if (!subs.length) return `${slot}-${i}`;       // 裸字符串列表
           const item = JSON.parse(JSON.stringify(extra._item || {}));
           for (const k of subs) {
+            // #1693 —— 项里的一张图（`image` / `photo`）造成图片对象，不是一串字。
+            if (imgKeys.has(k) && !Object.prototype.hasOwnProperty.call(item, k)) { item[k] = { ...FIXTURE_IMG }; continue; }
             // #1686 —— `EXTRA._item` 给了真形状的（字符串列表 `features`、星级 `rating`）不拿字符串盖掉；
             //    带点的（`cta.label`）是项里那个对象的键，写进那个对象，不写成平键 "cta.label"。
             if (Object.prototype.hasOwnProperty.call(item, k)) continue;
@@ -181,7 +194,8 @@ function fixtureFor(type, manifest) {
         if (!subs.includes('label')) data[slot].label = `${slot}-label`;
         break;
       case 'object':
-        data[slot] = Object.fromEntries(subs.map((k) => [k, `${slot}-${k}`]));
+        // #1693 —— 一张图的对象槽（hero.image 那种）：造一张真图，不然组件不画 `<img>`、它那条 data-slot 无从谈起。
+        data[slot] = isOneImage(s.shape) ? { ...FIXTURE_IMG } : Object.fromEntries(subs.map((k) => [k, `${slot}-${k}`]));
         break;
       case 'image':
         data[slot] = s.shape && s.shape.startsWith('[') ? ['/a.png'] : '/a.png';
@@ -345,6 +359,27 @@ console.log('\n── ③ 证明这道守卫真会红：两个方向各弄坏一
     bad('改之前就有这条路径 —— 夹具不成立');
   } else {
     ok('manifest 上加一个没人渲染的 editLabel ⟹ 它落在「只有 manifest 有」那一栏（这道守卫会红）');
+  }
+
+  // #1693 AC1 —— 图片那一维也真会红：把 hero 大图的画布标记（`slot: 'image'`）去掉 ⟹ `hero.image` 落进「只有 manifest 有」。
+  //    改的是 hero 自己的 Section.tsx（`<img>` 由 blockMedia §slotImg 画，标记是调用方给的那一个参数）。
+  const heroFile = componentFileFor('hero');
+  const heroSrc = fs.readFileSync(heroFile, 'utf-8');
+  const heroMarker = ", slot: 'image' })";
+  const hm = manifests.get('hero');
+  if (heroSrc.split(heroMarker).length !== 2) {
+    bad(`夹具不成立：hero 的组件里 ${heroMarker} 不是恰好一处`);
+  } else if (!editableSlotPaths(hm).some((x) => x.path === 'image')) {
+    bad('夹具不成立：hero 的 manifest 没给 image 标 editLabel');
+  } else {
+    const intact = slotsInOutput('hero', hm);
+    sourceOverride.set(heroFile, heroSrc.replace(heroMarker, ' })'));
+    const broken = slotsInOutput('hero', hm);
+    sourceOverride.delete(heroFile);
+    if (intact.error || broken.error) bad(`渲染 hero 抛了：${intact.error || broken.error}`);
+    else if (!intact.paths.has('image')) bad('没改之前产物里就没有 data-slot="image" —— 夹具没把 hero 的图画出来');
+    else if (broken.paths.has('image')) bad('去掉 hero 图片的标记之后，产物里居然还有 data-slot="image" —— 这把尺子读的不是产物');
+    else ok('去掉 hero 大图的画布标记 ⟹ hero.image 落在「只有 manifest 有」那一栏（第 ① 节会红）');
   }
 }
 

@@ -236,7 +236,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
         </div>
         {side && img ? (
           <div className="hro-side">
-            {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-img' } })}
+            {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-img' }, slot: 'image' })}
           </div>
         ) : null}
       </div>

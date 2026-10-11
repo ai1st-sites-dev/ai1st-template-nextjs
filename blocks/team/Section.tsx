@@ -131,7 +131,7 @@ export default function TeamNewSection({ data, block, iconTable = {} }: Props) {
                   <div className="tm-inner h-100">
                     {photo ? (
                       <div className="tm-photo" data-part="photo">
-                        {slotImg(photo, { alt: photo.alt || m.name || '' })}
+                        {slotImg(photo, { alt: photo.alt || m.name || '', slot: `members.${i}.photo` })}
                       </div>
                     ) : null}
                     <div className="tm-text">

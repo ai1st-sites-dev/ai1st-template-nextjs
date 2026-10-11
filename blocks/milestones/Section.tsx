@@ -139,7 +139,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
       containerClassName="container mi-container"
       layer={cover ? (
         <div className="mi-cover" data-part="block-image">
-          {slotImg(blockImg, { before: { className: 'w-100 h-100 object-fit-cover' } })}
+          {slotImg(blockImg, { before: { className: 'w-100 h-100 object-fit-cover' }, slot: 'blockImage' })}
         </div>
       ) : null}
     >
@@ -152,7 +152,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
                   {introText}
                   {introImg ? (
                     <div className="mi-intro-img" data-part="intro-image">
-                      {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+                      {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' }, slot: 'introImage' })}
                     </div>
                   ) : null}
                 </div>
@@ -179,7 +179,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
         </div>
         {blockImg && !cover ? (
           <div className="mi-bimg" data-part="block-image">
-            {slotImg(blockImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+            {slotImg(blockImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' }, slot: 'blockImage' })}
           </div>
         ) : null}
       </div>

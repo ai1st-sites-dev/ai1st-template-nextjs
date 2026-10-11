@@ -91,6 +91,8 @@ console.log('② 字段两层比');
       // #1471 —— 选站级表单的槽（`form: { id? }`）：一个对象字段、子字段只有 id（编辑器画成表单下拉）。
       if (slot === 'form' && sp.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(sp.shape || ''))) return 'formRef';
       if (Array.isArray(sp.intRange) && typeof sp.editLabel === 'string') return 'int'; // #1497 —— 整数设置（postCount）
+      // #1693 —— 一张图：对象槽、形状恰好 `{imageUrl, alt}`、标了 editLabel ⟹ 一格图片（这里自己写一遍判据，不借 editor-schema 那个函数）。
+      if (sp.kind === 'object' && typeof sp.editLabel === 'string' && /^\{\s*imageUrl\s*,\s*alt\s*\}$/.test(String(sp.shape || '').trim())) return 'image';
       return null;
     };
     const wantTop = [...new Set([...esp.map((e) => e.slot), ...Object.keys(slots).filter((x) => special(x))])].sort();
@@ -116,7 +118,7 @@ console.log('② 字段两层比');
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
       const sp = special(f.slot);
-      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list' : sp === 'formRef' ? 'object' : sp === 'int' ? 'int'
+      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list' : sp === 'formRef' ? 'object' : sp === 'int' ? 'int' : sp === 'image' ? 'image'
         : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : f.kind === 'richtext' ? 'richtext' : 'text') : (f.kind === 'list' ? 'list' : 'object');
       if (f.control !== wantControl) problems.push(`${m.type}.${f.slot} 控件 ${f.control} ≠ ${wantControl}（kind ${f.kind}）`);
       paths += f.subs.length || 1;
@@ -1348,8 +1350,9 @@ console.log('\n#1686 列表项里的字段：格子 + 覆盖检查');
   const pI = itemFieldCoverageProblems({ components: schema.components.map((c) => (c.type === 'pricing' ? { ...c, fields: fieldsOf(fake) } : c)) },
     new Map([...manifests].map(([t, m]) => [t, t === 'pricing' ? fake : m])));
   check(JSON.stringify(pI) === JSON.stringify(['pricing.plans.icon']), '反向：pricing.plans 加一个 icon?（别的块的 icon 在名单里）⟹ 照样点名', pI.join(' / '));
-  // 正文第二张表 == 名单（逐条），名单 48 - 9 = 39 条
-  check(Object.keys(ITEM_FIELD_EXEMPT).length === 39 && Object.values(ITEM_FIELD_EXEMPT).every((r) => typeof r === 'string' && r.trim()), `豁免名单 ${Object.keys(ITEM_FIELD_EXEMPT).length} 条，每条带理由`);
+  // 正文第二张表 == 名单（逐条），名单 48 - 9 = 39 条；#1693 给「一个位置一张」的 4 条图（features / gallery / team / testimonials
+  //    每项的图）补了格子、从名单删掉 ⟹ 35 条（逐条读数在 editor-images.test.js ①）。
+  check(Object.keys(ITEM_FIELD_EXEMPT).length === 35 && Object.values(ITEM_FIELD_EXEMPT).every((r) => typeof r === 'string' && r.trim()), `豁免名单 ${Object.keys(ITEM_FIELD_EXEMPT).length} 条，每条带理由`);
 
   // AC3：存盘往返 —— 改一行 feature、改按钮字，页面 JSON 里只有那两处变了，其余字段逐字不变
   const plans = [

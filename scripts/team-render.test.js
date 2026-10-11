@@ -404,7 +404,8 @@ console.log('\n── AC13 编辑器 schema');
   check(JSON.stringify(order) === JSON.stringify(['options', 'introEyebrow', 'headline', 'body', 'members', 'join', 'bg']),
     `字段顺序 = 旋钮 → 眉标 → 块头 → 成员 → 招聘卡 → bg（${order.join(' → ')}）`);
   const mem = on.fields.find((f) => f.slot === 'members');
-  check(mem.control === 'list' && mem.subs.map((x) => x.sub).join() === 'name,role,bio', `members 是列表字段、每条可改 name / role / bio（${mem.subs.map((x) => x.sub).join(' / ')}）`);
+  // #1693 —— 成员照片一格图片（可选 ⟹ 带 Remove）。
+  check(mem.control === 'list' && mem.subs.map((x) => x.sub).join() === 'name,role,photo,bio', `members 是列表字段、每条可改 name / role / photo / bio（${mem.subs.map((x) => x.sub).join(' / ')}）`);
   const j = on.fields.find((f) => f.slot === 'join');
   check(j.control === 'object' && j.subs.map((x) => x.sub).join() === 'title,body', `join 是对象字段、可改 title / body（${j.subs.map((x) => x.sub).join(' / ')}）`);
   // 面板列出来的每个可改的字，组件都挂了 data-slot（否则面板里那一格改不动任何东西）。

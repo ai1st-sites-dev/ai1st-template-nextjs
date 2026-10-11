@@ -239,6 +239,7 @@
         "quote": "Quote",
         "name": "Name",
         "role": "Role",
+        "photo": "Photo",
         "rating": "Rating",
         "source": "Review site"
       }
