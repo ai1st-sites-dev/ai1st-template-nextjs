@@ -22,6 +22,7 @@
   flex-direction: column;
 }
 [data-block="cta"] .cta-img img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 

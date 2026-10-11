@@ -33,7 +33,7 @@
 // 🔴 值在这里是**冻住的**，不是从主题注册表现读的。下面几组配色/字体的初值确实抄自 `themes.js`
 // 里那几套（它们已经被主题流水线量过），但抄完就断开：改一套主题不该改掉一个站主选过的配色。
 
-const { BUTTON_SHAPE } = require('./theme-settings');
+const { BUTTON_SHAPE, SURFACE_RADIUS } = require('./theme-settings');
 
 /**
  * 配色组。每组给满 `--color-primary-50…900` + `--color-accent-50…600`，跟主题给的是同一批变量，
@@ -138,17 +138,19 @@ const PALETTES = {
 };
 
 /**
- * 圆角档 —— **只管按钮**（#1586，Chris 2026-10-05 定）。三档的值直接用 `theme-settings.js` 那张现成的
- * BUTTON_SHAPE 表（#1038 正文点名要用现成这三档，不另发明数值），写进 `--radius-button`，`.btn`
- * （`scripts/lib/site-css.js` §BTN_RADIUS）和旧块的 `.btn-primary` 一族（globals.css）都读它。
+ * 圆角档 —— **整站的角**（#1718，Chris 2026-10-11 定；#1586 起到那天之前只管按钮）。每档写三个变量：
+ *   · `--radius-button` —— 值用 `theme-settings.js` 那张现成的 BUTTON_SHAPE 表（#1038 正文点名要用现成这三档），
+ *     `.btn`（`scripts/lib/site-css.js` §BTN_RADIUS）和旧块的 `.btn-primary` 一族（globals.css）都读它。
+ *   · `--radius-card` / `--radius-image` —— 值用同一份文件的 SURFACE_RADIUS（主题的枚举档位词也查它，数只有一份）。
+ *     读者是 `blocks/<块>/block.css` 和 `site-css.js` §SURFACE_RADIUS（`rounded-3` / `rounded-4` / `.card`）。
+ *   头像（50%）、小标签和胶囊（`rounded-pill`）不跟。
  *
- * 📌 #1586 之前每一档还写全局圆角 `--radius-{DEFAULT,md,lg,xl,2xl}`，而新模板里没有一处读它们 ——
- *    卡片 / 图片的圆角是块自己写死的（`block.css` 的字面值、Webpixels 带 `!important` 的 `rounded-*`），不跟这里走。
+ * 📌 #1586 之前每一档还写全局圆角 `--radius-{DEFAULT,md,lg,xl,2xl}`，而新模板里没有一处读它们 —— 那五个不回来。
  */
 const CORNERS = {
-  sharp: { label: 'Sharp — square buttons', button: BUTTON_SHAPE.square },
-  subtle: { label: 'Subtle — slightly rounded buttons (the default)', button: BUTTON_SHAPE.rounded },
-  round: { label: 'Round — pill-shaped buttons', button: BUTTON_SHAPE.pill },
+  sharp: { label: 'Sharp — square buttons, nearly square cards and images', button: BUTTON_SHAPE.square, ...SURFACE_RADIUS.sharp },
+  subtle: { label: 'Subtle — slightly rounded corners (the default)', button: BUTTON_SHAPE.rounded, ...SURFACE_RADIUS.subtle },
+  round: { label: 'Round — pill-shaped buttons, well-rounded cards and images', button: BUTTON_SHAPE.pill, ...SURFACE_RADIUS.round },
 };
 
 /**
@@ -291,7 +293,10 @@ function presetVars(presets) {
     for (const [shade, value] of Object.entries(colors.primary)) vars.push([`--color-primary-${shade}`, value]);
     for (const [shade, value] of Object.entries(colors.accent)) vars.push([`--color-accent-${shade}`, value]);
   }
-  if (chose.corners) vars.push(['--radius-button', CORNERS[chose.corners].button]);
+  if (chose.corners) {
+    const c = CORNERS[chose.corners];
+    vars.push(['--radius-button', c.button], ['--radius-card', c.card], ['--radius-image', c.image]);
+  }
   let fontImport = null;
   if (chose.fonts) {
     const f = FONT_PAIRS[chose.fonts];

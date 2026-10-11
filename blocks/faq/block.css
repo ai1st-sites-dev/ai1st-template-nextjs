@@ -129,7 +129,7 @@
 [data-block="faq"][data-item-style="card"] .fq-open {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 0 1.5rem;
 }
 [data-block="faq"][data-item-style="card"] .fq-open {

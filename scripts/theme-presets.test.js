@@ -26,7 +26,7 @@
 
 const presets = require('./theme-presets.js');
 const tweaks = require('./tweaks.js');
-const { BUTTON_SHAPE } = require('./theme-settings.js');
+const { BUTTON_SHAPE, SURFACE_RADIUS } = require('./theme-settings.js');
 
 let pass = 0; let fail = 0; let skipped = 0;
 // #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那两条，见 scripts/lib/scaffolding-pool.js。
@@ -480,12 +480,13 @@ for (const [name, p] of Object.entries(presets.PALETTES)) {
   }
 }
 
-// ── ② 圆角档用的是 theme-settings.js 现成那张表，不是另抄一份数（#1586 起只管按钮：只剩 BUTTON_SHAPE）──────────
+// ── ② 圆角档用的是 theme-settings.js 现成那两张表，不是另抄一份数（按钮 BUTTON_SHAPE；#1718 起卡片 / 图片 SURFACE_RADIUS）──
 {
   const wrong = Object.entries(presets.CORNERS)
-    .filter(([, c]) => !Object.values(BUTTON_SHAPE).includes(c.button) || c.radius !== undefined);
+    .filter(([k, c]) => !Object.values(BUTTON_SHAPE).includes(c.button) || c.radius !== undefined
+      || !SURFACE_RADIUS[k] || c.card !== SURFACE_RADIUS[k].card || c.image !== SURFACE_RADIUS[k].image);
   if (!wrong.length) {
-    ok(`三档圆角的值全部是 theme-settings.js 里 BUTTON_SHAPE 的值本身（同一份数，不是副本），且不再带全局圆角`);
+    ok(`三档圆角的值全部是 theme-settings.js 里 BUTTON_SHAPE / SURFACE_RADIUS 的值本身（同一份数，不是副本），且不再带全局圆角`);
   } else {
     bad(`圆角档 ${wrong.map(([k]) => k).join(', ')} 用了自己抄的数 —— 同一张表两份拷贝正是 #961/#1002 一路在堵的东西`);
   }
@@ -601,7 +602,7 @@ const BASE = [
   else bad(`圆角档和 radiusScale 没有叠对：\n${corners}`);
   // #1586 —— 圆角档不再写全局圆角：选了它，custom.css 里也不该冒出 --radius-lg（基准里那一行除外：它不受圆角档影响）。
   const onlyCorners = tweaks.buildCustomCss(BASE, undefined, presets.presetVars({ corners: 'round' }));
-  if (!/--radius-(DEFAULT|md|lg|xl|2xl):/.test(onlyCorners)) ok('圆角档 round ⟹ custom.css 里没有 --radius-{DEFAULT,md,lg,xl,2xl}（只管按钮）');
+  if (!/--radius-(DEFAULT|md|lg|xl|2xl):/.test(onlyCorners)) ok('圆角档 round ⟹ custom.css 里没有 --radius-{DEFAULT,md,lg,xl,2xl}（#1586 拿掉的那五个不回来）');
   else bad(`圆角档还在写全局圆角：\n${onlyCorners}`);
 
   // `--radius-button` 在基准里根本不存在（没写风格设定的站），预设仍然要把它写出来 ——
@@ -610,6 +611,38 @@ const BASE = [
     ok('基准里没有的变量（--radius-button）预设照样写得出来');
   } else {
     bad('预设没写出 --radius-button —— 没写风格设定的站，胶囊按钮这一档就表达不出来');
+  }
+
+  // #1718 —— Corner style 是整站的角：每一档写三个变量（按钮 / 卡片 / 图片），值逐字是正文「做什么 1」定的那三组。
+  //    字面量写在这里、不从 theme-settings.js 读 —— 从它读就成了自己跟自己比（② 那格已经守着「同一份数」）。
+  const WANT = {
+    sharp: { '--radius-button': '0px', '--radius-card': '2px', '--radius-image': '2px' },
+    subtle: { '--radius-button': '0.5rem', '--radius-card': '1rem', '--radius-image': '1rem' },
+    round: { '--radius-button': '9999px', '--radius-card': '1.5rem', '--radius-image': '1.5rem' },
+  };
+  const declsOf = (css) => new Map([...css.matchAll(/^\s*(--[A-Za-z0-9-]+):\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()]));
+  for (const [tier, want] of Object.entries(WANT)) {
+    const got = declsOf(tweaks.buildCustomCss(BASE, undefined, presets.presetVars({ corners: tier })));
+    const off = Object.entries(want).filter(([n, v]) => got.get(n) !== v).map(([n, v]) => `${n}=${got.get(n)}（应为 ${v}）`);
+    if (!off.length) ok(`圆角档 ${tier} ⟹ custom.css 写出三个变量：${Object.entries(want).map(([n, v]) => `${n}: ${v}`).join(' · ')}`);
+    else bad(`圆角档 ${tier} 写错了：${off.join(' · ')}`);
+  }
+
+  // #1718 —— radiusScale 不缩放卡片 / 图片（Corner style 是唯一的旋钮），按钮照旧缩放。
+  //    反向对照：同一份 custom.css 里 --radius-button 被乘了 —— 证明这次确实拖了滑块、确实走到了缩放那条路。
+  const scaled = declsOf(tweaks.buildCustomCss(BASE, { radiusScale: 1.25 }, presets.presetVars({ corners: 'round' })));
+  if (scaled.get('--radius-card') === '1.5rem' && scaled.get('--radius-image') === '1.5rem' && scaled.get('--radius-button') === '12498.75px') {
+    ok('radiusScale 1.25 + 圆角档 round ⟹ --radius-card / --radius-image 仍是 1.5rem；--radius-button 照乘（12498.75px，对照：缩放这条路确实走到了）');
+  } else {
+    bad(`radiusScale 叠到了卡片 / 图片上（或按钮没被乘、对照失效）：card=${scaled.get('--radius-card')} image=${scaled.get('--radius-image')} button=${scaled.get('--radius-button')}`);
+  }
+  // 没选圆角档、只拖了 radiusScale：基准里（globals.css :root）有 --radius-card / --radius-image，也不许被乘出一行来。
+  const baseWithSurface = [...BASE, ['--radius-card', '1rem'], ['--radius-image', '1rem'], ['--radius-button', '0.5rem']];
+  const onlyScale = declsOf(tweaks.buildCustomCss(baseWithSurface, { radiusScale: 1.25 }));
+  if (!onlyScale.has('--radius-card') && !onlyScale.has('--radius-image') && onlyScale.get('--radius-button') === '0.625rem') {
+    ok('只拖 radiusScale 1.25 ⟹ custom.css 里没有 --radius-card / --radius-image 这两行；--radius-button 照乘成 0.625rem（对照）');
+  } else {
+    bad(`只拖 radiusScale 时卡片 / 图片被缩放了（或对照失效）：${JSON.stringify([...onlyScale])}`);
   }
 }
 

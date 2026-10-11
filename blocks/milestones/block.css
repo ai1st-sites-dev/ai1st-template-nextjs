@@ -29,6 +29,7 @@
   min-width: 0;
 }
 [data-block="milestones"] .mi-bimg img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 5;
 }
 
@@ -76,6 +77,7 @@
 /* introImage：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成（#1536）。
    并排时块头的字不吃 introAlign 的 80% 限宽（那一栏本来就只有一半宽）。 */
 [data-block="milestones"] .mi-intro-img img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 @media (min-width: 992px) {
@@ -160,7 +162,7 @@
 [data-block="milestones"][data-stat-style="card"] .mi-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 [data-block="milestones"][data-stat-style="divided"] .mi-stat {

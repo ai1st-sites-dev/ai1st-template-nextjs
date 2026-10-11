@@ -63,7 +63,7 @@
 [data-block="team"][data-member-photo="top"][data-photo-shape="square"] .tm-photo img {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
 }
 [data-block="team"][data-member-photo="top"][data-photo-shape="circle"] .tm-photo img {
   width: 6rem;
@@ -81,7 +81,7 @@
 [data-block="team"][data-member-photo="left"] .tm-photo img {
   width: 5rem;
   height: 5rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-image);
 }
 [data-block="team"][data-member-photo="left"][data-photo-shape="circle"] .tm-photo img {
   border-radius: 50%;
@@ -106,7 +106,7 @@
 [data-block="team"][data-member-style="card"] .tm-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 
@@ -114,7 +114,7 @@
    虚线框 1.5px dashed + 1rem 圆角 + 2rem 内边距；3rem 的图标圈（给定尺寸，别被 flex 拉宽）；描边按钮。 */
 [data-block="team"] .tm-join {
   border: 1.5px dashed var(--scheme-line);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
   min-height: 12rem;
 }

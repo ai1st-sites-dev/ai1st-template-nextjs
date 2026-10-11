@@ -158,13 +158,13 @@ console.log('\n── AC4 照片');
   const noUrl = clone(DEMO); noUrl.members[0].photo = { alt: 'x' };
   check(membersOf(render('photo-grid', noUrl))[0].indexOf('<img') === -1, 'photo 只有 alt、没有 imageUrl ⟹ 不渲染');
   check(/alt="Marcus Oyelaran"/.test(h), '<img> 的 alt 取 photo.alt');
-  check(/\[data-member-photo="top"\]\[data-photo-shape="square"\] \.tm-photo img \{\s*width: 100%;\s*aspect-ratio: 1 \/ 1;\s*border-radius: 1rem;/.test(CSS),
-    'block.css：top + square = 宽 100%、1:1、圆角 1rem');
+  check(/\[data-member-photo="top"\]\[data-photo-shape="square"\] \.tm-photo img \{\s*width: 100%;\s*aspect-ratio: 1 \/ 1;\s*border-radius: var\(--radius-image\);/.test(CSS),
+    'block.css：top + square = 宽 100%、1:1、圆角读 --radius-image（#1718）');
   check(/\[data-member-photo="top"\]\[data-photo-shape="circle"\] \.tm-photo img \{\s*width: 6rem;\s*height: 6rem;\s*border-radius: 50%;/.test(CSS),
     'block.css：top + circle = 6rem 圆');
-  check(/\[data-member-photo="left"\] \.tm-photo img \{\s*width: 5rem;\s*height: 5rem;\s*border-radius: 0\.75rem;/.test(CSS)
+  check(/\[data-member-photo="left"\] \.tm-photo img \{\s*width: 5rem;\s*height: 5rem;\s*border-radius: var\(--radius-image\);/.test(CSS)
     && /\[data-member-photo="left"\]\[data-photo-shape="circle"\] \.tm-photo img \{\s*border-radius: 50%;/.test(CSS),
-    'block.css：left = 5rem 方图（圆角 .75rem）或圆');
+    'block.css：left = 5rem 方图（圆角读 --radius-image，#1718）或圆');
 }
 
 // ══ AC5（源码一半）：块头宽度 ═══════════════════════════════════════════════════════════════════

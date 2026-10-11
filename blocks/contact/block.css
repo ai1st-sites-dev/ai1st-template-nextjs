@@ -125,7 +125,7 @@
 [data-block="contact"][data-item-style="card"] .ct-ch-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 1.5rem;
 }
 [data-block="contact"][data-items-layout="grid"][data-item-align="center"] .ct-ch-inner {
@@ -138,7 +138,7 @@
 [data-block="contact"][data-form-style="card"] .ct-form {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 

@@ -291,7 +291,7 @@ function restack(el){
 // 不属于任何一套主题。而本票的 AC2 要的正是「试穿所见 = Apply 所得」。
 //
 // 🔴 所以 /theme.css 那条 <link> 在试穿期间被 disabled，画法由这一份顶上。而停用它是有代价的：
-// theme.css 的 「:root」 里除了配色和两个字体变量，还有**风格设定那 3 个**（--section-* 2 个 · --radius-button；
+// theme.css 的 「:root」 里除了配色和两个字体变量，还有**风格设定那 5 个**（--section-* 2 个 · --radius-button · #1718 的 --radius-card / --radius-image；
 // #1541 之前是 15 个，density 删了横向三个；#1586 又删了没有读者的 --radius-* 5 个、--shadow-* 4 个）。停掉之后这些得有人补，否则它们落回
 // globals.css 的平台默认值 —— 那是一个**不属于任何一套主题**的样子。
 //
@@ -481,6 +481,10 @@ function paint(t){
     }
   }
   SETN['--radius-button']=1;
+  // #1718 —— 卡片 / 图片的角（主题的 settings.radius 给，dashboard 用 settingsToSiteCssVars 发）。不加的话这两个名字在下面
+  // 按名跳过，试穿时卡片和图片停在 globals.css 的默认值上，不是那套主题的样子。SETN_N 是现数的，跟着涨。
+  SETN['--radius-card']=1;
+  SETN['--radius-image']=1;
   var SETN_N=0;for(k in SETN){if(Object.prototype.hasOwnProperty.call(SETN,k)){SETN_N++;}}
   // 值的字符白名单。放得下档位表里的 rem/px/9999px（#1586 之前还要放得下 --shadow-* 那种带 rgb() 和逗号的值，
   // 集合没收窄：多收几个字符不放进任何危险字符）；分号、花括号、尖括号、引号、反斜杠一个都不收。

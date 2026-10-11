@@ -427,6 +427,8 @@ function scaleLength(value, factor) {
 /** 哪个变量归哪个 tweak 管。判据写在名字的形状上，不逐个列举 —— 新变量按同一规则自动归队。 */
 function tweakFor(name) {
   if (/^--color-/.test(name)) return 'hueShift';
+  // #1718 —— 卡片 / 图片的角只听 Corner style 一个旋钮，`radiusScale` 不再叠一层（两层叠起来老板分不清是哪个在动）。
+  if (name === '--radius-card' || name === '--radius-image') return null;
   if (/^--radius-/.test(name)) return 'radiusScale';
   if (/^--section-/.test(name)) return 'densityScale';
   return null;

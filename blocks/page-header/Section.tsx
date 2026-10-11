@@ -123,7 +123,7 @@ export default function PageHeaderNewSection({ data, block }: Props) {
         </div>
         {side && img ? (
           <div className="phn-img" data-part="image">
-            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' }, slot: 'image' })}
+            {slotImg(img, { before: { className: 'w-100 object-fit-cover' }, slot: 'image' })}
           </div>
         ) : null}
       </div>

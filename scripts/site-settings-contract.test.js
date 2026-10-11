@@ -109,7 +109,7 @@ function decls(list) {
 /** 冻结名单里哪些不在这份载荷里。 */
 const missingFrozen = (payload) => FROZEN.filter((n) => !decls(payload).has(n));
 
-/** 新模板的站自己派生出的 SETN —— 与 layout.tsx 那段派生式同算法（S 表里每组的键 + --radius-button）。
+/** 新模板的站自己派生出的 SETN —— 与 layout.tsx 那段派生式同算法（S 表里每组的键 + --radius-button + #1718 的卡片 / 图片两个）。
  *  #1586 起 layout.tsx 的 S 表只剩 density 一组（圆角五档、阴影四个拿掉了）。 */
 function newSiteSetn(T) {
   const out = new Set();
@@ -117,6 +117,8 @@ function newSiteSetn(T) {
     for (const tier of Object.values(table)) for (const k of Object.keys(tier)) out.add(prefix + k);
   }
   out.add('--radius-button');
+  out.add('--radius-card');
+  out.add('--radius-image');
   return out;
 }
 

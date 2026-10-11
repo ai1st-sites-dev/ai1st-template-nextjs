@@ -112,6 +112,7 @@
   min-width: 0;
 }
 [data-block="content"] .co-img img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   display: block;
   aspect-ratio: 4 / 3;
 }
@@ -125,7 +126,7 @@
 [data-block="content"][data-frame="card"] .co-frame {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1.5rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 @media (min-width: 992px) {

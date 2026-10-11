@@ -85,7 +85,7 @@
 [data-block="logos"][data-item-style="card"] .lo-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   height: 6rem;
 }
 

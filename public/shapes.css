@@ -186,7 +186,7 @@
 [data-block="blog"] .bl-img {
   display: block;
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   background: var(--scheme-surface-sunken);
 }
 [data-block="blog"] .bl-img img {
@@ -248,7 +248,7 @@
 [data-block="blog"][data-item-style="card"] .bl-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   overflow: hidden;
 }
 [data-block="blog"][data-item-style="card"] .bl-post[data-image="top"] .bl-img {
@@ -269,7 +269,7 @@
 [data-block="blog"] .bl-post[data-image="background"] .bl-inner {
   position: relative;
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   min-height: 26rem;
   display: flex !important;
   flex-direction: column;
@@ -605,7 +605,7 @@
 [data-block="contact"][data-item-style="card"] .ct-ch-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 1.5rem;
 }
 [data-block="contact"][data-items-layout="grid"][data-item-align="center"] .ct-ch-inner {
@@ -618,7 +618,7 @@
 [data-block="contact"][data-form-style="card"] .ct-form {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 
@@ -895,6 +895,7 @@
   min-width: 0;
 }
 [data-block="content"] .co-img img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   display: block;
   aspect-ratio: 4 / 3;
 }
@@ -908,7 +909,7 @@
 [data-block="content"][data-frame="card"] .co-frame {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1.5rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 @media (min-width: 992px) {
@@ -1050,6 +1051,7 @@
   flex-direction: column;
 }
 [data-block="cta"] .cta-img img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 
@@ -1448,7 +1450,7 @@
 [data-block="faq"][data-item-style="card"] .fq-open {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 0 1.5rem;
 }
 [data-block="faq"][data-item-style="card"] .fq-open {
@@ -1771,6 +1773,7 @@
    并排时块头的字不吃 introAlign 的 80% 限宽（那一栏本来就只有一半宽）。 */
 [data-block="features"] .fx-intro-img img,
 [data-block="features"] .fx-itemsimg img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 [data-block="features"][data-intro-image="top"] .fx-intro-img,
@@ -1852,7 +1855,7 @@
 [data-block="features"][data-item-style="card"] .fx-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
 }
 [data-block="features"][data-item-style="card"]:not([data-item-image="none"]) .fx-inner {
   overflow: hidden;
@@ -1954,11 +1957,11 @@
   flex-direction: column-reverse;
 }
 [data-block="features"][data-item-style="plain"][data-item-image="top"] .fx-img {
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   margin-bottom: 1.25rem;
 }
 [data-block="features"][data-item-style="plain"][data-item-image="bottom"] .fx-img {
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   margin-top: 1.25rem;
 }
 [data-block="features"][data-items-layout="list"][data-item-image="top"] .fx-img,
@@ -1971,7 +1974,7 @@
    ≥992 并排、图 40%。 */
 [data-block="features"][data-item-style="plain"][data-item-image="left"] .fx-img,
 [data-block="features"][data-item-style="plain"][data-item-image="right"] .fx-img {
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   margin-bottom: 2.5rem;
 }
 [data-block="features"][data-item-style="card"][data-item-image="left"] .fx-content,
@@ -2015,7 +2018,7 @@
 [data-block="features"][data-item-image="background"] .fx-inner {
   position: relative;
   min-height: 18rem;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   overflow: hidden;
   color: #fff;
 }
@@ -2362,7 +2365,7 @@
 }
 [data-block="gallery"] .gl-img {
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   background: var(--scheme-surface-sunken);
   cursor: zoom-in;
 }
@@ -2457,7 +2460,7 @@
   position: absolute;
   inset: auto 0 0 0;
   padding: 2.5rem 1rem 1rem;
-  border-radius: 0 0 1rem 1rem;
+  border-radius: 0 0 var(--radius-image) var(--radius-image);
   background: linear-gradient(transparent, rgba(2, 6, 23, 0.75));
   color: #fff;
   pointer-events: none;
@@ -2493,7 +2496,7 @@
 [data-block="gallery"] .gl-modal .carousel-item img {
   max-width: 100%;
   max-height: min(80vh, 40rem);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-image);
   object-fit: contain;
 }
 [data-block="gallery"] .gl-modal .carousel-control-prev,
@@ -2648,6 +2651,7 @@
 
 /* 图：并排（left / right）时 4:3；上下叠（top / bottom）时一整条 21:9、最高 460 —— 跟文字怎么对齐无关。 */
 [data-block="hero"] .hro-img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 [data-block="hero"][data-image="top"] .hro-img,
@@ -2723,6 +2727,7 @@
 
 /* 图片带：竖构图 3:4。列数 = 张数（col-md 均分）；手机上两张一排。 */
 [data-block="hero"] .hro-band-img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 3 / 4;
 }
 
@@ -2997,7 +3002,7 @@
 [data-block="logos"][data-item-style="card"] .lo-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   height: 6rem;
 }
 
@@ -3262,6 +3267,7 @@
   min-width: 0;
 }
 [data-block="milestones"] .mi-bimg img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 5;
 }
 
@@ -3309,6 +3315,7 @@
 /* introImage：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成（#1536）。
    并排时块头的字不吃 introAlign 的 80% 限宽（那一栏本来就只有一半宽）。 */
 [data-block="milestones"] .mi-intro-img img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 @media (min-width: 992px) {
@@ -3393,7 +3400,7 @@
 [data-block="milestones"][data-stat-style="card"] .mi-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 [data-block="milestones"][data-stat-style="divided"] .mi-stat {
@@ -3626,6 +3633,7 @@
 /* ── image=left / right：图 4:3。图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成
    （scripts/block-build/media-layout.js，#1536）。 */
 [data-block="page-header"] .phn-img img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 
@@ -4003,7 +4011,7 @@
 [data-block="pricing"][data-plan-cta="bottom"][data-plan-style="card"] .pr-cta {
   margin: auto -2rem -2rem;
   width: auto !important;
-  border-radius: 0 0 1rem 1rem;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
   padding: 1rem;
 }
 /* 通栏贴底的按钮跟卡片共边（#1587，Chris 2026-10-05：按钮边框色要跟套餐卡一样）：非主推卡的 outline 按钮只画顶上一条分隔线、
@@ -4029,7 +4037,7 @@
 [data-block="pricing"][data-plan-style="card"][data-plan-features="below"] .pr-card {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 [data-block="pricing"][data-plan-style="divided"] .pr-inner {
@@ -4104,7 +4112,7 @@
 [data-block="pricing"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
   border: 2px solid var(--pr-fc-line) !important;
   background: var(--x-body-bg) !important;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
   color: var(--scheme-ink);
 }
@@ -4129,7 +4137,7 @@
 [data-block="pricing"][data-featured="background"][data-plan-features="below"] .pr-featured .pr-card {
   background: var(--pr-fc) !important;
   border: 1px solid transparent !important;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
   color: var(--pr-fc-on);
 }
@@ -4563,7 +4571,7 @@
    row .75rem 1.25rem。plain = 无底，row 时小条间距加大到 1rem 2.5rem。 */
 [data-block="reviews"][data-item-style="card"] .rv-item {
   background: var(--scheme-surface-muted);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
 }
 [data-block="reviews"][data-item-style="card"] .rv-item:hover {
   box-shadow: 0 0 0 2px var(--x-primary);
@@ -4780,7 +4788,7 @@
 [data-block="team"][data-member-photo="top"][data-photo-shape="square"] .tm-photo img {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
 }
 [data-block="team"][data-member-photo="top"][data-photo-shape="circle"] .tm-photo img {
   width: 6rem;
@@ -4798,7 +4806,7 @@
 [data-block="team"][data-member-photo="left"] .tm-photo img {
   width: 5rem;
   height: 5rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-image);
 }
 [data-block="team"][data-member-photo="left"][data-photo-shape="circle"] .tm-photo img {
   border-radius: 50%;
@@ -4823,7 +4831,7 @@
 [data-block="team"][data-member-style="card"] .tm-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 
@@ -4831,7 +4839,7 @@
    虚线框 1.5px dashed + 1rem 圆角 + 2rem 内边距；3rem 的图标圈（给定尺寸，别被 flex 拉宽）；描边按钮。 */
 [data-block="team"] .tm-join {
   border: 1.5px dashed var(--scheme-line);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
   min-height: 12rem;
 }
@@ -5336,7 +5344,7 @@
 [data-block="testimonials"][data-item-style="card"] .tn-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 

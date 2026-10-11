@@ -180,7 +180,7 @@
 [data-block="pricing"][data-plan-cta="bottom"][data-plan-style="card"] .pr-cta {
   margin: auto -2rem -2rem;
   width: auto !important;
-  border-radius: 0 0 1rem 1rem;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
   padding: 1rem;
 }
 /* 通栏贴底的按钮跟卡片共边（#1587，Chris 2026-10-05：按钮边框色要跟套餐卡一样）：非主推卡的 outline 按钮只画顶上一条分隔线、
@@ -206,7 +206,7 @@
 [data-block="pricing"][data-plan-style="card"][data-plan-features="below"] .pr-card {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 [data-block="pricing"][data-plan-style="divided"] .pr-inner {
@@ -281,7 +281,7 @@
 [data-block="pricing"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
   border: 2px solid var(--pr-fc-line) !important;
   background: var(--x-body-bg) !important;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
   color: var(--scheme-ink);
 }
@@ -306,7 +306,7 @@
 [data-block="pricing"][data-featured="background"][data-plan-features="below"] .pr-featured .pr-card {
   background: var(--pr-fc) !important;
   border: 1px solid transparent !important;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
   color: var(--pr-fc-on);
 }

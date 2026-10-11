@@ -236,7 +236,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
             <div className="row g-5 mt-10 justify-content-center" data-part="band" data-band-count={band.length}>
               {band.map((b, i) => (
                 <div key={i} className="col-6 col-md" data-part="band-col">
-                  {slotImg(b, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-band-img' }, slot: `band.${i}.imageUrl` })}
+                  {slotImg(b, { before: { className: 'img-fluid w-100 object-fit-cover hro-band-img' }, slot: `band.${i}.imageUrl` })}
                 </div>
               ))}
             </div>
@@ -244,7 +244,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
         </div>
         {side && img ? (
           <div className="hro-side">
-            {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-img' }, slot: 'image' })}
+            {slotImg(img, { before: { className: 'img-fluid w-100 object-fit-cover hro-img' }, slot: 'image' })}
           </div>
         ) : null}
       </div>

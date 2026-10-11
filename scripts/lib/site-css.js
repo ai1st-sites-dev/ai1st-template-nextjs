@@ -129,7 +129,7 @@ const BTN_PRIMARY_INK = [
  * 后来的赢。所以这一条必须写在 `/site.css` 这一侧（跟 §BTN_PRIMARY_INK 同一个理由）。
  * 写的是 Webpixels 自己那个变量，不是 `border-radius` 本身：`.btn-sm` / `.btn-lg` 也是改它，排在 `@import` 之后的这一条把三种尺寸
  * 一起收住。变量缺席（不经 globals.css 的页面）⟹ 落回 Webpixels 自己的值，等于改前。
- * 📌 按钮和表单字段（#1645 把表单字段接进来，见下一条 §FORM_RADIUS）；卡片、图片的圆角仍是块自己写死的（Chris 2026-10-05 定）。
+ * 📌 按钮和表单字段（#1645 把表单字段接进来，见下一条 §FORM_RADIUS）；卡片、图片的圆角是另外两个变量（#1718，见 §SURFACE_RADIUS）。
  *    按钮自己再挂 `rounded-pill` / `rounded-circle` 的（电话圆钮、月付 / 年付切换）带 `!important`，照旧压过这一条。
  */
 const BTN_RADIUS = [
@@ -165,6 +165,33 @@ const FORM_RADIUS = [
   '}',
   'textarea.form-control {',
   '  border-radius: min(var(--radius-button, var(--x-border-radius)), 0.5rem);',
+  '}',
+  '',
+].join('\n');
+
+/**
+ * #1718 —— 卡片 / 色底块的圆角跟 `--radius-card` 走（客户的「Corner style」三档、主题的 `settings.radius` 都写它）。
+ * Webpixels 编出来的 `.rounded-3` / `.rounded-4` 是字面量 + `!important`（1rem / 1.5rem），不读任何变量 ⟹ 选了直角，
+ * 卡片照样是圆的（Chris 2026-10-11 验 #1697 时看到的就是这个）。所以排在 `@import` 之后各补一条同特异度、同样带
+ * `!important` 的规则，靠源码次序压过它；Bootstrap 的 `.card` 走它自己的组件变量，改那个变量就行
+ * （今天只有博客列表卡片挂 `.card`；内框那个变量没接 —— 没人用 `.card-img-*`，purge 也会把它删掉）。
+ * 🔴 不动无后缀的 `--x-border-radius`：表单、下拉、alert 全读它，不在 #1718 射程内。
+ * 🔴 `rounded-pill` / `rounded-circle` 不在这里：头像、小标签、圆 logo 永远是圆 / 胶囊。
+ * 📌 块里挂在**图片**上的那 9 处 `rounded-4` 已换成块自己的类读 `--radius-image`（`blocks/<块>/block.css`）；
+ *    剩下的 `rounded-3` 5 处（小图标方块）+ `rounded-4` 5 处（色底块、平台盒、地图）走这一条。
+ *    🔴 别把这两个类从块的 markup 里清零：PurgeCSS 按 .tsx 里出现过的类名留规则，清零了这两条会被静默删掉。
+ * 变量缺席（不经 globals.css 的页面）⟹ 退路是 Webpixels 自己那几个值，等于改前。
+ * 🔒 `scripts/lib/site-css.test.js` 走 compile + purge 两步读这几条。
+ */
+const SURFACE_RADIUS = [
+  '.rounded-3 {',
+  '  border-radius: var(--radius-card, 1rem) !important;',
+  '}',
+  '.rounded-4 {',
+  '  border-radius: var(--radius-card, 1.5rem) !important;',
+  '}',
+  '.card {',
+  '  --x-card-border-radius: var(--radius-card, var(--x-border-radius-lg));',
   '}',
   '',
 ].join('\n');
@@ -398,6 +425,7 @@ function siteScss(primary) {
     ON_DEEP_FORM,
     BTN_RADIUS,
     FORM_RADIUS,
+    SURFACE_RADIUS,
     BTN_PRIMARY_INK,
     BTN_OUTLINE_HOVER_INK,
     SCHEME_SURFACES,
@@ -492,6 +520,6 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr', purge = tr
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, buildSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_RADIUS, FORM_RADIUS, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
+  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, buildSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_RADIUS, FORM_RADIUS, SURFACE_RADIUS, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
   DEEP_COMMON, DEEP_COMMON_CSS, DEEP_TONES,
 };

@@ -292,7 +292,7 @@
 [data-block="testimonials"][data-item-style="card"] .tn-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 2rem;
 }
 

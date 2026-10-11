@@ -181,7 +181,7 @@
    row .75rem 1.25rem。plain = 无底，row 时小条间距加大到 1rem 2.5rem。 */
 [data-block="reviews"][data-item-style="card"] .rv-item {
   background: var(--scheme-surface-muted);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
 }
 [data-block="reviews"][data-item-style="card"] .rv-item:hover {
   box-shadow: 0 0 0 2px var(--x-primary);

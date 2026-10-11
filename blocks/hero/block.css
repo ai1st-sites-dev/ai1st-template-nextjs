@@ -18,6 +18,7 @@
 
 /* 图：并排（left / right）时 4:3；上下叠（top / bottom）时一整条 21:9、最高 460 —— 跟文字怎么对齐无关。 */
 [data-block="hero"] .hro-img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 [data-block="hero"][data-image="top"] .hro-img,
@@ -93,6 +94,7 @@
 
 /* 图片带：竖构图 3:4。列数 = 张数（col-md 均分）；手机上两张一排。 */
 [data-block="hero"] .hro-band-img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 3 / 4;
 }
 

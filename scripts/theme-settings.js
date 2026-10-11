@@ -23,7 +23,8 @@
 
 // 圆角五档 / 阴影四个 —— #1586 起【只发给存量站】，表挪到下面「存量站兼容」那一段（SITE_LEGACY_RADIUS / SITE_LEGACY_SHADOW）。
 //    新模板里没有一处 CSS 读 `--radius-{DEFAULT,md,lg,xl,2xl}` / `--shadow-*`（它们的读者是 #1426 随 Tailwind 退场删掉的
-//    那份配置），所以新站自己不再定义它们；圆角里唯一活着的是按钮那一个（`--radius-button`，见 BUTTON_SHAPE）。
+//    那份配置），所以新站自己不再定义它们；圆角里活着的是按钮那一个（`--radius-button`，见 BUTTON_SHAPE）
+//    和 #1718 加的卡片 / 图片两个（`--radius-card` / `--radius-image`，见 SURFACE_RADIUS）。
 
 // 留白 —— 只落在 globals.css 的 `.section-padding` 一条上（#961 正文写死的收窄口径：
 // 不动全局的 spacing scale）。那一条是段落外壳 `BlockSection` 的上下留白（#1541）。
@@ -106,13 +107,26 @@ const SITE_LEGACY_SHADOW = {
   },
 };
 
-// 按钮形状 —— 新模板里圆角唯一活着的那一个值：`.btn`（`scripts/lib/site-css.js` §BTN_RADIUS）和旧块的
-// `.btn-primary` 一族（globals.css）都读它。客户的「Corner style」（`theme-presets.js` 的 CORNERS）也只管它（#1586）。
+// 按钮形状 —— 按钮的圆角（卡片 / 图片另有两个变量，见下面 SURFACE_RADIUS）：`.btn`（`scripts/lib/site-css.js` §BTN_RADIUS）和旧块的
+// `.btn-primary` 一族（globals.css）都读它。客户的「Corner style」（`theme-presets.js` 的 CORNERS）写它，#1718 起同时写卡片 / 图片那两个。
 // 🔴 必须独立于卡片 / 图片：否则「胶囊」会把每一张卡片也变成胶囊（#961 正文点名的那个后果）。
 const BUTTON_SHAPE = {
   rounded: '0.5rem',
   square: '0px',
   pill: '9999px',
+};
+
+// 卡片 / 图片的圆角 —— #1718（Chris 2026-10-11 定：Corner style 是整站的角，不只是按钮）。
+// `--radius-card` 管卡片 / 条目 / 色底块的外框，`--radius-image` 管图片和图片容器；它们的读者是 `blocks/*/block.css`
+// 和 `scripts/lib/site-css.js` §SURFACE_RADIUS（把 Webpixels 的 `rounded-3` / `rounded-4` / `.card` 接到 `--radius-card` 上）。
+// 档位名跟客户的 Corner style（`theme-presets.js` 的 CORNERS）同名同值 —— CORNERS 直接读这张表，不另写一份数。
+// 🔴 sharp 不是 0：大面积色底块的纯直角在屏幕上生硬，留一点点（#1718 正文「做什么 1」）。按钮的 sharp 仍是 0px（BUTTON_SHAPE）。
+// 📌 今天每一档的 card 与 image 取值相同：分两个变量是给「图片和卡片角不一样」留的位置（#1718 正文「做什么 2」）。
+// 主题（数值形状）不查这张表：两个都 = `radius`px（见 numericSettingsToCssVars）；枚举形状的档位词照这张表翻。
+const SURFACE_RADIUS = {
+  sharp: { card: '2px', image: '2px' },
+  subtle: { card: '1rem', image: '1rem' },
+  round: { card: '1.5rem', image: '1.5rem' },
 };
 
 /**
@@ -131,7 +145,8 @@ function own(table, token) {
 
 /**
  * 把一份风格设定翻成 CSS 变量声明（`--section-y: 4rem;` 这种）。新模板自己的 CSS 用这一份：
- * 产出的只有 `--section-y` / `--section-yMd` / `--radius-button`（#1586 之后圆角五档和阴影不在这里，见 SITE_LEGACY_RADIUS）。
+ * 产出的只有 `--section-y` / `--section-yMd` / `--radius-button` / `--radius-card` / `--radius-image`
+ * （#1586 之后圆角五档和阴影不在这里，见 SITE_LEGACY_RADIUS；后两个是 #1718 加的）。
  *
  * 认不出来的档位【整组跳过】，不是塞个瞎猜的值：跳过意味着那一组落回 globals.css `:root` 的
  * 默认值，也就是老站今天的样子 —— 失败方向是「没变」，不是「变成别的」。
@@ -166,8 +181,8 @@ function translate(s, forSite) {
  * 数值形状 → 同一批 CSS 变量。
  *
  * 🔴 变量名与档位数量跟枚举形状**逐个相同**，下游不该知道这套主题用的是哪种形状。
- * 📌 `radius` 这个数今天只喂存量站那条尾巴（`forSite`）：新模板里没有任何 CSS 读 `--radius-{DEFAULT,md,lg,xl,2xl}`
- *    （读它们的那份 Tailwind 配置 #1426 删了），#1586 起新站不再定义它们。
+ * 📌 `radius` 这个数喂两样：存量站那条尾巴（`forSite`，`--radius-{DEFAULT,md,lg,xl,2xl}`，新模板里没有读者，#1586 起新站不再定义它们），
+ *    和 #1718 起新站自己的 `--radius-card` / `--radius-image`（两个都 = `radius`px）。
  */
 function numericSettingsToCssVars(s, forSite) {
   const out = [];
@@ -187,6 +202,10 @@ function numericSettingsToCssVars(s, forSite) {
   }
   const button = own(BUTTON_SHAPE, s.buttonShape);
   if (button) out.push(`--radius-button: ${button};`);
+  // #1718 —— 主题的卡片 / 图片角：两个都 = `radius`px（不加新键）。新站读它们，所以不挂在 forSite 上。
+  if (typeof s.radius === 'number' && Number.isFinite(s.radius)) {
+    out.push(`--radius-card: ${px(s.radius)};`, `--radius-image: ${px(s.radius)};`);
+  }
   return out;
 }
 
@@ -204,9 +223,11 @@ function enumSettingsToCssVars(s, forSite) {
   if (legacyX) for (const [k, v] of Object.entries(legacyX)) out.push(`--section-${k}: ${v};`);
   const button = own(BUTTON_SHAPE, s.buttonShape);
   if (button) out.push(`--radius-button: ${button};`);
+  const surface = own(SURFACE_RADIUS, s.radius);
+  if (surface) out.push(`--radius-card: ${surface.card};`, `--radius-image: ${surface.image};`);
   return out;
 }
 
 module.exports = {
-  DENSITY, BUTTON_SHAPE, SITE_LEGACY_DENSITY_X, SITE_LEGACY_RADIUS, SITE_LEGACY_SHADOW, settingsToCssVars, settingsToSiteCssVars,
+  DENSITY, BUTTON_SHAPE, SURFACE_RADIUS, SITE_LEGACY_DENSITY_X, SITE_LEGACY_RADIUS, SITE_LEGACY_SHADOW, settingsToCssVars, settingsToSiteCssVars,
 };

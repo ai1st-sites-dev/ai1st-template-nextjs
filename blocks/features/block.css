@@ -47,6 +47,7 @@
    并排时块头的字不吃 introAlign 的 80% 限宽（那一栏本来就只有一半宽）。 */
 [data-block="features"] .fx-intro-img img,
 [data-block="features"] .fx-itemsimg img {
+  border-radius: var(--radius-image); /* #1718：原来是 img 上的 rounded-4（写死 1.5rem），改读 Corner style / 主题给的图片角 */
   aspect-ratio: 4 / 3;
 }
 [data-block="features"][data-intro-image="top"] .fx-intro-img,
@@ -128,7 +129,7 @@
 [data-block="features"][data-item-style="card"] .fx-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
 }
 [data-block="features"][data-item-style="card"]:not([data-item-image="none"]) .fx-inner {
   overflow: hidden;
@@ -230,11 +231,11 @@
   flex-direction: column-reverse;
 }
 [data-block="features"][data-item-style="plain"][data-item-image="top"] .fx-img {
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   margin-bottom: 1.25rem;
 }
 [data-block="features"][data-item-style="plain"][data-item-image="bottom"] .fx-img {
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   margin-top: 1.25rem;
 }
 [data-block="features"][data-items-layout="list"][data-item-image="top"] .fx-img,
@@ -247,7 +248,7 @@
    ≥992 并排、图 40%。 */
 [data-block="features"][data-item-style="plain"][data-item-image="left"] .fx-img,
 [data-block="features"][data-item-style="plain"][data-item-image="right"] .fx-img {
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   margin-bottom: 2.5rem;
 }
 [data-block="features"][data-item-style="card"][data-item-image="left"] .fx-content,
@@ -291,7 +292,7 @@
 [data-block="features"][data-item-image="background"] .fx-inner {
   position: relative;
   min-height: 18rem;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   overflow: hidden;
   color: #fff;
 }

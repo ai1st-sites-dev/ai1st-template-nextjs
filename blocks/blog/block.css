@@ -34,7 +34,7 @@
 [data-block="blog"] .bl-img {
   display: block;
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: var(--radius-image);
   background: var(--scheme-surface-sunken);
 }
 [data-block="blog"] .bl-img img {
@@ -96,7 +96,7 @@
 [data-block="blog"][data-item-style="card"] .bl-inner {
   background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   overflow: hidden;
 }
 [data-block="blog"][data-item-style="card"] .bl-post[data-image="top"] .bl-img {
@@ -117,7 +117,7 @@
 [data-block="blog"] .bl-post[data-image="background"] .bl-inner {
   position: relative;
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   min-height: 26rem;
   display: flex !important;
   flex-direction: column;
