@@ -1389,7 +1389,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         if (spec.kind === 'color' && !isColorValue(v)) {
           // #1717 —— 跟主题走的名字从 §THEME_BGS 现取：这句话是回给建站 AI 的，少列一种它就照着改写十六进制（#1698 之后漏过一次）。
           const themed = Object.keys(THEME_BGS).map((n) => JSON.stringify(n)).join('、');
-          flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写跟主题走的名字 ${themed}、"brand"、"#rrggbb"（六位十六进制），或渐变 {"stops": [2–3 个 "#rrggbb"], "angle": 0–360（可省，默认 135）}`);
+          flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写这几种：跟主题走的名字（${themed}）、"brand"、"#rrggbb"（六位十六进制），或渐变 {"stops": [2–3 个 "#rrggbb"], "angle": 0–360（可省，默认 135）}`);
         }
         if (spec.choices && v && typeof v === 'object' && !Array.isArray(v)) {
           for (const [sub, allowed] of Object.entries(spec.choices)) {

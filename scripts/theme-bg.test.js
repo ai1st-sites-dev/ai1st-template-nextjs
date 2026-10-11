@@ -291,7 +291,9 @@ console.log('#1717 颜色槽写歪时的报文');
   check('#1717 AC1 bg="brandsoft" ⟹ 报文里四个主题名字和 #rrggbb 都在（名字照正文抄，不从 contrast.js 读）', () => {
     const msg = messageFor('brandsoft');
     ok(msg, 'bg="brandsoft" 没被报，这一格的尺子是空的');
-    const missing = [...NAMES, '#rrggbb'].filter((n) => !msg.includes(n));
+    // 只看「或渐变」之前那段：渐变那段自己也带 "#rrggbb"（stops 里），整句查会被它喂饱，纯色十六进制那一项删了也照样绿。
+    const head = msg.split('或渐变')[0];
+    const missing = [...NAMES, '"#rrggbb"（六位十六进制）'].filter((n) => !head.includes(n));
     ok(!missing.length, `报文里缺 ${missing.join(' / ')}：${msg}`);
   });
   check('#1717 AC3 往 THEME_BGS 临时加一个名字 ⟹ 报文跟着多它一个；删掉 ⟹ 报文复原（名字不是手抄进报文的）', () => {
