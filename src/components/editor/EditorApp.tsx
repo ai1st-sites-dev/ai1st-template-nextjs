@@ -1421,6 +1421,8 @@ const BLOCKBAR_CSS = `
 const POPOVER_W = 520;
 const THUMB_W = 236;
 const THUMB_H = 148;
+// #1712 —— 为了不盖住浮动条最多缩到多矮（弹层自己的 px）：顶上标签 + 一排格子 + 底部按钮刚好放得下。
+const POPOVER_MIN_H = 300;
 const POPOVER: CSSProperties = {
   position: 'fixed', zIndex: 2147483000, width: POPOVER_W, boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
   background: '#fff', border: '1px solid #d0d5dd', borderRadius: 12, boxShadow: '0 12px 32px rgba(16, 24, 40, 0.18)',
@@ -1474,12 +1476,14 @@ function DesignPopover({ doc }: { doc: Document }) {
       timer = setTimeout(finish, 1500);
     };
     const isHistoryBtn = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function' && !!(t as Element).closest(HISTORY_BUTTONS);
+    // 撤销 / 前进那两颗：按下时 Cancel，紧跟着的 click 也不许落到 Puck 手里（那样就多退了一步）。
+    // 🔴 吞 click 的监听不能挂在这个 effect 上：Cancel 一关弹层，React 就跑这里的清理，等 click 派发时它已经不在了（#1712）。
     const onPageDown = (e: Event) => {
-      if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); }
+      if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); swallowNextHistoryClick(); }
       cancel();
     };
-    // 撤销 / 前进那两颗：按下时已经 Cancel 了，紧跟着的 click 也不许落到 Puck 手里（那样就多退了一步）。
-    const onPageClick = (e: Event) => { if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); } };
+    // 没有按下就来的 click（键盘按的）：同样只 Cancel。
+    const onPageClick = (e: Event) => { if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); cancel(); } };
     const onKey = (e: KeyboardEvent) => {
       if (isHistoryKey(e)) { e.preventDefault(); e.stopImmediatePropagation(); cancel(); return; }
       if (e.key === 'Escape') cancel();
@@ -1502,19 +1506,31 @@ function DesignPopover({ doc }: { doc: Document }) {
   }, [id, doc]);
 
   // 弹层自己的键盘事件截在元素上（原生，同 #1683）：Esc 收起，其余不往画布 document 冒。
+  // 🔴 格子上的 Enter / 空格也在这里接（#1712）：React 的 onKeyDown 挂在 portal 容器（画布 body）上，在这一层被截住之后
+  //    它收不到 —— 写在 JSX 里的 onKeyDown 永远不会跑。
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
     const stop = (e: KeyboardEvent) => {
       if (isHistoryKey(e)) return; // 撤销键已经在 window 捕获阶段处理过
       e.stopPropagation();
-      if (e.type === 'keydown' && e.key === 'Escape') uiRef.current?.cancelDesign();
+      if (e.type !== 'keydown') return;
+      if (e.key === 'Escape') { uiRef.current?.cancelDesign(); return; }
+      const t = e.target as HTMLElement | null;
+      if ((e.key === 'Enter' || e.key === ' ') && t && t.hasAttribute('data-editor-design-preset')) {
+        e.preventDefault(); // 空格不滚动
+        if (t.getAttribute('aria-disabled') !== 'true') uiRef.current?.pickDesign(t.getAttribute('data-editor-design-preset') || '');
+      }
     };
     for (const t of ['keydown', 'keyup', 'keypress'] as const) el.addEventListener(t, stop);
     return () => { for (const t of ['keydown', 'keyup', 'keypress'] as const) el.removeEventListener(t, stop); };
   });
 
-  // 贴着浮动条：下面放得下放下面，放不下放上面；跟着滚动 / 块变高（换了预设）走。浮动条找不到就贴块的下沿。
+  // 贴着浮动条，跟着滚动 / 块变高（换了预设）走（#1712 定的规矩，PM 正文「做什么」1、2）：
+  //   ① 弹层四边都落在画布可视区里 —— Done / Cancel 永远看得见，不靠老板滚动；
+  //   ② 浮动条在可视区里时不盖住它：下面放得下放下面，否则上面；两边都放不下就缩进大的那一边（不小于 POPOVER_MIN_H）。
+  //   还是放不下 ⟹ ① 优先：贴着可视区放，可能盖住浮动条（这时 Design 按钮点不到，但 Cancel / Done 在）。
+  // 浮动条找不到就贴块的下沿。下面的量全是画布 document 的 CSS px（弹层按 1/zoom 放大，它自己的 px 要 /zoom 换过来）。
   useEffect(() => {
     if (!id) { setPos(null); return; }
     const win = doc.defaultView!;
@@ -1526,12 +1542,29 @@ function DesignPopover({ doc }: { doc: Document }) {
       if (anchor) {
         const r = anchor.getBoundingClientRect();
         const box = boxRef.current;
+        const grid = box ? box.querySelector<HTMLElement>('[data-editor-design-layout]') : null;
+        const vh = win.innerHeight;
         const gap = 8 / zoom;
-        const maxH = Math.max(240, win.innerHeight * zoom - 32);
-        const h = (box ? box.offsetHeight : 400) / zoom;
+        // 不受 maxHeight 影响的那个高度：外框 + 格子区的完整内容（格子区自己会滚，被压扁时 clientHeight 变、scrollHeight 不变）。
+        const natural = (box && grid ? box.offsetHeight - grid.clientHeight + grid.scrollHeight : 400) / zoom;
+        const room = vh - 2 * gap;
+        const floor = Math.min(natural, POPOVER_MIN_H / zoom);
+        const roomBelow = vh - gap - (r.bottom + gap);
+        const roomAbove = r.top - gap - gap;
+        const barSeen = r.bottom > 0 && r.top < vh;
+        let top: number;
+        let h: number;
+        if (barSeen && natural <= roomBelow) { h = natural; top = r.bottom + gap; }
+        else if (barSeen && natural <= roomAbove) { h = natural; top = r.top - gap - h; }
+        else if (barSeen && Math.max(roomBelow, roomAbove) >= floor) {
+          h = Math.max(roomBelow, roomAbove);
+          top = roomBelow >= roomAbove ? r.bottom + gap : gap;
+        } else {
+          h = Math.min(natural, room);
+          top = Math.max(gap, Math.min(r.bottom + gap, vh - gap - h));
+        }
+        const maxH = Math.max(1, Math.floor(h * zoom));
         const w = POPOVER_W / zoom;
-        const below = r.bottom + gap;
-        const top = below + h <= win.innerHeight ? below : Math.max(gap, r.top - gap - h);
         const left = Math.max(gap, Math.min(r.left + r.width / 2 - w / 2, win.innerWidth - w - gap));
         const scale = 1 / zoom;
         setPos((p) => (p && p.top === top && p.left === left && p.scale === scale && p.maxH === maxH ? p : { top, left, scale, maxH }));
@@ -1572,7 +1605,6 @@ function DesignPopover({ doc }: { doc: Document }) {
             // 🔴 格子不是 <button>：缩略图里的块自己就有按钮，按钮套按钮是不合法的 HTML（React 当场报两条错）。
             <div key={p.name} role="button" tabIndex={readOnly ? -1 : 0} aria-disabled={readOnly || undefined} data-editor-design-preset={p.name} aria-pressed={on}
               onClick={() => { if (!readOnly) ui.pickDesign(p.name); }}
-              onKeyDown={(e) => { if (!readOnly && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ui.pickDesign(p.name); } }}
               style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: readOnly ? 'default' : 'pointer', outlineOffset: 2 }}>
               <div data-editor-design-thumb="" style={{ width: THUMB_W, height: THUMB_H, overflow: 'hidden', borderRadius: 8, position: 'relative', background: '#fff',
                 boxShadow: on ? '0 0 0 2px #1d4ed8' : '0 0 0 1px #d0d5dd' }}>
@@ -1643,6 +1675,28 @@ const EDITOR_IFRAME = { enabled: true, syncHostStyles: true, waitForStyles: true
 const OPEN_PERMISSIONS = { drag: true, duplicate: true, delete: true, edit: true, insert: true };
 const LOCKED_PERMISSIONS = { drag: false, duplicate: false, delete: false, edit: false, insert: false };
 const HISTORY_BUTTONS = 'button[title="undo"], button[title="redo"]';
+
+/**
+ * #1712 —— Design 弹层开着时按下了撤销 / 前进：把紧跟着的那一下 click 吞掉。独立于弹层的生命周期（按下那一刻弹层就关了）。
+ * 松开之后排一个任务就摘掉（click 跟 pointerup 在同一个任务里派发，同 §DesignPopover 的 afterUp）；按住拖走了也有兜底。
+ */
+function swallowNextHistoryClick() {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const done = () => {
+    if (timer) clearTimeout(timer);
+    document.removeEventListener('click', eat, true);
+    document.removeEventListener('pointerup', later, true);
+  };
+  const eat = (e: Event) => {
+    const t = e.target as Element | null;
+    if (t && typeof t.closest === 'function' && t.closest(HISTORY_BUTTONS)) { e.preventDefault(); e.stopImmediatePropagation(); }
+    done();
+  };
+  const later = () => { setTimeout(done, 0); };
+  document.addEventListener('click', eat, true);
+  document.addEventListener('pointerup', later, true);
+  timer = setTimeout(done, 1500);
+}
 
 function isHistoryKey(e: KeyboardEvent): boolean {
   if (!(e.ctrlKey || e.metaKey)) return false;
