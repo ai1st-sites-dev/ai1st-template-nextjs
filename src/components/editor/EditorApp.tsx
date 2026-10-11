@@ -1912,7 +1912,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     if (pageChanged || Object.keys(root).length || hasShared) try {
       summary = describeSave({
         saved: base.saved, json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
-        schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_SAVE_LABELS, shapeLabel: SHAPE_FIELD_LABEL, aiNotes, dragged,
+        schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_SAVE_LABELS, shapeLabel: SHAPE_FIELD_LABEL, aiNotes, dragged, slug: page,
       });
     } catch { /* 记录退回 manager 那句通用话 */ }
     // #1634 —— 改了表单文案：说一句是哪张表单（只改了表单时它就是这一笔的全部说明）。

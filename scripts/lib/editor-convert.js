@@ -961,15 +961,16 @@ function movedBlock(before, after, keyOf, dragged) {
 /**
  * @param {{ saved: object, json: object|null, root: object|null, shared: object|null, schema: object,
  *           siteBlocks?: object, rootLabels: Record<string, string>, shapeLabel?: string,
- *           aiNotes?: Record<string, Record<string, string>>, dragged?: string[] }} a
+ *           aiNotes?: Record<string, Record<string, string>>, dragged?: string[], slug?: string }} a
  *   json/root/shared 是这一笔**交出去的**那几样（没交 = null）；`saved` 是上一次存下去的页面 JSON。
  *   #1676 —— `aiNotes`：这一笔里 AI 按钮改过的字段，`{ 块键: { 字段 slot: 动作 } }`（块键 = `id:<id>` / `ref:<ref>` 页面块、
  *   `shared:<块库 id>` 共用块；已按作废规矩筛过，见 §aiNotesForSave）。`dragged`：老板拖过的块键（最后拖的在最后），
  *   只用来分辨相邻两块对调时是谁动了。两个都可缺。
+ *   #1703 —— `slug`：这一页是哪页（按 `visibility` 注进这一页的共用块要按它认；缺 = 只认 `"*"`）。
  * @returns {string} 一行话，各项用「; 」隔开（`Hero · Headline · made shorter; Moved Features up`）。
  *   一项都认不出（例如只动了一个没有字段的块）⟹ 一句通用话，不回空串：什么都没改的那一笔调用方根本不会存。
  */
-function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabels, shapeLabel, aiNotes, dragged }) {
+function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabels, shapeLabel, aiNotes, dragged, slug }) {
   const idx = schemaIndex(schema);
   const lib = isPlainObject(siteBlocks) ? siteBlocks : {};
   const notes = isPlainObject(aiNotes) ? aiNotes : {};
@@ -984,7 +985,28 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
       if (isPlainObject(e) && typeof e.ref === 'string' && e.ref) return `ref:${e.ref}`;
       return `#${i}`;
     };
-    const old = new Map(before.map((e, i) => [keyOf(e, i), e]));
+    // #1703 —— 按 `visibility` 注进这一页的共用块不在文件里，却在页面上：位置照 `blocks.js` §normalizeLocalePages
+    // （这一页没有 `{ref}` 指着它、visibility 命中 ⟹ 追加，位置按它自带的 weight，没有就排在文件那几条后面）。
+    // 老板挪它，它才第一次以 `{ref}` 写进文件 —— 那不是加了一块。前后两份都按页面上的样子补上它们再比位置：
+    // 不补的话，挪的是它、或者别的块只是越过了它（文件里那几条相对顺序没变），都说不出挪了谁。
+    const injected = (arr) => {
+      if (!byKey) return [];
+      const refd = new Set(arr.map((e) => (isPlainObject(e) && typeof e.ref === 'string' ? e.ref : null)).filter(Boolean));
+      const out = [];
+      let extra = arr.length;
+      for (const id of Object.keys(lib)) {
+        if (refd.has(id)) continue;
+        const vis = visibilityOf(lib[id]);
+        if (!vis || !(vis.includes('*') || (typeof slug === 'string' && vis.includes(slug)))) continue;
+        const w = lib[id].weight;
+        out.push({ ref: id, weight: typeof w === 'number' && Number.isFinite(w) ? w : extra * 10 });
+        extra += 1;
+      }
+      return out;
+    };
+    const shownBefore = [...before, ...injected(before)];
+    const shownAfter = [...after, ...injected(after)];
+    const old = new Map(shownBefore.map((e, i) => [keyOf(e, i), e]));
     const seen = new Set();
     let reweighted = false;
     after.forEach((e, i) => {
@@ -1007,11 +1029,11 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
     before.forEach((e, i) => { if (!seen.has(keyOf(e, i))) parts.push(`Removed ${entryLabel(e, idx, lib)}`); });
     // 位置：按 key 对上号的形状比生效顺序（§movedBlock）。老的 sections 形状按下标对号，挪一块就是「这一格的内容全变了」，
     // 说不出谁挪了 —— 照旧一句 `Section order`。
-    const mv = byKey ? movedBlock(before, after, keyOf, dragged) : (reweighted ? 'many' : null);
+    const mv = byKey ? movedBlock(shownBefore, shownAfter, keyOf, dragged) : (reweighted ? 'many' : null);
     if (mv === 'many') parts.push('Section order');
     else if (mv) {
-      const i = after.findIndex((e, j) => keyOf(e, j) === mv.key);
-      parts.push(`Moved ${entryLabel(after[i], idx, lib)} ${mv.up ? 'up' : 'down'}`);
+      const i = shownAfter.findIndex((e, j) => keyOf(e, j) === mv.key);
+      parts.push(`Moved ${entryLabel(shownAfter[i], idx, lib)} ${mv.up ? 'up' : 'down'}`);
     }
   }
   if (isPlainObject(shared)) {

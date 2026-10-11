@@ -114,6 +114,7 @@ export function describeSave(args: {
   aiNotes?: Record<string, Record<string, string>>;
   /** #1676 —— 老板拖过的块键（`id:<id>` / `ref:<ref>`），最后拖的在最后。 */
   dragged?: string[];
+  slug?: string;
 }): string;
 /** #1676 —— AI 按钮的说明（实现与三条作废规矩在 .js）。 */
 export type AiNote = { action: string; path: (string | number)[]; text: string };

@@ -168,6 +168,43 @@ eq(describeSave({ saved: weighted, json: weightedMoved, root: null, shared: null
   `Moved ${F} up`, '按 weight 排的顺序比，不按数组下标');
 eq(run({ json: edit((j) => { j.blocks.splice(0, 1); j.blocks.forEach((b, i) => { b.weight = i * 10; }); }) }), `Removed ${B}`, '删一块、后面的 weight 全重写 ⟹ 只说删了，不说挪了');
 
+// #1703 —— 按 `visibility` 注进这一页的共用块：不在文件里、却在页面上（位置 = 它自带的 weight）。老板挪它，它才第一次以
+// `{ref}` 写进文件 —— 那是挪，不是加。权重用写路径自己那一份（§assignWeights）算，不手写：记录要描述的就是它写下去的东西。
+const { assignWeights } = require('./lib/editor-convert.js');
+const content1703 = label('content');
+const C = content1703.label;
+const lib1703 = { everywhere: { type: 'content', visibility: ['*'], weight: 25, data: {} } }; // 页面上：cta hero features [它] faq
+// 画布顺序 → 页面 JSON：`'X'` = 它被拖过（写成 `{ref}`）；`'x'` = 没拖过（仍是锚点，不进文件）。
+const canvas1703 = (order) => {
+  const slots = order.map((k) => ({ anchor: k === 'x' ? lib1703.everywhere.weight : null }));
+  const w = assignWeights(slots);
+  const blocks = [];
+  order.forEach((k, i) => {
+    if (k === 'x') return;
+    blocks.push(k === 'X' ? { ref: 'everywhere', weight: w[i] } : { ...saved.blocks.find((b) => b.id === k), weight: w[i] });
+  });
+  return { blocks };
+};
+const s1703 = (a) => run({ siteBlocks: lib1703, slug: 'home', ...a });
+const up1703 = s1703({ json: canvas1703(['home-cta-0', 'home-hero-1', 'X', 'home-features-2', 'home-faq-3']), dragged: ['ref:everywhere'] });
+eq(up1703, `Moved ${C} up`, '#1703 挪「所有页面」的共用块往上一格（第一次写进文件）⟹ 挪，不是加');
+if (/Added/.test(up1703)) bad(`#1703 记录里出现了 Added：${up1703}`); else ok('#1703 记录里没有 Added');
+eq(s1703({ json: canvas1703(['home-cta-0', 'home-hero-1', 'home-features-2', 'home-faq-3', 'X']), dragged: ['ref:everywhere'] }),
+  `Moved ${C} down`, '#1703 同一块往下挪到最后');
+eq(s1703({ json: canvas1703(['X', 'home-cta-0', 'home-hero-1', 'home-features-2', 'home-faq-3']), dragged: ['ref:everywhere'] }),
+  `Moved ${C} up`, '#1703 挪到最上面（隔了好几块）');
+// 普通块越过它：文件里那四条相对顺序一点没变，只有 weight 变了 —— 比的是页面上的顺序。
+const overAnchor = canvas1703(['home-cta-0', 'home-hero-1', 'home-features-2', 'home-faq-3', 'x']);
+eq(s1703({ json: overAnchor, dragged: ['id:home-faq-3'] }), `Moved ${Q} up`, '#1703 把 FAQ 拖到共用块上面（文件里的相对顺序没变）');
+eq(s1703({ json: overAnchor }), 'Section order', '#1703 同一个结果、不知道拖的是谁 ⟹ 照旧不猜');
+// 边界：只有 visibility 真命中这一页的才算「本来就在」。
+eq(run({ siteBlocks: { everywhere: { ...lib1703.everywhere, visibility: ['home'] } }, slug: 'home',
+  json: canvas1703(['home-cta-0', 'home-hero-1', 'X', 'home-features-2', 'home-faq-3']), dragged: ['ref:everywhere'] }), `Moved ${C} up`, '#1703 visibility 列了这一页（不是 "*"）同样是挪');
+eq(run({ siteBlocks: { everywhere: { ...lib1703.everywhere, visibility: ['about'] } }, slug: 'home',
+  json: canvas1703(['home-cta-0', 'home-hero-1', 'X', 'home-features-2', 'home-faq-3']) }), `Added ${C}`, '#1703 visibility 不含这一页 ⟹ 它本来不在这一页，写进来就是加');
+eq(run({ siteBlocks: { everywhere: { ...lib1703.everywhere, visibility: 'home' } }, slug: 'home',
+  json: canvas1703(['home-cta-0', 'home-hero-1', 'X', 'home-features-2', 'home-faq-3']) }), `Added ${C}`, '#1703 字符串 visibility 跟构建一样当没写');
+
 console.log('⑥ 外壳：选一项的字段带上新值');
 // 📌 #1425（T3）—— 这里原来还测「公告条文字只说字段名」（topbarMessage）；公告条那个区随旧库删了，今天外壳三样全是选一项。
 eq(run({ root: { layout: 'standard' } }), `${rootLabels.layout} → standard`, '改 Page layout');
