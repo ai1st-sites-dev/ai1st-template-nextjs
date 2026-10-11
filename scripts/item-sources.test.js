@@ -352,7 +352,7 @@ function canvasTitles(App) {
   check(JSON.stringify(got.shared) === JSON.stringify(want), `共用块（_src.shared）：画布上 ${got.shared.length} 条、标题 == 展开结果`, JSON.stringify(got.shared));
   // 反向对照：只在普通那一支展开（共用块那一支照旧拿没展开的 block）⟹ 共用那一格红。
   const src = fs.readFileSync(EDITOR_APP, 'utf-8');
-  const mutated = src.replace('<SectionRenderer site={site} blocks={[shown]} locale={locale} pageSlug={pageSlug} />\n      </div>', '<SectionRenderer site={site} blocks={[block]} locale={locale} pageSlug={pageSlug} />\n      </div>');
+  const mutated = src.replace('<SectionRenderer site={site} blocks={[shown]} locale={locale} iconTables={icons} pageSlug={pageSlug} />\n      </div>', '<SectionRenderer site={site} blocks={[block]} locale={locale} iconTables={icons} pageSlug={pageSlug} />\n      </div>');
   if (mutated === src) bad('反向对照没改到 EditorApp.tsx（锚点找不到）—— 这一格什么都没证明');
   else {
     for (const k of Object.keys(require.cache)) if (k.startsWith(SRC) || k.startsWith(path.join(NEXT, 'blocks'))) delete require.cache[k];

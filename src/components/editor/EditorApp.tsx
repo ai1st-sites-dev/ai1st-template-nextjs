@@ -101,10 +101,13 @@ import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-pl
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
 import type { SiteData } from '@/lib/types/config';
+import type { IconTable } from '@/components/InlineIcon';
 
 export interface EditorAppProps {
   /** #1665 —— 这个站的内容（编辑器页在服务端用加载器读的那份）。画布上的块、外壳、列表槽的引用展开都用它。 */
   site: SiteData;
+  /** #1714 —— 页面块的内联图标表，按块类型（编辑器页在服务端用 `icons.js` §iconTableFor 算好）。画布按 `block.type` 取。 */
+  iconTables?: Record<string, IconTable>;
   locale: string;
   page: string;
   /** #1471 —— 这个语言的站级表单库（id + 名字），给 `form.id` 那格的下拉用。没有表单库 = 空数组（下拉只有「第一张」那一项）。 */
@@ -614,6 +617,9 @@ const LiveSiteContext = createContext<SiteData | null>(null);
  */
 /** #1660 —— 正在等 AI 写字的新块（Puck id）。放在 context 里：它变了只让画布上的块重画，不换 config。 */
 const FillingContext = createContext<ReadonlySet<string>>(new Set());
+/** #1714 —— 页面块的图标表（按块类型）。一张编辑器页一辈子就这一份；画布上的块和 Design 弹层的缩略图都经 §CanvasBlockBody 取。 */
+const NO_ICON_TABLES: Record<string, IconTable> = {};
+const IconTablesContext = createContext<Record<string, IconTable>>(NO_ICON_TABLES);
 
 function CanvasBlock(args: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
   const filling = useContext(FillingContext).has(String(args.props.id));
@@ -635,6 +641,7 @@ function CanvasBlock(args: { component: EditorComponent; props: ItemProps; local
 function CanvasBlockBody({ component, props: live, locale, pageSlug, site: built }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
   // #1681 —— Page 面板里正在改的 Business info（名字 / 电话 / 邮箱 / 地址）：画布上的块按它画（「Call …」按钮等）。
   const site = useContext(LiveSiteContext) || built;
+  const iconTables = useContext(IconTablesContext);
   // #1657 —— 老板正在画布上打这一块的某一格：那一格按打之前的值画（浏览器手上的字才是真的，React 不去重写那个文本节点，
   //    光标就不会每敲一个字跳回开头）。右栏和存盘读的是 Puck 里的新值，不受这里影响。
   const freeze = useContext(InlineFreezeContext);
@@ -663,6 +670,8 @@ function CanvasBlockBody({ component, props: live, locale, pageSlug, site: built
   // #1505 —— 写成引用的列表槽（`items: {source: "services"}`）在画布上显示展开后的样子：跟真站同一个函数、同一份站点数据，
   //    在这里展开一次，下面普通块和共用块两支用的都是它（只补一支的话，另一支上那块是空的、而且没人会红）。
   const [shown] = resolveItemSources([block], itemSourceContext(site, locale, pageSlug));
+  // #1714 —— 这一块的图标表按它的类型取（不按位置：块会被拖动、增删）。`SectionRenderer` 要的是与 blocks 逐项对齐的数组，这里只有一块。
+  const icons = iconTables[shown.type] ? [iconTables[shown.type]] : undefined;
   if (src?.shared) {
     // #1406 —— 共用块在画布上一眼看得出来：左上角一枚标，块名旁写「Shared」（不接鼠标，点它等于点这一块）。
     return (
@@ -673,11 +682,11 @@ function CanvasBlockBody({ component, props: live, locale, pageSlug, site: built
         >
           {component.label} · Shared
         </span>
-        <SectionRenderer site={site} blocks={[shown]} locale={locale} pageSlug={pageSlug} />
+        <SectionRenderer site={site} blocks={[shown]} locale={locale} iconTables={icons} pageSlug={pageSlug} />
       </div>
     );
   }
-  return <SectionRenderer site={site} blocks={[shown]} locale={locale} pageSlug={pageSlug} />;
+  return <SectionRenderer site={site} blocks={[shown]} locale={locale} iconTables={icons} pageSlug={pageSlug} />;
 }
 
 /**
@@ -1851,7 +1860,7 @@ function SaveStatus({ status, onRetry, hideError }: { status: Status; onRetry: (
   );
 }
 
-export default function EditorApp({ site, locale, page, raw, baseHash, schema, initialData, trustedOrigin, siteBlocks, refs, slugs, pages, forms = [] }: EditorAppProps) {
+export default function EditorApp({ site, iconTables, locale, page, raw, baseHash, schema, initialData, trustedOrigin, siteBlocks, refs, slugs, pages, forms = [] }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -2624,6 +2633,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
     <InlineApiContext.Provider value={inlineApi}>
     <InlineFreezeContext.Provider value={freeze}>
     <FillingContext.Provider value={filling}>
+    <IconTablesContext.Provider value={iconTables || NO_ICON_TABLES}>
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
         key={canvas.key}
@@ -2651,6 +2661,7 @@ export default function EditorApp({ site, locale, page, raw, baseHash, schema, i
         />
       )}
     </div>
+    </IconTablesContext.Provider>
     </FillingContext.Provider>
     </InlineFreezeContext.Provider>
     </InlineApiContext.Provider>

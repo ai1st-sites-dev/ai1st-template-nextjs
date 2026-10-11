@@ -39,6 +39,9 @@ import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts
 import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
 import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
 import { editorPages } from '../../../../scripts/lib/editor-pages.js';
+import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
+import { itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
+import type { IconTable } from '@/components/InlineIcon';
 
 
 // #1448 —— 哪些页有编辑器页（保留字 `blog` / `_next` 那两类没有）只在 `editor-pages.js` 一处：这里导出的，
@@ -129,9 +132,22 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
     },
   };
 
+  // #1714 —— 画布上的页面块要的图标表（真站在 HomePage / SubPage 用 §iconTablesFor 算的那一份）：`iconTableFor` 读文件，
+  // 只能在这里（服务端）算。🔴 按块类型给（`{ [type]: 表 }`），不按下标：画布上的块会拖、会增删。每一类 = 组件写死的那几个名字
+  // （`BLOCK_ICONS`）∪ 这一页该类块数据里的 `icon`（跟真站同一个顺序：先展开引用列表，展开出来的 `icon` 也要进表）。
+  // 这一页没有的类型也给一张（只有写死的那几个），从 Blocks 抽屉拖进来的新块照样画箭头 / 勾。编辑中新冒出来的名字不在表里 ⟹ 不画（票正文「不做」1）。
+  const pageSlug = slug === 'home' ? undefined : slug;
+  const resolved = resolveItemSources(page.blocks, itemSourceContext(site, locale, pageSlug));
+  const iconTables: Record<string, IconTable> = {};
+  for (const c of schema.components) {
+    if (!usesIconTable(c.type)) continue;
+    iconTables[c.type] = iconTableFor(c.type, resolved.filter((b) => b.type === c.type).map((b) => b.data)) as IconTable;
+  }
+
   return (
     <EditorApp
       site={site}
+      iconTables={iconTables}
       locale={locale}
       page={slug}
       raw={src.raw}
