@@ -1002,29 +1002,7 @@ if (fs.existsSync(siteThemeCssPath)) {
 writeOut(path.join(publicDir, 'theme.css'), themeCssBytes);
 console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes.length} bytes)`);
 
-// ─── #1424 —— Webpixels 那一份 CSS（`public/site.css`）─────────────────────────────────────────────
-// brand.json 的主色 → Sass `$primary` → Webpixels → purge。实现与理由在 `lib/site-css.js`。
-// 🔴 **#1463 起每一页都 `<link>` 它**（`src/app/layout.tsx`，与 Tailwind 并存到 T4；Chris 2026-09-27「现在没有
-//    客户」）。在那之前唯一的读者是 dev 里的单格页 `/__catalog`（下面两段是那时写的，理由仍然成立）。
-// 🔴 编不出来【不】exit 1（#1424 QA2 打回）：这份 CSS 今天只有新块（hero）靠它，而容器那条命令是
-//    `sync-config && next build` —— exit 1 就是「为了一份没人读的文件，这个站从此建不出来」
-//    （实测：brand.json 主色写成 `rgb(…)` / 8 位 hex，main 上 rc=0，这里曾经 rc=1）。跟 #1161 同一个理由。
-//    但也不静默：先删掉上一次那份旧的 site.css（否则图册会拿着旧文件看起来一切正常），再喊一行。
-//    📌 T4 之后它就是客户页那一份 CSS，那时候失败方向要重新定 —— 缺了它整站没样式。
-// #1666 —— 预览不剪（文件头 `AI1ST_RENDER` 那段）。只算出字节，写盘在 §flush（这一步之后还有校验）。
-const siteCssPath = path.join(publicDir, 'site.css');
-const siteCssDone = require('./lib/site-css.js').buildSiteCss({ brand, rootDir, dir, purge: !isPreview })
-  .then((r) => {
-    writeOut(siteCssPath, r.css);
-    console.log(`  Generated public/site.css — Webpixels, $primary ${r.primary}, dir ${r.dir}, `
-      + (r.purged ? `purged ${r.rawBytes} → ${r.bytes} bytes` : `not purged (preview), ${r.bytes} bytes`) + ` (${r.ms} ms)`);
-  })
-  .catch((e) => {
-    removeOut(siteCssPath);
-    // #1463 起每一页都 <link> 它（layout.tsx）：编不出来 ⟹ 那条样式表 404，hero 这类新块没有样式，旧块照常。
-    //    不拦构建（构建期没有救，只有毁 —— 同 validateSite 那段理由），但要喊得够响。
-    console.error(`  🔴 public/site.css 没编出来，旧的那份已删掉 —— 每一页都挂着它（#1463），新块（hero）这次会没有样式；构建照常往下走: ${e && e.message}`);
-  });
+// ─── #1424 —— Webpixels 那一份 CSS（`public/site.css`）在下面 custom.css 那段之后编（#1697：要先知道这个站实际的主色）。
 
 // 📌 #1425（T3）—— 这里原来是 #1198 的「这个站会长成地板样」守卫：数这个站摆了几个 `MOVED_BLOCKS`
 //    （版式归 `public/themes/*.css` 那张主题表管的旧块），表里一条画法都没有就喊。那张名单上的块
@@ -1189,6 +1167,40 @@ const customCssOrigin = siteCustomCss !== null
   ? 'from site/custom.css'
   : 'empty (this site has no tweaks)';
 console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBytes.length} bytes)`);
+
+// ─── #1424 —— Webpixels 那一份 CSS（`public/site.css`）─────────────────────────────────────────────
+// 这个站实际的主色 → Sass `$primary` → Webpixels → purge。实现与理由在 `lib/site-css.js`。
+// 🔴 #1697 —— 主色是**这个站最终生效的那一个**，不是 brand.json 原样：配色方案和色相滑块都往 custom.css 写
+//    `--color-primary-500`（上面 #1006 / #1038 那段），而 custom.css 排在 theme.css 之后。#1697 之前这里直接拿 brand，
+//    结果 `--x-primary` 一族（eyebrow、`brand` 底、`text-primary`、链接……）永远是主题原色，只有按钮经
+//    `--btn-primary-*` 那座桥跟上了。取法在 `primary-family.js` §effectivePrimary500：custom.css 里没有这一条 ⟹ 原样用
+//    brand 的值，「没有配色、色相为 0」的站喂给 Sass 的字节跟改前一模一样（#1697 AC2）。
+//    🔴 所以这段必须排在 custom.css 那段**之后**（它读的是这一次刚算出来的 `siteCustomCss`）。
+// 🔴 **#1463 起每一页都 `<link>` 它**（`src/app/layout.tsx`，与 Tailwind 并存到 T4；Chris 2026-09-27「现在没有
+//    客户」）。在那之前唯一的读者是 dev 里的单格页 `/__catalog`（下面两段是那时写的，理由仍然成立）。
+// 🔴 编不出来【不】exit 1（#1424 QA2 打回）：这份 CSS 今天只有新块（hero）靠它，而容器那条命令是
+//    `sync-config && next build` —— exit 1 就是「为了一份没人读的文件，这个站从此建不出来」
+//    （实测：brand.json 主色写成 `rgb(…)` / 8 位 hex，main 上 rc=0，这里曾经 rc=1）。跟 #1161 同一个理由。
+//    但也不静默：先删掉上一次那份旧的 site.css（否则图册会拿着旧文件看起来一切正常），再喊一行。
+//    📌 T4 之后它就是客户页那一份 CSS，那时候失败方向要重新定 —— 缺了它整站没样式。
+// #1666 —— 预览不剪（文件头 `AI1ST_RENDER` 那段）。只算出字节，写盘在 §flush（这一步之后还有校验）。
+const siteCssPath = path.join(publicDir, 'site.css');
+const brandPrimary = brand && brand.colors && brand.colors.primary ? brand.colors.primary['500'] : undefined;
+const sitePrimary = require('./primary-family.js').effectivePrimary500(brandPrimary, siteCustomCss === null ? '' : siteCustomCss.toString('utf-8'));
+const siteCssBrand = sitePrimary === brandPrimary ? brand
+  : { ...brand, colors: { ...brand.colors, primary: { ...brand.colors.primary, 500: sitePrimary } } };
+const siteCssDone = require('./lib/site-css.js').buildSiteCss({ brand: siteCssBrand, rootDir, dir, purge: !isPreview })
+  .then((r) => {
+    writeOut(siteCssPath, r.css);
+    console.log(`  Generated public/site.css — Webpixels, $primary ${r.primary}${sitePrimary === brandPrimary ? '' : ` (from site/custom.css; brand.json says ${brandPrimary})`}, dir ${r.dir}, `
+      + (r.purged ? `purged ${r.rawBytes} → ${r.bytes} bytes` : `not purged (preview), ${r.bytes} bytes`) + ` (${r.ms} ms)`);
+  })
+  .catch((e) => {
+    removeOut(siteCssPath);
+    // #1463 起每一页都 <link> 它（layout.tsx）：编不出来 ⟹ 那条样式表 404，hero 这类新块没有样式，旧块照常。
+    //    不拦构建（构建期没有救，只有毁 —— 同 validateSite 那段理由），但要喊得够响。
+    console.error(`  🔴 public/site.css 没编出来，旧的那份已删掉 —— 每一页都挂着它（#1463），新块（hero）这次会没有样式；构建照常往下走: ${e && e.message}`);
+  });
 
 // ── #1084 按钮的字色 ────────────────────────────────────────────────────────────────────────────
 //

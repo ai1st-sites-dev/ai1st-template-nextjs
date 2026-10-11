@@ -107,7 +107,13 @@ console.log('① public/theme.css 与 public/site.css：跟着 brand.json 的主
   writeJson(w, 'site/brand.json', brand);
   derive(w);
   check(read(w, 'public/theme.css').toLowerCase().includes('#c2185b'), 'public/theme.css 里是新主色');
-  check(read(w, 'public/site.css').toLowerCase().includes('#c2185b'), 'public/site.css 里是新主色（$primary 重编了）');
+  // #1697 —— site.css 用的是这个站**实际**的主色：夹具建站时按 siteId 派了一个非零的色相偏移（create-site.js §tweaksForSite，
+  //    中性档被挖掉了），custom.css 里那条 primary-500 是偏移过的 —— 有它就是它，没有才是 brand.json 原样。
+  const custom = exists(w, 'site/custom.css') ? read(w, 'site/custom.css') : '';
+  const shifted = [...custom.matchAll(/--color-primary-500\s*:\s*(#[0-9a-fA-F]{3,6})/g)].pop();
+  const want = (shifted ? shifted[1] : '#c2185b').toLowerCase();
+  check(read(w, 'public/site.css').toLowerCase().includes(want),
+    `public/site.css 里是新主色（$primary 重编了；${shifted ? `custom.css 把 #c2185b 偏成了 ${want}` : '没有色相偏移，就是 #c2185b'}）`);
 }
 
 console.log('① site/custom.css 与 public/custom.css：theme.json 的微调');
@@ -168,5 +174,68 @@ console.log('④ AI1ST_RENDER 写错 ⟹ 退出码 1');
   check(r.status === 1 && /AI1ST_RENDER 只认 preview \/ publish/.test(r.stderr), `rc=${r.status}，报错说清楚了`, (r.stderr || '').slice(0, 200));
 }
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+console.log('⑤ #1697：配色方案 / 色相滑块 ⟹ public/site.css 的 --x-primary 一族用这个站实际的主色编');
+(async () => {
+  const postcss = require('postcss');
+  const fam = require(path.join(NEXT, 'scripts', 'primary-family.js'));
+  const LIGHT = ':root,\n[data-bs-theme=light]';
+  /** site.css 里 `:root,[data-bs-theme=light]` 那条规则的某个变量。 */
+  const rootVar = (css, prop) => {
+    let v; postcss.parse(css).walkDecls((d) => { if (d.parent.selector === LIGHT && d.prop === prop && v === undefined) v = d.value; });
+    return v;
+  };
+  const nums = (v) => (/^#[0-9a-f]{6}$/i.test(String(v)) ? [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16)) : (String(v).match(/-?\d+(\.\d+)?/g) || []).map(Number));
+  const sameColour = (a, b) => { const x = nums(a); const y = nums(b); return x.length === 3 && x.length === y.length && x.every((n, i) => Math.abs(n - y[i]) < 1e-6); };
+  const famVal = (primary, prop) => fam.primaryFamily(primary).find(([sel]) => sel === LIGHT)[1].find(([p]) => p === prop)[1];
+  const setTheme = (w, edit) => {
+    const theme = exists(w, 'site/theme.json') ? json(w, 'site/theme.json') : {};
+    edit(theme);
+    writeJson(w, 'site/theme.json', theme);
+  };
+  const lastPrimary500 = (css) => { let m; let last = null; const re = /--color-primary-500\s*:\s*(#[0-9a-fA-F]{3,6})/g; while ((m = re.exec(css))) last = m[1]; return last; };
+
+  // AC1：主色 #4a6fb5 的站，选 burgundy ⟹ --x-primary = burgundy 的 primary-500，subtle 衬底从它派生
+  {
+    const w = copyOf(base);
+    const brand = json(w, 'site/brand.json');
+    brand.colors.primary['500'] = '#4a6fb5';
+    writeJson(w, 'site/brand.json', brand);
+    setTheme(w, (t) => { t.presets = { palette: 'burgundy' }; t.tweaks = { ...(t.tweaks || {}), hueShift: 0 }; });
+    derive(w);
+    const css = read(w, 'public/site.css');
+    const p = rootVar(css, '--x-primary');
+    check(String(p).toLowerCase() === '#8c1d3f', `AC1 选 burgundy ⟹ --x-primary = #8c1d3f（实得 ${p}）`);
+    const sub = rootVar(css, '--x-primary-bg-subtle');
+    check(sameColour(sub, famVal('#8c1d3f', '--x-primary-bg-subtle')) && !sameColour(sub, famVal('#4a6fb5', '--x-primary-bg-subtle')),
+      `AC1 --x-primary-bg-subtle 是 burgundy 派生的浅色、不是蓝的（实得 ${sub}）`);
+  }
+
+  // AC2 上半：只拖色相（不选配色）⟹ --x-primary 跟着变，等于 custom.css 里那个 primary-500
+  {
+    const w = copyOf(base);
+    setTheme(w, (t) => { delete t.presets; t.tweaks = { ...(t.tweaks || {}), hueShift: 8 }; });
+    derive(w);
+    const want = lastPrimary500(read(w, 'site/custom.css'));
+    const p = rootVar(read(w, 'public/site.css'), '--x-primary');
+    const brandP = json(w, 'site/brand.json').colors.primary['500'];
+    check(want && String(p).toLowerCase() === want.toLowerCase() && want.toLowerCase() !== String(brandP).toLowerCase(),
+      `AC2 色相 +8 ⟹ --x-primary = custom.css 的 primary-500 ${want}（实得 ${p}；brand.json 是 ${brandP}）`);
+  }
+
+  // AC2 下半：没有配色、色相 0 ⟹ site.css 跟改前逐字节相同。改前 = 拿 brand.json 原样喂 buildSiteCss
+  //   （#1697 之前 derive-site.js 就是这么调的：`buildSiteCss({ brand, rootDir, dir, purge })`）。
+  {
+    const w = copyOf(base);
+    setTheme(w, (t) => { delete t.presets; t.tweaks = { ...(t.tweaks || {}), hueShift: 0 }; });
+    derive(w);
+    const got = read(w, 'public/site.css');
+    const { buildSiteCss } = require(path.join(w, 'scripts', 'lib', 'site-css.js'));
+    const before = await buildSiteCss({ brand: json(w, 'site/brand.json'), rootDir: w, dir: 'ltr', purge: true });
+    check(got === before.css, `AC2 没有配色、色相 0 ⟹ public/site.css 跟「brand.json 原样喂 Sass」逐字节相同（${got.length} / ${before.css.length} 字节）`);
+    check(lastPrimary500(exists(w, 'site/custom.css') ? read(w, 'site/custom.css') : '') === null,
+      '（前提）这时 site/custom.css 里没有 --color-primary-500 —— 走的确实是「原样用 brand」那一支');
+  }
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+})().catch((e) => die(e && e.stack || String(e)));
