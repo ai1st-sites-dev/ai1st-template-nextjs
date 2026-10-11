@@ -36,10 +36,13 @@ const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
  * 都写它，而 custom.css 排在 theme.css 之后（`layout.tsx` 的 `<link>` 次序），最后一条就是浏览器最后用的那个；
  * 没有这一条 ⟹ `baseHex`（brand.json 的 primary-500）。
  * 🔴 没有就回 `baseHex` 原样（不归一化）：「没有配色、色相为 0」那条路必须跟 #1697 之前喂给 Sass 的字节一模一样（AC2）。
+ * 🔴 先剥掉 `/* … *\/` 再找（#1705）：注释里引一句 `--color-primary-500: #123456` 不能被当成真声明 —— 它排在后面就会
+ *    整站主色静默变成那个示例色。CSS 注释不嵌套，没闭合的一直算到文件末尾（跟浏览器一样）。
  */
 function effectivePrimary500(baseHex, cssText) {
   let last = null;
-  for (const m of String(cssText || '').matchAll(/--color-primary-500\s*:\s*(#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?)\s*(?:;|})/g)) last = m[1];
+  const css = String(cssText || '').replace(/\/\*[\s\S]*?(?:\*\/|$)/g, '');
+  for (const m of css.matchAll(/--color-primary-500\s*:\s*(#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?)\s*(?:;|})/g)) last = m[1];
   return last === null ? baseHex : last;
 }
 

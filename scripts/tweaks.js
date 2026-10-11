@@ -487,6 +487,8 @@ function buildCustomCss(baseVars, tweaks, absolute) {
   const head = [chosen && `${chosen} (#1038)`, said && `${said} (#1006)`].filter(Boolean).join(' · ');
   const lines = [];
   if (fontImport) lines.push(`@import url("${fontImport}");`);
+  // 🔴 这条头注会被 primary-family.js §effectivePrimary500 扫过（它取 custom.css 里最后一条 primary-500 当站主色）。
+  //    那边已经先剥注释了（#1705），但别靠它：这里别写出「变量名: #hex」的样子，举例也不行。
   lines.push(`/* site-tweaks: v1 — ${head}. 生成物：改 site/theme.json 的 tweaks / presets `
     + '再重新生成，别手改这个文件。 */');
   if (out.length) lines.push(`:root {\n${out.join('\n')}\n}`);

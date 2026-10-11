@@ -212,6 +212,14 @@ const pill = (idx) => painted(bytes(idx.get(famKey(LIGHT, '--x-primary-rgb'))), 
   check(F.effectivePrimary500('#4a6fb5', ':root { --color-primary-500: #8c1d3f; --color-primary-600: #701632; }') === '#8c1d3f', '有 → 用它');
   check(F.effectivePrimary500('#4a6fb5', ':root{--color-primary-500:#111111}\n:root{--color-primary-500:#222222}') === '#222222', '两条 → 后面那条（层叠里后来的赢）');
   check(F.effectivePrimary500('#4a6fb5', ':root { --color-primary-5000: #8c1d3f; --color-primary-500: var(--x); }') === '#4a6fb5', '不是 500 那一档 / 不是 hex 字面值 → 不认');
+  // #1705：注释里引的那句不算声明。第一格去掉剥注释那一行必须红（今天读到的是引文那个 #123456）。
+  check(F.effectivePrimary500('#4a6fb5', '--color-primary-500:#8c1d3f;\n/* --color-primary-500: #123456; */') === '#8c1d3f',
+    '真声明在前、注释引文在后 → 取真声明（不是引文）');
+  check(F.effectivePrimary500('#4A6FB5', '/* site-tweaks: v1 — 例：--color-primary-500: #123456; */\n') === '#4A6FB5',
+    '只有注释引文、没有真声明 → brand 的值原样');
+  check(F.effectivePrimary500('#4a6fb5', '/* a /* --color-primary-500: #111111; */\n:root {\n  --color-primary-500: #8c1d3f;\n}\n'
+    + '/* --color-primary-500: #222222; */ /* x */\n/* 没闭合 --color-primary-500: #333333;') === '#8c1d3f',
+    '多段注释、注释里套着 /*、末尾一段没闭合 → 仍取真声明');
   check(F.primaryFamilyCss('rgb(1,2,3)') === '' && F.primaryFamilyCss(undefined) === '', '认不出的主色 → 空串（预览不画半套）');
 
   console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
