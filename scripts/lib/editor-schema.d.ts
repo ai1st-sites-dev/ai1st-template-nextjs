@@ -66,6 +66,8 @@ export interface EditorInlineSlot {
 export interface EditorComponent {
   type: string;
   label: string;
+  /** #1711 —— manifest 的 `category`（选图弹窗 Generate 的默认提示词按它取景）；没写 = null */
+  category: string | null;
   fields: EditorField[];
   inline: EditorInlineSlot[];
   /** #1660 —— 新块拖下去那一刻播几条列表项、条目里填哪几格（`seedListsOf`）；不播的块是 []。 */

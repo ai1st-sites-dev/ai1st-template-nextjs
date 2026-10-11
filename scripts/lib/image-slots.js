@@ -22,6 +22,7 @@ const { effectiveKnobs } = require('./block-knobs');
 const { contentImagesOf, hasPhrase } = require('./seo-problems');
 const crypto = require('crypto');
 const { FILENAME_MAX_BYTES } = require('./keyword-slug');
+const { buildSlotPrompt } = require('./slot-prompt');
 
 /**
  * 页面里每一个内容图槽，按「页面 → 块 → 槽 → 列表项」的书写顺序。
@@ -154,37 +155,8 @@ function capImageSlots(slots, cap) {
   return { kept: slots.slice(0, cap), dropped: slots.slice(cap) };
 }
 
-/**
- * 这个槽要一张什么样的图 —— 提示词按 manifest 的 `displayName` + `category` + 站的行业 + 槽位名拼。
- *
- * 🔴 **取景按 `category` 不按块名**（`banner` 类是首屏横幅 ⟹ 宽幅远景；列表槽是一组小图 ⟹ 细节照；
- *    其余单图槽 ⟹ 场景照）。这三种取景就是 #1386 之前那四个 `case` 写的东西，只是判据换成了
- *    manifest 自己声明的字段 —— 新块声明了 category 就自动落到对的那一档，不用回头改这里。
- *
- * 下面那段 `scene` 逐字保留 TICKET-164 v2 的成果（160 PM addendum §1 的 "ABSOLUTELY NO TEXT" 段，
- * 两个行业 2/2 prod-clean 验过 commit 577b22e）：
- *   (a) 去掉 "accents in signage" ⟹ ${primaryColor} 只绑到装潢与环境光，不再把招牌请进画面
- *   (b) 弱的 "AVOID logos or text overlays" 换成 ABSOLUTELY NO TEXT + 九种文字形态逐个点名 ——
- *       模型不能再把 AVOID 理解成「只是别做后期文字叠加」
- * 人脸仍然允许（TICKET-164 用户决定，不走回头路）。
- */
-function buildSlotPrompt({ manifest, slot, industry, primaryColor, themeWord }) {
-  const scene = `${industry} business interior or exterior scene, warm natural lighting, photorealistic, ${themeWord} aesthetic. Use ${primaryColor} as the dominant color tone in the decor, walls, furnishings, and ambient lighting. Professional friendly diverse people (varied ages and ethnicities) may appear naturally. AVOID children unless industry is pediatric/childcare/school; AVOID medical surgery, distress, or sensitive scenes; AVOID religious symbols not relevant to the brand.
-
-ABSOLUTELY NO TEXT IN THE IMAGE. The scene must contain ZERO visible business signage with letters, ZERO storefront signs with words, ZERO wall-mounted signs with text, ZERO printed wordmarks or brand names, ZERO menu boards with readable words, ZERO product labels with letters, ZERO English or any-language words, ZERO numbers or digits, ZERO logos with characters, ZERO typography of any kind anywhere in the scene. Buildings, products, walls, and decor must be free of any written or printed text elements.`;
-
-  const name = (manifest && manifest.displayName) || (manifest && manifest.type) || slot.secType;
-  const where = `It fills the "${slot.slotName}" image slot of the "${name}" section.`;
-
-  if (slot.kind === 'list') {
-    return `4:3 detail or moment shot of ${scene} ${where} This is photo #${(slot.itemIdx || 0) + 1} of a set — vary the subject (product close-up / service action / interior detail / candid interaction) so it differs from the others in the same set.`;
-  }
-  if (manifest && manifest.category === 'banner') {
-    return `Wide-angle 16:9 exterior storefront or entrance view of ${scene} ${where} Daytime, inviting, welcoming atmosphere with depth.`;
-  }
-  return `4:3 contextual scene of ${scene} ${where} Authentic candid moment, not posed.`;
-}
-
+// #1711 —— `buildSlotPrompt` 搬到 `./slot-prompt.js`（编辑器页也要用它，而这份文件 require 了 node 内建 `crypto`）。
+//    这里照旧导出它，建站这边的调用点一个字不改。
 /**
  * 把求到的那张图写回页面。列表槽写进第 `itemIdx` 项的 `imageUrl`，单图槽写进槽位自己。
  * #1475 —— 列表项的图嵌在一层对象里时（`slot.imageKey`，由 `imageSlotsOf` 从 shape 读出），

@@ -67,7 +67,8 @@ export type InlineApi = {
   /** #1676 —— AI 写进去了：记一条说明，下一笔存盘的记录写 `Hero · Headline · made shorter`（EditorApp §aiNotesRef）。 */
   noteAi: (n: { id: string; path: InlinePath; action: RewriteAction; text: string }) => void;
   /** #1693 —— 开 dashboard 的图片库选一张（`current` = 现在那张的地址，没有就是空串）。面板的 Change 和画布里点图共用。 */
-  pickImage: (current: string) => Promise<PickImageResult>;
+  /** #1711 —— `at`：画布里点的那张图是哪一块、哪个 `data-slot`（选图弹窗 Generate 的默认提示词按它算）；面板上的 Change 不给。 */
+  pickImage: (current: string, at?: { id: string; slot: string }) => Promise<PickImageResult>;
 };
 export const InlineApiContext = createContext<InlineApi | null>(null);
 
@@ -443,7 +444,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
   async function pickFor(id: string, slot: string, blockType: string, el: HTMLElement, path: InlinePath, before: string) {
     const ap = apiRef.current;
     if (!ap) return;
-    const res = await ap.pickImage(before);
+    const res = await ap.pickImage(before, { id, slot });
     if (!res.ok) {
       if (!res.cancelled) setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: res.message });
       return;
