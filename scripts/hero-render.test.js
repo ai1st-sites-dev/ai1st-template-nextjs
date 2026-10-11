@@ -526,7 +526,7 @@ console.log('\n── AC6 表单（提交）');
       && opt.knobs.map((k) => k.name).join() === 'textAlign,image,form' && opt.booleans.join() === '',
     '第一个字段：预设 5 个 → 旋钮 textAlign / image / form（#1470 起没有布尔修饰）');
     const bg = on.fields[1];
-    check(bg.control === 'color' && bg.swatches.join() === '#ffffff,#f1f5f9,#e0f2fe,brand,#1e293b,#0f172a', 'bg 字段是色板（6 色）+ 取色器（control: color）');
+    check(bg.control === 'color' && bg.swatches.join() === 'brand-soft,accent-soft,brand,#ffffff,#f1f5f9,#1e293b,#0f172a', 'bg 字段是色板（7 格：跟主题走的两格排前面，#1698）+ 取色器（control: color）');
     check(on.fields.find((f) => f.slot === 'eyebrow').subs.some((x) => x.sub === 'style' && x.choices.length === 5), 'eyebrow.style 是五选一的下拉');
     // 往返：编辑器打开一块 hero、什么都不改 ⟹ 存回去的 data 逐字相同；改了旋钮 / 底色 ⟹ 只动那几个键。
     const { fieldProps, dataFromProps } = require(path.join(NEXT, 'scripts', 'lib', 'editor-convert.js'));

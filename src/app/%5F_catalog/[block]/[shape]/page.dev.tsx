@@ -39,7 +39,7 @@ import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
 import { booleanOptionsOf, choiceDefault, colorSlotsOf, effectiveKnobs, presetColors, presetNameFor, toolbarGroupsOf } from '../../../../../scripts/lib/block-knobs.js';
-import { bgFromParam, normalizeBg } from '../../../../../scripts/lib/contrast.js';
+import { bgFromParam, normalizeBg, type BgValue } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
   CATALOG_PAGE_HEADER_SLUG,
@@ -84,7 +84,7 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
  * #1469 —— 外加**颜色槽**（跟 §knobOverrides 同一条判据；#1483 起每个颜色槽一格）：外壳块的色板也住 CellOptions。
  * 全都空 ⟹ 这个块没有开关，页面不画那条工具栏。
  */
-function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unknown; kind?: unknown; swatches?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
+function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unknown; kind?: unknown; swatches?: unknown; gradients?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
   const slots = (m && m.slots) || {};
   const optShape = slots.options && typeof slots.options.shape === 'string' ? slots.options.shape : '';
   const optionKeys = Array.from(optShape.matchAll(/(\w+)\s*:\s*bool/g)).map((x) => x[1]);
@@ -94,7 +94,9 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
     return hit ? [{ slot, key: hit[1], styles: Array.from(hit[2].matchAll(/"([a-z]+)"/g)).map((x) => x[1]) }] : [];
   });
   // #1483 —— 每个颜色槽一格（按声明顺序）；今天的外壳块都只有一个（bg）。
-  const colors = (colorSlotsOf(m) as string[]).map((c) => ({ slot: c, swatches: Array.isArray(slots[c].swatches) ? (slots[c].swatches as string[]) : [] }));
+  // #1698 r2 —— 槽自己写了 `gradients` 就带下去（pricing `featuredColor` 不给浅渐变）；没写 = BgPicker 用共用那一排。
+  const colors = (colorSlotsOf(m) as string[]).map((c) => ({ slot: c, swatches: Array.isArray(slots[c].swatches) ? (slots[c].swatches as string[]) : [],
+    gradients: Array.isArray(slots[c].gradients) ? (slots[c].gradients as BgValue[]) : undefined }));
   return {
     optionKeys,
     widgets: widgets as Widget[],
@@ -107,7 +109,7 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
   };
 }
 
-type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; choices?: Record<string, string[]>; choiceDefaults?: Record<string, string>; shape?: string; max?: unknown }>; parts?: string[]; presets?: unknown };
+type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; gradients?: BgValue[]; choices?: Record<string, string[]>; choiceDefaults?: Record<string, string>; shape?: string; max?: unknown }>; parts?: string[]; presets?: unknown };
 
 /**
  * #1463 —— 「预设 + 旋钮」那一类**页面块**（今天是 hero）：地址栏 → 这一格的 data。
@@ -182,7 +184,7 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
       parts: ((p as { parts?: unknown }).parts instanceof Array ? ((p as { parts?: unknown }).parts as unknown[]) : [])
         .filter((x): x is string => typeof x === 'string' && parts.includes(x)) })),
     booleans,
-    colors: colorSlots.map((c) => ({ slot: c, swatches: slots[c].swatches || [] })),
+    colors: colorSlots.map((c) => ({ slot: c, swatches: slots[c].swatches || [], gradients: slots[c].gradients })),
     parts,
     choices,
     // #1532 —— 工具条分组（manifest 顶层 `toolbarGroups`）。这条工具条不画数量控件（#1479 四审 1），`count:*` 由

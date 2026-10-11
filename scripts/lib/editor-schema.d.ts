@@ -36,10 +36,10 @@ export interface EditorField {
   max?: number;
   /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
   summary?: string[];
-  /** color：预设色板（`#rrggbb` / `brand`） */
+  /** color：预设色板（`#rrggbb` / `brand` / 跟主题走的名字，#1698） */
   swatches?: string[];
-  /** color：三档预设渐变（#1477，`contrast.js` §GRADIENT_SWATCHES 的副本） */
-  gradients?: { stops: string[]; angle: number }[];
+  /** color：预设渐变（#1477，`contrast.js` §GRADIENT_SWATCHES 的副本；#1698 起有跟主题走的名字） */
+  gradients?: (string | { stops: string[]; angle: number })[];
   /** options：旋钮（顺序 = 控件顺序）、布尔修饰、预设 */
   knobs?: { name: string; values: string[]; default?: string }[];
   booleans?: string[];

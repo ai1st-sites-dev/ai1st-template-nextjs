@@ -19,6 +19,11 @@
 //    渐变认得的只有 `*Bg` 这一组（`normalizeBg` / `toneForBg` / `bgCss` / `bgFromParam`）；`normalizeColor` / `toneFor`
 //    原样不动（纯色那一半）。#1477 起四个带 `bg` 槽的块、单格页两条工具条、编辑器、admin 读的全是 `*Bg` 这一组。
 //    `isColorValue`（validateSite 的判据）认渐变：`SLOT_KINDS` 的 `color` 就是这一种，校验不按块分。
+//
+// #1698 —— **跟主题走的四个底**（Chris 2026-10-10：「背景颜色这些都没有改」—— 换配色时写死的十六进制不跟着换）：
+//    值是名字，渲染成读配色色阶的 CSS 变量，换配色 / 拖色相滑块整套一起换（§THEME_BGS）。字色按名字写死，不按亮度算
+//    （名字没有亮度可算）：三种浅的深字，深渐变反白。读数见 `scripts/theme-bg.test.js`。
+//    🔴 不做点缀色实心底、也不让点缀色进深渐变：点缀色 500 / 600 档是中间亮度，池里主题的点缀色偏黄，白字深字都不过 4.5。
 
 /** 相对亮度的门槛：低于它就是「深底」，字反白。 */
 const DARK_BELOW = 0.4;
@@ -34,10 +39,34 @@ const GRADIENT_DARK_BELOW = 0.55;
 /** 渐变没写角度时用它（图册的三档预设渐变都是 135deg）。 */
 const GRADIENT_ANGLE = 135;
 
-/** 编辑器色板上的三档预设渐变（图册 `build.py` 的 `g:` 那三格，原样）。 */
+/**
+ * #1698 —— 跟主题走的底：名字 → 渲染成什么 + 上面用哪套字色。
+ *
+ * 🔴 读的是**老链** `--color-primary-*` / `--color-accent-*`（`theme.css` 的整套色阶，配色方案和色相滑块写进 `custom.css`
+ *    的也是这一套 —— `tweaks.js` 每一档 primary / accent 都写），不是新链 `--x-*`：新链里只有主色本身和几个派生值，
+ *    没有 50 / 700 / 900，也没有点缀色。📌 **#1580 拆老链时，这四个值要一起搬**到新链上（新链得先派生出这几档），
+ *    否则它们会变成读不到的变量 ⟹ 整块没有底色。
+ * 🔴 `deep-gradient` 判 `dark` 不判 `brand`：`brand` 那一档的主按钮是白底主色字，而主色 500 压白在池里主题 ember-12
+ *    上只有 4.23；`dark` 的主按钮是白底深字（faq / logos），其余块两档一样。
+ */
+const THEME_BGS = {
+  'brand-soft': { css: 'var(--color-primary-50)', tone: 'light' },
+  'accent-soft': { css: 'var(--color-accent-50)', tone: 'light' },
+  'soft-gradient': { css: `linear-gradient(${GRADIENT_ANGLE}deg,var(--color-primary-50),var(--color-accent-50))`, tone: 'light' },
+  'deep-gradient': { css: `linear-gradient(${GRADIENT_ANGLE}deg,var(--color-primary-700),var(--color-primary-900))`, tone: 'dark' },
+};
+
+/** 是不是 §THEME_BGS 里的一个名字。 */
+const isThemeBg = (v) => typeof v === 'string' && Object.prototype.hasOwnProperty.call(THEME_BGS, v);
+
+/**
+ * 编辑器色板上的预设渐变：两档跟主题走的（#1698）+ 深灰那一档（中性底，写死也不冒充这个站的颜色）。
+ * #1698 去掉了图册原来那两档写死的着色渐变（紫→金、天蓝→靛蓝）—— 写死的格子只能是中性底（PM 2026-10-11 裁定）。
+ * 存量站里存着的那两条照样合法、照样渲染（§normalizeGradient 不看这张清单），只是色板上点不到了。
+ */
 const GRADIENT_SWATCHES = [
-  { stops: ['#7d52f4', '#f7b733'], angle: GRADIENT_ANGLE },
-  { stops: ['#0ea5e9', '#6366f1'], angle: GRADIENT_ANGLE },
+  'soft-gradient',
+  'deep-gradient',
   { stops: ['#0f172a', '#334155'], angle: GRADIENT_ANGLE },
 ];
 
@@ -52,14 +81,14 @@ function normalizeGradient(v) {
   return { stops, angle };
 }
 
-/** 合法的颜色槽取值：`#rrggbb`（大小写都收）、`brand`，或渐变 `{ stops, angle }`（#1469）。 */
+/** 合法的颜色槽取值：`#rrggbb`（大小写都收）、`brand`、跟主题走的名字（#1698），或渐变 `{ stops, angle }`（#1469）。 */
 function isColorValue(v) {
-  return v === BRAND || (typeof v === 'string' && HEX_RE.test(v)) || normalizeGradient(v) !== null;
+  return v === BRAND || isThemeBg(v) || (typeof v === 'string' && HEX_RE.test(v)) || normalizeGradient(v) !== null;
 }
 
 /** 归一成存盘的形状：十六进制一律小写；不合法回 null。 */
 function normalizeColor(v) {
-  if (v === BRAND) return BRAND;
+  if (v === BRAND || isThemeBg(v)) return v;
   if (typeof v !== 'string' || !HEX_RE.test(v.trim())) return null;
   return v.trim().toLowerCase();
 }
@@ -80,6 +109,7 @@ function relativeLuminance(hex) {
  */
 function toneFor(bg) {
   if (bg === BRAND) return 'brand';
+  if (isThemeBg(bg)) return THEME_BGS[bg].tone;
   const l = relativeLuminance(typeof bg === 'string' ? bg.trim() : bg);
   if (l === null) return 'light';
   return l < DARK_BELOW ? 'dark' : 'light';
@@ -103,6 +133,7 @@ function bgCss(bg) {
   const v = normalizeBg(bg);
   if (!v) return null;
   if (v === BRAND) return 'var(--x-primary)';
+  if (isThemeBg(v)) return THEME_BGS[v].css;
   if (typeof v === 'string') return v;
   return `linear-gradient(${v.angle}deg,${v.stops.join(',')})`;
 }
@@ -131,6 +162,6 @@ function bgFromParam(s) {
 }
 
 module.exports = {
-  DARK_BELOW, BRAND, isColorValue, normalizeColor, relativeLuminance, toneFor,
+  DARK_BELOW, BRAND, THEME_BGS, isThemeBg, isColorValue, normalizeColor, relativeLuminance, toneFor,
   GRADIENT_DARK_BELOW, GRADIENT_ANGLE, GRADIENT_SWATCHES, normalizeGradient, normalizeBg, toneForBg, bgCss, bgFromParam, bsThemeForBg,
 };

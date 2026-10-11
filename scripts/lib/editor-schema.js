@@ -57,7 +57,7 @@ const siteRegions = require('./site-regions');
 const pageLayoutLib = require('./page-layout');
 const { ROOT_FIELDS } = require('./editor-root-fields');
 const { shapesFor } = require('../themes');
-const { GRADIENT_SWATCHES } = require('./contrast');
+const { GRADIENT_SWATCHES, normalizeBg } = require('./contrast');
 const { BUTTON_SOURCES } = require('./item-sources');
 const { IMAGE_FIELDS } = require('./image-urls');
 
@@ -168,10 +168,12 @@ function fieldsOf(manifest) {
   const fields = [];
   for (const [slot, spec] of Object.entries((manifest && manifest.slots) || {})) {
     if (spec && spec.kind === 'color') {
-      // #1477 —— 三档预设渐变跟着纯色色板一起带下去（`contrast.js` §GRADIENT_SWATCHES，副本）。
+      // #1477 —— 预设渐变跟着纯色色板一起带下去（`contrast.js` §GRADIENT_SWATCHES，副本；#1698 起有两档是跟主题走的名字）。
+      //    #1698 r2 —— 槽自己写了 `gradients` 就用它的（pricing `featuredColor` 不给浅渐变，理由见 block-manifest.js 那条校验）。
+      const grads = Array.isArray(spec.gradients) ? spec.gradients : GRADIENT_SWATCHES;
       fields.push({ slot, kind: 'color', label: humanize(slot === 'bg' ? 'background' : slot), control: 'color', subs: [],
         swatches: Array.isArray(spec.swatches) ? spec.swatches.slice() : [],
-        gradients: GRADIENT_SWATCHES.map((g) => ({ stops: g.stops.slice(), angle: g.angle })) });
+        gradients: grads.map((g) => normalizeBg(g)) });
       continue;
     }
     if (spec && knobsOf({ slots: { [slot]: spec } }).length && slot === 'options') {

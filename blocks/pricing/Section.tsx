@@ -97,10 +97,11 @@ const imgs = (v: unknown): PricingNewImage[] => (Array.isArray(v) ? v.filter((x)
 function featuredVars(fc: BgValue | null): { kind: 'solid' | 'gradient'; tone: string; vars: Record<string, string> } {
   const v = fc || 'brand';
   const css = bgCss(v) || 'var(--x-primary)';
-  const grad = typeof v === 'object';
+  // #1698 —— 跟主题走的渐变是名字（`deep-gradient` …），不是对象：按 §bgCss 给出来的那串判，第一个色标从串里取。
+  const grad = css.startsWith('linear-gradient(');
   const tone = toneForBg(v);
   const on = tone === 'light' ? '#0f172a' : '#fff';
-  const ink = grad ? (v as { stops: string[] }).stops[0] : css;
+  const ink = typeof v === 'object' ? v.stops[0] : grad ? (css.match(/var\(--[a-z0-9-]+\)/) || [css])[0] : css;
   return {
     kind: grad ? 'gradient' : 'solid',
     tone,

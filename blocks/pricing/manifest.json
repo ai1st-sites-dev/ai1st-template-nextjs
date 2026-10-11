@@ -301,7 +301,8 @@
         "#dc2626",
         "#16a34a",
         "#0f172a"
-      ]
+      ],
+      "gradients": ["deep-gradient", {"stops": ["#0f172a", "#334155"], "angle": 135}]
     }
   },
   "industries": {

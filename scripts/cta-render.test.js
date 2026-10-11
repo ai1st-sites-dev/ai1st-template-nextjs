@@ -335,7 +335,7 @@ console.log('\n── AC12 编辑器 schema');
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
     && opt.knobs.map((k) => k.name).join() === 'layout,frame,textAlign,image,form', '第一个字段：预设 6 个 → 旋钮 layout / frame / textAlign / image / form');
   const bg = on.fields.find((f) => f.slot === 'bg');
-  check(bg.control === 'color' && bg.swatches.join() === '#ffffff,#f1f5f9,#e0f2fe,brand,#1e293b,#0f172a', 'bg 字段是色板（manifest 的 6 色 swatches）');
+  check(bg.control === 'color' && bg.swatches.join() === 'brand-soft,accent-soft,brand,#ffffff,#f1f5f9,#1e293b,#0f172a', 'bg 字段是色板（共用槽的 7 格 swatches，#1698）');
   check(on.fields.find((f) => f.slot === 'eyebrow').subs.some((x) => x.sub === 'style' && x.choices.length === 5), 'eyebrow.style 是五选一');
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[1].knobs) === 'Boxed' && presetNameFor(man, { ...M.presets[1].knobs, image: 'right' }) === 'custom',

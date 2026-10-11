@@ -415,6 +415,14 @@ function checkManifestShape(name, m) {
     if (typeof s.required !== 'boolean') bad(`slots.${slot}.required 必须是 true/false（现在是 ${JSON.stringify(s.required)}）`);
     if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
     if (s.shape !== undefined && !isStr(s.shape)) bad(`slots.${slot}.shape 有的话必须是非空字符串`);
+    // #1698 r2 —— `gradients`：这个颜色槽在色板上给哪几档预设渐变（不写 = `contrast.js` §GRADIENT_SWATCHES，跟 bg 同一排）。
+    //    给 pricing 的 `featuredColor` 用：它的值也当勾号 / 描边的字色压在白卡上，浅的那档（`soft-gradient`）压白只有 1.04–1.09。
+    //    写歪了（不是数组 / 某一档过不了校验）的失败方向是静默的 —— 编辑器会画出一格点了也存不下的色块，所以这里当场拒。
+    if (s.gradients !== undefined) {
+      if (s.kind !== 'color' || !Array.isArray(s.gradients) || !s.gradients.length || !s.gradients.every((g) => isColorValue(g))) {
+        bad(`slots.${slot}.gradients 只能给 kind: color 的槽，写成非空数组、每一档都是合法颜色值（现在是 ${JSON.stringify(s.gradients)}，kind ${s.kind}）`);
+      }
+    }
     // #1475 —— 槽级条数上下限（validateSite ⑨ 据它拦）：只给列表槽，非负整数，下限不大于上限。
     //    写成字符串 `"8"` 的失败方向是静默的（`Number.isInteger` 不认 ⟹ 那道检查整个不跑），所以在这儿当场拒。
     for (const key of ['minItems', 'maxItems']) {

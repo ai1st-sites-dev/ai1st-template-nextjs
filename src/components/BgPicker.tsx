@@ -6,16 +6,32 @@
 //    （`_catalog/…/CellOptions.tsx`）、Puck 编辑器的字段（`src/components/editor/EditorApp.tsx` §ColorField）、
 //    admin › Blocks & Themes 的块级工具栏（`dashboard/src/pages/admin/CatalogPage.tsx`，经 dashboard 的 vite 配置引过去）。
 //    预设渐变只从 `contrast.js` §GRADIENT_SWATCHES 来，纯色色板是调用方从 manifest 的 `swatches` 读的。
+// #1698 —— 两排里都有跟主题走的名字（`brand-soft` / `soft-gradient` …，`contrast.js` §THEME_BGS）：色块画成 §bgCss 给的
+//    那串 CSS 变量，在站里就是这个站当前配色的颜色；admin 页面上没有站的变量，落回 §FALLBACK 那几个默认蓝。
 // 🔴 **不带状态、不用 hook**：值由调用方持有（地址栏 / Puck 的 data / admin 的 state），这里只画、只回调。
 //    这也是它能被 dashboard（React 18）拿去用的前提 —— 那边的 vite 把 `react` 去重到它自己那一份。
 // 🔴 `attrs` 决定 DOM 上的测试钩子叫什么：单格页和 admin 用 `catalog`（`data-catalog-bg*`），编辑器用 `editor`
 //    （`data-editor-swatch` / `data-editor-color-input`，#1463 起的 e2e 读的就是这两个名字；渐变那几格另起名字，
 //    不混进 `data-editor-swatch` —— 1463 那条「6 色 + None」的读数不因为多了渐变而变）。
 //
-// 值的形状：`#rrggbb`（小写）· `brand` · `{ stops: [2–3 个 #rrggbb], angle }`；「无」回 null。存盘前一律过
+// 值的形状：`#rrggbb`（小写）· `brand` · 跟主题走的名字 · `{ stops: [2–3 个 #rrggbb], angle }`；「无」回 null。存盘前一律过
 // `contrast.js` §normalizeBg，不合法的不回调。
 
 import { GRADIENT_ANGLE, GRADIENT_SWATCHES, bgCss, normalizeBg, type BgValue, type GradientBg } from '../../scripts/lib/contrast.js';
+
+/** #1698 —— 色块在没有站变量的地方（admin）画成什么：配色色阶缺省时的那几档默认蓝 / 琥珀。 */
+const FALLBACK: Record<string, string> = {
+  '--color-primary-50': '#eff6ff', '--color-primary-700': '#1d4ed8', '--color-primary-900': '#1e3a8a', '--color-accent-50': '#fffbeb',
+};
+/** #1698 —— 跟主题走的名字在提示里说人话（色块的 `title`）；别的值原样。 */
+const LABEL: Record<string, string> = {
+  'brand-soft': 'Theme colour, pale', 'accent-soft': 'Accent colour, pale', brand: 'Theme colour',
+  'soft-gradient': 'Pale theme gradient', 'deep-gradient': 'Deep theme gradient',
+};
+/** 色块的 background：`brand` 照旧主色变量；其余走 §bgCss，读的配色变量都带缺省值。 */
+const swatchCss = (v: BgValue) => (v === 'brand' ? 'var(--x-primary, #1d4ed8)'
+  : (bgCss(v) || '').replace(/var\((--color-[a-z]+-\d+)\)/g, (m, n: string) => (FALLBACK[n] ? `var(${n}, ${FALLBACK[n]})` : m)));
+const isGradientObj = (g: BgValue): g is GradientBg => typeof g === 'object';
 
 type Attrs = 'catalog' | 'editor';
 
@@ -33,8 +49,8 @@ export interface BgPickerProps {
   value: BgValue | null;
   /** 纯色色板（manifest 的 `swatches`，原样）。 */
   swatches: string[];
-  /** 预设渐变；不给 = `contrast.js` §GRADIENT_SWATCHES（编辑器从它的字段 schema 带下来同一份的副本）。 */
-  gradients?: GradientBg[];
+  /** 预设渐变；不给 = `contrast.js` §GRADIENT_SWATCHES（编辑器从它的字段 schema 带下来同一份的副本）。#1698 起可以是名字。 */
+  gradients?: BgValue[];
   /** 选了一档 / 改了色标 / 点了「无」（null）。 */
   onChange: (v: BgValue | null) => void;
   disabled?: boolean;
@@ -49,8 +65,9 @@ export default function BgPicker({ value, swatches, gradients = GRADIENT_SWATCHE
   const h = HOOK[attrs];
   const cur = key(value);
   const grad = value && typeof value === 'object' ? value : null;
-  // 自定义渐变的色标：当前是渐变就用它的，否则从第一档预设起步。
-  const stops = grad ? grad.stops : (gradients[0] || GRADIENT_SWATCHES[0]).stops;
+  // 自定义渐变的色标：当前是渐变就用它的，否则从第一档写死色标的预设起步（名字没有色标）。
+  const seed = gradients.find(isGradientObj) || GRADIENT_SWATCHES.find(isGradientObj) || { stops: ['#ffffff', '#f1f5f9'], angle: GRADIENT_ANGLE };
+  const stops = grad ? grad.stops : seed.stops;
   const angle = grad ? grad.angle : GRADIENT_ANGLE;
   const set = (v: unknown) => { const n = normalizeBg(v); if (n) onChange(n); };
   const cell = (on: boolean, background: string) => ({
@@ -62,15 +79,16 @@ export default function BgPicker({ value, swatches, gradients = GRADIENT_SWATCHE
   return (
     <>
       {swatches.map((c) => (
-        <button key={c} type="button" title={c} {...hook(h.swatch, c)} aria-pressed={cur === c} disabled={disabled}
-          onClick={() => set(c)} style={cell(cur === c, c === 'brand' ? 'var(--x-primary, #1d4ed8)' : c)} />
+        <button key={c} type="button" title={LABEL[c] || c} {...hook(h.swatch, c)} aria-pressed={cur === c} disabled={disabled}
+          onClick={() => set(c)} style={cell(cur === c, swatchCss(c))} />
       ))}
       <input type="color" aria-label="Any colour" {...hook(h.input)} disabled={disabled}
         value={typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : '#ffffff'}
         onChange={(e) => set(e.target.value)} style={{ width: size + 8, height: size + 2, padding: 0, border: 'none' }} />
       {gradients.map((g) => (
-        <button key={key(g)} type="button" title={g.stops.join(' → ')} {...hook(h.gradient, g.stops.join(','))} aria-pressed={cur === key(g)}
-          disabled={disabled} onClick={() => set(g)} style={cell(cur === key(g), bgCss(g) || '')} />
+        <button key={key(g)} type="button" title={isGradientObj(g) ? g.stops.join(' → ') : LABEL[g] || g}
+          {...hook(h.gradient, isGradientObj(g) ? g.stops.join(',') : g)} aria-pressed={cur === key(g)}
+          disabled={disabled} onClick={() => set(g)} style={cell(cur === key(g), swatchCss(g))} />
       ))}
       {/* 自定义渐变：2–3 个色标 + 角度。改任何一个 = 当场换成这一条渐变。 */}
       <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }} {...hook(h.custom, grad ? 'on' : 'off')}>

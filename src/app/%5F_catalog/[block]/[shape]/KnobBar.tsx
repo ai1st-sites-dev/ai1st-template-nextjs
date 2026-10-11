@@ -20,7 +20,7 @@ export interface KnobBarProps {
   presets: { name: string; shape: string; knobs: Record<string, string>; colors: Record<string, BgValue | null>; parts: string[] }[];
   booleans: string[];
   /** #1483 —— 每个颜色槽一格（顺序 = manifest 声明顺序），地址参数名 = 槽名。 */
-  colors: { slot: string; swatches: string[] }[];
+  colors: { slot: string; swatches: string[]; gradients?: BgValue[] }[];
   parts: string[];
   choices: { key: string; values: string[] }[];
   /** #1532 —— manifest 顶层 `toolbarGroups`（block-knobs.js §toolbarGroupsOf）。[] ⟹ 不分组。 */
@@ -128,7 +128,7 @@ export default function KnobBar({ knobs, presets, booleans, colors, parts, choic
           <b>{c.slot}</b>
           {/* #1477 —— 色板是共用的 `src/components/BgPicker.tsx`（外壳块 / 编辑器 / admin 同一份）。渐变写成 JSON 进地址栏。
               #1483 —— 每个颜色槽一格、参数名 = 槽名（`?bg=` / `?featuredColor=`）。 */}
-          <BgPicker value={current.colors[c.slot] ?? null} swatches={c.swatches} disabled={!ready}
+          <BgPicker value={current.colors[c.slot] ?? null} swatches={c.swatches} gradients={c.gradients} disabled={!ready}
             onChange={(v) => go((q) => { if (v === null) q.delete(c.slot); else q.set(c.slot, colorParam(v)); })} />
         </span>
       ))),

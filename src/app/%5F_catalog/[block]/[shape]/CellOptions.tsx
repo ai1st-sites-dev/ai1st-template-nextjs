@@ -55,7 +55,7 @@ interface Props {
   optionKeys: string[];
   widgets: Widget[];
   /** #1469 —— 颜色槽和它的纯色色板；#1483 起每个颜色槽一项（按 manifest 声明顺序，参数名 = 槽名）。 */
-  colors: { slot: string; swatches: string[] }[];
+  colors: { slot: string; swatches: string[]; gradients?: BgValue[] }[];
   knobs: Knob[];
   presets: Preset[];
   coupling: [string, string] | null;
@@ -194,7 +194,7 @@ export default function CellOptions({
         ...colorDefs.map((c) => tok(`color:${c.slot}`, (
           <span key={c.slot} style={colorGroupStyle} data-catalog-color={c.slot}>
             <b>{c.slot}</b>
-            <BgPicker value={colors[c.slot] ?? null} swatches={c.swatches} onChange={(v) => setColors((x) => ({ ...x, [c.slot]: v }))} disabled={!ready} />
+            <BgPicker value={colors[c.slot] ?? null} swatches={c.swatches} gradients={c.gradients} onChange={(v) => setColors((x) => ({ ...x, [c.slot]: v }))} disabled={!ready} />
           </span>
         ))),
         ...widgetDefs.map((w) => tok(`widget:${w.slot}`, (

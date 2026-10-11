@@ -124,13 +124,18 @@ console.log('── AC1 六个预设');
   // #1534 —— 盘上的 slots.bg 现在是 { ref: 'bg' }，比的是读入口展开后的那一份（两边都经 loadManifests）。
   const footerBg = manifestLib.loadManifests().get('footer').slots.bg;
   check(JSON.stringify(M.slots.bg) === JSON.stringify(footerBg), 'slots.bg 整个对象与 footer 的 slots.bg 逐字相同');
-  // 正文的六格 = 四个纯色 + 两道渐变。`swatches` 只装纯色（Go 那侧按 []string 读、BgPicker 按字符串画），两道渐变是
-  // 共用色板那一排预设渐变（contrast.js §GRADIENT_SWATCHES）里的前两档 —— 色板上六格一格不少。
+  // 正文的六格 = 四个纯色 + 两道渐变。`swatches` 只装纯色（Go 那侧按 []string 读、BgPicker 按字符串画），渐变是
+  // 共用色板那一排预设渐变（contrast.js §GRADIENT_SWATCHES）。
+  // 📌 #1698 起那一排换成两档跟主题走的渐变 + 深灰（写死的着色渐变从色板上撤掉，PM 2026-10-11 裁定）⟹ 紫→金只剩
+  //    Rainbow 预设自己带（下面那格），色板上点不到了；featuredColor 的四个纯色不动。
+  // 📌 #1698 r2 —— featuredColor 不再跟 bg 同形：bg 先教三种浅的主题底，而高亮色还当白卡上勾号的字色，浅的压白只有
+  //    1.04–1.09（PM 2026-10-11 14:34 退回）⟹ 它的提示词留在 #1698 之前那一句，预设渐变自己写一份（不含 soft-gradient）。
   const { GRADIENT_SWATCHES } = require(path.join(NEXT, 'scripts', 'lib', 'contrast.js'));
   check(JSON.stringify(M.slots.featuredColor.swatches) === JSON.stringify(['brand', '#dc2626', '#16a34a', '#0f172a'])
-    && JSON.stringify(GRADIENT_SWATCHES.slice(0, 2)) === JSON.stringify([RAINBOW, { stops: ['#0ea5e9', '#6366f1'], angle: 135 }])
-    && M.slots.featuredColor.shape === M.slots.bg.shape,
-  'featuredColor：形状同 bg；四个纯色进 swatches、两道渐变 = 共用色板的前两档预设渐变（正文六格一格不少）');
+    && JSON.stringify(GRADIENT_SWATCHES.slice(0, 2)) === JSON.stringify(['soft-gradient', 'deep-gradient'])
+    && JSON.stringify(M.slots.featuredColor.gradients) === JSON.stringify(GRADIENT_SWATCHES.filter((g) => g !== 'soft-gradient'))
+    && M.slots.featuredColor.shape === '"#rrggbb" | "brand" | {stops: ["#rrggbb" (2–3 个)], angle?: number}',
+  'featuredColor：四个纯色进 swatches；预设渐变 = 共用那一排去掉 soft-gradient；提示词仍是 #1698 之前那一句（r2）');
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 6 个预设形态（${dirs.join(' / ')}）`);
   check(dirs.every((d) => fs.existsSync(path.join(BLOCK, d, 'shape.md')) && !fs.existsSync(path.join(BLOCK, d, 'Section.tsx'))),
