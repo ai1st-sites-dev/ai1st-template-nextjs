@@ -71,17 +71,29 @@ export type InlineApi = {
 };
 export const InlineApiContext = createContext<InlineApi | null>(null);
 
-// #1658 —— 点中的是一段字（工具条 / 打字）还是块的空白处：块的浮动条（EditorApp §BlockActionBar）看这一位让位，同一时刻只出一条。
-//    两边不在同一棵 DOM 里（这一层画在画布 document 上，浮动条在 Puck 的 overlay 里），又都只有一份 ⟹ 模块级的一位 + 订阅。
+// #1658 —— 点中的是一段字（工具条 / 打字）还是块的空白处：块的浮动条（EditorApp §BlockBars）看这一位让位，同一时刻只出一条。
+//    两边不是同一个组件（都画在画布 document 上，但浮动条归 EditorApp），又都只有一份 ⟹ 模块级的一位 + 订阅。
+// #1710 —— 另一位「正在打字」（光标在 contenteditable 里，§startTyping 到 end）：这时别的块悬停也不出条；按 Enter 结束打字后
+//    字的工具条还开着，但悬停照常出条（票正文做什么 2）。
 let inlineOpen = false;
+let inlineTyping = false;
 const inlineSubs = new Set<() => void>();
+const subscribeInline = (f: () => void) => { inlineSubs.add(f); return () => { inlineSubs.delete(f); }; };
 function setInlineOpen(v: boolean) {
   if (inlineOpen === v) return;
   inlineOpen = v;
   inlineSubs.forEach((f) => f());
 }
+function setInlineTyping(v: boolean) {
+  if (inlineTyping === v) return;
+  inlineTyping = v;
+  inlineSubs.forEach((f) => f());
+}
 export function useInlineOpen(): boolean {
-  return useSyncExternalStore((f) => { inlineSubs.add(f); return () => { inlineSubs.delete(f); }; }, () => inlineOpen, () => false);
+  return useSyncExternalStore(subscribeInline, () => inlineOpen, () => false);
+}
+export function useInlineTyping(): boolean {
+  return useSyncExternalStore(subscribeInline, () => inlineTyping, () => false);
 }
 
 type Item = { type: string; props: Record<string, unknown> & { id: string; _src?: { locked?: boolean } } };
@@ -279,7 +291,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       }
       if (keep && last !== (typeof before === 'string' ? before : String(before ?? ''))) write(a.id, path, last, true);
       apiRef.current?.setFreeze(null);
-      if (typingRef.current && typingRef.current.el === el) typingRef.current = null;
+      if (typingRef.current && typingRef.current.el === el) { typingRef.current = null; setInlineTyping(false); }
     };
     el.addEventListener('input', onInput);
     el.addEventListener('keydown', onKey);
@@ -287,6 +299,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     el.addEventListener('keypress', onKey);
     el.addEventListener('blur', onBlur);
     typingRef.current = { el, end };
+    setInlineTyping(true);
   }
 
   // ② 点到：选中这一块，进打字 / 出工具条 / 说为什么点不动。
@@ -355,6 +368,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
 
   useEffect(() => { setInlineOpen(!!active); }, [active]);
   useEffect(() => () => setInlineOpen(false), []);
+  // #1710 —— 打字途中整层被卸掉（换页 / 换底稿重挂画布）时不会走到 end，这一位要自己复位，否则悬停从此不出条。
+  useEffect(() => () => setInlineTyping(false), []);
   // #1683 —— 换了一段字（或工具条收起）：输入框里那句是说给上一段听的，清掉。
   useEffect(() => { setAsk(''); }, [active?.id, active?.slot]);
   // #1683 —— 键盘只归输入框（同打字那一格的 onKey）：Puck 在画布 document 上收快捷键，而它「焦点在输入框里就不删块」

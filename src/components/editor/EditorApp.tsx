@@ -98,7 +98,7 @@ import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type Edit
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
-import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
+import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
 import type { SiteData } from '@/lib/types/config';
 
@@ -1263,63 +1263,162 @@ function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; doc
     doc.addEventListener('click', onClick, true);
     return () => doc.removeEventListener('click', onClick, true);
   }, [doc]);
-  return <>{children}{doc && <InlineEditLayer doc={doc} />}{doc && <DesignPopover doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
+  return <>{children}{doc && <InlineEditLayer doc={doc} />}{doc && <BlockBars doc={doc} />}{doc && <DesignPopover doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
 }
 
 /**
- * #1658 —— 点中块之后块自己的那条浮动条：Edit content · AI Edit ｜ ↑ · ↓ · 🗑。换掉 Puck 自带那条（块名 + 复制 + 删除 + ⤴）。
- * Puck 只告诉这个组件 `label` / `children`（它那几颗按钮），不告诉「是哪一块」⟹ 块从 `selectedItem` 取。
- * 🔴 Puck 给悬停着的块也渲染一份（`opacity: 0`，不是 `display: none`）—— 只认外面那层 overlay 带 `--isSelected` 的那一份，
- *    否则页面上同时有两条，第二条透明却点得着。
- * 定位（块下沿居中）在画布 document 里的 §BLOCKBAR_CSS。
+ * #1658 —— 块自己的那条浮动条：Design · Edit content · AI Edit ｜ ↑ · ↓ · 🗑。换掉 Puck 自带那条（块名 + 复制 + 删除 + ⤴）。
+ * #1710 —— 鼠标悬停就出条（点下去才是选中）；条贴块的下沿，块比画布可视区高时贴可视区的下沿。
+ *   🔴 条不住在 Puck 的 overlay 里：Puck 渲染 `actionBar` 时不告诉它「是哪一块」（只给 parentAction / label / children，
+ *      dist/index.js §DraggableComponent），而悬停出的条必须动它自己那一块。所以 Puck 那个口子只留一个占位（§PuckActionBarSlot，
+ *      把它那条藏掉），条由 §BlockBars 画在画布 document 里（跟字的工具条、Design 弹层同一处挂载），按块 id 一块一条。
+ *   出哪几条：选中的那块一条（不靠悬停）+ 悬停着的那块一条（跟选中的不是同一块时）。字的工具条开着（#1657）⟹ 选中那块不出；
+ *   正在打字（光标在 contenteditable 里）⟹ 悬停的也不出。
+ *   锁住的块（定位不到 / 未知类型）不出条，面板顶上那句「This section can't be edited here」照旧。#1406 共用块不算（它能改能挪）。
  */
-function BlockActionBar() {
-  const selected = usePuck((s) => s.selectedItem);
+function PuckActionBarSlot() {
+  return <span hidden data-editor-blockbar-slot="" />;
+}
+
+/** 鼠标换块后等这么久才换条（扫过一列块时中间那几块不闪）。 */
+const HOVER_DELAY_MS = 100;
+/** 条的底边离块下沿（或画布可视区下沿）多远，画布 px。 */
+const BLOCKBAR_GAP = 12;
+
+/**
+ * 画布里鼠标停在哪一块（Puck id；null = 不在任何块上）。条是块的一部分：停在某块的条上 = 停在那一块上。
+ * 换块要稳住 §HOVER_DELAY_MS 才算数；中途换回原来那块就当没动过。
+ * 🔴 不读 Puck 自己的 hover：那是每块一份的 `useState`，不在任何共享 store 里（dist/index.js §DraggableComponent），
+ *    而且鼠标一挪到条上它就判「离开」。
+ */
+function useCanvasHover(doc: Document): string | null {
+  const [hovered, setHovered] = useState<string | null>(null);
+  useEffect(() => {
+    let current: string | null = null;
+    let pending: string | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const want = (next: string | null) => {
+      if (next === pending) return;
+      pending = next;
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (next !== current) timer = setTimeout(() => { timer = null; current = next; setHovered(next); }, HOVER_DELAY_MS);
+    };
+    const idAt = (t: EventTarget | null) => {
+      if (!t || typeof (t as Element).closest !== 'function') return null;
+      const el = t as Element;
+      const bar = el.closest('[data-editor-blockbar-for]');
+      if (bar) return bar.getAttribute('data-editor-blockbar-for');
+      return el.closest('[data-puck-component]')?.getAttribute('data-puck-component') ?? null;
+    };
+    const onOver = (e: Event) => want(idAt(e.target));
+    // 鼠标出了画布（relatedTarget 为空）= 不在任何块上。
+    const onOut = (e: MouseEvent) => { if (!e.relatedTarget) want(null); };
+    doc.addEventListener('mouseover', onOver, true);
+    doc.addEventListener('mouseout', onOut, true);
+    return () => {
+      if (timer) clearTimeout(timer);
+      doc.removeEventListener('mouseover', onOver, true);
+      doc.removeEventListener('mouseout', onOut, true);
+    };
+  }, [doc]);
+  return hovered;
+}
+
+type BarPos = { bottom: number; left: number; scale: number };
+/**
+ * 条在画布可视区里的位置：底边 = min(块下沿, 可视区下沿) − 边距，横向在块内居中；块整个不在可视区里 ⟹ null（不出条）。
+ * 「可视区」= 画布 iframe 自己的 `innerHeight`（同 §DesignPopover 的 `win.innerHeight`）。每帧量一次（滚动、块变高、挪了位置都跟着走），
+ * 没变不重画。Design 弹层贴的就是按这个画出来的那条（它按 `data-editor-blockbar-for` 找锚点）⟹ 两边是同一份坐标。
+ */
+function useBlockBarPos(doc: Document, id: string): BarPos | null {
+  const [pos, setPos] = useState<BarPos | null>(null);
+  useLayoutEffect(() => {
+    const win = doc.defaultView;
+    if (!win) return;
+    const measure = () => {
+      const el = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+      const r = el ? el.getBoundingClientRect() : null;
+      const vh = win.innerHeight;
+      let next: BarPos | null = null;
+      if (r && r.height > 0 && r.bottom > 0 && r.top < vh) {
+        const frame = win.frameElement as HTMLElement | null;
+        const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
+        next = { bottom: vh - (Math.min(r.bottom, vh) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
+      }
+      setPos((p) => (p === next || (p && next && p.bottom === next.bottom && p.left === next.left && p.scale === next.scale) ? p : next));
+    };
+    measure();
+    let raf = win.requestAnimationFrame(function tick() { measure(); raf = win.requestAnimationFrame(tick); });
+    return () => win.cancelAnimationFrame(raf);
+  }, [doc, id]);
+  return pos;
+}
+
+function BlockBars({ doc }: { doc: Document }) {
+  const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
+  const hovered = useCanvasHover(doc);
+  const inlineOpen = useInlineOpen();
+  const typing = useInlineTyping();
+  // 字的工具条开着 ⟹ 选中那块不出条（#1658 的互斥）；正在打字 ⟹ 悬停也不出条。Enter 结束打字后工具条还在，悬停照常出条。
+  const ids = [inlineOpen ? null : selectedId, typing || hovered === selectedId ? null : hovered].filter((x): x is string => !!x);
+  return <>{ids.map((id) => <BlockBar key={id} doc={doc} id={id} selected={id === selectedId} />)}</>;
+}
+
+/**
+ * 一块的那条。每颗按钮动的都是**这一块**（`id`），不是当前选中的那块：没选中的先选中它（右栏换成它），再执行。
+ */
+function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: boolean }) {
+  const item = usePuck((s) => s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null);
   const dispatch = usePuck((s) => s.dispatch);
   const getPermissions = usePuck((s) => s.getPermissions);
   const getSelectorForId = usePuck((s) => s.getSelectorForId);
   const count = usePuck((s) => s.appState.data.content.length);
-  const inlineOpen = useInlineOpen();
   const inline = useContext(InlineApiContext);
   const ui = useContext(EditorUiContext);
-  const probeRef = useRef<HTMLSpanElement>(null);
-  const [mine, setMine] = useState(false);
-  // 没有依赖：overlay 的 class 在 Puck 重画这一层时变，这个组件跟着重画 ⟹ 每次都重读。
-  useLayoutEffect(() => {
-    const o = probeRef.current?.closest('[data-puck-overlay]');
-    const v = !!o && /DraggableComponent--isSelected/.test(o.className);
-    if (v !== mine) setMine(v);
-  });
-  const props = (selected?.props || {}) as ItemProps;
-  const sel = selected ? getSelectorForId(String(props.id)) : undefined;
-  // 锁住的块（定位不到 / 未知类型）：不出条，面板顶上那句「This section can't be edited here」照旧。#1406 共用块不算（它能改能挪）。
-  const show = mine && !!selected && !!sel && !props._src?.locked && !inlineOpen;
-  if (!show) return <span ref={probeRef} hidden data-editor-blockbar-probe="" />;
-  const perm = getPermissions({ item: selected as never });
+  const pos = useBlockBarPos(doc, id);
+  const props = (item?.props || {}) as ItemProps;
+  const sel = item ? getSelectorForId(id) : undefined;
+  if (!item || !sel || props._src?.locked || !pos) return null;
+  const perm = getPermissions({ item: item as never });
   const { index, zone } = sel;
+  const select = () => { if (!selected) dispatch({ type: 'setUi', ui: { itemSelector: { index, zone } } } as never); };
   // ↑ / ↓ 照 Puck 自己拖完那一下的做法（dist/index.js §moveComponent + 落下后的 setUi）：先挪、不记撤销，再把选中跟到新位置、
   //    这一下记撤销 ⟹ 一次 Ctrl+Z 退回挪之前。`move` 经 Puck 的 dispatch 走到 EditorApp §onAction，跟拖拽一样记进
   //    draggedRef（#1676：相邻两块对调要靠它才写得出 `Moved X up`）。
   const moveTo = (to: number) => {
+    select();
     dispatch({ type: 'move', sourceIndex: index, sourceZone: zone, destinationIndex: to, destinationZone: zone, recordHistory: false } as never);
     dispatch({ type: 'setUi', ui: { itemSelector: { index: to, zone } }, recordHistory: true } as never);
   };
+  const remove = () => { select(); dispatch({ type: 'remove', index, zone }); };
   const editContent = () => {
+    select();
     dispatch({ type: 'setUi', ui: { rightSideBarVisible: true } });
     // 「这一块的第一个文字字段」按谓词现算（schema 里 `kind: 'text'` 的第一个；hero 是 headline）—— PM 2026-10-11 裁定，不写块名单。
-    const slot = inline?.components.get(selected.type)?.fields.find((f) => f.kind === 'text')?.slot;
+    const slot = inline?.components.get(item.type)?.fields.find((f) => f.kind === 'text')?.slot;
     revealField(slot);
   };
   // #1700 —— 有预设的块才有 Design（15 种页面块今天都有）。再点一下 = Cancel（弹层开着时它是唯一不算「点到外面」的地方，§DesignPopover）。
-  const hasPresets = !!inline?.components.get(selected.type)?.fields.some((f) => f.control === 'options' && (f.presets || []).length);
-  const designOpen = !!ui && ui.design === String(props.id);
-  const design = () => { if (!ui) return; if (designOpen) ui.cancelDesign(); else ui.openDesign(String(props.id)); };
+  //   别的块的弹层开着时点这一块的 Design：先 Cancel 那一个再开这一个（§openDesign 的规矩：注意力移出弹层一律先 Cancel）。
+  const hasPresets = !!inline?.components.get(item.type)?.fields.some((f) => f.control === 'options' && (f.presets || []).length);
+  const designOpen = !!ui && ui.design === id;
+  const design = () => {
+    if (!ui) return;
+    if (designOpen) { ui.cancelDesign(); return; }
+    if (ui.design) ui.cancelDesign();
+    select();
+    ui.openDesign(id);
+  };
   const aiEdit = () => {
+    select();
     dispatch({ type: 'setUi', ui: { leftSideBarVisible: true, plugin: { current: AI_PLUGIN_NAME } } } as never);
     whenFound(() => Array.from(document.querySelectorAll<HTMLTextAreaElement>('[data-editor-chat-input]:not(:disabled)')).find((el) => el.getClientRects().length > 0), (el) => el.focus());
   };
-  return (
-    <span ref={probeRef} data-editor-blockbar="" data-editor-blockbar-for={String(props.id)} style={{ display: 'inline-flex' }}>
+  // 🔴 点击不许冒到 Puck 的预览框（React 事件顺着组件树冒）：它见目标不是块就把选中清掉。ActionBar 自己拦了 click，这里兜住边上的空隙。
+  const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  return createPortal(
+    <span data-editor-blockbar="" data-editor-blockbar-for={id} data-editor-blockbar-selected={selected ? '' : undefined} onClick={halt}
+      style={{ ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
         <ActionBar.Group>
           {hasPresets && (
@@ -1341,12 +1440,13 @@ function BlockActionBar() {
           <ActionBar.Action label="Move down" disabled={!perm.drag || index >= count - 1} onClick={() => moveTo(index + 1)} data-editor-block-action="down">
             {BLOCKBAR_ICON.down}
           </ActionBar.Action>
-          <ActionBar.Action label="Delete" disabled={!perm.delete} onClick={() => dispatch({ type: 'remove', index, zone })} data-editor-block-action="delete">
+          <ActionBar.Action label="Delete" disabled={!perm.delete} onClick={remove} data-editor-block-action="delete">
             {BLOCKBAR_ICON.trash}
           </ActionBar.Action>
         </ActionBar.Group>
       </ActionBar>
-    </span>
+    </span>,
+    doc.body,
   );
 }
 
@@ -1383,17 +1483,13 @@ const BLOCKBAR_ICON = {
   trash: blockbarSvg(<><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></>),
 };
 
-// #1658 —— 画布 document 里：浮动条从块右上角挪到块下沿居中（贴着下沿、在块里面，不压到下一块、最后一块也不被页面底裁掉）。
-//    只动带我们这条的 overlay（`:has`），Puck 的类名带 hash ⟹ 按前缀认。`!important` 是因为 Puck 把 top / right / transform
-//    写在行内（还会在出界时改 left / top，§syncActionsPosition）；它那个 `scale(1/zoom)` 的 transform 留着，居中用独立的 `translate`。
+// #1710 —— Puck 自己那条整个藏掉（条改由 §BlockBars 画，§PuckActionBarSlot 只是个占位）。不藏的话选中块的右上角留一片
+//    看不见却点得着的空框（Puck 那层 `min-height: 36px`、`cursor: grab`）。Puck 的类名带 hash ⟹ 按前缀认。
 const BLOCKBAR_CSS = `
-[data-puck-overlay]:has([data-editor-blockbar]) [class*="DraggableComponent-actionsOverlay"] {
-  position: absolute !important; top: auto !important; bottom: 0; left: 0; right: 0; height: 0;
-}
-[data-puck-overlay]:has([data-editor-blockbar]) [class*="DraggableComponent-actions_"] {
-  top: auto !important; bottom: 12px; left: 50% !important; right: auto !important;
-  translate: -50% 0; transform-origin: center bottom !important; padding: 0 !important; cursor: default;
-}`;
+[data-puck-overlay]:has([data-editor-blockbar-slot]) [class*="DraggableComponent-actionsOverlay"] { display: none !important; }`;
+// 条本身：画布可视区里 `position: fixed`（§useBlockBarPos 给 bottom / left），横向以 left 为中线；画布缩放过（Puck 的 Auto zoom）
+// ⟹ 按 1/zoom 放大，屏幕上跟 Puck 原来那条一样大。层级在 Design 弹层（§POPOVER）之下。
+const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, display: 'inline-flex', translate: '-50% 0', transformOrigin: 'center bottom', cursor: 'default' };
 
 /**
  * #1700 —— Design 弹层：块浮动条上点 Design 弹出，贴着浮动条。顶上一排标签（本票只有 Layout；T10b-2 往这排加 Customize），
@@ -1651,7 +1747,7 @@ const FIELD_MARK_CSS = `
   margin-top: var(--puck-space-2);
 }`;
 
-const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard, actionBar: BlockActionBar, fields: EditorFields };
+const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard, actionBar: PuckActionBarSlot, fields: EditorFields };
 // #1657 —— 🔴 必须是模块级常量，不许写回 JSX 里的字面量。Puck 的画布有一个 effect（依赖里有 `iframe`）：历史里只有一条时，
 //    它每跑一次就把那一条换成**当前**画布。字面量每次 EditorApp 重画都是新对象 ⟹ 那个 effect 每次都跑 ⟹ 打开后的第一笔改动
 //    （画布上打字、AI 改写，都是先写进画布、停手才记历史）在记进历史之前碰上一次重画，「改之前」那一条就被换成改之后，Ctrl+Z 退不回去。
