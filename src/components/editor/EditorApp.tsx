@@ -247,7 +247,7 @@ function subField(s: EditorField['subs'][number], site: SiteData): Field {
     : ({ type: 'text', label: s.label } as Field);
 }
 
-// #1670 —— 列表项里的一个对象拆成几格平铺（价格块套餐的 `price` → Price / Yearly price，editor-schema.js §fieldsOf）。
+// #1670 —— 列表项里的一个对象拆成几格平铺（价格块套餐的 `price` → Price / Yearly price，editor-schema.js §itemSubs）。
 //    值是整个对象，改一格之后变成什么由 editor-convert.js §nestedPartSet 定（往返守卫测的是同一个函数）。
 // #1686 —— 项里的按钮 / 链接（`plans[].cta`、`items[].link`）也走这里：文字一格 + Link 一格，Link 那格带 `sources` 时
 //    跟别处按钮一样能选本店电话 / 邮箱（§LinkHrefControl，写进去的引用对象经 §nestedPartSet 原样放进 `href`）。

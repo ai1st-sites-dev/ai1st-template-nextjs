@@ -211,7 +211,12 @@ function fixtureFor(type, manifest) {
 // 📌 #1425（T3）—— 原来这里点名两条：`contact-form.successMessage` / `hero-with-form.form.successMessage`；
 //    两个块随旧库删了。新库今天没有一条 editLabel 只在提交成功那一屏出现（现取：全部 manifest 的 editableSlotPaths 里
 //    含 `success` 的 0 条），所以这张表是空的；第 ④ 节照旧会把它的条数打出来，将来有了再往这里加。
-const STATE_ONLY = {};
+//
+// #1692 —— 价格块的年价：月付 / 年付是组件自己的 `useState(false)`，静态渲染一次只画月价，
+//    年价那一格（`plans.<i>.price.yearly`）只在点了 Yearly 之后出现 ⟹ 登记在这里，真浏览器上点一次 Yearly 才量得到。
+const STATE_ONLY = {
+  'pricing.plans.price.yearly': '月付 / 年付由组件的 useState 切换，静态渲染只画月价；点 Yearly 之后价格那格才挂 plans.<i>.price.yearly',
+};
 
 // ── 渲染一个块，把产物里的 data-slot 抠出来 ─────────────────────────────────────────────────────
 function slotsInOutput(type, manifest) {
@@ -344,7 +349,7 @@ console.log('\n── ③ 证明这道守卫真会红：两个方向各弄坏一
 }
 
 // ── ④ 这道守卫够不着的那几条：改用弱一级的判据，并且把「弱在哪儿」说出来 ──────────────────────
-console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功那一屏出现）');
+console.log('\n── ④ 渲染一次够不着的那几条（只在组件自己的某个状态下才画出来：提交成功那一屏、点了 Yearly 之后）');
 {
   for (const [ref, why] of Object.entries(STATE_ONLY)) {
     const [type, ...rest] = ref.split('.');
@@ -361,7 +366,15 @@ console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功
         ? fs.readdirSync(SECTIONS).filter((f) => f.endsWith('.tsx')).map((f) => path.join(SECTIONS, f))
         : []),
     ];
-    const hit = files.filter((f) => fs.readFileSync(f, 'utf-8').includes(`data-slot="${slotPath}"`));
+    // #1692 —— 列表槽里的钩子是带下标的模板串（`plans.${i}.price.yearly`），字面串 `data-slot="plans.price.yearly"`
+    //    按构造查不到 ⟹ 也认「列表槽名之后插一段 `${…}` 下标」的那种写法。
+    const [head, ...tail] = slotPath.split('.');
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const indexed = tail.length ? new RegExp('`' + esc(head) + '\\.\\$\\{[^}]+\\}\\.' + esc(tail.join('.')) + '`') : null;
+    const hit = files.filter((f) => {
+      const src = fs.readFileSync(f, 'utf-8');
+      return src.includes(`data-slot="${slotPath}"`) || (indexed && indexed.test(src));
+    });
     if (hit.length) {
       ok(`${ref}：源码里挂着（${path.relative(NEXT, hit[0])}）—— 🔴 弱判据，只证「写了」不证「那条分支会被走到」`
         + `；够不着的原因：${why}`);
@@ -370,7 +383,7 @@ console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功
     }
   }
   console.log(`  📌 覆盖边界：上面第 ① 节的差集**不含**这 ${Object.keys(STATE_ONLY).length} 条，`
-    + '它们要在真浏览器上提交一次表单才量得到（留给 QA2）。');
+    + '它们要在真浏览器上走到那个状态（提交一次表单 / 点一次 Yearly）才量得到（留给 QA2）。');
 }
 
 // ── ⑤ 外壳区没漏进来（#1352 v3 正文 做什么 #3）────────────────────────────────────────────────

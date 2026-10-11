@@ -262,7 +262,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                       </div>
                       {shown ? (
                         <div className="pr-price d-flex flex-wrap align-items-baseline gap-1 mb-2" data-part="price">
-                          <span className="pr-amount display-5 fw-bold lh-1 ls-tight" data-price={yearly && str(price.yearly) ? 'yearly' : 'monthly'}>{shown}</span>
+                          <span className="pr-amount display-5 fw-bold lh-1 ls-tight" data-price={yearly && str(price.yearly) ? 'yearly' : 'monthly'} data-slot={yearly && str(price.yearly) ? `plans.${i}.price.yearly` : `plans.${i}.price.monthly`}>{shown}</span>
                           {p.period ? <span className="pr-period text-muted text-sm" data-slot={`plans.${i}.period`}>{p.period}</span> : null}
                         </div>
                       ) : null}

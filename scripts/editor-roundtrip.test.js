@@ -1224,12 +1224,15 @@ console.log('\n#1670 价格块套餐的价格两格');
   const plansF = compOf('pricing').fields.find((f) => f.slot === 'plans');
   check(plansF && plansF.control === 'list' && JSON.stringify(plansF.subs.map((x) => x.sub)) === JSON.stringify(['name', 'price', 'period', 'description', 'features', 'cta', 'badge']),
     'plans 仍是列表控件，price 排在 name 之后、period 之前（照项形状的键序）', JSON.stringify(plansF && plansF.subs.map((x) => x.sub)));
-  // 反向：项形状里没有那个价格对象 ⟹ 不长这两格（形状判据分得开）；按钮对象 cta 不被当成价格拆格
+  // 反向：editLabel 里没有价格那两条 ⟹ 不长这两格（判据分得开）；按钮对象 cta 不被当成价格拆格
+  // #1692 —— 原来这里改的是项形状（去掉 `price` 对象），因为 #1670 那两格是 editor-schema.js 按形状单补的；#1692 把
+  //    价格写进 manifest 的 editLabel、删了那条形状专门路，「长不长价格格」的判据换成 editLabel，反向对照跟着换。
   const { fieldsOf } = require('./lib/editor-schema.js');
   const pm = JSON.parse(JSON.stringify(manifests.get('pricing')));
-  pm.slots.plans.shape = pm.slots.plans.shape.replace(/price:\s*\{monthly, yearly\?\},\s*/, '');
+  delete pm.slots.plans.editLabel['price.monthly'];
+  delete pm.slots.plans.editLabel['price.yearly'];
   const noPrice = fieldsOf(pm).find((f) => f.slot === 'plans');
-  check(noPrice && !noPrice.subs.some((x) => x.sub === 'price'), '反向对照：项形状里去掉 price 对象 ⟹ 不长价格两格', JSON.stringify(noPrice && noPrice.subs));
+  check(noPrice && !noPrice.subs.some((x) => x.sub === 'price'), '反向对照：editLabel 里拿掉 price.monthly / price.yearly ⟹ 不长价格两格', JSON.stringify(noPrice && noPrice.subs));
   // 📌 #1686 —— 这里原来钉着「cta 按钮对象不出格子（#1670 不做）」；#1686 把它补上了，按钮那一格不被当成价格拆（没有 monthly）。
   const ctaF = plansF.subs.find((x) => x.sub === 'cta');
   check(ctaF && !ctaF.nested.some((n) => n.sub === 'monthly'), 'cta 按钮对象出的是文字 + Link，不是价格两格', JSON.stringify(ctaF));

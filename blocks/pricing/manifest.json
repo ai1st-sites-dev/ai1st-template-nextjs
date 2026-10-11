@@ -277,6 +277,8 @@
       "shape": "[{name, price: {monthly, yearly?}, period, description, features: [string], cta: {label, href, style?: \"solid\" | \"outline\"}, featured?: bool, badge?}]",
       "editLabel": {
         "name": "Plan name",
+        "price.monthly": "Price",
+        "price.yearly": "Yearly price",
         "period": "Period",
         "description": "Plan description",
         "features": "Features",

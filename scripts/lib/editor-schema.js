@@ -27,10 +27,8 @@
 //                                                link 再多一个 `href`（显示名 Link，#1404 r3，理由在 §fieldsOf）
 //                       kind list 且项形状顶层必有 `href`（按钮列表 `[{label, href, …}]`）→ 每项也多一个 `href`（#1518，§itemTopKeys），
 //                                                它跟 link 那格一样带 `sources`（本店电话 / 邮箱，#1521）
-//                       kind list 且项形状里有 `price: {monthly, yearly?}`（价格块的套餐）→ 每项多一个 `price`，
-//                                                里面两格 Price / Yearly price（`nested`，#1670）
 //                       kind list 且某条 editLabel 在项形状里是 `[string]`（`features` / `bullets`）→ 那一格是一列字（`strings: true`，#1686）
-//                       kind list 且 editLabel 带点（`cta.label` / `link.label`）→ 合成项里那个对象的一格（`nested`）；对象是按钮
+//                       kind list 且 editLabel 带点（`cta.label` / `link.label` / `price.monthly`）→ 合成项里那个对象的一格（`nested`）；对象是按钮
 //                                                （`{label, href, …}`）时再补 Link，带 `sources`（#1686，§itemSubs）
 //                       kind list 且项形状顶层有可选 `href?`（点评平台 / logo）→ 每项多一格 Link，不带 `sources`（#1686，§addOptionalHref）
 // 列表项里**不给格子**的字段逐条登记在 §ITEM_FIELD_EXEMPT（带理由），§itemFieldCoverageProblems 守「每个字段要么有格子、要么在名单里」。
@@ -54,10 +52,6 @@ const { BUTTON_SOURCES } = require('./item-sources');
 
 /** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
 const LINK_HREF = 'href';
-
-/** 列表项里的价格对象（#1670，`pricing.plans` 的 `price: {monthly, yearly?}`）：认它的形状，和它在编辑器里的两格。 */
-const ITEM_PRICE_SHAPE = /(^|[{,]\s*)price\s*:\s*\{\s*monthly\s*,\s*yearly\?\s*\}/;
-const ITEM_PRICE = { sub: 'price', label: 'Price', nested: [{ sub: 'monthly', label: 'Price' }, { sub: 'yearly', label: 'Yearly price' }] };
 
 /**
  * 一份 manifest → 字段清单（顺序照 manifest 里槽位的书写顺序）。
@@ -179,14 +173,6 @@ function fieldsOf(manifest) {
       if (itemTopKeys(spec && spec.shape).includes(LINK_HREF) && !subs.some((x) => x.sub === LINK_HREF)) {
         subs.push({ sub: LINK_HREF, label: 'Link', sources: BUTTON_SOURCES.slice() });
       }
-      // #1670 —— 项形状里有价格对象 `price: {monthly, yearly?}`（pricing.plans）：每一项补一个 `price` 子字段，
-      //    里面两格 Price / Yearly price（`nested`），EditorApp 画成两个平铺的输入框、写回同一个 `price` 对象。
-      //    理由同 #1404 r3 那条：价格那一格（`pr-amount`）不挂 `data-slot`、月付年付由组件状态切换，往 `editLabel` 里加就得
-      //    动守卫；这里只在编辑器自己的 schema 里补，按形状认、不写块名单。项是整项携带的（editor-convert §toProp 的 list），
-      //    `price` 对象里其余的键原样带着。位置照项形状里的键序（`name` 之后、`period` 之前）。
-      if (ITEM_PRICE_SHAPE.test(String((spec && spec.shape) || '')) && !subs.some((x) => x.sub === ITEM_PRICE.sub)) {
-        insertByShape(subs, { sub: ITEM_PRICE.sub, label: ITEM_PRICE.label, nested: ITEM_PRICE.nested.map((n) => ({ ...n })) }, spec);
-      }
       addOptionalHref(subs, spec);
     }
     fields.push({
@@ -204,7 +190,9 @@ function fieldsOf(manifest) {
 /**
  * #1686 —— 列表槽 `editLabel` 的几条 → 每项的子字段。普通的一条就是一格文字；另外两种按**项形状**认（不写块名单）：
  *   · 值是字符串列表（`features: [string]`）⟹ `strings: true`，EditorApp 画成能加 / 删 / 拖动排序的一列（值仍是字符串数组）；
- *   · 带点的（`cta.label` / `link.label`：项里一个对象的某个键）⟹ 按点前那一段合成一格 `nested`（同 #1670 的 `price`）。
+ *   · 带点的（`cta.label` / `link.label` / `price.monthly`：项里一个对象的某个键）⟹ 按点前那一段合成一格 `nested`。
+ *     #1692 —— 价格块套餐的 `price`（Price / Yearly price）原来是 #1670 在这里之外单补的两格，不在 editableSlotPaths 里，
+ *     画布点不着、守卫也看不见；现在写进 manifest 的 editLabel，跟 `cta.label` 同一条路。
  *     那个对象在形状里是按钮（`{label, href, …}`，`href` 必有）⟹ 再补一格 Link，带 `sources`（本店电话 / 邮箱，同 #1521 的
  *     按钮列表那一格）：构建侧 `item-sources.js` §resolveButtons 一路往下找「有 label 又有 href」的对象展开，项里的按钮在射程里。
  * 🔴 带点的那几条必须真是项形状里某个对象的键：画布上那段字的 `data-slot`（`plans.0.cta.label`）跟它一模一样，
@@ -227,7 +215,7 @@ function itemSubs(entries, spec) {
     subs.push({ sub: head, label: humanize(head), nested: [part] });
   }
   for (const g of subs) {
-    if (!g.nested || g.sub === ITEM_PRICE.sub) continue;
+    if (!g.nested) continue;
     const se = shape.get(g.sub);
     const inner = se && /^\{([\s\S]*)\}$/.exec(se.value) ? objectEntries(se.value.slice(1, -1)) : [];
     const required = (k) => inner.some((x) => x.key === k && !x.optional);
@@ -353,6 +341,9 @@ function seedListsOf(manifest) {
     const own = cells.filter((e) => e.slot === slot);
     const ai = own.filter((e) => !isFactSlot(spec, e.sub, e.label));
     const requiredFact = own.some((e) => {
+      // #1692 —— 只有播种会填的格才参与「播不播」：播种只填项形状里顶层的纯文字键（下面的 `keys`），子对象里的格
+      //    （`price.monthly`）播种本来就不填 —— 跟必填的 `cta: {label, href}` 留空一样，挡不着播种。
+      if (String(e.sub || '').includes('.')) return false;
       if (!isFactSlot(spec, e.sub, e.label)) return false;
       const top = entries.get(String(e.sub || '').split('.')[0]);
       return !top || !top.optional;
