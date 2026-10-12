@@ -154,7 +154,9 @@ function imageTitle(component: EditorComponent, slot: string): string | undefine
 
 /** #1713 —— 一格图的新值：`{imageUrl, alt}` 对象只换地址（别的键原样）；成排的图那一格本身就是地址。 */
 function withUrl(cur: unknown, url: string): unknown {
-  return cur && typeof cur === 'object' && !Array.isArray(cur) ? { ...(cur as Record<string, unknown>), imageUrl: url } : url;
+  // #1734 —— 那一格还没有图（占位图点进来的，值是 undefined）⟹ 新建 `{imageUrl}`；跟 §pickFor 同一条：只有值本身是字符串才回字符串。
+  if (typeof cur === 'string') return url;
+  return { ...(cur && typeof cur === 'object' && !Array.isArray(cur) ? (cur as Record<string, unknown>) : {}), imageUrl: url };
 }
 function urlIn(cur: unknown): string {
   if (typeof cur === 'string') return cur;
@@ -249,7 +251,10 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     const sourced = sourcedSlots(item, a.site, a.locale, a.page);
     // #1693 —— 图片格拿图的地址去对（`src` 属性原样，不是 `.src` —— 那个是补全过的绝对地址）。
     const text = el.tagName === 'IMG' ? el.getAttribute('src') || '' : el.textContent || '';
-    const r = resolveInlineSlot({ component, props: item.props, slot, text, sourced, locked: !!item.props._src?.locked });
+    // #1734 —— 占位图：数据里那一格是空的，按 `data-item` 认是哪一项（§resolveInlineSlot）。
+    const placeholder = el.tagName === 'IMG' && el.hasAttribute('data-placeholder');
+    const at = placeholder ? el.closest('[data-item]')?.getAttribute('data-item') || undefined : undefined;
+    const r = resolveInlineSlot({ component, props: item.props, slot, text, sourced, locked: !!item.props._src?.locked, placeholder, item: at });
     return { id, item, component, slot, r };
   };
 
@@ -613,7 +618,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       setActive({ id, slot, blockType: itemById(id)?.type || '', el, path: null, name: '', typing: false, ai: false, hint: 'This image was changed while you were choosing, so your choice was not used.' });
       return;
     }
-    if (write(id, path, withUrl(now, want), true)) ap.saveNow();
+    // #1734 —— 原来是占位（没图）、退回上一张 ⟹ 放回原样（那一格照旧没有图），不写一个空地址进去。
+    if (write(id, path, want === '' && before === '' ? cur : withUrl(now, want), true)) ap.saveNow();
   }
 
   /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。

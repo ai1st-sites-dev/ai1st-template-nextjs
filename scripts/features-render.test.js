@@ -176,11 +176,8 @@ console.log('\n── AC7 槽位空不渲染');
   const cases = [
     ['introEyebrow', 'data-part="eyebrow"', (d) => { delete d.introEyebrow; }],
     ['introCtas', 'data-part="ctas"', (d) => { delete d.introCtas; }],
-    ['introImage', 'data-part="intro-image"', (d) => { delete d.introImage; }],
-    ['itemsImage', 'data-part="items-image"', (d) => { delete d.itemsImage; }],
     ['items[].number', 'data-part="number"', (d) => { d.items.forEach((it) => delete it.number); }],
     ['items[].icon', 'data-part="icon"', (d) => { d.items.forEach((it) => delete it.icon); }],
-    ['items[].image', 'data-part="item-image"', (d) => { d.items.forEach((it) => delete it.image); }],
     ['items[].link', 'data-part="link"', (d) => { d.items.forEach((it) => delete it.link); }],
   ];
   for (const [slot, needle, drop] of cases) {
@@ -195,8 +192,21 @@ console.log('\n── AC7 槽位空不渲染');
   const perItem = itemsOf(render('grid', one)).map((x) => (x.includes('data-part="icon"') ? 1 : 0));
   check(perItem.join('') === '110111', `只清第 3 项的 icon ⟹ 只那一项没有（${perItem.join('')}）`);
   check(count(full, 'data-cta=') === 2 + STEPS.items.length, `introCtas 给 ${STEPS.introCtas.length} 条只画 2 条（max 2）+ 每项一个 link`);
+  // #1734 —— 三个图槽不归「槽位空不渲染」：旋钮开着、没有图 ⟹ 照有图的样子画，图是占位图（全表在 placeholder-image.test.js）。
+  for (const [slot, needle, drop] of [
+    ['introImage', 'data-part="intro-image"', (d) => { delete d.introImage; }],
+    ['itemsImage', 'data-part="items-image"', (d) => { delete d.itemsImage; }],
+    ['items[].image', 'data-part="item-image"', (d) => { d.items.forEach((it) => delete it.image); }],
+  ]) {
+    const d = withOpts(on, {}, STEPS);
+    drop(d);
+    const empty = render('grid', d);
+    const ph = (h) => (h.split(needle).slice(1).map((x) => x.slice(0, 400)).filter((x) => /<img\b[^>]*data-placeholder/.test(x))).length;
+    check(count(full, needle) >= 1 && ph(full) === 0 && count(empty, needle) === count(full, needle) && ph(empty) === count(full, needle),
+      `${slot}：有值画真图（${count(full, needle)}）、清空照样画、全是占位图（${ph(empty)}）`);
+  }
   const noUrl = render('grid', withOpts(on, { introImage: { alt: 'x' } }, STEPS));
-  check(!noUrl.includes('data-part="intro-image"'), 'introImage 只有 alt、没有 imageUrl ⟹ 不渲染');
+  check(/data-part="intro-image"><img\b[^>]*data-placeholder/.test(noUrl), 'introImage 只有 alt、没有 imageUrl ⟹ 当没图，垫占位图（#1734）');
   const offKnob = render('grid', withOpts({ ...on, introImage: 'none', itemsImage: 'none', itemImage: 'none' }, {}, STEPS));
   check(!/data-part="(intro-image|items-image|item-image)"/.test(offKnob) && !/<img\b/.test(offKnob), '三个图槽都有值、同名旋钮 none ⟹ DOM 里一张 <img> 都没有');
   const noneStyle = render('grid', withOpts(on, { introEyebrow: { text: 'x', style: 'none' } }, STEPS));

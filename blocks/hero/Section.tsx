@@ -20,6 +20,7 @@
 //    `block.css` 里要压过它们的规则也带 `!important`、且选择器的 class 数不少于它（票正文「通用规矩」）。
 //    这里「藏东西」一律是**不渲染**（部件有数据才画），不靠 CSS 藏 —— 那样 `image=none` 时 DOM 里就真的
 //    没有 `<img>`（AC2），不是一张被 `display:none` 的图。
+//    （#1734）图例外：图的旋钮开着、那一格没图 ⟹ 垫占位图（`blockMedia.tsx` §knobImg），数据里照旧空着。`background` 那一档垫成 CSS 背景，没有 `data-slot`，编辑器里点不了（放真图也一样）。
 //
 // 🔴 **图片的键叫 `imageUrl`，不叫 `url`**：AI 改站那条路的写入闸只认 `IMAGE_FIELDS` 里的键
 //    （`scripts/lib/image-urls.js`，今天是 `imageUrl` / `logoUrl`），换一个名字模型编的地址就能写进来；
@@ -28,7 +29,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss 写成 CSS、§toneForBg 按亮度反白；#1477，
 //    跟 footer / header / cta 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
 //    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import { itemPath } from '@/lib/sections/itemPath';
 
 import BlockSection from '@/components/BlockSection';
@@ -118,7 +119,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: HeroNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as { textAlign: string; image: string; form: string };
-  const img: HeroNewImage | null = isObj(d.image) && typeof d.image.imageUrl === 'string' && d.image.imageUrl ? d.image : null;
+  const img: HeroNewImage | null = knobImg(k.image, isObj(d.image) && typeof d.image.imageUrl === 'string' && d.image.imageUrl ? d.image : null);
   const cover = k.image === 'background' && !!img;
   // 图列画不画（#1470 做什么 2；hero-render.test.js 的反向对照逐字锚在这一行上）。
   const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;

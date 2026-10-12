@@ -11,7 +11,7 @@
 //    用 React 画（字由 React 转义，不走 dangerouslySetInnerHTML）。validateSite 报错用的是同一个解析器，
 //    所以「校验说不会出链接」与「页面上真没有链接」是同一件事。
 //
-// 🔴 **藏东西一律是不渲染**：`image=none` 或没有图 ⟹ DOM 里没有 `<img>`；没有标题 ⟹ 没有 `<h2>`（eyebrow 照常）；
+// 🔴 **藏东西一律是不渲染**：`image=none` ⟹ DOM 里没有 `<img>`（旋钮开着、没有图 ⟹ 垫占位图，`blockMedia.tsx` §knobImg，#1734）；没有标题 ⟹ 没有 `<h2>`（eyebrow 照常）；
 //    没有按钮 ⟹ 没有按钮那一行。
 //
 // 🔴 **图片的键叫 `imageUrl`**（`image`）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键（`scripts/lib/image-urls.js`）。
@@ -19,7 +19,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，同 milestones / cta）。
 
 import type { ReactNode } from 'react';
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -85,7 +85,7 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
   const headline = str(d.headline);
   const body = parseRichtext(d.body);
   const ctas = (Array.isArray(d.ctas) ? d.ctas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
-  const img = k.image !== 'none' ? imgOf(d.image) : null;
+  const img = knobImg(k.image, imgOf(d.image));
 
   return (
     <BlockSection

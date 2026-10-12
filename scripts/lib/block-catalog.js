@@ -101,7 +101,8 @@ function blockShapeCatalog(opts) {
 // 🔴 `shape` 这个字段是**写给建站 AI 看的提示**，不是一套语法，所以下面这个解析器是**容忍式**的：
 //    认不出来的一律落回「按槽位名编一句话」，绝不抛 —— 图册少一句示例文案是看得见的，
 //    而为了一句提示串把整页打死不是。
-const PLACEHOLDER_IMAGE = '/images/grid-pattern.svg';
+// 占位图只此一份（#1734）：跟 skipAI 建站、渲染时垫占位用的是同一张。
+const { PLACEHOLDER_IMAGE_URL: PLACEHOLDER_IMAGE } = require('./image-slots');
 
 /** `{a, b}` / `[x, y]` 最外层的逗号切开（认括号嵌套，也认引号里的逗号）。 */
 function topLevelParts(body) {

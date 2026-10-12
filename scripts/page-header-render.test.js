@@ -226,7 +226,8 @@ console.log('\n── image 部件');
   const cov = render('simple', withOpts({ image: 'background' }));
   check(/data-part="bg"/.test(cov) && count(cov, '<img') === 1, 'image=background ⟹ 铺底那一张（data-part=bg）');
   const noImg = { ...clone(DEMO), image: undefined, options: { image: 'right' } };
-  check(count(render('simple', noImg), '<img') === 0 && attr(render('simple', noImg), 'data-tone') === 'light', '没写图 ⟹ 不画图（image=right 也一样）');
+  // #1734 —— 旋钮开着、没写图 ⟹ 垫一张占位图（全表在 placeholder-image.test.js）；不铺底，字色照旧。
+  check(count(render('simple', noImg), '<img') === 1 && /<img\b[^>]*data-placeholder/.test(render('simple', noImg)) && attr(render('simple', noImg), 'data-tone') === 'light', '没写图、image=right ⟹ 一张占位 <img>（#1734）');
   const ctaCount = (render('simple', clone(DEMO)).match(/data-cta="/g) || []).length;
   check(ctaCount === 2, `夹具 6 条按钮 ⟹ 画 ${ctaCount} 条（== max 2）`);
 }

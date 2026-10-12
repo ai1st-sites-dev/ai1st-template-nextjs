@@ -149,8 +149,10 @@ console.log('\n── AC2 旋钮（DOM）');
   check(problems.length === 0, '54 种组合逐个核：主图 / 按钮 / 表单三件事都对', problems.join(' | '));
   // 反向对照：让 image=none 那一支照样画主图 ⟹ 同一段检查必须点名。锚逐字是 Section.tsx 里「图列画不画」那一行。
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const broken = src.replace("const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;", "const side = !!img;");
-  if (broken === src) die('反向对照没改到源码（那一行换了写法？）');
+  // #1734 起 image=none 时 img 本身就是 null（§knobImg）⟹ 要漏出来得两处一起拆：不按旋钮取图 + 图列不看旋钮。
+  const broken = src.replace("const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;", "const side = !!img;")
+    .replace('knobImg(k.image, ', "knobImg('left', ");
+  if (broken === src || !broken.includes("knobImg('left', ") || broken.includes('k.image === \'bottom\') && !!img')) die('反向对照没改到源码（那两行换了写法？）');
   const C2 = loadSection(broken);
   const leaked = render('split', { ...withOpts({ image: 'none' }), band: [], logos: undefined, proof: undefined }, C2);
   check(/<img\b/.test(leaked), '反向对照：image=none 也画主图的组件 ⟹ 上面那道检查会读到 <img>');
