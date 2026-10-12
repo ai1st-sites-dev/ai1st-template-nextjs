@@ -52,6 +52,7 @@ const linkHref = require('./lib/link-href');
 // #1351 —— 「让 AI 改这一块」：面板把块 id 和它在哪一页带进这次会话，这一轮就只许动那一个块。
 // 判据是**拿磁盘上那份逐块比一遍**，不是在提示词里请它守规矩（理由在那个文件头上）。
 const blockScope = require('./lib/block-scope');
+const { createPageProgress, normalizeSitePath } = require('./lib/page-progress');
 // #1410 —— 模型边写边出的字，编辑器里的聊天逐字显示（文件头说为什么攒批、为什么带轮次）。
 const { createTextRelay } = require('./lib/text-relay');
 // #1623 —— 提示词里站级块示例的按钮落点取配方那一页，不手抄（配方里没有 quote 页）。
@@ -1244,7 +1245,7 @@ slot or a list slot that is not a list is refused here too.
 
 ## Rules
 
-1. You MUST call read_file to check current file contents before responding — never rely on conversation history to know file state
+1. Before you write a file, you MUST call read_file on that same file in this turn and base your write on what it returns — never rely on conversation history to know a file's contents. Only read the files you need: you do not have to re-read every page before answering. If a previous reply of yours is marked as having written no files and the owner asks for that change again, make the change instead of re-checking every page
 2. Only call write_file if changes are actually needed. Only claim changes were made if you called write_file
 3. Write the COMPLETE file content (not partial updates)
 4. All written content must be valid JSON
@@ -1287,6 +1288,8 @@ async function main() {
   if (!fs.existsSync(siteDir)) {
     fatal('Site directory not found: site/');
   }
+  // #1724 —— 整站范围才数页：读 / 写到第几页、一共几页（§lib/page-progress.js）。块范围的那一轮不带这串字。
+  const pageProgress = scope ? null : createPageProgress(siteDir, siteShape.readSiteShape(siteDir), (rel) => PAGE_JSON.test(rel));
 
   emit('progress', { message: 'Reading your request...' });
 
@@ -1478,12 +1481,19 @@ async function main() {
       } else if (block.type === 'tool_use') {
         debug(`Tool call: ${block.name}(${JSON.stringify(block.input).substring(0, 100)})`);
 
-        emit('tool_use', { tool: block.name, ...(block.input.path ? { path: block.input.path } : {}) });
+        emit('tool_use', {
+          tool: block.name,
+          ...(block.input.path ? { path: block.input.path } : {}),
+          ...(pageProgress && block.input.path ? { pageProgress: pageProgress(block.input.path) } : {}),
+        });
 
         const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen, aiWrote);
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
+          // #1724 —— 真写成了才发。上面那条 tool_use 在执行之前发、不带成败，被拒的写也有它；manager 记
+          // 「到此为止改了哪些文件」只认这一条（超时那句话从那份名单拼，main.go §sweepEditTimeouts）。
+          emit('file_written', { path: normalizeSitePath(block.input.path) });
         }
         if (result.stale) staleWrites += 1;
 

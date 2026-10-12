@@ -2497,5 +2497,79 @@ console.log('\n㉒ slug / 整条路径太长（#1574）：拒、同轮改口、�
   }
 }
 
+// ══ ㉓ 整站范围说到页 · 只有写成了才发 file_written（#1724 AC1a / AC3b）══════════════════════════════
+//
+// 夹具：skipAI 站（en）再造一个 zh，删到正好 3 个页面文件 —— en/pages/about.json、en/pages/home.json、zh/pages/home.json。
+// 模型依次：读 about、再读 about、读 brand.json、读 zh 的 home、写一个白名单外的文件（被拒）、写 en 的 home（成功）。
+//   AC1a  tool_use 带的 pageProgress 依次是 Page 1 of 3: pages/about.json (en) · 同一句 · Page 1 of 3（不是页面不涨）
+//         · Page 2 of 3: pages/home.json (zh) · Page 2 of 3 · Page 3 of 3: pages/home.json (en)
+//         块范围（page + blockId）同一份脚本再跑一次 ⟹ 输出里没有任何 `Page N of M`
+//   AC3b  被拒那一笔没有 file_written，成功那一笔有、且只有它
+// 期望值照正文抄，不从 lib/page-progress.js 读。
+console.log('\n㉓ 整站范围说到页、file_written 只在写成时发（#1724）');
+{
+  const fixture = (label) => {
+    const ctx = makeRoot(label);
+    const site = writeSite(ctx.work);
+    fs.cpSync(path.join(site, 'en'), path.join(site, 'zh'), { recursive: true });
+    for (const f of ['en/pages/contact.json', 'en/pages/services.json', 'zh/pages/about.json', 'zh/pages/contact.json', 'zh/pages/services.json']) {
+      fs.rmSync(path.join(site, f));
+    }
+    const metaPath = path.join(site, 'site_meta.json');
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    meta.locales = ['en', 'zh'];
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+    assertSyncsClean(ctx.work, '㉓');
+    ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+    const pages = [];
+    (function walk(d) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const full = path.join(d, e.name);
+        if (e.isDirectory()) walk(full); else if (/\/pages\//.test(full) && full.endsWith('.json')) pages.push(path.relative(site, full));
+      }
+    }(site));
+    if (pages.length !== 3) die(`㉓ 夹具不是 3 个页面文件：${JSON.stringify(pages)}`);
+    return { ctx, site };
+  };
+  const script = (site) => {
+    // 换个缩进重写 en 的 home：字节变了、内容合法，写入走完整条保存链。
+    const home = JSON.stringify(JSON.parse(fs.readFileSync(path.join(site, 'en/pages/home.json'), 'utf8')), null, 4);
+    return [
+      reply([textBlock('Looking at the pages.'),
+        readCall('r1', 'en/pages/about.json'), readCall('r2', 'en/pages/about.json'),
+        readCall('r3', 'brand.json'), readCall('r4', 'zh/pages/home.json')], 'tool_use'),
+      reply([textBlock('Adding it.'),
+        writeCall('w1', 'notes-1724.txt', 'not allowed'), writeCall('w2', 'en/pages/home.json', home)], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ];
+  };
+
+  const A = fixture('1724-whole');
+  const res = runEdit(A.ctx, script(A.site));
+  const got = ev(res, 'tool_use').map((e) => e.pageProgress);
+  const want = [
+    'Page 1 of 3: pages/about.json (en)', 'Page 1 of 3: pages/about.json (en)', 'Page 1 of 3',
+    'Page 2 of 3: pages/home.json (zh)', 'Page 2 of 3', 'Page 3 of 3: pages/home.json (en)',
+  ];
+  console.log(`     整站范围 tool_use 的 pageProgress：${JSON.stringify(got)}`);
+  if (JSON.stringify(got) === JSON.stringify(want)) ok('AC1a：整站范围逐条进度对得上（重读不涨、非页面文件不涨、带语言）');
+  else bad(`🔴 AC1a：期望 ${JSON.stringify(want)}\n     rc=${res.rc} ${res.stderr.slice(-300)}`);
+
+  const written = ev(res, 'file_written').map((e) => e.path);
+  const rejected = toolResultContent(res, 2, 'w1') || '';   // 写在第 2 条回复里 ⟹ 回执随第 2 轮请求发出去
+  console.log(`     file_written：${JSON.stringify(written)} · 被拒那一笔的回执「${rejected.slice(0, 80)}」· edit-complete ${ev(res, 'edit-complete').length}`);
+  if (!/"success":true/.test(rejected) && rejected && JSON.stringify(written) === JSON.stringify(['en/pages/home.json'])) {
+    ok('AC3b：被拒的那一笔没有 file_written，成功的那一笔有、且只有它');
+  } else bad(`🔴 AC3b：file_written=${JSON.stringify(written)} · 被拒回执「${rejected}」`);
+
+  const B = fixture('1724-block');
+  const scoped = runEdit(B.ctx, script(B.site), { page: 'home', blockId: 'probe-1724' });
+  const n = ev(scoped, 'tool_use').length;
+  const leak = JSON.stringify(scoped.events).match(/Page \d+ of \d+/);
+  console.log(`     块范围：tool_use ${n} 条 · 输出里 Page N of M ${leak ? `有「${leak[0]}」` : '无'}`);
+  if (n >= 6 && !leak) ok('AC1a：块范围那一跑没有任何 Page N of M（tool_use 照常发了 6 条，不是没跑）');
+  else bad(`🔴 AC1a 块范围：tool_use ${n} 条 · ${leak ? leak[0] : '无'}`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);
