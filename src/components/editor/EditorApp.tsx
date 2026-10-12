@@ -1388,7 +1388,9 @@ type BarPos = { bottom: number; left: number; scale: number };
 /**
  * 条在画布可视区里的位置：底边 = min(块下沿, 可视区下沿) − 边距，横向在块内居中；块整个不在可视区里 ⟹ null（不出条）。
  * 「可视区」= 画布 iframe 自己的 `innerHeight`（同 §DesignPopover 的 `win.innerHeight`）。每帧量一次（滚动、块变高、挪了位置都跟着走），
- * 没变不重画。Design 弹层贴的就是按这个画出来的那条（它按 `data-editor-blockbar-for` 找锚点）⟹ 两边是同一份坐标。
+ * 没变不重画。
+ * #1725 —— Design 弹层开着时「可视区下沿」换成弹层顶边 − POPOVER_BAR_GAP：条不钻到弹层底下，Design 按钮永远点得到。
+ *   弹层的顶边从 DOM 读（`data-editor-popover`，还没画出来那一帧是 visibility: hidden，不算）。
  */
 function useBlockBarPos(doc: Document, id: string): BarPos | null {
   const [pos, setPos] = useState<BarPos | null>(null);
@@ -1399,11 +1401,13 @@ function useBlockBarPos(doc: Document, id: string): BarPos | null {
       const el = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
       const r = el ? el.getBoundingClientRect() : null;
       const vh = win.innerHeight;
+      const pop = doc.querySelector<HTMLElement>('[data-editor-popover]');
+      const floor = pop && pop.style.visibility !== 'hidden' ? pop.getBoundingClientRect().top - POPOVER_BAR_GAP : vh;
       let next: BarPos | null = null;
       if (r && r.height > 0 && r.bottom > 0 && r.top < vh) {
         const frame = win.frameElement as HTMLElement | null;
         const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
-        next = { bottom: vh - (Math.min(r.bottom, vh) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
+        next = { bottom: vh - (Math.min(r.bottom, floor) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
       }
       setPos((p) => (p === next || (p && next && p.bottom === next.bottom && p.left === next.left && p.scale === next.scale) ? p : next));
     };
@@ -1699,7 +1703,7 @@ const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, dis
 const ITEMBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482100, display: 'inline-flex', translate: '-100% 0', transformOrigin: 'right top', cursor: 'default' };
 
 /**
- * #1700 —— Design 弹层：块浮动条上点 Design 弹出，贴着浮动条。顶上一排标签（Layout；#1708 加了 Customize：这一块的旋钮 + 开关 + 背景），
+ * #1700 —— Design 弹层：块浮动条上点 Design 弹出，固定在画布可视区底部、水平居中（#1725：不随块走、不随滚动走，两页同一位置）。顶上一排标签（Layout；#1708 加了 Customize：这一块的旋钮 + 开关 + 背景），
  * 底部 Cancel / Done。事务规矩（改了什么、什么时候存、撤销怎么记）在 EditorApp §openDesign，这里只管画和截出口。
  *
  * 画在画布 iframe 里（`CanvasLinkGuard` 拿到的那份 document，portal 进它的 body）：缩略图要用站的样式表和块组件，它们只在画布里有。
@@ -1731,12 +1735,18 @@ const THUMB_GAP = 12;
 const THUMB_NAME_H = 16;
 // #1722 —— 预设太高时格子最多这么高：画布可视区高的 60%（画布 document 的 px），超出的裁掉下边并淡出。
 const THUMB_MAX_VH = 0.6;
-// #1712 —— 为了不盖住浮动条最多缩到多矮（弹层自己的 px）：顶上标签 + 一排格子 + 底部按钮刚好放得下。
+// #1712 —— 弹层最矮缩到多矮（弹层自己的 px）：顶上标签 + 一排格子 + 底部按钮刚好放得下。
 const POPOVER_MIN_H = 300;
+// #1725 —— 弹层最高占画布可视区高的这么多（不低于 POPOVER_MIN_H）；超出的内容区自己滚。
+const POPOVER_MAX_VH = 0.5;
+// #1725 —— 弹层底边离画布可视区下沿多远（弹层自己的 px）。
+const POPOVER_EDGE = 16;
+// #1725 —— 弹层开着时，浮动条的底边最低到弹层顶边上面这么远（画布 px，同 BLOCKBAR_GAP 的口径）。
+const POPOVER_BAR_GAP = 8;
 const POPOVER: CSSProperties = {
   position: 'fixed', zIndex: 2147483000, width: POPOVER_W, boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
   background: '#fff', border: '1px solid #d0d5dd', borderRadius: 12, boxShadow: '0 12px 32px rgba(16, 24, 40, 0.18)',
-  fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#344054', lineHeight: 1.3, transformOrigin: 'top left',
+  fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#344054', lineHeight: 1.3, transformOrigin: 'bottom left',
 };
 const POPOVER_BTN: CSSProperties = { padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' };
 const popoverTab = (on: boolean): CSSProperties => ({
@@ -1777,7 +1787,7 @@ function DesignPopover({ doc }: { doc: Document }) {
   const item = usePuck((s) => (id ? (s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null) : null));
   const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
   const boxRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; scale: number; maxH: number } | null>(null);
+  const [pos, setPos] = useState<{ bottom: number; left: number; scale: number; maxH: number } | null>(null);
   // #1722 —— 每格缩略图里块渲染出来的高（未缩放的 px），按「块 id:第几个预设」记（换一块不用清）。
   const [bodyH, setBodyH] = useState<Record<string, number>>({});
   // 画布里点到了外面：弹层已经收起、等那一下点击走完再退回（见文件头那段 🔴）。换了一块 / 关掉之后复位。
@@ -1870,59 +1880,56 @@ function DesignPopover({ doc }: { doc: Document }) {
     return () => { for (const t of ['keydown', 'keyup', 'keypress'] as const) el.removeEventListener(t, stop); };
   });
 
-  // 贴着浮动条，跟着滚动 / 块变高（换了预设）走（#1712 定的规矩，PM 正文「做什么」1、2）：
-  //   ① 弹层四边都落在画布可视区里 —— Done / Cancel 永远看得见，不靠老板滚动；
-  //   ② 浮动条在可视区里时不盖住它：下面放得下放下面，否则上面；两边都放不下就缩进大的那一边（不小于 POPOVER_MIN_H）。
-  //   还是放不下 ⟹ ① 优先：贴着可视区放，可能盖住浮动条（这时 Design 按钮点不到，但 Cancel / Done 在）。
-  // 浮动条找不到就贴块的下沿。下面的量全是画布 document 的 CSS px（弹层按 1/zoom 放大，它自己的 px 要 /zoom 换过来）。
+  // #1725 —— 固定在画布可视区底部、水平居中：底边 = 可视区下沿 − POPOVER_EDGE，横向在可视区中线上，跟块在哪无关 ⟹ 滚动、块变高、
+  //   换预设、Layout / Customize 切页都不动。用 CSS `bottom` 定位、变换原点在左下角 ⟹ 内容多高底边都钉在那儿，不用量弹层多高
+  //   （#1708 那个「量自然高 → 定 maxHeight → 又改了自然高」来回抖的环没有了，1.5px 防抖跟着删掉）。
+  //   高：上限 = 可视区高的 POPOVER_MAX_VH，不低于 POPOVER_MIN_H；可视区比那还矮就贴满可视区（上下各留 POPOVER_EDGE）。
+  //   下面的量全是画布 document 的 CSS px（弹层按 1/zoom 放大，它自己的 px 要 /zoom 换过来）。
+  // 打开那一刻（弹层第一次画出来之后那一帧）块的下沿落在弹层顶边之下 ⟹ 把画布滚到块顶贴可视区顶，只滚这一次，之后老板自己滚。
+  //   用画布 window 的 scrollTo，不用 scrollIntoView：后者连编辑器页上的祖先滚动容器一起滚。
+  // 页尾的块（r2）：画布已经滚到底时上面那一下没地方可滚 ⟹ 弹层开着时在页面内容最底下垫一段空白，高 = 弹层封顶高 + 底边
+  //   （≥ 弹层顶边到可视区下沿那段，切页 / 换预设弹层变矮也不用跟着缩，不会把滚到底的画布往回拽）。它是编辑器直接插进画布 DOM 的，
+  //   不在 Puck 的数据里 ⟹ 不进页面 JSON、不进发布的站；弹层一关（这个 effect 清理）就拿掉。
+  //   🔴 不能是 body 末尾的一个普通 div：Puck 的 `#frame-root` 只有一屏高，页面内容是溢出去的 ⟹ 普通 div 落在一屏处，
+  //   scrollHeight 一点不涨。所以它是绝对定位、每帧把顶边对到 `#frame-root` 内容的底（块变高了跟着往下挪），它自己不在 frame-root 里。
+  //   🔴 空白要在 scrollTo 之前写进 DOM（同一帧、同步写 style）：反了 scrollTo 会被旧的 scrollHeight 夹住。
   useEffect(() => {
     if (!id) { setPos(null); return; }
     const win = doc.defaultView!;
     let raf = 0;
-    let lastNatural: number | null = null;
+    let revealed = false;
+    const spacer = doc.createElement('div');
+    spacer.setAttribute('data-editor-popover-spacer', '');
+    spacer.setAttribute('aria-hidden', 'true');
+    spacer.style.cssText = 'position:absolute;left:0;top:0;width:1px;height:0;margin:0;padding:0;border:0;visibility:hidden;pointer-events:none';
+    doc.body.appendChild(spacer);
+    const content = doc.getElementById('frame-root') || doc.body;
     const tick = () => {
-      const anchor = doc.querySelector(`[data-editor-blockbar-for="${CSS.escape(id)}"]`) || doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
       const frame = win.frameElement as HTMLElement | null;
       const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
-      if (anchor) {
-        const r = anchor.getBoundingClientRect();
-        const box = boxRef.current;
-        // 当前那一页的内容区（Layout 的格子 / Customize 的控件，#1708）：两页都是自己会滚的那一块。
-        const grid = box ? box.querySelector<HTMLElement>('[data-editor-design-layout], [data-editor-design-customize]') : null;
-        const vh = win.innerHeight;
-        const gap = 8 / zoom;
-        // 不受 maxHeight 影响的那个高度：外框 + 格子区的完整内容（格子区自己会滚，被压扁时 clientHeight 变、scrollHeight 不变）。
-        // 🔴 差 1.5 个像素以内不换（#1708）：内容高度带小数时（Customize 页的控件），这几个读数各自取整 ⟹ 放下了读成矮 1px、
-        //    压掉不到 1px 又读成高 1px，每帧来回翻，弹层一直在抖、按钮永远「不稳定」点不到（pricing 实测 665 ↔ 666）。
-        const measured = (box && grid ? box.offsetHeight - grid.clientHeight + grid.scrollHeight : 400) / zoom;
-        const natural = lastNatural !== null && Math.abs(measured - lastNatural) * zoom <= 1.5 ? lastNatural : measured;
-        lastNatural = natural;
-        const room = vh - 2 * gap;
-        const floor = Math.min(natural, POPOVER_MIN_H / zoom);
-        const roomBelow = vh - gap - (r.bottom + gap);
-        const roomAbove = r.top - gap - gap;
-        const barSeen = r.bottom > 0 && r.top < vh;
-        let top: number;
-        let h: number;
-        if (barSeen && natural <= roomBelow) { h = natural; top = r.bottom + gap; }
-        else if (barSeen && natural <= roomAbove) { h = natural; top = r.top - gap - h; }
-        else if (barSeen && Math.max(roomBelow, roomAbove) >= floor) {
-          h = Math.max(roomBelow, roomAbove);
-          top = roomBelow >= roomAbove ? r.bottom + gap : gap;
-        } else {
-          h = Math.min(natural, room);
-          top = Math.max(gap, Math.min(r.bottom + gap, vh - gap - h));
-        }
-        const maxH = Math.max(1, Math.floor(h * zoom));
-        const w = POPOVER_W / zoom;
-        const left = Math.max(gap, Math.min(r.left + r.width / 2 - w / 2, win.innerWidth - w - gap));
-        const scale = 1 / zoom;
-        setPos((p) => (p && p.top === top && p.left === left && p.scale === scale && p.maxH === maxH ? p : { top, left, scale, maxH }));
+      const vh = win.innerHeight;
+      const edge = POPOVER_EDGE / zoom;
+      const h = Math.min(Math.max(vh * POPOVER_MAX_VH, POPOVER_MIN_H / zoom), vh - 2 * edge);
+      const maxH = Math.max(1, Math.floor(h * zoom));
+      const left = win.innerWidth / 2 - POPOVER_W / zoom / 2;
+      const scale = 1 / zoom;
+      setPos((p) => (p && p.bottom === edge && p.left === left && p.scale === scale && p.maxH === maxH ? p : { bottom: edge, left, scale, maxH }));
+      const pad = `${Math.ceil(h + edge)}px`;
+      if (spacer.style.height !== pad) spacer.style.height = pad;
+      // 顶边（画布 document 坐标）= 内容的底；按 spacer 自己现在在哪校正，不用管它的定位祖先是谁。
+      const off = content.getBoundingClientRect().top + content.scrollHeight - spacer.getBoundingClientRect().top;
+      if (Math.abs(off) >= 0.5) spacer.style.top = `${(parseFloat(spacer.style.top) || 0) + off}px`;
+      const box = boxRef.current;
+      if (!revealed && box && box.style.visibility === 'visible') {
+        revealed = true;
+        const el = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+        const r = el ? el.getBoundingClientRect() : null;
+        if (r && r.bottom > box.getBoundingClientRect().top) win.scrollTo({ top: win.scrollY + r.top, behavior: 'instant' });
       }
       raf = win.requestAnimationFrame(tick);
     };
     raf = win.requestAnimationFrame(tick);
-    return () => win.cancelAnimationFrame(raf);
+    return () => { win.cancelAnimationFrame(raf); spacer.remove(); };
   }, [id, doc]);
 
   if (!ui || !api || !id || !item || leaving) return null;
@@ -1956,7 +1963,7 @@ function DesignPopover({ doc }: { doc: Document }) {
   return createPortal(
     <div ref={boxRef} data-editor-popover="" data-editor-popover-for={id} role="dialog" aria-label="Design"
       onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
-      style={{ ...POPOVER, top: pos ? pos.top : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
+      style={{ ...POPOVER, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
       <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
         {(['layout', 'customize'] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(tab === t)}>
