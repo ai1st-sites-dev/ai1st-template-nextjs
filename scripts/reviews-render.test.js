@@ -207,7 +207,7 @@ console.log('\n── AC8 星数');
 console.log('\n── AC9 链接');
 {
   const h = render('cards', clone(DEMO));
-  check(/<a class="rv-item[^"]*" data-part="item" data-source="Google" href="https:\/\/www\.google\.com\/maps" target="_blank" rel="noopener">/.test(h), 'Google（有 href）那格整格是 <a target="_blank" rel="noopener">');
+  check(/<a class="rv-item[^"]*" data-part="item" data-source="Google" href="https:\/\/www\.google\.com\/maps" target="_blank" rel="noopener"(?: data-item="platforms\.\d+")?>/.test(h), 'Google（有 href）那格整格是 <a target="_blank" rel="noopener">');
   check(count(h, '<a ') === 1 && itemsOf(h).slice(1).every((x) => !/href=/.test(x.split('</div>')[0])), '其余三格（没 href）不是链接');
 }
 

@@ -36,6 +36,7 @@ import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -127,7 +128,7 @@ export default function TeamNewSection({ data, block, iconTable = {} }: Props) {
               const photo = imgOf(m.photo);
               const links = (Array.isArray(m.links) ? m.links : []).filter((l): l is TeamLink => isObj(l) && hasIcon(l.icon) && !!str(l.href));
               return (
-                <div key={i} className="tm-member" data-part="member">
+                <div key={i} className="tm-member" data-part="member" data-item={itemPath('members', d.members, m, i)}>
                   <div className="tm-inner h-100">
                     {photo ? (
                       <div className="tm-photo" data-part="photo">

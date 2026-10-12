@@ -103,6 +103,7 @@ import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
   THEME_DEFAULT, canvasShape, shapeOptions, describeSave, nestedPartSet, recordAiNote, aiNotesForSave, settleAiNotes,
+  itemListsOf, itemOp, recordItemNote, type ItemOp,
 } from '../../../scripts/lib/editor-convert.js';
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
@@ -1310,7 +1311,7 @@ function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; doc
     doc.addEventListener('click', onClick, true);
     return () => doc.removeEventListener('click', onClick, true);
   }, [doc]);
-  return <>{children}{doc && <InlineEditLayer doc={doc} />}{doc && <BlockBars doc={doc} />}{doc && <DesignPopover doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
+  return <>{children}{doc && <InlineEditLayer doc={doc} />}{doc && <BlockBars doc={doc} />}{doc && <ItemBars doc={doc} />}{doc && <DesignPopover doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
 }
 
 /**
@@ -1339,6 +1340,22 @@ const BLOCKBAR_GAP = 12;
  *    而且鼠标一挪到条上它就判「离开」。
  */
 function useCanvasHover(doc: Document): string | null {
+  return useCanvasHoverOf(doc, blockKeyAt);
+}
+
+/** 鼠标下是哪一块（Puck id）：停在某块的条上、或这块某一项的条目条上，都算在这一块上。 */
+function blockKeyAt(el: Element): string | null {
+  const bar = el.closest('[data-editor-blockbar-for], [data-editor-itembar-block]');
+  if (bar) return bar.getAttribute('data-editor-blockbar-for') ?? bar.getAttribute('data-editor-itembar-block');
+  return el.closest('[data-puck-component]')?.getAttribute('data-puck-component') ?? null;
+}
+
+/**
+ * 同 §useCanvasHover 的稳法（换了要稳住 §HOVER_DELAY_MS），「停在哪儿」由 `keyAt` 说（模块级函数，不随渲染换）。
+ * `byPoint`：在同一个元素上挪也要重新问（`mousemove`）—— 条目要按鼠标坐标认（§itemKeyAt），一块里从一项挪到下一项，
+ * 浏览器给的 target 可能始终是块本身（不派新的 mouseover）。
+ */
+function useCanvasHoverOf(doc: Document, keyAt: (el: Element, x: number, y: number) => string | null, byPoint = false): string | null {
   const [hovered, setHovered] = useState<string | null>(null);
   useEffect(() => {
     let current: string | null = null;
@@ -1350,24 +1367,20 @@ function useCanvasHover(doc: Document): string | null {
       if (timer) { clearTimeout(timer); timer = null; }
       if (next !== current) timer = setTimeout(() => { timer = null; current = next; setHovered(next); }, HOVER_DELAY_MS);
     };
-    const idAt = (t: EventTarget | null) => {
-      if (!t || typeof (t as Element).closest !== 'function') return null;
-      const el = t as Element;
-      const bar = el.closest('[data-editor-blockbar-for]');
-      if (bar) return bar.getAttribute('data-editor-blockbar-for');
-      return el.closest('[data-puck-component]')?.getAttribute('data-puck-component') ?? null;
-    };
-    const onOver = (e: Event) => want(idAt(e.target));
+    const idAt = (e: MouseEvent) => (e.target && typeof (e.target as Element).closest === 'function' ? keyAt(e.target as Element, e.clientX, e.clientY) : null);
+    const onOver = (e: MouseEvent) => want(idAt(e));
     // 鼠标出了画布（relatedTarget 为空）= 不在任何块上。
     const onOut = (e: MouseEvent) => { if (!e.relatedTarget) want(null); };
     doc.addEventListener('mouseover', onOver, true);
     doc.addEventListener('mouseout', onOut, true);
+    if (byPoint) doc.addEventListener('mousemove', onOver, true);
     return () => {
       if (timer) clearTimeout(timer);
       doc.removeEventListener('mouseover', onOver, true);
       doc.removeEventListener('mouseout', onOut, true);
+      doc.removeEventListener('mousemove', onOver, true);
     };
-  }, [doc]);
+  }, [doc, keyAt, byPoint]);
   return hovered;
 }
 
@@ -1500,6 +1513,140 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
   );
 }
 
+/**
+ * #1723 —— 条目条：画布里的一项（块的 Section.tsx 挂的 `data-item="stats.2"`）鼠标移上去，它右上角出 ↑ · ↓ · 🗑。
+ * 悬停的稳法同块的条（§useCanvasHoverOf，换项稳 100 ms）；停在条目条上 = 停在那一项上，也算停在那一块上（块的条不收，§blockKeyAt）。
+ * 不出：正在打字（同 #1710）· Design 弹层开着（弹层里试看的那一份不是存下去的数据）· 锁住的块（`_src.locked`）·
+ *   这一项对不上 schema 里的一列（§itemListsOf）· 那一列不是数组（引用写法 `{source}`，面板上那一栏也是只读）。
+ * 三颗按钮动的是 Puck 那个数组字段（同右栏，经 Puck 的 `replace`）⟹ 右栏当场同步、Ctrl+Z 照旧；🗑 到 schema 的 `min` 灰掉，
+ * 跟右栏同一个数。每按一下另记一条侧记（§recordItemNote）：记录摘要比的是前后两份 JSON，分不出「挪了一项」和「删一项加一项」。
+ */
+function ItemBars({ doc }: { doc: Document }) {
+  const hovered = useCanvasHoverOf(doc, itemKeyAt, true);
+  const typing = useInlineTyping();
+  const ui = useContext(EditorUiContext);
+  if (!hovered || typing || (ui && ui.design)) return null;
+  const cut = hovered.lastIndexOf(' ');
+  return <ItemBar key={hovered} doc={doc} id={hovered.slice(0, cut)} item={hovered.slice(cut + 1)} />;
+}
+
+/**
+ * 鼠标下是哪一项：`<块的 Puck id> <data-item>`。只认真块里的（Design 弹层的缩略图不在 `[data-puck-component]` 里）。
+ * 🔴 按坐标认，不按 target 往上找：Puck 画布里块的子元素收不到鼠标（没选中的块，鼠标事件的 target 就是块本身；
+ *    能点的字是 InlineEdit 一段一段登记成 overlay portal 才收得到）⟹ `target.closest('[data-item]')` 读空。
+ *    取这一块里框住鼠标的 `[data-item]`，几个都框住时取面积最小的（最里面那一项）。
+ */
+function itemKeyAt(el: Element, x: number, y: number): string | null {
+  const bar = el.closest('[data-editor-itembar-for]');
+  if (bar) return bar.getAttribute('data-editor-itembar-for');
+  const comp = el.closest('[data-puck-component]');
+  const id = comp?.getAttribute('data-puck-component');
+  if (!comp || !id) return null;
+  let best: { item: string; area: number } | null = null;
+  for (const it of Array.from(comp.querySelectorAll('[data-item]'))) {
+    const r = it.getBoundingClientRect();
+    if (!r.width || !r.height || x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+    const area = r.width * r.height;
+    if (!best || area < best.area) best = { item: it.getAttribute('data-item') || '', area };
+  }
+  return best ? `${id} ${best.item}` : null;
+}
+
+/** 条目条离那一项右上角多远，画布 px。 */
+const ITEMBAR_GAP = 6;
+type ItemBarPos = { top: number; left: number; scale: number; above: boolean; below: boolean };
+/**
+ * 那一项右上角（项的上沿出了可视区就贴可视区上沿）；项看不见 ⟹ null。每帧量，同 §useBlockBarPos。
+ * `above` / `below`：这一块里同一列还有没有【画出来的】、下标比它小 / 大的项。块可能只画前几项（hero 写死 stats 3 · ctas 2，
+ *   `blocks/hero/Section.tsx` §MAX）⟹ 画布上最后一项的 ↓ 按数据算还能换，换完它从画布上消失、冒出一个没见过的 ——
+ *   条目条是画布上的操作，↑ 灰 = 画出来的第一项、↓ 灰 = 画出来的最后一项（#1723 PM 裁 B）。看不见的几项照旧在右栏动。
+ *   ↑ 那一侧也要看画布：块会先 filter 掉空项（hero stats 没字的那格），数据第 0 项被滤掉时画出来的第一项是 stats.1。
+ *   「画出来」= 在 DOM 里（轮播没露出来的那几张也算，翻过去看得到），不看可见性。
+ */
+function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | null {
+  const [pos, setPos] = useState<ItemBarPos | null>(null);
+  useLayoutEffect(() => {
+    const win = doc.defaultView;
+    if (!win) return;
+    const measure = () => {
+      const comp = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+      const els = comp ? Array.from(comp.querySelectorAll(`[data-item="${CSS.escape(item)}"]`)) : [];
+      const r = els.map((e) => e.getBoundingClientRect()).find((x) => x.width > 0 && x.height > 0);
+      const cut = item.lastIndexOf('.');
+      const head = item.slice(0, cut + 1);
+      const at = Number(item.slice(cut + 1));
+      const drawn = comp ? Array.from(comp.querySelectorAll('[data-item]')).flatMap((e) => {
+        const v = e.getAttribute('data-item') || '';
+        return v.startsWith(head) && /^\d+$/.test(v.slice(head.length)) ? [Number(v.slice(head.length))] : [];
+      }) : [];
+      const above = drawn.some((n) => n < at);
+      const below = drawn.some((n) => n > at);
+      const vh = win.innerHeight;
+      let next: ItemBarPos | null = null;
+      if (r && r.bottom > 0 && r.top < vh) {
+        const frame = win.frameElement as HTMLElement | null;
+        const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
+        next = { top: Math.max(r.top, 0) + ITEMBAR_GAP, left: r.right - ITEMBAR_GAP, scale: 1 / zoom, above, below };
+      }
+      setPos((p) => (p === next || (p && next && p.top === next.top && p.left === next.left && p.scale === next.scale && p.above === next.above && p.below === next.below) ? p : next));
+    };
+    measure();
+    let raf = win.requestAnimationFrame(function tick() { measure(); raf = win.requestAnimationFrame(tick); });
+    return () => win.cancelAnimationFrame(raf);
+  }, [doc, id, item]);
+  return pos;
+}
+
+function ItemBar({ doc, id, item: itemAttr }: { doc: Document; id: string; item: string }) {
+  const item = usePuck((s) => s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null);
+  const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
+  const getPuck = useGetPuck();
+  const inline = useContext(InlineApiContext);
+  const pos = useItemBarPos(doc, id, itemAttr);
+  const segs = itemAttr.split('.');
+  const index = Number(segs.pop());
+  const props = (item?.props || {}) as ItemProps;
+  const spec = item ? itemListsOf(inline?.components.get(item.type)).find((l) => l.path.join('.') === segs.join('.')) : undefined;
+  const list = spec ? getAt(props, spec.path) : undefined;
+  if (!item || props._src?.locked || !spec || !Array.isArray(list) || !Number.isInteger(index) || index >= list.length || !pos) return null;
+  // AI 聊天在改这一页：三颗都灰（同面板 LOCKED_PERMISSIONS 那一套，改了也会被 AI 那一笔盖掉）。
+  const busy = !!inline?.locked;
+  const act = (op: ItemOp) => {
+    const g = getPuck();
+    const now = g.getItemById(id) as unknown as { type: string; props: ItemProps } | undefined;
+    const sel = g.getSelectorForId(id);
+    const before = now ? getAt(now.props, spec.path) : undefined;
+    const after = Array.isArray(before) ? itemOp(before, index, op, spec.min) : null;
+    if (!now || !sel || !after) return;
+    // 没选中的先选中它（右栏换成这一块，那一列当场同步），再改 —— 同块的条（§BlockBar）。
+    // 📌 Ctrl+Z 退回的是按之前那一刻（连选中一起）：Puck 记撤销有 250 ms 的去抖（dist/index.js §createHistorySlice），
+    //    选中和改动并成一步，单记选中那一下记不住 —— 同块的条点 🗑 再 Ctrl+Z 一样。
+    if (selectedId !== id) g.dispatch({ type: 'setUi', ui: { itemSelector: sel } } as never);
+    g.dispatch({ type: 'replace', destinationIndex: sel.index, destinationZone: sel.zone, data: { ...now, props: setAt(now.props, spec.path, after) }, recordHistory: true } as never);
+    inline?.noteItem({ id, slot: spec.slot, path: spec.path, op, index, before: before as unknown[], after });
+  };
+  const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  return createPortal(
+    <span data-editor-itembar="" data-editor-itembar-for={`${id} ${itemAttr}`} data-editor-itembar-block={id} onClick={halt}
+      style={{ ...ITEMBAR_BOX, top: pos.top, left: pos.left, transform: `scale(${pos.scale})` }}>
+      <ActionBar>
+        <ActionBar.Group>
+          <ActionBar.Action label="Move up" disabled={busy || index <= 0 || !pos.above} onClick={() => act('up')} data-editor-item-action="up">
+            {BLOCKBAR_ICON.up}
+          </ActionBar.Action>
+          <ActionBar.Action label="Move down" disabled={busy || index >= list.length - 1 || !pos.below} onClick={() => act('down')} data-editor-item-action="down">
+            {BLOCKBAR_ICON.down}
+          </ActionBar.Action>
+          <ActionBar.Action label="Delete" disabled={busy || list.length <= (spec.min ?? 0)} onClick={() => act('remove')} data-editor-item-action="delete">
+            {BLOCKBAR_ICON.trash}
+          </ActionBar.Action>
+        </ActionBar.Group>
+      </ActionBar>
+    </span>,
+    doc.body,
+  );
+}
+
 /** 每帧找一次，找到就交给 `then`；1.5 秒还没有就算了（面板没打开 / 字段还在 resolve）。 */
 function whenFound<T>(find: () => T | null | undefined, then: (v: T) => void) {
   const until = Date.now() + 1500;
@@ -1548,6 +1695,8 @@ const BLOCKBAR_CSS = `
 // 条本身：画布可视区里 `position: fixed`（§useBlockBarPos 给 bottom / left），横向以 left 为中线；画布缩放过（Puck 的 Auto zoom）
 // ⟹ 按 1/zoom 放大，屏幕上跟 Puck 原来那条一样大。层级在 Design 弹层（§POPOVER）之下。
 const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, display: 'inline-flex', translate: '-50% 0', transformOrigin: 'center bottom', cursor: 'default' };
+// #1723 —— 条目条：贴那一项的右上角（§useItemBarPos 给 top / left = 右上角），往左展开；压在块的条之上、字的工具条之下（#1657 优先）。
+const ITEMBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482100, display: 'inline-flex', translate: '-100% 0', transformOrigin: 'right top', cursor: 'default' };
 
 /**
  * #1700 —— Design 弹层：块浮动条上点 Design 弹出，贴着浮动条。顶上一排标签（Layout；#1708 加了 Customize：这一块的旋钮 + 开关 + 背景），
@@ -2848,7 +2997,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
   // #1713 —— Regenerate 换上 / 换回那一笔：不等停手，马上存（先存后问）。上一笔还在路上 ⟹ 它落定后照常数停手再存。
   const saveNow = () => flushAutosave();
-  const inlineApi: InlineApi = { locked, regenerating, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, pickImage, regenerateImage, saveNow };
+  const noteItem: InlineApi['noteItem'] = (n) => { aiNotesRef.current = recordItemNote(aiNotesRef.current, n); };
+  const inlineApi: InlineApi = { locked, regenerating, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, noteItem, pickImage, regenerateImage, saveNow };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };

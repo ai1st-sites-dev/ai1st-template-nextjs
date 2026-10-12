@@ -259,7 +259,10 @@ function slotsInOutput(type, manifest) {
     return { error: `渲染 ${type} 抛了：${e.message}` };
   }
   const raw = [...html.matchAll(/data-slot="([^"]*)"/g)].map((m) => m[1]);
-  return { raw, paths: new Set(raw.map(stripSlotIndex)) };
+  // #1723 —— 列表项的容器（`data-item="stats.2"`）。🔴 按 `data-item="` 精确抠：8 个块的根上有 `data-item-style` /
+  //    `data-items-layout` 这类旋钮属性，松着查会把它们读成「这条列表有标记」。
+  const items = [...html.matchAll(/ data-item="([^"]*)"/g)].map((m) => m[1]);
+  return { raw, paths: new Set(raw.map(stripSlotIndex)), items, itemPaths: new Set(items.map(stripSlotIndex)) };
 }
 
 // ── 跑 ──────────────────────────────────────────────────────────────────────────────────────────
@@ -465,6 +468,51 @@ console.log('\n── ⑤ 外壳区（header / footer）没漏进来：组件里
   else if (!texts.some(([k]) => k === 'footer.copyright')) bad('footer.copyright 不是 kind: text 了 —— 外壳区这一轮不该动');
   else if (labelled.length) bad(`外壳区的 ${labelled.map(([k]) => k).join(' / ')} 标了 editLabel —— 外壳区这一轮不在这一维里`);
   else ok(`外壳区 ${texts.length} 个 kind: text 槽（${texts.map(([k]) => k).join(' ')}）都没有 editLabel，而校验器没红（跳过外壳区那条规则在起作用）`);
+}
+
+// ── ⑥ #1723：编辑器 schema 里每一条列表，画布上都有它的项容器（`data-item`）────────────────────────
+//
+// 画布的条目条（EditorApp §ItemBars）据 `data-item` 认出「这一格是第几项」，少挂一块 ⟹ 那一列的项悬停什么都不出，
+// 构建照绿。两边都不手抄：列表那一侧取 `editorSchema()` + `editor-convert.js` §itemListsOf（条目条认列表用的同一个函数），
+// 产物那一侧照第 ① 节真渲染再抠。
+console.log('\n── ⑥ 编辑器 schema 里每一条列表（顶层 list + 对象里的一列图），产物里都有 data-item 项容器');
+const { editorSchema } = require(path.join(NEXT, 'scripts', 'lib', 'editor-schema.js'));
+const { itemListsOf } = require(path.join(NEXT, 'scripts', 'lib', 'editor-convert.js'));
+function missingItemLists(only) {
+  const want = [];
+  const got = new Set();
+  const extra = [];
+  for (const c of editorSchema().components) {
+    if (only && c.type !== only) continue;
+    const lists = itemListsOf(c).map((l) => l.path.join('.'));
+    if (!lists.length) continue;
+    const out = slotsInOutput(c.type, manifests.get(c.type));
+    if (out.error) { bad(out.error); continue; }
+    for (const l of lists) { want.push(`${c.type}.${l}`); if (out.itemPaths.has(l)) got.add(`${c.type}.${l}`); }
+    for (const p of out.itemPaths) if (!lists.includes(p)) extra.push(`${c.type}.${p}`);
+  }
+  return { want, missing: want.filter((x) => !got.has(x)), extra };
+}
+{
+  const r = missingItemLists();
+  if (r.want.length < 20) bad(`schema 里只数到 ${r.want.length} 条列表 —— 分母不对，这一格什么都没查`);
+  else if (r.missing.length) bad(`这些列表在产物里没有 data-item 项容器（画布上的条目条认不出它们）：\n     ${r.missing.join('\n     ')}`);
+  else ok(`${r.want.length} 条列表在产物里都有 data-item 项容器`);
+  if (r.extra.length) bad(`产物里有 data-item，schema 里却没有这条列表（条目条认不出、白挂）：${r.extra.join(' / ')}`);
+  else ok('反方向也空：产物里的 data-item 都对得上 schema 里的一条列表');
+
+  // 证明它真会红：去掉 hero stats 那一格的标记 ⟹ 缺的集合里点名 hero.stats。
+  const heroFile = componentFileFor('hero');
+  const heroSrc = fs.readFileSync(heroFile, 'utf-8');
+  const marker = " data-item={itemPath('stats', d.stats, s, i)}";
+  if (heroSrc.split(marker).length !== 2) bad(`夹具不成立：hero 的组件里 ${marker} 不是恰好一处`);
+  else {
+    sourceOverride.set(heroFile, heroSrc.replace(marker, ''));
+    const broken = missingItemLists('hero');
+    sourceOverride.delete(heroFile);
+    if (broken.missing.join(' ') === 'hero.stats') ok('去掉 hero stats 的 data-item ⟹ 缺的集合恰好是 hero.stats（这一格会红并点名）');
+    else bad(`去掉 hero stats 的 data-item 之后缺的集合是 [${broken.missing.join(' ')}]，不是 [hero.stats]`);
+  }
 }
 
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);

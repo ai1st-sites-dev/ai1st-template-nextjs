@@ -32,6 +32,7 @@ import manifest from './manifest.json';
 import GalleryLightbox from './Lightbox';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 export interface GalleryImage { imageUrl?: string; alt?: string }
 export interface GalleryItem { image?: GalleryImage; title?: string; caption?: string }
@@ -150,7 +151,7 @@ export default function GalleryNewSection({ data, block }: Props) {
         <div className="col-12 gl-itemscol" data-part="items">
           <div className="gl-grid">
             {items.map((it, i) => (
-              <figure key={i} className="gl-item" data-part="item">
+              <figure key={i} className="gl-item" data-part="item" data-item={itemPath('items', d.items, it, i)}>
                 <a className="gl-img d-block" href={`#${lbId}`} data-bs-toggle="modal" data-gl-index={i}
                   aria-label={`Open photo${it.title ? `: ${it.title}` : ` ${i + 1}`}`}>
                   {slotImg(it.image!, { alt: altOf(it), slot: `items.${i}.image` })}

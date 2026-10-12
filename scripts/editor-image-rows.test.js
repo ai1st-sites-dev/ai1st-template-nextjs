@@ -122,10 +122,15 @@ for (const id of ids) {
   const altLabels = ids.filter((id) => TABLE[id] && TABLE[id].includes('alt')).map((id) => `${id}=${cellsAt(id).subs.find((s) => s.sub === 'alt').label}`);
   check(JSON.stringify(altLabels) === JSON.stringify(['hero.band=Image description', 'hero.logos.items=Name', 'logos.items=Name', 'pricing.logos.items=Name']),
     `alt 那一格：logo 叫 Name、hero 的图片条叫 Image description（${altLabels.join(' · ')}）`);
-  // 别的列表不受影响：上下限只给本票这几列（features / testimonials.items 等照旧不带）。
-  const others = schema.components.flatMap((c) => c.fields.filter((f) => f.control === 'list' && (f.min !== undefined || f.max !== undefined)).map((f) => `${c.type}.${f.slot}`)).sort();
-  check(JSON.stringify(others) === JSON.stringify(['hero.band', 'logos.items', 'reviews.platforms', 'testimonials.summary']),
-    `带上下限的顶层列表只有本票的四列（${others.join(' ')}）`);
+  // #1723 —— 上下限挂到了全部列表（画布条目条的 🗑 到 `min` 灰掉，跟面板同一个数）：带上下限的顶层列表 = manifest 里
+  //    写了 `minItems` / `maxItems` / `max` 的那几条，一条不多一条不少（原来这一格钉的是「只有本票四列」，#1723 有意改掉）。
+  const bounded = schema.components.flatMap((c) => c.fields.filter((f) => f.control === 'list' && (f.min !== undefined || f.max !== undefined)).map((f) => `${c.type}.${f.slot}`)).sort();
+  const declared = schema.components.flatMap((c) => c.fields.filter((f) => f.control === 'list').filter((f) => {
+    const spec = (manifests.get(c.type).slots || {})[f.slot] || {};
+    return [spec.minItems, spec.maxItems, spec.max].some(Number.isInteger);
+  }).map((f) => `${c.type}.${f.slot}`)).sort();
+  check(bounded.length > 4 && JSON.stringify(bounded) === JSON.stringify(declared),
+    `带上下限的顶层列表 = manifest 里写了上下限的那几条（${bounded.length} 条：${bounded.join(' ')}）`);
   // 对象里包着的那 4 列都有上限（QA2 退回：今天页面最多画 logo 6 / 头像 4，面板要在同一处灰掉）。
   const nestedMax = ids.filter((id) => want.get(id).holder).map((id) => `${id}=${cellsAt(id).holder.max}`);
   check(JSON.stringify(nestedMax) === JSON.stringify(['hero.logos.items=6', 'hero.proof.avatars=4', 'pricing.logos.items=6', 'pricing.proof.avatars=4']),
@@ -364,6 +369,24 @@ console.log('⑤ 一列图里必填的格 = 槽的 itemRequires 里的文字键�
   check(empty.length === 1 && /第 3 项没有 alt/.test(empty[0]), '名字空着 ⟹ scope:edit 拒「第 3 项没有 alt」（这就是面板要当场说出来的那件事）', empty);
   const filled = altProb(manifestLib.validateSite(page('Initech')));
   check(filled.length === 0, '名字补上 ⟹ scope:edit 的 problems 里没有这一条', filled);
+}
+
+// ══ #1723 全部列表挂上下限（画布条目条 🗑 到 min 灰掉）+ `max` 没被改名 ══════════════════════════════════════
+console.log('\n── #1723 列表上下限的读数 + count: 旋钮照旧');
+{
+  const bound = (type, slot) => { const f = fieldOf(type, slot); return f ? `${f.min}/${f.max}` : 'missing'; };
+  const want = { 'faq.items': '1/12', 'features.items': '1/8', 'pricing.plans': '1/4', 'cta.ctas': 'undefined/2', 'page-header.ctas': 'undefined/2',
+    'hero.stats': 'undefined/undefined', 'hero.ctas': 'undefined/undefined' };
+  for (const [k, v] of Object.entries(want)) {
+    const [type, slot] = [k.slice(0, k.lastIndexOf('.')), k.slice(k.lastIndexOf('.') + 1)];
+    check(bound(type, slot) === v, `${k} 的 min/max = ${v}`, bound(type, slot));
+  }
+  // 按钮列表的「最多几项」写在 manifest 的 `max` 上（#1479），itemBounds 回落读它；`count:` 旋钮也据它出 ⟹ 那五个旋钮照旧。
+  const knobs = require('./lib/block-knobs.js');
+  const counts = [];
+  for (const [type, m] of manifests) for (const x of knobs.toolbarControlsOf(m)) if (String(x).startsWith('count:')) counts.push(`${type} ${x}`);
+  check(JSON.stringify(counts.sort()) === JSON.stringify(['content count:ctas', 'cta count:ctas', 'features count:introCtas', 'milestones count:introCtas', 'page-header count:ctas']),
+    `count: 旋钮集合照旧是五个（${counts.join(' · ')}）`);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

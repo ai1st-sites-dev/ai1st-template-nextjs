@@ -67,14 +67,16 @@ interface ButtonProps {
   defaultSize: ButtonSize;
   flush?: boolean;
   className?: string;
+  /** #1723 —— 按钮列表里这一颗的 `data-item`（`src/lib/sections/itemPath.ts`）；不给就一个字节不多。 */
+  item?: string;
   children: ReactNode;
 }
 
 /** `<Link>` 一枚。`data-cta` 照旧写数据里的 style（没写就是块的默认）。 */
-export default function Button({ href, style, fallback, size, defaultSize, flush, className, children }: ButtonProps) {
+export default function Button({ href, style, fallback, size, defaultSize, flush, className, item, children }: ButtonProps) {
   const cls = buttonClass(resolveButtonStyle(style, fallback), { size: resolveButtonSize(size, defaultSize), flush });
   return (
-    <Link href={href} className={className ? `${cls} ${className}` : cls} data-cta={style || fallback}>
+    <Link href={href} className={className ? `${cls} ${className}` : cls} data-cta={style || fallback}{...(item ? { 'data-item': item } : {})}>
       {children}
     </Link>
   );

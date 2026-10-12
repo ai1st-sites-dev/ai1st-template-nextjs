@@ -29,6 +29,7 @@
 //    跟 footer / header / cta 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
 //    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
 import { slotImg } from '@/lib/sections/blockMedia';
+import { itemPath } from '@/lib/sections/itemPath';
 
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig, SiteData } from '@/lib/types/config';
@@ -186,7 +187,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
             ) : ctas.length ? (
               <div className={`d-flex flex-column flex-sm-row gap-2${just}`} data-part="ctas">
                 {ctas.map((b, i) => (
-                  <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="lg">
+                  <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="lg" item={itemPath('ctas', d.ctas, b, i)}>
                     {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
                     <span data-slot={`ctas.${i}.label`}>{b.label}</span>
                     {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}
@@ -199,7 +200,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
                 {imgs(proof.avatars).length ? (
                   <div className="d-flex">
                     {imgs(proof.avatars).slice(0, MAX.avatars).map((a, i) => (
-                      slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover hro-avatar' }, slot: `proof.avatars.${i}.imageUrl` })
+                      slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover hro-avatar', 'data-item': itemPath('proof.avatars', proof.avatars, a, i) }, slot: `proof.avatars.${i}.imageUrl` })
                     ))}
                   </div>
                 ) : null}
@@ -214,7 +215,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
             {stats.length ? (
               <div className={`d-flex flex-wrap gap-6 gap-md-10 mt-10 pt-8 border-top${just}`} data-part="stats">
                 {stats.map((s, i) => (
-                  <div key={i}>
+                  <div key={i} data-item={itemPath('stats', d.stats, s, i)}>
                     <div className="fs-3 fw-bold lh-1" data-slot={`stats.${i}.value`}>{s.value}</div>
                     <div className="text-sm text-muted mt-1" data-slot={`stats.${i}.label`}>{s.label}</div>
                   </div>
@@ -227,7 +228,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
                   <div className="text-sm text-muted mb-4" data-slot="logos.caption">{d.logos.caption}</div>
                 ) : null}
                 <div className={`d-flex flex-wrap align-items-center gap-4 gap-md-5${just}`}>
-                  {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'hro-logo' }, slot: `logos.items.${i}.imageUrl` }))}
+                  {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'hro-logo', 'data-item': itemPath('logos.items', isObj(d.logos) ? d.logos.items : undefined, l, i) }, slot: `logos.items.${i}.imageUrl` }))}
                 </div>
               </div>
             ) : null}
@@ -235,7 +236,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
           {band.length ? (
             <div className="row g-5 mt-10 justify-content-center" data-part="band" data-band-count={band.length}>
               {band.map((b, i) => (
-                <div key={i} className="col-6 col-md" data-part="band-col">
+                <div key={i} className="col-6 col-md" data-part="band-col" data-item={itemPath('band', d.band, b, i)}>
                   {slotImg(b, { before: { className: 'img-fluid w-100 object-fit-cover hro-band-img' }, slot: `band.${i}.imageUrl` })}
                 </div>
               ))}

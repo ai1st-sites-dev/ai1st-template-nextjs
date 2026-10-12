@@ -30,6 +30,7 @@ import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
 import { parseRichtext, type RichInline } from '../../scripts/lib/richtext.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -125,7 +126,7 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
               {ctas.length ? (
                 <div className="co-ctas d-flex flex-wrap gap-2" data-part="ctas">
                   {ctas.map((b, i) => (
-                    <Button key={i} href={b.href || '#'} style={b.style} fallback={i === 0 ? 'solid' : 'outline'} size={b.size} defaultSize="md" flush>
+                    <Button key={i} href={b.href || '#'} style={b.style} fallback={i === 0 ? 'solid' : 'outline'} size={b.size} defaultSize="md" flush item={itemPath('ctas', d.ctas, b, i)}>
                       {b.icon ? icon(b.icon, 'me-2') : null}
                       <span data-slot={`ctas.${i}.label`}>{b.label}</span>
                       {b.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}

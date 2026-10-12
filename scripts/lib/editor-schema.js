@@ -137,11 +137,16 @@ function imageRowSubs(itemShape, urlLabel, itemRequires) {
   return out;
 }
 
-/** manifest 的 `minItems` / `maxItems` → 字段上的 `min` / `max`（没写就不带：0 条起、不封顶，同 §seedListsOf 的读法）。 */
+/**
+ * manifest 的 `minItems` / `maxItems` → 字段上的 `min` / `max`（没写就不带：0 条起、不封顶，同 §seedListsOf 的读法）。
+ * #1723 —— `maxItems` 没写时回落读 `max`：按钮列表（`ctas` / `introCtas`）的「最多几项」写在 `max` 上（#1479），
+ *   `block-knobs.js` §toolbarControlsOf 据它出 `count:` 旋钮、`block-manifest.js` 校验它 ⟹ 🔴 别把 manifest 里的 `max` 改名。
+ */
 function itemBounds(spec) {
   const out = {};
   if (spec && Number.isInteger(spec.minItems)) out.min = spec.minItems;
   if (spec && Number.isInteger(spec.maxItems)) out.max = spec.maxItems;
+  else if (spec && Number.isInteger(spec.max)) out.max = spec.max;
   return out;
 }
 
@@ -282,9 +287,10 @@ function fieldsOf(manifest) {
       label: humanize(slot),
       control: kind === 'list' ? 'list' : 'object',
       subs,
-      // #1694 —— 带一张图地址的列表（点评平台 1–4）：面板上到了上下限，加 / 删就灰掉。射程只到本票这几列（成排的图）；
-      //    别的列表照旧不带（给全部列表加上下限是另一件事，会改动今天能删到 0 的那些面板）。
-      ...(kind === 'list' && subs.some((x) => x.url) ? itemBounds(spec) : {}),
+      // #1694 —— 带一张图地址的列表（点评平台 1–4）：面板上到了上下限，加 / 删就灰掉。
+      // #1723 —— 全部列表都挂（画布上的条目条到 `min` 灰掉 🗑，跟面板同一个数）：今天能删到 0 的 faq / features 面板
+      //    改完到 `minItems` 就不让删 —— 删到 0 存盘时 validateSite 本来就拦（block-manifest.js「至少要 N 项」）。
+      ...(kind === 'list' ? itemBounds(spec) : {}),
     });
   }
   return fields;

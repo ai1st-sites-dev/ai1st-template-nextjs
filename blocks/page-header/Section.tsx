@@ -29,6 +29,7 @@ import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -109,7 +110,7 @@ export default function PageHeaderNewSection({ data, block }: Props) {
                 {ctas.length ? (
                   <div className="phn-ctas d-flex flex-wrap gap-2" data-part="ctas">
                     {ctas.map((b, i) => (
-                      <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="md" flush>
+                      <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="md" flush item={itemPath('ctas', d.ctas, b, i)}>
                         {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
                         <span data-slot={`ctas.${i}.label`}>{b.label}</span>
                         {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}

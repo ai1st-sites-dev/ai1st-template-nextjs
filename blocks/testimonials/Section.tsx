@@ -48,6 +48,7 @@ import TestimonialsCarousel from './Carousel';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
 import { platformLogo } from '../../scripts/lib/review-platforms.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 export interface TestimonialsNewImage { imageUrl?: string; alt?: string }
 export interface TestimonialsNewItem {
@@ -152,9 +153,9 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
   };
   // 一个平台：有 `href` ⟹ 整个小条 / 整张卡是链接（新窗口），没有就是 div。
   const platformBox = (p: Platform, cls: string, inner: ReactNode) => (p.href ? (
-    <a key={p.index} className={`${cls} text-reset text-decoration-none`} data-part="platform" data-source={p.source} href={p.href} target="_blank" rel="noopener">{inner}</a>
+    <a key={p.index} className={`${cls} text-reset text-decoration-none`} data-part="platform" data-source={p.source} href={p.href} target="_blank" rel="noopener" data-item={`summary.${p.index}`}>{inner}</a>
   ) : (
-    <div key={p.index} className={cls} data-part="platform" data-source={p.source}>{inner}</div>
+    <div key={p.index} className={cls} data-part="platform" data-source={p.source} data-item={`summary.${p.index}`}>{inner}</div>
   ));
   const countLine = (p: Platform, pre: string) => (
     <span className="tn-platform-count text-xs text-muted">{pre}<span data-slot={`summary.${p.index}.count`}>{p.count}</span> reviews</span>
@@ -180,7 +181,7 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
     const rating = itemRating(it.rating);
     const source = str(it.source);
     return (
-      <div key={i} className="tn-item" data-part="item">
+      <div key={i} className="tn-item" data-part="item" data-item={itemPath('items', d.items, it, i)}>
         <figure className="tn-inner h-100 d-flex flex-column m-0">
           <blockquote className="tn-quote m-0"><span data-slot={`items.${i}.quote`}>{it.quote}</span></blockquote>
           <figcaption className="tn-author d-flex align-items-center gap-3">

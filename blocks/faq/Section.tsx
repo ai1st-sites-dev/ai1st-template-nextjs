@@ -31,6 +31,7 @@ import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -149,7 +150,7 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
         <div className="col-12 fq-itemscol" data-part="items">
           <div className="fq-grid">
             {items.map((it, i) => (
-              <div key={i} className="fq-item" data-part="item">
+              <div key={i} className="fq-item" data-part="item" data-item={itemPath('items', d.items, it, i)}>
                 {accordion ? (
                   <details className="fq-inner">
                     <summary className="fq-q d-flex align-items-center justify-content-between gap-4 fw-semibold">

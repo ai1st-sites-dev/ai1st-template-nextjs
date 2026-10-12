@@ -306,6 +306,54 @@ eq(describeSave({ saved: imgJson('/uploads/new.png'), json: imgJson('/photos/old
   `${H} · ${heroImg}`, '第二笔：换回上一张 ⟹ 只说字段名');
 // 第一笔还没存上就换回去了（说明还在）：那一格已经不是生成的那张 ⟹ 说明作废，不说 AI generated。
 eq(JSON.stringify(aiNotesForSave(notes, imgCanvas('/photos/old.jpg')).aiNotes), '{}', '换回去了还没存 ⟹ 说明作废');
+console.log('⑪ #1723 画布条目条：删 / 上移 / 下移 各记一条，记录写 块 · 字段 · item N …');
+{
+  const { itemListsOf, itemOp, recordItemNote } = require('./lib/editor-convert.js');
+  const statsList = itemListsOf(hero).find((l) => l.path.join('.') === 'stats');
+  if (!statsList) die('itemListsOf(hero) 里没有 stats');
+  const S = statsList.label;
+  const six = ['A', 'B', 'C', 'D', 'E', 'F'].map((v) => ({ value: v, label: `${v} label` }));
+  const savedStats = { blocks: [{ id: 'home-hero-1', type: 'hero', data: { headline: 'H', stats: six } }] };
+  const heroCanvas = (stats) => [{ type: 'hero', props: { id: 'puck-hero', headline: 'H', stats, _src: { entry: { id: 'home-hero-1', type: 'hero' }, shared: null } } }];
+  const say = (stats, notes) => describeSave({
+    saved: savedStats, json: { blocks: [{ id: 'home-hero-1', type: 'hero', data: { headline: 'H', stats } }] },
+    root: null, shared: null, schema, rootLabels, aiNotes: aiNotesForSave(notes, heroCanvas(stats)).aiNotes,
+  });
+  const values = (l) => l.map((x) => x.value).join('');
+  const step = (notes, list, index, op) => {
+    const after = itemOp(list, index, op, statsList.min);
+    return { after, notes: recordItemNote(notes, { id: 'puck-hero', slot: statsList.slot, path: statsList.path, op, index, before: list, after }) };
+  };
+  // 删第 3 格
+  let r = step({}, six, 2, 'remove');
+  eq(values(r.after), 'ABDEF', '删第 3 格：剩下的是原来的 1 2 4 5 6（按值比，不只比长度）');
+  eq(say(r.after, r.notes), `${H} · ${S} · item 3 removed`, '删第 3 格 ⟹ 记录');
+  // 第 2 格上移
+  r = step({}, six, 1, 'up');
+  eq(values(r.after), 'BACDEF', '第 2 格上移：它成了第 1 格');
+  eq(say(r.after, r.notes), `${H} · ${S} · item 2 moved up`, '第 2 格上移 ⟹ 记录');
+  // 第 2 格下移
+  r = step({}, six, 1, 'down');
+  eq(values(r.after), 'ACBDEF', '第 2 格下移：它成了第 3 格');
+  eq(say(r.after, r.notes), `${H} · ${S} · item 2 moved down`, '第 2 格下移 ⟹ 记录');
+  // 同一列连按两下（一笔里）⟹ 接着说
+  const r1 = step({}, six, 2, 'remove');
+  const r2 = step(r1.notes, r1.after, 0, 'down');
+  eq(say(r2.after, r2.notes), `${H} · ${S} · item 3 removed, item 1 moved down`, '同一笔里连按两下 ⟹ 两下都说');
+  // 按完又在面板上动过（列表不是最后一下之后的样子）⟹ 侧记作废，照常只说字段名
+  eq(say(r1.after.slice(0, 3), r1.notes), `${H} · ${S}`, '按完之后列表又变了 ⟹ 侧记作废，只说字段名');
+  // 到头 / 到下限按不了
+  eq(itemOp(six, 0, 'up'), null, '第 1 格不能再上移');
+  eq(itemOp(six, 5, 'down'), null, '最后一格不能再下移');
+  eq(itemOp([{}], 0, 'remove', 1), null, '到下限（min 1、剩 1 项）不能删');
+  eq(JSON.stringify(itemOp([{ a: 1 }], 0, 'remove')), '[]', '没写下限 ⟹ 能删到 0');
+  // 存上了 ⟹ 用掉的侧记清掉
+  const used = aiNotesForSave(r.notes, heroCanvas(r.after)).used;
+  eq(JSON.stringify(settleAiNotes(r.notes, used)), '{}', '存上了 ⟹ 用掉的那条清掉');
+  // AI 说明和条目条在同一字段上并排说（AI 改了第 1 格的字，又删了第 3 格）
+  const both = recordAiNote(r1.notes, { id: 'puck-hero', path: ['stats', 0, 'value'], action: 'shorter', text: 'A' });
+  eq(say(r1.after, both), `${H} · ${S} · made shorter, item 3 removed`, 'AI 说明 + 条目条在同一字段 ⟹ 并排说');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

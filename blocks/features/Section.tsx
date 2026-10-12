@@ -38,6 +38,7 @@ import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -113,8 +114,8 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
   const connector = k.itemConnector === 'line' && items.some((it) => str(it.number));
   const cover = k.itemImage === 'background';
 
-  const button = (b: FeaturesNewButton, i: number, fallback: BtnStyle, slot: string) => (
-    <Button key={i} href={b.href || '#'} style={b.style} fallback={fallback} size={b.size} defaultSize="md" flush>
+  const button = (b: FeaturesNewButton, i: number, fallback: BtnStyle, slot: string, item?: string) => (
+    <Button key={i} href={b.href || '#'} style={b.style} fallback={fallback} size={b.size} defaultSize="md" flush item={item}>
       {b.icon ? icon(b.icon, 'me-2') : null}
       <span data-slot={slot}>{b.label}</span>
       {b.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
@@ -132,7 +133,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
       {d.body ? <p className="fs-5 text-muted mb-0 fx-body" data-slot="body">{d.body}</p> : null}
       {ctas.length ? (
         <div className="fx-ctas d-flex flex-wrap gap-2" data-part="ctas">
-          {ctas.map((b, i) => button(b, i, 'solid', `introCtas.${i}.label`))}
+          {ctas.map((b, i) => button(b, i, 'solid', `introCtas.${i}.label`, itemPath('introCtas', d.introCtas, b, i)))}
         </div>
       ) : null}
     </div>
@@ -182,7 +183,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
                   const link = isObj(it.link) && str(it.link.label) ? it.link : null;
                   const bullets = Array.isArray(it.bullets) ? it.bullets.filter((b): b is string => !!str(b)) : [];
                   return (
-                    <div key={i} className="fx-item" data-part="item">
+                    <div key={i} className="fx-item" data-part="item" data-item={itemPath('items', d.items, it, i)}>
                       <div className="fx-inner h-100">
                         {img ? (
                           <div className="fx-img" data-part="item-image">

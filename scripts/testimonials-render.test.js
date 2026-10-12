@@ -460,10 +460,10 @@ console.log('\n── #1500 summary：一组平台');
   const sideCards = render('side-intro', withOpts({ summaryStyle: 'cards' }));
   check(JSON.stringify(where(sideCards)) === '{"intro":0,"items":1,"total":1}', 'introPosition=left + cards ⟹ 卡在右列（评价那一列）里');
   // AC5 链接
-  check(/<a class="tn-platform[^"]*" data-part="platform" data-source="Google" href="https:\/\/www.google.com\/maps" target="_blank" rel="noopener">/.test(inl)
-    && /<div class="tn-platform[^"]*" data-part="platform" data-source="Yelp">/.test(inl) && /<div class="tn-platform[^"]*" data-part="platform" data-source="HomeStars">/.test(inl),
+  check(/<a class="tn-platform[^"]*" data-part="platform" data-source="Google" href="https:\/\/www.google.com\/maps" target="_blank" rel="noopener"(?: data-item="summary\.\d+")?>/.test(inl)
+    && /<div class="tn-platform[^"]*" data-part="platform" data-source="Yelp"(?: data-item="summary\.\d+")?>/.test(inl) && /<div class="tn-platform[^"]*" data-part="platform" data-source="HomeStars"(?: data-item="summary\.\d+")?>/.test(inl),
     '有 href 的 Google 那项是 <a target="_blank" rel="noopener">；Yelp / HomeStars 没有 href ⟹ <div>');
-  check(/<a class="tn-platform tn-platform-card[^"]*"[^>]*href="https:\/\/www.google.com\/maps" target="_blank" rel="noopener">/.test(crd), 'cards 那一档同样：整张卡是链接');
+  check(/<a class="tn-platform tn-platform-card[^"]*"[^>]*href="https:\/\/www.google.com\/maps" target="_blank" rel="noopener"(?: data-item="summary\.\d+")?>/.test(crd), 'cards 那一档同样：整张卡是链接');
   // AC6 星数：四舍五入到整数颗实心
   const starsAt = (r) => { const d = clone(DEMO); d.summary = [{ source: 'Google', rating: r, count: 10 }]; return count(platformsOf(render('cards', d))[0], 'data-star="fill"'); };
   const got6 = [4.9, 4.5, 4.4, 4.7, '4.4'].map(starsAt);

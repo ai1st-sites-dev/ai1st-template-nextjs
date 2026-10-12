@@ -111,15 +111,24 @@ export function describeSave(args: {
   rootLabels: Record<string, string>;
   shapeLabel?: string;
   /** #1676 —— `{ 块键: { 字段 slot: 动作 } }`，由 §aiNotesForSave 算出来。 */
-  aiNotes?: Record<string, Record<string, string>>;
+  aiNotes?: Record<string, Record<string, string | string[]>>;
   /** #1676 —— 老板拖过的块键（`id:<id>` / `ref:<ref>`），最后拖的在最后。 */
   dragged?: string[];
   slug?: string;
 }): string;
 /** #1676 —— AI 按钮的说明（实现与三条作废规矩在 .js）。 */
-export type AiNote = { action: string; path: (string | number)[]; text: string };
+export type AiNote = { action: string; path: (string | number)[]; text: string } | ItemNote;
+/** #1723 —— 画布条目条按的那几下（实现在 .js §recordItemNote）。 */
+export type ItemNote = { items: true; slot: string; path: (string | number)[]; list: unknown[]; phrases: string[] };
 export type AiNotes = Record<string, Record<string, AiNote>>;
 export const AI_ACTION_PHRASES: Record<string, string>;
 export function recordAiNote(notes: AiNotes, note: { id: string; path: (string | number)[]; action: string; text: string }): AiNotes;
-export function aiNotesForSave(notes: AiNotes, content: unknown[]): { aiNotes: Record<string, Record<string, string>>; used: AiNote[] };
+export function aiNotesForSave(notes: AiNotes, content: unknown[]): { aiNotes: Record<string, Record<string, string | string[]>>; used: AiNote[] };
 export function settleAiNotes(notes: AiNotes, used: AiNote[]): AiNotes;
+/** #1723 —— 画布条目条（↑ ↓ 🗑）：哪几列能逐项动、按一下之后的列表、记一条侧记（实现在 .js）。 */
+export type ItemList = { slot: string; path: string[]; label: string; min?: number; max?: number };
+export function itemListsOf(component: { fields: unknown[] } | undefined): ItemList[];
+export type ItemOp = 'remove' | 'up' | 'down';
+export function itemOp<T>(list: T[], index: number, op: ItemOp, min?: number): T[] | null;
+export function recordItemNote(notes: AiNotes, note: { id: string; slot: string; path: (string | number)[]; op: ItemOp; index: number; before: unknown[]; after: unknown[] }): AiNotes;
+export const ITEM_NOTE_SUFFIX: string;

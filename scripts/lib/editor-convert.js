@@ -904,8 +904,10 @@ function fieldSegments(label, changed, notes, preset) {
   for (const { field: f, before, after } of changed) {
     if (preset && preset.covered.has(f.slot)) continue;
     const action = notes && has(notes, f.slot) ? AI_ACTION_PHRASES[notes[f.slot]] : undefined;
+    // #1723 —— 画布条目条那几下（`item 3 removed`）：记在 `<slot>#items` 上（§aiNotesForSave），跟 AI 说明并排说。
+    const items = notes && Array.isArray(notes[`${f.slot}${ITEM_NOTE_SUFFIX}`]) ? notes[`${f.slot}${ITEM_NOTE_SUFFIX}`] : [];
     let detail = null;
-    if (action) detail = `${f.label} · ${action}`;
+    if (action || items.length) detail = `${f.label} · ${[action, ...items].filter(Boolean).join(', ')}`;
     else if ((f.kind === 'text' || f.kind === 'richtext') && (typeof after === 'string' || after === undefined || after === null)) {
       detail = `${f.label} · ${quoteText(after, f.kind === 'richtext')}`;
     } else {
@@ -1110,12 +1112,75 @@ function aiNotesForSave(notes, content) {
       if (!isPlainObject(n) || !Array.isArray(n.path)) continue;
       let v = props;
       for (const p of n.path) v = v == null ? undefined : v[p];
+      if (n.items) {
+        // #1723 —— 条目条那几下：列表还是最后一下之后的样子才用（之后在面板上又动过 / 撤销了 ⟹ 照常只说字段名）。
+        if (!deepEqual(v, n.list)) continue;
+        const k = `${n.slot}${ITEM_NOTE_SUFFIX}`;
+        aiNotes[key] = { ...(aiNotes[key] || {}), [k]: [...((aiNotes[key] && aiNotes[key][k]) || []), ...n.phrases] };
+        used.push(n);
+        continue;
+      }
       if (v !== n.text) continue; // 规矩 ①
       aiNotes[key] = { ...(aiNotes[key] || {}), [slot]: n.action };
       used.push(n);
     }
   }
   return { aiNotes, used };
+}
+
+// ── #1723 画布条目条：↑ ↓ 🗑 动的是哪一列、记录怎么说 ───────────────────────────────────────────────
+//
+// 记录摘要是比前后两份 JSON 得出的（§describeSave），分不出「挪了一项」和「删一项加一项」⟹ 条目条每按一下另记一条侧记，
+// 跟 AI 说明住在同一份 `notes` 里（键 `#items:<列表路径>`，不跟字段 slot 撞），作废 / 用掉的规矩同一套：
+//   §recordItemNote  按一下记一条。同一列连按几下：上一条记下的列表 == 这一下之前的列表 ⟹ 接着往后说；否则从这一下重说。
+//   §aiNotesForSave  存盘那一刻列表还是最后一下之后的样子才用；用的时候合到字段 slot 上（`stats#items: ['item 3 removed']`），
+//                    §fieldSegments 说成 `Hero · Stats · item 3 removed`。
+//   §settleAiNotes   原样（按对象认）。
+
+/** 记录里 `<slot>#items` 那一格的后缀（字段 slot 里没有 `#`）。 */
+const ITEM_NOTE_SUFFIX = '#items';
+const ITEM_OP_PHRASES = { remove: 'removed', up: 'moved up', down: 'moved down' };
+
+/**
+ * 一个块里画布上能逐项动的列表：顶层 `control: 'list'` 的字段 + 对象字段里包着的一列图（imageRow 子字段，`hero.logos.items`）。
+ * `path` = 它在 Puck props 里的位置（同块里 `data-item` 去掉末尾下标那一段）；`min` / `max` 同面板（editor-schema §itemBounds）。
+ */
+function itemListsOf(component) {
+  const out = [];
+  for (const f of (component && component.fields) || []) {
+    if (f.control === 'list') out.push({ slot: f.slot, path: [f.slot], label: f.label, min: f.min, max: f.max });
+    else if (f.control === 'object') {
+      for (const x of f.subs || []) if (x.imageRow) out.push({ slot: f.slot, path: [f.slot, x.sub], label: f.label, min: x.min, max: x.max });
+    }
+  }
+  return out;
+}
+
+/** `list` 第 `index` 项按一下 `op`（remove / up / down）之后的新数组；按不了（越界、到头、到下限）⟹ null。不改入参。 */
+function itemOp(list, index, op, min) {
+  if (!Array.isArray(list) || !Number.isInteger(index) || index < 0 || index >= list.length) return null;
+  const next = list.slice();
+  if (op === 'remove') {
+    if (list.length <= (Number.isInteger(min) ? min : 0)) return null;
+    next.splice(index, 1);
+    return next;
+  }
+  const to = op === 'up' ? index - 1 : op === 'down' ? index + 1 : -1;
+  if (to < 0 || to >= list.length) return null;
+  [next[index], next[to]] = [next[to], next[index]];
+  return next;
+}
+
+/** 条目条按了一下：`{ id: Puck 条目 id, slot: 字段, path: 列表路径, op, index: 按之前的下标, before, after: 两份列表 }`。 */
+function recordItemNote(notes, { id, slot, path, op, index, before, after }) {
+  if (typeof id !== 'string' || typeof slot !== 'string' || !Array.isArray(path) || !has(ITEM_OP_PHRASES, op) || !Number.isInteger(index)) return notes;
+  const cur = isPlainObject(notes) ? notes : {};
+  const byId = isPlainObject(cur[id]) ? cur[id] : {};
+  const k = `#items:${path.join('.')}`;
+  const prev = byId[k];
+  const phrase = `item ${index + 1} ${ITEM_OP_PHRASES[op]}`;
+  const phrases = isPlainObject(prev) && Array.isArray(prev.phrases) && deepEqual(prev.list, before) ? [...prev.phrases, phrase] : [phrase];
+  return { ...cur, [id]: { ...byId, [k]: { items: true, slot, path: path.slice(), list: clone(after), phrases } } };
 }
 
 /** 存上了：把 `used` 里那几条（还是同一个对象的话 —— 之后又按过一次的不清）从 `notes` 拿掉。 */
@@ -1137,4 +1202,5 @@ module.exports = {
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
   aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions, nestedPartSet,
   recordAiNote, aiNotesForSave, settleAiNotes, AI_ACTION_PHRASES,
+  itemListsOf, itemOp, recordItemNote, ITEM_NOTE_SUFFIX,
 };

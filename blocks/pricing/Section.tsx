@@ -37,6 +37,7 @@ import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, normalizeBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 export interface PricingNewImage { imageUrl?: string; alt?: string }
 export interface PricingNewButton { label?: string; href?: string; style?: 'solid' | 'outline' }
@@ -156,7 +157,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
           {highlights.length ? (
             <ul className="pr-highlights list-unstyled mb-0" data-part="highlights">
               {highlights.map((h, i) => (
-                <li key={i} className="pr-hl d-flex align-items-start gap-4" data-part="highlight">
+                <li key={i} className="pr-hl d-flex align-items-start gap-4" data-part="highlight" data-item={itemPath('highlights', d.highlights, h, i)}>
                   {hasIcon(h.icon) ? (
                     <span className="pr-hl-icon d-inline-flex align-items-center justify-content-center rounded-3 border bg-body flex-shrink-0" data-part="icon">
                       {icon(h.icon)}
@@ -175,7 +176,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
               {imgs(proof.avatars).length ? (
                 <div className="d-flex">
                   {imgs(proof.avatars).slice(0, MAX_AVATARS).map((a, i) => (
-                    slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover pr-avatar' }, slot: `proof.avatars.${i}.imageUrl` })
+                    slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover pr-avatar', 'data-item': itemPath('proof.avatars', proof.avatars, a, i) }, slot: `proof.avatars.${i}.imageUrl` })
                   ))}
                 </div>
               ) : null}
@@ -193,7 +194,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                 <div className="text-sm text-muted mb-3" data-slot="logos.caption">{d.logos.caption}</div>
               ) : null}
               <div className="pr-logo-row d-flex flex-wrap align-items-center gap-4">
-                {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'pr-logo' }, slot: `logos.items.${i}.imageUrl` }))}
+                {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'pr-logo', 'data-item': itemPath('logos.items', isObj(d.logos) ? d.logos.items : undefined, l, i) }, slot: `logos.items.${i}.imageUrl` }))}
               </div>
             </div>
           ) : null}
@@ -252,7 +253,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
               const cta = isObj(p.cta) && str(p.cta.label) ? p.cta : null;
               const ctaStyle = cta && cta.style ? cta.style : featured ? 'solid' : 'outline';
               return (
-                <div key={i} className={`pr-plan${featured ? ' pr-featured' : ''}`} data-part="plan" data-plan-featured={featured ? 'true' : undefined}>
+                <div key={i} className={`pr-plan${featured ? ' pr-featured' : ''}`} data-part="plan" data-plan-featured={featured ? 'true' : undefined} data-item={itemPath('plans', d.plans, p, i)}>
                   <div className="pr-inner h-100 d-flex flex-column">
                     <div className="pr-card">
                       <div className="pr-head d-flex align-items-center justify-content-between gap-3 mb-3">

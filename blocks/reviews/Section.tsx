@@ -175,9 +175,9 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
                 </>
               );
               return p.href ? (
-                <SiteLink /* #1508 r2：href 是 AI / 老板写的，没有协议校验 ⟹ 按值判 */ key={i} className="rv-item text-reset text-decoration-none" data-part="item" data-source={p.source} href={p.href} target="_blank" rel="noopener">{inner}</SiteLink>
+                <SiteLink /* #1508 r2：href 是 AI / 老板写的，没有协议校验 ⟹ 按值判 */ key={i} className="rv-item text-reset text-decoration-none" data-part="item" data-source={p.source} href={p.href} target="_blank" rel="noopener" data-item={`platforms.${p.index}`}>{inner}</SiteLink>
               ) : (
-                <div key={i} className="rv-item" data-part="item" data-source={p.source}>{inner}</div>
+                <div key={i} className="rv-item" data-part="item" data-source={p.source} data-item={`platforms.${p.index}`}>{inner}</div>
               );
             })}
           </div>

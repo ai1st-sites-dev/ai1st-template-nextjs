@@ -198,7 +198,7 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
               {hasItems ? (
                 <div className="ct-info" data-part="items">
                   {rows.map((r) => (
-                    <div key={r.index} className="ct-ch" data-part="item" data-kind={r.kind}>
+                    <div key={r.index} className="ct-ch" data-part="item" data-kind={r.kind} data-item={`items.${r.index}`}>
                       <div className="ct-ch-inner h-100 d-flex gap-3">
                         <span className="ct-ch-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary flex-shrink-0" data-part="item-icon">
                           {icon(KIND_ICON[r.kind])}

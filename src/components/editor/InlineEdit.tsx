@@ -76,6 +76,8 @@ export type InlineApi = {
   rewrite: (req: { action: RewriteAction | 'custom'; instruction?: string; blockType: string; fields: { name: string; text: string }[] }) => Promise<RewriteResult>;
   /** #1676 —— AI 写进去了：记一条说明，下一笔存盘的记录写 `Hero · Headline · made shorter`（EditorApp §aiNotesRef）。 */
   noteAi: (n: { id: string; path: InlinePath; action: RewriteAction | 'generated'; text: string }) => void;
+  /** #1723 —— 画布条目条按了一下（↑ ↓ 🗑）：记一条侧记，下一笔存盘的记录写 `Hero · Stats · item 3 removed`（`editor-convert.js` §recordItemNote）。 */
+  noteItem: (n: { id: string; slot: string; path: (string | number)[]; op: 'remove' | 'up' | 'down'; index: number; before: unknown[]; after: unknown[] }) => void;
   /** #1693 —— 开 dashboard 的图片库选一张（`current` = 现在那张的地址，没有就是空串）。面板的 Change 和画布里点图共用。 */
   /** #1711 —— `at`：画布里点的那张图是哪一块、哪个 `data-slot`（选图弹窗 Generate 的默认提示词按它算）；面板上的 Change 不给。 */
   /** #1713 —— `opts.title`：弹窗标题（这个位置的名字）；`opts.fresh`：Regenerate 刚换上的那张（`current` 是上一张）。 */

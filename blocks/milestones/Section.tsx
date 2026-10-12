@@ -33,6 +33,7 @@ import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -109,7 +110,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
       {ctas.length ? (
         <div className="mi-ctas d-flex flex-wrap gap-2" data-part="ctas">
           {ctas.map((b, i) => (
-            <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="md" flush>
+            <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="md" flush item={itemPath('introCtas', d.introCtas, b, i)}>
               {b.icon ? icon(b.icon, 'me-2') : null}
               <span data-slot={`introCtas.${i}.label`}>{b.label}</span>
               {b.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
@@ -161,7 +162,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
             <div className="col-12 mi-statscol" data-part="stats">
               <div className="mi-grid">
                 {stats.map((s, i) => (
-                  <div key={i} className="mi-stat" data-part="stat">
+                  <div key={i} className="mi-stat" data-part="stat" data-item={itemPath('stats', d.stats, s, i)}>
                     <div className="mi-inner h-100">
                       {statIcon && hasIcon(s.icon) ? (
                         <div className="mi-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary mb-4" data-part="icon">

@@ -27,6 +27,7 @@ import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { itemPath } from '@/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -128,7 +129,7 @@ export default function LogosNewSection({ data, block }: Props) {
             {items.map((it, i) => {
               const img = slotImg(it, { before: { className: 'lo-logo' }, after: { loading: 'lazy' }, slot: `items.${i}.imageUrl` });
               return (
-                <div key={i} data-part="item">
+                <div key={i} data-part="item" data-item={itemPath('items', d.items, it, i)}>
                   {str(it.href) ? (
                     <SiteLink className="lo-inner d-flex align-items-center justify-content-center" href={it.href} target="_blank" rel="noopener">{img}</SiteLink>
                   ) : (
