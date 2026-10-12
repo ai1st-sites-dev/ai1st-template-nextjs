@@ -147,7 +147,7 @@ const BTN_RADIUS = [
  * 变量缺席时单行字段 / 下拉框等于改前。-sm / -lg 跟不带尺寸那条特异度相同（0-1-0），排在它后面 ⟹ 后来的赢，跟 Webpixels 同一个次序。
  * 留言框（`textarea.form-control`，0-1-1）不跟按钮、跟**卡片**那个角 `--radius-card`（#1718，Chris 2026-10-11：round 档下单行字段是胶囊、
  *    留言框还是 8px，看着像没跟；他在 devtools 里给留言框试过 1.5rem）。为什么不跟按钮：胶囊档下多行框做成胶囊会变形（#1645 当初封顶 0.5rem
- *    就是为这个）；卡片那档最大 1.5rem，不会变形，又跟同一块里的卡片一个角。sharp 2px / subtle 1rem / round 1.5rem（数在 theme-settings.js §SURFACE_RADIUS）。
+ *    就是为这个）；卡片那档最大 1.5rem，不会变形，又跟同一块里的卡片一个角。sharp 2px / subtle 0.75rem / round 1.5rem（数在 theme-settings.js §SURFACE_RADIUS）。
  *    变量缺席（不经 globals.css 的页面）⟹ 0.5rem，等于 #1645 时那条 `min()` 在默认值下的读数。
  * 🔒 `scripts/lib/site-css.test.js` 走 compile + purge 两步读这几条（purge 是最容易静默删掉一条规则的那一步）。
  */

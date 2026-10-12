@@ -44,8 +44,8 @@ h3 {
   /* #1718 —— 卡片 / 条目 / 色底块的外框（`--radius-card`）和图片、图片容器（`--radius-image`）。值 = Corner style 的 subtle 档
      （`scripts/theme-settings.js` §SURFACE_RADIUS）。读者：`blocks/<块>/block.css`，以及 `site-css.js` §SURFACE_RADIUS 把
      Webpixels 的 `rounded-3` / `rounded-4` / `.card` 接到 `--radius-card`。主题给 `settings.radius`px、客户选 Corner style 时覆盖。 */
-  --radius-card: 1rem;
-  --radius-image: 1rem;
+  --radius-card: 0.75rem;
+  --radius-image: 0.75rem;
   /* 📌 #1586 —— 圆角五档 `--radius-{DEFAULT,md,lg,xl,2xl}` 和阴影 `--shadow-{DEFAULT,sm,md,lg}` 在新模板里【没有】读者
      （读它们的 Tailwind 配置 #1426 删了），所以这里不再定义；它们只由 dashboard 试穿时发给存量站 ——
      见 `scripts/theme-settings.js` 的 `SITE_LEGACY_RADIUS` / `SITE_LEGACY_SHADOW`（为什么、什么时候删）。 */
