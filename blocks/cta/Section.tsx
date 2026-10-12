@@ -13,6 +13,7 @@
 //
 // 🔴 **藏东西一律是不渲染**（部件有数据才画），不靠 CSS 藏：`image=none` 时 DOM 里就没有 `<img>`，
 //    有表单时 `ctas` 整段不画（提交键就是 CTA）。
+//    （#1734）图例外：图的旋钮开着、那一格没图 ⟹ 垫占位图（`blockMedia.tsx` §knobImg），数据里照旧空着。`background` 那一档垫成 CSS 背景，没有 `data-slot`，编辑器里点不了（放真图也一样）。
 //
 // 🔴 **图片的键叫 `imageUrl`，不叫 `url`**：AI 改站那条路的写入闸只认 `IMAGE_FIELDS` 里的键
 //    （`scripts/lib/image-urls.js`），换一个名字模型编的地址就能写进来；`image-urls.test.js` 盯着这件事。
@@ -25,7 +26,7 @@
 // 🔴 **表单用共用的 `src/components/BlockLeadForm.tsx`**（hero / footer 同一份），不另造：
 //    `mode` = 旋钮 form（teaser 露站级表单的 primary + 按钮，full 整张），`formId` = 槽 form.id（#1471）。
 //    `form` 槽今天只有 `{ id? }`（选哪张站级表单，#1471 落地前不读），字段 / 按钮字 / 成功提示用组件内置默认。
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig, SiteData } from '@/lib/types/config';
@@ -79,7 +80,7 @@ export default function CtaNewSection({ data, locale = 'en', block, site }: Prop
   const opts: CtaNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as { layout: string; frame: string; textAlign: string; image: string; form: string };
   const boxed = k.frame === 'boxed';
-  const img: CtaNewImage | null = isObj(d.image) && typeof d.image.imageUrl === 'string' && d.image.imageUrl ? d.image : null;
+  const img: CtaNewImage | null = knobImg(k.image, isObj(d.image) && typeof d.image.imageUrl === 'string' && d.image.imageUrl ? d.image : null);
   const cover = k.image === 'background' && !!img;
   const side = (k.image === 'left' || k.image === 'right') && !!img;
   const bgValue = bgCss(d.bg);

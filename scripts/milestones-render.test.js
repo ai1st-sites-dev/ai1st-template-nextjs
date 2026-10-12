@@ -167,7 +167,9 @@ console.log('\n── AC4 blockImage 四档');
   check(bgi.indexOf('mi-cover') < bgi.indexOf('mi-container'), 'background 的图在容器前面（段底，block.css 给 z-index 0、容器 z-index 1）');
   const noImg = clone(DEMO); delete noImg.blockImage;
   const bgNoImg = render('divided-row', withOpts({ blockImage: 'background' }, {}, noImg));
-  check(!bgNoImg.includes('mi-cover') && attr(bgNoImg, 'data-tone') === 'light', '对照：background 但没有图 ⟹ 不画遮罩、字色回到按 bg 算（light）');
+  // #1734 —— 没有图 ⟹ 照有图的样子画，铺底那张是占位图（遮罩、反白字色跟有图一样）。
+  check(n(bgNoImg, 'class="mi-cover"') === 1 && /class="mi-cover"[^>]*><img\b[^>]*data-placeholder/.test(bgNoImg) && attr(bgNoImg, 'data-tone') === 'dark',
+    'background 但没有图 ⟹ 照样铺底（占位图）+ data-tone="dark"（#1734）');
   check(/\.mi-cover::after \{[^}]*background: rgba\(2, 6, 23, 0\.6\);/.test(CSS), 'block.css：铺底图 60% 深色遮罩 rgba(2,6,23,.6)');
   // #1536 —— 图的位置改由 manifest 的 mediaLayout 生成（scripts/block-build/media-layout.js）；DOM 里图在后。
   const MEDIA = require(path.join(NEXT, 'scripts', 'block-build', 'media-layout.js')).mediaLayoutCss(M, 'milestones');
@@ -194,10 +196,8 @@ console.log('\n── AC7 槽位空不渲染');
   const on = { blockImage: 'left', introImage: 'left', statIcon: true }; // #1492：statIcon 默认关，量图标那一格要开着
   const full = render('divided-row', withOpts(on));
   const cases = [
-    ['blockImage', 'data-part="block-image"', (d) => { delete d.blockImage; }],
     ['introEyebrow', 'data-part="eyebrow"', (d) => { delete d.introEyebrow; }],
     ['introCtas', 'data-part="ctas"', (d) => { delete d.introCtas; }],
-    ['introImage', 'data-part="intro-image"', (d) => { delete d.introImage; }],
     ['stats[].icon', 'data-part="icon"', (d) => { d.stats.forEach((s) => delete s.icon); }],
   ];
   for (const [slot, needle, drop] of cases) {
@@ -223,8 +223,16 @@ console.log('\n── AC7 槽位空不渲染');
   check(!render('divided-row', withCaption).includes('Licensed &amp; insured'), '数据里硬塞一个 caption ⟹ 也不画（组件没有那一行）');
   const offKnob = render('divided-row', withOpts({ blockImage: 'none', introImage: 'none' }));
   check(!/<img\b/.test(offKnob), '两个图槽都有值、同名旋钮 none ⟹ DOM 里一张 <img> 都没有');
+  // #1734 —— 两个图槽不归「槽位空不渲染」：旋钮开着、没有图 ⟹ 照有图的样子画，图是占位图（全表在 placeholder-image.test.js）。
+  for (const [slot, needle] of [['blockImage', 'data-part="block-image"'], ['introImage', 'data-part="intro-image"']]) {
+    const d = withOpts(on); delete d[slot];
+    const empty = render('divided-row', d);
+    const seg = (h) => (h.split(needle)[1] || '').slice(0, 400);
+    check(count(full, needle) === 1 && !/data-placeholder/.test(seg(full)) && count(empty, needle) === 1 && /<img\b[^>]*data-placeholder/.test(seg(empty)),
+      `${slot}：有值画真图、清空照样画占位图（#1734）`);
+  }
   const noUrl = render('divided-row', withOpts(on, { introImage: { alt: 'x' } }));
-  check(!noUrl.includes('data-part="intro-image"'), 'introImage 只有 alt、没有 imageUrl ⟹ 不渲染');
+  check(/data-part="intro-image"><img\b[^>]*data-placeholder/.test(noUrl), 'introImage 只有 alt、没有 imageUrl ⟹ 当没图，垫占位图（#1734）');
   const noneStyle = render('divided-row', withOpts(on, { introEyebrow: { text: 'x', style: 'none' } }));
   check(!noneStyle.includes('data-part="eyebrow"'), 'introEyebrow.style=none ⟹ 不渲染');
   const styles = M.slots.introEyebrow.choices.style.filter((s) => s !== 'none')

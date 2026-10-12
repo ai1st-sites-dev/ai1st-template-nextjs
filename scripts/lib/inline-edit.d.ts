@@ -14,6 +14,10 @@ export function resolveInlineSlot(args: {
   text: string;
   sourced?: string[];
   locked?: boolean;
+  /** #1734 —— 被点的是占位图（`data-placeholder`）：那一格在数据里必须是空的，`text` 不用 */
+  placeholder?: boolean;
+  /** #1734 —— 占位图外层的 `data-item`（`items.2`）：列表项的真实下标 */
+  item?: string;
 }): InlineResolved;
 export function setAt<T>(obj: T, path: InlinePath, value: unknown): T;
 export function getAt(obj: unknown, path: InlinePath): unknown;

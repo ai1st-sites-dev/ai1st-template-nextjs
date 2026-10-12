@@ -10,7 +10,8 @@
 //    旋钮彼此独立，这里没有「拧了 A 就替你改 B」的纠正（定稿 2026-09-29 删掉了图册里那一条）。
 //
 // 🔴 **藏东西一律是不渲染**（部件有数据、而且对应的旋钮开着才画），不靠 CSS 藏：`introImage=none` 时 DOM 里
-//    就没有那张 `<img>`；某一项没写 `icon` / `number` / `image` / `link`，那一项就没有那个节点。
+//    就没有那张 `<img>`；某一项没写 `icon` / `number` / `link`，那一项就没有那个节点。
+//    （#1734）图例外：图的旋钮开着、那一格没图 ⟹ 垫占位图（`blockMedia.tsx` §knobImg），数据里照旧空着。
 //
 // 🔴 **图片的键叫 `imageUrl`**（`introImage` / `itemsImage` / `items[].image` 三处都是）：AI 改站的写入闸只认
 //    `IMAGE_FIELDS` 里的键（`scripts/lib/image-urls.js`）；`image-urls.test.js` 盯着这件事。
@@ -27,7 +28,7 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer / cta 同一对），
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 
 import BlockSection from '@/components/BlockSection';
@@ -103,8 +104,8 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
   // 没写 style ⟹ pill（同 hero / cta：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
   const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const ctas = (Array.isArray(d.introCtas) ? d.introCtas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
-  const introImg = k.introImage !== 'none' ? imgOf(d.introImage) : null;
-  const itemsImg = k.itemsImage !== 'none' ? imgOf(d.itemsImage) : null;
+  const introImg = knobImg(k.introImage, imgOf(d.introImage));
+  const itemsImg = knobImg(k.itemsImage, imgOf(d.itemsImage));
   const sourced = sourcedOf(d, 'items');
   const allItems = (Array.isArray(d.items) ? d.items : []).filter((it): it is FeaturesNewItem => isObj(it));
   const items = sourced ? allItems : allItems.slice(0, MAX_ITEMS);
@@ -177,7 +178,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
             <div className="fx-itemsgrid">
               <div className="row fx-grid g-6">
                 {items.map((it, i) => {
-                  const img = k.itemImage !== 'none' ? imgOf(it.image) : null;
+                  const img = knobImg(k.itemImage, imgOf(it.image));
                   const num = str(it.number);
                   const showIcon = k.itemIcon !== 'none' && !cover && hasIcon(it.icon);
                   const link = isObj(it.link) && str(it.link.label) ? it.link : null;

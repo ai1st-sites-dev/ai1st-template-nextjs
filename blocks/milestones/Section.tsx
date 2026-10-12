@@ -12,6 +12,7 @@
 // 🔴 **藏东西一律是不渲染**（部件有数据、而且对应的旋钮开着才画），不靠 CSS 藏：`blockImage=none` 时 DOM 里
 //    就没有那张 `<img>`；`statIcon` 开关关着（默认），或某条 stat 没写 `icon`（或名字查不到），那一条就没有图标节点。块头只看 `headline` / `body`：
 //    两个都空 ⟹ 块头那一列整个不渲染，stats 顶到段顶。每条 stat 只有 value · label（+ icon），没有第三行。
+//    （#1734）图例外：图的旋钮开着、那一格没图 ⟹ 垫占位图（`blockMedia.tsx` §knobImg），数据里照旧空着。
 //
 // 🔴 **图片的键叫 `imageUrl`**（`blockImage` / `introImage` 两处）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键
 //    （`scripts/lib/image-urls.js`）。
@@ -22,7 +23,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer / cta 同一对），
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。`blockImage=background` 且真有图时字色按深底
 //    （图上盖 60% 深色遮罩，遮罩写在 `block.css`）。
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 
 import BlockSection from '@/components/BlockSection';
@@ -82,7 +83,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in Exclude<keyof MilestonesOptions, 'statIcon'>]: string }>;
   // 布尔开关（#1492，同 header 的 icons）：预设不钉它，默认关 = 照图册那个没勾的 `statIcon`。
   const { statIcon = false } = opts;
-  const blockImg = k.blockImage !== 'none' ? imgOf(d.blockImage) : null;
+  const blockImg = knobImg(k.blockImage, imgOf(d.blockImage));
   const cover = !!blockImg && k.blockImage === 'background';
 
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
@@ -92,7 +93,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   // 没写 style ⟹ pill（同 hero / cta / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
   const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const ctas = (Array.isArray(d.introCtas) ? d.introCtas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
-  const introImg = k.introImage !== 'none' ? imgOf(d.introImage) : null;
+  const introImg = knobImg(k.introImage, imgOf(d.introImage));
   const hasIntro = !!(str(d.headline) || str(d.body));
   const stats = (Array.isArray(d.stats) ? d.stats : []).filter((s): s is MilestonesStat => isObj(s)).slice(0, MAX_STATS);
   // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。

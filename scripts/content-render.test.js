@@ -193,7 +193,9 @@ console.log('\n── AC5 / AC6 / AC7 DOM');
     check(count(h, '<img') === 1 && !frame.includes('<img') && h.indexOf('class="co-frame"') < h.indexOf('class="co-img"'),
       `image=${pos} ⟹ 一张 <img>，在 .co-frame（卡）外面、排在它后面`);
   }
-  check(count(render('article', withOpts({ image: 'right' }, { image: undefined })), '<img') === 0, 'image=right 但没有图 ⟹ 不画 <img>');
+  // #1734 —— 旋钮开着、没有图 ⟹ 垫一张占位图（逐个旋钮值的全表在 placeholder-image.test.js）。
+  const noImg = render('article', withOpts({ image: 'right' }, { image: undefined }));
+  check(count(noImg, '<img') === 1 && /<img\b[^>]*data-placeholder/.test(noImg), 'image=right 但没有图 ⟹ 画一张占位 <img>（#1734）');
   const card = render('statement', clone(DEMO));
   const frame = (/<div class="co-frame"[\s\S]*$/.exec(card) || [''])[0];
   check(frame.includes('data-part="head"') && frame.includes('class="co-body"') && frame.includes('data-part="ctas"'), 'frame=card：卡（.co-frame）包住块头 + 正文 + 按钮');

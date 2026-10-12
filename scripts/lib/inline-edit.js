@@ -16,6 +16,10 @@
 // #1693 —— 图片格（`entry.image`，画布上是 `<img data-slot="items.2.image">`）同一条规矩，「内容」换成图的地址：
 //    调用方把 `<img>` 的 `src` 当 `text` 交进来，跟数据里那一项的 `imageUrl` 比（gallery 先筛掉没图的项，序号同样不可信）。
 // #1694 —— 成排的图那一格的值是地址字符串本身（`logos.items.2.imageUrl`、`platforms.0.logoUrl`），直接跟它比。
+// #1734 —— 占位图（`<img data-placeholder>`，旋钮开着、那一格没图时块垫上的，`blockMedia.tsx` §knobImg）：画布上的地址
+//    不在数据里，按内容比按构造对不上；几项都空着时也分不出是哪一项。⟹ 换一条判据：那一格在数据里必须是空的；
+//    列表项的真实下标取外层 `data-item`（#1723，块按**数据里**的下标挂），调用方把它原样交进来（`item`）。
+//    `data-item` 的前缀对不上这个槽 / 那一格其实有图了（画布过时）⟹ mismatch，不猜着写。
 //
 // 🔴 两种块点不动（画布上照样有 `data-slot`）：
 //    · 列表写成引用的（`items: { source: "services" }`）：判据是展开时写下的 `data._sourced`（item-sources.js），
@@ -63,11 +67,13 @@ function stripIndex(attr) {
  * @param {string}   args.text       元素现在显示的字（`textContent`，不是 `innerText` —— 后者会带上 CSS 的大写变换）；图片格是 `<img>` 的 `src`
  * @param {string[]} [args.sourced]  这一块展开时写下的 `_sourced` 的键（写成引用的槽名）
  * @param {boolean}  [args.locked]   这一块是锁住的（`_src.locked`）
+ * @param {boolean}  [args.placeholder]  被点的是占位图（`data-placeholder`，#1734）：`text` 不用
+ * @param {string}   [args.item]     占位图外层的 `data-item`（`items.2`）：列表项的真实下标从这里取
  * @returns {{ ok: true, path: (string|number)[], name: string, value: string, typing: boolean, ai: boolean, image: boolean }
  *          | { ok: false, why: 'unknown'|'sourced'|'locked'|'mismatch'|'ambiguous', slot?: string }}
  *   `name` = 数据里的路径（真实下标），交给 AI 接口的字段名就是它。图片格的 `value` 是现在那张图的地址。
  */
-function resolveInlineSlot({ component, props, slot, text, sourced = [], locked = false }) {
+function resolveInlineSlot({ component, props, slot, text, sourced = [], locked = false, placeholder = false, item }) {
   const segs = String(slot || '').split('.').filter(Boolean);
   const entry = component && Array.isArray(component.inline)
     ? component.inline.find((e) => e.path === stripIndex(slot))
@@ -81,7 +87,19 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
   const key = (v) => (entry.image ? norm(urlOf(v)) : norm(v));
   const nums = segs.map((s, i) => (/^\d+$/.test(s) ? i : -1)).filter((i) => i >= 0);
   let path;
-  if (nums.length === 0) {
+  if (placeholder && entry.image) {
+    if (nums.length === 0) path = segs;
+    else if (nums.length === 1) {
+      const at = nums[0];
+      const m = /^(.*)\.(\d+)$/.exec(String(item || ''));
+      if (!m || m[1] !== segs.slice(0, at).join('.')) return { ok: false, why: 'mismatch' };
+      const list = getAt(props, segs.slice(0, at));
+      const j = Number(m[2]);
+      if (!Array.isArray(list) || j >= list.length) return { ok: false, why: 'mismatch' };
+      path = [...segs.slice(0, at), j, ...segs.slice(at + 1)];
+    } else return { ok: false, why: 'ambiguous' };
+    if (key(getAt(props, path)) !== '') return { ok: false, why: 'mismatch' };
+  } else if (nums.length === 0) {
     path = segs;
     // 不就地打字的那种（`content.body`：画布上是排过版的段落 / 列表，跟 markdown 原文按构造对不上）不比：
     // 它不会把画布上的字写回去，AI 改的是数据里那一份。

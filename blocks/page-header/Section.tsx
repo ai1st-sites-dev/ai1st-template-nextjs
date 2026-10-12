@@ -15,12 +15,13 @@
 //    形态对应的那个预设给底，`data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js` §effectiveKnobs）。
 //    旋钮值写在根元素上（`data-headline-position` / `data-text-align` / `data-image` / `data-tone`），`block.css` 按它们排。
 //
-// 🔴 **藏东西一律是不渲染**（部件有数据才画）：没图 ⟹ 没有 `<img>`；`image=none` 时写了图也不画。
+// 🔴 **藏东西一律是不渲染**（部件有数据才画）：`image=none` 时写了图也不画。
+//    （#1734）图例外：图的旋钮开着、那一格没图 ⟹ 垫占位图（`blockMedia.tsx` §knobImg），数据里照旧空着。
 //
 // 🔴 **底色与字色**走 `scripts/lib/contrast.js` 那两个共用函数（§bgCss 写成 CSS、§toneForBg 按亮度反白）；
 //    `image=background` 一律按深底处理（照片 + 深色遮罩）。
 
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
@@ -64,7 +65,7 @@ export default function PageHeaderNewSection({ data, block }: Props) {
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: PageHeaderNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as { headlinePosition: string; textAlign: string; image: string };
-  const img: PageHeaderNewImage | null = k.image !== 'none' && isObj(d.image) && str(d.image.imageUrl) ? d.image : null;
+  const img = knobImg(k.image, isObj(d.image) && str(d.image.imageUrl) ? d.image : null);
   const cover = k.image === 'background' && !!img;
   const side = (k.image === 'left' || k.image === 'right') && !!img;
 

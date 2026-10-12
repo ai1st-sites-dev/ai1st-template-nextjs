@@ -243,15 +243,19 @@ console.log('\n── AC8 槽位空不渲染');
 {
   const full = render('photo', clone(DEMO));
   const cases = [
-    ['eyebrow', 'data-part="eyebrow"'], ['body', 'data-slot="body"'], ['image', 'data-part="image"'], ['ctas', 'data-part="ctas"'],
+    ['eyebrow', 'data-part="eyebrow"'], ['body', 'data-slot="body"'], ['ctas', 'data-part="ctas"'],
   ];
   for (const [slot, needle] of cases) {
     const empty = render('photo', { ...clone(DEMO), [slot]: undefined });
     check(count(full, needle) >= 1 && count(empty, needle) === 0, `${slot}：有值渲染（${count(full, needle)}）、清空不渲染（${count(empty, needle)}）`);
   }
   check(count(full, 'data-cta=') === 2, `ctas 给 ${DEMO.ctas.length} 条只画 2 条（定稿 0–2）`);
+  // #1734 —— 图不归「槽位空不渲染」：旋钮开着、没有图 ⟹ 照有图的样子画，图是占位图（全表在 placeholder-image.test.js）。
+  const noImg = render('photo', { ...clone(DEMO), image: undefined });
+  check(count(full, 'data-part="image"') === 1 && !/data-placeholder/.test(full), 'image：有值 ⟹ 画真图（不带 data-placeholder）');
+  check(count(noImg, 'data-part="image"') === 1 && /<img\b[^>]*data-placeholder/.test(noImg), 'image：清空 ⟹ 照样有图那一栏，图是占位图（#1734）');
   const noImgUrl = render('photo', { ...clone(DEMO), image: { alt: 'x' } });
-  check(!noImgUrl.includes('data-part="image"'), 'image 只有 alt、没有 imageUrl ⟹ 不渲染');
+  check(/<img\b[^>]*data-placeholder/.test(noImgUrl), 'image 只有 alt、没有 imageUrl ⟹ 当没图，垫占位图（#1734）');
   const blankEyebrow = render('photo', { ...clone(DEMO), eyebrow: { text: 'x', style: 'none' } });
   check(!blankEyebrow.includes('data-part="eyebrow"'), 'eyebrow.style=none ⟹ 不渲染');
   const styles = M.slots.eyebrow.choices.style.filter((s) => s !== 'none')

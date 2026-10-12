@@ -16,6 +16,9 @@
 //    （`image`、`items.2.image`），排在所有属性最后；不给就一个字节不多（灯箱里那份不挂）。
 //    #1694 —— 成排的图也挂，路径指到那一项的地址键（`items.2.imageUrl`、`logos.items.0.imageUrl`、`proof.avatars.1.imageUrl`）。
 //    `scripts/block-slots.test.js` ① 两向守着「标了 editLabel 的图都挂了、挂了的都标了」。
+// ③ knobImg（#1734）：图的旋钮不是 `none`、那一格却没有图 ⟹ 垫占位图（照有图的样子画，换布局看得出效果）。
+//    垫的只是渲染：页面数据里那一格照旧是空的。占位那张 `<img>` 多挂一个 `data-placeholder`，编辑器据它把「点占位图」
+//    对到数据里那一格空着的槽（`scripts/lib/inline-edit.js` §resolveInlineSlot）；真图一个字节不多。
 
 import type { Key } from 'react';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -23,11 +26,22 @@ import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 export interface SlotImage { imageUrl?: string; alt?: string }
 type Attrs = Record<string, unknown>;
 
+// 占位图的地址。渲染层在浏览器里跑（编辑器画布），引不到脚本侧那个常量（`scripts/lib/image-slots.js` §PLACEHOLDER_IMAGE_URL
+// → block-manifest → fs）⟹ 这里自己一份，`scripts/placeholder-image.test.js` 钉住两份相等。
+export const PLACEHOLDER_IMAGE_URL = '/images/grid-pattern.svg';
+const PLACEHOLDER: SlotImage = Object.freeze({ imageUrl: PLACEHOLDER_IMAGE_URL, alt: '' });
+
+/** 旋钮是 `none` ⟹ null（不画）；否则有图用图，没图垫占位图。 */
+export function knobImg<T extends SlotImage>(knob: string | undefined, img: T | null): T | SlotImage | null {
+  if (knob === 'none') return null;
+  return img || PLACEHOLDER;
+}
+
 export function slotImg(
   img: SlotImage,
   { key, before, between, alt, after, slot }: { key?: Key; before?: Attrs; between?: Attrs; alt?: string; after?: Attrs; slot?: string } = {},
 ) {
-  return <img key={key} {...before} src={img.imageUrl} {...between} alt={alt ?? (img.alt || '')} {...after} {...(slot ? { 'data-slot': slot } : {})} />;
+  return <img key={key} {...before} src={img.imageUrl} {...between} alt={alt ?? (img.alt || '')} {...after} {...(slot ? { 'data-slot': slot } : {})} {...(img === PLACEHOLDER ? { 'data-placeholder': '' } : {})} />;
 }
 
 /**
