@@ -510,7 +510,7 @@ function humanize(name) {
  * @param {string} [opts.registryPath]  透传给 blockShapeCatalog（守卫用它换一份假注册表）
  * @param {string} [opts.blocksDir]     透传给 blockShapeCatalog
  * @param {string} [opts.layoutsDir]    `page-layouts/`（#1405 的 root 字段用）；不给按 page-layout.js 的默认
- * @returns {{ components: Array<{ type, label, fields, carried, shapes, defaultShape, themeShape, fallbackShape }> }}
+ * @returns {{ components: Array<{ type, label, category, fields, carried, shapes, defaultShape, themeShape, fallbackShape }> }}
  *   · `carried`       没有字段、由转换器原样携带的槽位名（守卫拿它证明「每个槽位都有归属」）
  *   · `shapes`        下拉选项 `[{ name, needs }]`，顺序照形态清单
  *   · `defaultShape`  按**空 data** 跑一次构建同一个函数（§shapeForBlock）得到的形态（主题选择单给的，缺槽位就
@@ -541,6 +541,8 @@ function editorSchema(opts = {}) {
     components.push({
       type,
       label: typeof m.displayName === 'string' && m.displayName ? m.displayName : type,
+      // #1711 —— 选图弹窗 Generate 的默认提示词按 manifest 的 `category` 取景（`slot-prompt.js` §buildSlotPrompt：banner = 宽幅远景）。
+      category: typeof m.category === 'string' && m.category ? m.category : null,
       fields,
       // #1657 —— 画布上的点击层据它判「点到的这段字能不能打、出不出 AI 按钮」（§inlineSlotsOf）。
       inline: inlineSlotsOf(m),

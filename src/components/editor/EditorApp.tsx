@@ -71,9 +71,15 @@
 //     记一笔撤销历史。失败：占位留着，顶栏一句话（§FillNote），不弹窗。
 //
 // #1693 —— 换图（「一个位置一张」的图，面板 §ImageField.tsx + 画布里点图 §InlineEdit.tsx）：选图用 dashboard 的图片库，
-//   发  ai1st:pick-image {id, current}                    dashboard 开图片库弹窗（单选；上传 / 选已有的都在它那边，带它自己的凭证）
+//   发  ai1st:pick-image {id, current, prompt?, blockType?, slot?}  dashboard 开图片库弹窗（单选；上传 / 选已有的都在它那边，带它自己的凭证）
 //   收  ai1st:pick-image-result {id, ok, url?, cancelled?, message?}   选了一张 = 新地址；取消 = cancelled
 //   同一时刻只等一次：再点一次 Change，上一次算取消。不设超时 —— 老板在弹窗里挑多久都行。
+// #1711 —— 弹窗里多一颗 Generate（AI 生成一张）。`prompt` 是这里算好的默认提示词：建站那一句（`scripts/lib/slot-prompt.js`
+//   §editorImagePrompt，同一个函数）+ 这块现在的标题；老板写的那句由 dashboard 接在后面，生成也是 dashboard 带凭证去打 ——
+//   这个页面照旧一个请求都不发。算不出来（找不到是哪一块 / 哪个槽）就三样都不带，Generate 只用老板写的那句。
+//   `blockType` / `slot` 只拿来写 Credits 那一行「哪一块」。
+//   行业不在站点文件里（`site_meta.json` 只有 siteId / leadApi / locales）：dashboard 在 `ai1st:editor-baseline` 里多带一个
+//   `industry`，这里记着；没送来就省掉行业那个词（同一个函数里那一支）。
 
 import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -97,6 +103,7 @@ import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
+import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
@@ -1966,6 +1973,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const rewritesRef = useRef(new Map<string, (r: RewriteResult) => void>());
   // #1693 —— 正在等的那一次选图（同一时刻只有一次）。
   const pickRef = useRef<{ id: string; done: (r: PickImageResult) => void } | null>(null);
+  // #1711 —— dashboard 在底稿里带来的行业（选图弹窗 Generate 的默认提示词要它）；没送来 = ''，那一句里就省掉它。
+  const industryRef = useRef('');
   // #1660 —— 正在等 AI 写字的新块（画布上那枚标）；没写成时顶栏那一句。
   const [filling, setFilling] = useState<ReadonlySet<string>>(new Set());
   const [fillNote, setFillNote] = useState<string | null>(null);
@@ -2043,6 +2052,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         type?: unknown; ok?: unknown; message?: unknown; page?: unknown; locale?: unknown; reason?: unknown; hash?: unknown;
         raw?: unknown; siteBlocks?: unknown; blocks?: unknown; located?: unknown; weights?: unknown; refs?: unknown; slugs?: unknown;
         root?: unknown;
+        industry?: unknown; // #1711 —— dashboard 带来的行业（选图弹窗 Generate 的默认提示词）
       };
       if (!d || typeof d !== 'object') return;
       if (d.type === 'ai1st:editor-save-result') {
@@ -2130,6 +2140,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       // 别的页面的底稿不许换进来（扁平站 dashboard 那头的 locale 是空的，只在两边都有时才比）。
       if (d.page !== page) return;
       if (typeof d.locale === 'string' && d.locale && d.locale !== locale) return;
+      // #1711 —— 行业是站级的，哪一种底稿带来都记下（只收短字符串：它会拼进提示词）。没带就不动手上那一份。
+      if (typeof d.industry === 'string' && d.industry.length <= 100) industryRef.current = d.industry.replace(/[\u0000-\u001f]/g, ' ').trim();
       const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
       if (d.reason === 'shared') {
         // #1406 —— 存盘成功之后 dashboard 重取的那一份：只换「在 N 个页面上」要的三样和块库的底，画布与 hash 不动。
@@ -2471,8 +2483,34 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     });
   }
 
+  // #1711 —— 选图弹窗 Generate 的默认提示词。块：画布里点的图带着它的 id；面板上的 Change 不知道，就取当前选中的那一块。
+  //    槽：画布里有 `data-slot`；面板上按 `current` 在这块的数据里找（§editorImageTarget）。算不出来 ⟹ ''（不带 prompt）。
+  function imagePromptFor(current: string, at?: { id: string; slot: string }): { prompt: string; blockType: string; slot: string } | null {
+    try {
+      const g = getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck & { selectedItem?: { type: string; props: Record<string, unknown> } | null }) : null;
+      if (!g) return null;
+      const item = at ? fillItem(g, at.id)?.item : g.selectedItem;
+      const c = item ? componentsByType.get(item.type) : undefined;
+      if (!item || !c) return null;
+      const target = editorImageTarget({ props: item.props, slot: at?.slot, current });
+      if (!target) return null;
+      const primary = site.brand?.colors?.primary?.['500'];
+      const prompt = editorImagePrompt({
+        manifest: { type: c.type, displayName: c.label, category: c.category },
+        ...target,
+        industry: industryRef.current,
+        primaryColor: typeof primary === 'string' && primary ? primary : 'the brand color',
+        headline: typeof item.props.headline === 'string' ? item.props.headline : '',
+      });
+      // 块名 / 槽名随着走：manager 拿它写 Credits 那一行「哪一块」（`AI image · hero · image`）。
+      return { prompt, blockType: c.type, slot: target.slotName };
+    } catch {
+      return null; // 算提示词出了任何岔子都不挡选图：Generate 照样能用老板写的那句
+    }
+  }
+
   // #1693 —— 选一张图：交给 dashboard 开图片库（它带凭证上传 / 列图库），回话在 §onMessage 的 `ai1st:pick-image-result`。
-  function pickImage(current: string): Promise<PickImageResult> {
+  function pickImage(current: string, at?: { id: string; slot: string }): Promise<PickImageResult> {
     if (!trustedOrigin || window.parent === window) {
       return Promise.resolve({ ok: false, message: 'Open this editor from your dashboard to change images.' });
     }
@@ -2480,7 +2518,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     const id = `pi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return new Promise((resolve) => {
       pickRef.current = { id, done: resolve };
-      postChat({ type: 'ai1st:pick-image', id, current });
+      const gen = imagePromptFor(current, at);
+      postChat({ type: 'ai1st:pick-image', id, current, ...(gen ? gen : {}) });
     });
   }
 
