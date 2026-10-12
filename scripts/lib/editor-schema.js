@@ -441,7 +441,13 @@ function inlineSlotsOf(manifest) {
   return editableSlotPaths(manifest).map((e) => {
     const img = imageCellOf(slots[e.slot], e.sub);
     // #1694 —— `url`：这一格的值就是地址字符串（成排的图），不是 `{imageUrl, alt}` 对象。
-    if (img) return { path: e.path, kind: e.kind, typing: false, ai: false, image: true, ...(img.url ? { url: true } : {}) };
+    // #1713 —— `label`：这个位置的名字（manifest 的 editLabel，选图弹窗标题 `Hero · Image` 的后半）；
+    //    `regenerate`：图上悬停出不出 ✨ Regenerate —— 成排的小图（`url`）不出，槽上写了 `generateImages: false`
+    //    （只能是老板上传的：team / logos / testimonials）也不出。两种都只出 ✎ Edit。
+    if (img) {
+      const regenerate = !img.url && !(slots[e.slot] && slots[e.slot].generateImages === false);
+      return { path: e.path, kind: e.kind, typing: false, ai: false, image: true, ...(img.url ? { url: true } : {}), label: e.label, regenerate };
+    }
     return {
       path: e.path,
       kind: e.kind,

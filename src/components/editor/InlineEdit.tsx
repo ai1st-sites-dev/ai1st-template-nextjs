@@ -29,8 +29,14 @@
 // #1693 —— 图片格（`<img data-slot>`，inline 清单里 `image: true`）：点它 = 面板上点 Change —— 不打字、不出工具条，
 //   直接 `InlineApi.pickImage`（EditorApp 经 dashboard 开图片库），选了一张就经同一个 `replace` 把 `imageUrl` 换掉、记一笔撤销历史。
 //   对回数据用图的地址（`<img>` 的 `src` 属性，§resolveInlineSlot）。等老板挑图的时候那张图被改过（撤销、AI 聊天换了底稿）⟹ 不覆盖，说一句。
+//
+// #1713 —— 鼠标移到图上，图正中出 ✨ Regenerate · ✎ Edit（§ImageHoverBar）。按钮层也用 `registerOverlayPortal` 登记
+//   （`disableDrag`：按下去不是拖块），移到按钮上不算移开。Edit = 点图；弹窗标题 = 这个位置的名字（`Hero · Image`）。
+//   成排的小图、`generateImages: false` 的槽只出 ✎（schema 的 `regenerate`，`editor-schema.js` §inlineSlotsOf）。
+//   Regenerate（§regenFor）：图上转圈、按钮置灰、画布进 AI 锁 → 生成回来当场换上、马上存一笔（记录 `Hero · Image · AI generated`）→
+//   开弹窗，新图打勾、上一张紧挨着。回来的是上一张或取消 ⟹ 换回去，第二笔存盘。生成失败 ⟹ 画布不动、按钮下一句原因、不开弹窗。
 
-import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { registerOverlayPortal, useGetPuck } from '@puckeditor/core';
 import type { EditorComponent } from '../../../scripts/lib/editor-schema';
@@ -51,11 +57,15 @@ type AiBusy = RewriteAction | 'custom';
 export type RewriteResult = { ok: true; fields: { name: string; text: string }[] } | { ok: false; message: string };
 /** #1693 —— 选图的结果：一张新图的地址 / 老板点了取消 / 没选成（说一句）。 */
 export type PickImageResult = { ok: true; url: string } | { ok: false; cancelled: true } | { ok: false; cancelled?: false; message: string };
+/** #1713 —— 画布图上 Regenerate 的结果：新图的地址（已经进了图片库）/ 没生成成（说一句）。 */
+export type RegenerateResult = { ok: true; url: string } | { ok: false; message: string };
 
 /** EditorApp 递进来的那几样（context：它随 AI 锁等变，换它不该让 Puck 重建）。 */
 export type InlineApi = {
   /** AI 聊天在改这一页（EditorApp §useAiLockGuard）：不许打字、不许按 AI。 */
   locked: boolean;
+  /** #1713 —— 锁是画布图上的 Regenerate 上的（那张图上转圈；别的图不出按钮）。 */
+  regenerating: boolean;
   locale: string;
   page: string;
   /** 这一页的站点数据（#1665 起编辑器不再 import 编译期常量，跟画布同一份，由 EditorApp 递下来）。 */
@@ -65,10 +75,15 @@ export type InlineApi = {
   /** `instruction` 只跟 `action: 'custom'` 一起出现（#1683）。 */
   rewrite: (req: { action: RewriteAction | 'custom'; instruction?: string; blockType: string; fields: { name: string; text: string }[] }) => Promise<RewriteResult>;
   /** #1676 —— AI 写进去了：记一条说明，下一笔存盘的记录写 `Hero · Headline · made shorter`（EditorApp §aiNotesRef）。 */
-  noteAi: (n: { id: string; path: InlinePath; action: RewriteAction; text: string }) => void;
+  noteAi: (n: { id: string; path: InlinePath; action: RewriteAction | 'generated'; text: string }) => void;
   /** #1693 —— 开 dashboard 的图片库选一张（`current` = 现在那张的地址，没有就是空串）。面板的 Change 和画布里点图共用。 */
   /** #1711 —— `at`：画布里点的那张图是哪一块、哪个 `data-slot`（选图弹窗 Generate 的默认提示词按它算）；面板上的 Change 不给。 */
-  pickImage: (current: string, at?: { id: string; slot: string }) => Promise<PickImageResult>;
+  /** #1713 —— `opts.title`：弹窗标题（这个位置的名字）；`opts.fresh`：Regenerate 刚换上的那张（`current` 是上一张）。 */
+  pickImage: (current: string, at?: { id: string; slot: string }, opts?: { title?: string; fresh?: string }) => Promise<PickImageResult>;
+  /** #1713 —— 画布图上的 ✨ Regenerate：dashboard 生成一张（等的时候画布锁着）。 */
+  regenerateImage: (current: string, at: { id: string; slot: string }) => Promise<RegenerateResult>;
+  /** #1713 —— 马上存手上这一笔（Regenerate 换上 / 换回：先存后问）。 */
+  saveNow: () => void;
 };
 export const InlineApiContext = createContext<InlineApi | null>(null);
 
@@ -121,6 +136,27 @@ function hintFor(why: string, sourcedRef: unknown, isImage = false): string {
   if (why === 'sourced') return `${describeRef(sourcedRef)} Change them there, or use “Write these items by hand” in the panel on the right.`;
   if (why === 'locked') return LOCKED_HINT;
   return isImage ? PANEL_IMAGE_HINT : PANEL_HINT;
+}
+
+/** #1713 —— 画布上这个 `data-slot` 是不是一张图（inline 清单里 `image: true` 那一条；去掉序号再比）。 */
+function imageCell(component: EditorComponent, slot: string) {
+  const bare = slot.split('.').filter((x) => !/^\d+$/.test(x)).join('.');
+  return component.inline.find((p) => p.path === bare && p.image) || null;
+}
+
+/** #1713 —— 选图弹窗的标题 = 这个位置的名字：`<块名> · <那个槽的 editLabel>`（`Hero · Image`、`Team · Photo`）。 */
+function imageTitle(component: EditorComponent, slot: string): string | undefined {
+  const cell = imageCell(component, slot);
+  return cell && cell.label ? `${component.label} · ${cell.label}` : undefined;
+}
+
+/** #1713 —— 一格图的新值：`{imageUrl, alt}` 对象只换地址（别的键原样）；成排的图那一格本身就是地址。 */
+function withUrl(cur: unknown, url: string): unknown {
+  return cur && typeof cur === 'object' && !Array.isArray(cur) ? { ...(cur as Record<string, unknown>), imageUrl: url } : url;
+}
+function urlIn(cur: unknown): string {
+  if (typeof cur === 'string') return cur;
+  return cur && typeof cur === 'object' && typeof (cur as { imageUrl?: unknown }).imageUrl === 'string' ? (cur as { imageUrl: string }).imageUrl : '';
 }
 
 /** 这一块展开时写下的 `_sourced` 的键（写成引用的槽名）—— 跟画布同一个函数、同一份站点数据。 */
@@ -197,6 +233,22 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     const props = setAt(item.props, path, value);
     g.dispatch({ type: 'replace', destinationIndex: sel.index, destinationZone: sel.zone, data: { ...item, props } as never, recordHistory } as never);
     return true;
+  };
+
+  /** 画布上一个可改的元素 → 它在数据里是哪一格（§resolveInlineSlot）。点字、点图、图上的两颗按钮共用。 */
+  const resolveEl = (el: HTMLElement) => {
+    const a = apiRef.current;
+    const id = el.closest('[data-puck-component]')?.getAttribute('data-puck-component');
+    if (!a || !id) return null;
+    const item = itemById(id);
+    const component = item ? a.components.get(item.type) : undefined;
+    if (!item || !component) return null;
+    const slot = el.getAttribute('data-slot') || '';
+    const sourced = sourcedSlots(item, a.site, a.locale, a.page);
+    // #1693 —— 图片格拿图的地址去对（`src` 属性原样，不是 `.src` —— 那个是补全过的绝对地址）。
+    const text = el.tagName === 'IMG' ? el.getAttribute('src') || '' : el.textContent || '';
+    const r = resolveInlineSlot({ component, props: item.props, slot, text, sourced, locked: !!item.props._src?.locked });
+    return { id, item, component, slot, r };
   };
 
   const select = (id: string) => {
@@ -324,21 +376,16 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (typingRef.current?.el === el) return; // 已经在打这一格：点一下只是挪光标
       typingRef.current?.end(true);
       if (a.locked) { setActive(null); return; }
-      const item = itemById(id);
-      const component = item ? a.components.get(item.type) : undefined;
-      if (!item || !component) return;
-      const slot = el.getAttribute('data-slot') || '';
-      const sourced = sourcedSlots(item, a.site, a.locale, a.page);
-      // #1693 —— 图片格拿图的地址去对（`src` 属性原样，不是 `.src` —— 那个是补全过的绝对地址）。
-      const text = el.tagName === 'IMG' ? el.getAttribute('src') || '' : el.textContent || '';
-      const r = resolveInlineSlot({ component, props: item.props, slot, text, sourced, locked: !!item.props._src?.locked });
+      const found = resolveEl(el);
+      if (!found) return;
+      const { item, component, slot, r } = found;
       setNote('');
       if (!r.ok) {
         const ref = r.slot ? item.props[r.slot] : undefined;
         setActive({ id, slot, blockType: item.type, el, path: null, name: '', typing: false, ai: false, hint: hintFor(r.why, ref, el.tagName === 'IMG') });
         return;
       }
-      if (r.image) { setActive(null); void pickFor(id, slot, item.type, el, r.path, r.value); return; }
+      if (r.image) { setActive(null); void pickFor(id, slot, item.type, el, r.path, r.value, imageTitle(component, slot)); return; }
       const next: Active = { id, slot, blockType: item.type, el, path: r.path, name: r.name, typing: r.typing, ai: r.ai, hint: '' };
       setActive(next);
       if (r.typing) startTyping(next, e.clientX, e.clientY);
@@ -439,12 +486,140 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, doc]);
 
-  /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。
-   *  #1694 —— 成排的图那一格的值就是地址字符串（`logos.items.2.imageUrl`、`platforms.0.logoUrl`）：直接换成新地址。 */
-  async function pickFor(id: string, slot: string, blockType: string, el: HTMLElement, path: InlinePath, before: string) {
+  // ── #1713 图上悬停出 ✨ Regenerate · ✎ Edit ─────────────────────────────────────────────────────────────
+  //   hover = 鼠标下那张图；regen = 正在等生成的那张（转圈，鼠标移开也留着）；imgNote = 生成没成那一句（挂在那张图的按钮下）。
+  type ImgAt = { el: HTMLElement; id: string; slot: string; regenerate: boolean };
+  const [hover, setHover] = useState<ImgAt | null>(null);
+  const [regen, setRegen] = useState<ImgAt | null>(null);
+  const [imgNote, setImgNote] = useState<{ el: HTMLElement; text: string } | null>(null);
+  const [imgPos, setImgPos] = useState<{ top: number; left: number; scale: number } | null>(null);
+  const imgBarRef = useRef<HTMLDivElement | null>(null);
+  const imgBarCleanupRef = useRef<(() => void) | null>(null);
+  // 按钮层登记成 Puck 的 overlay portal（`disableDrag`：按下去不是拖块；它自己截 mouseover，Puck 的悬停框不跟过来）。
+  //    身份不变（useCallback）：每次渲染换一个函数，React 就每次先拿 null、再拿元素调一遍 —— 白白反复登记。
+  const imgBarMount = useCallback((el: HTMLDivElement | null) => {
+    if (imgBarRef.current === el) return;
+    imgBarCleanupRef.current?.();
+    imgBarCleanupRef.current = null;
+    imgBarRef.current = el;
+    if (el) imgBarCleanupRef.current = registerOverlayPortal(el, { disableDrag: true }) || null;
+  }, []);
+
+  useEffect(() => {
+    const at = (t: Element): ImgAt | null => {
+      const el = t.closest('[data-editor-inline]') as HTMLElement | null;
+      if (!el || el.tagName !== 'IMG') return null;
+      const id = el.closest('[data-puck-component]')?.getAttribute('data-puck-component');
+      const a = apiRef.current;
+      const item = id ? itemById(id) : undefined;
+      const component = item && a ? a.components.get(item.type) : undefined;
+      const slot = el.getAttribute('data-slot') || '';
+      const cell = component ? imageCell(component, slot) : null;
+      return id && cell ? { el, id, slot, regenerate: !!cell.regenerate } : null;
+    };
+    const onOver = (e: MouseEvent) => {
+      const t = e.target as Element | null;
+      if (!t || typeof t.closest !== 'function') return;
+      if (imgBarRef.current && imgBarRef.current.contains(t)) return; // 移到按钮上不算移开
+      const next = at(t);
+      setHover((h) => (h && next && h.el === next.el ? h : next));
+    };
+    const onLeave = () => setHover(null); // 鼠标出了画布
+    doc.addEventListener('mouseover', onOver, true);
+    doc.documentElement.addEventListener('mouseleave', onLeave);
+    return () => {
+      doc.removeEventListener('mouseover', onOver, true);
+      doc.documentElement.removeEventListener('mouseleave', onLeave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc]);
+  // 那一句跟着那张图：鼠标移到别的地方（不是这张图、不是它的按钮）就收起。
+  useEffect(() => { if (imgNote && hover?.el !== imgNote.el) setImgNote(null); }, [hover, imgNote]);
+  useEffect(() => () => imgBarCleanupRef.current?.(), []);
+
+  // 按钮层画在哪张图上：在等生成的那张优先；锁着（AI 聊天在改 / 别的图在生成）时别的图不出按钮。
+  const imgShown: ImgAt | null = regen || (hover && !api?.locked ? hover : null);
+  // 按钮层贴在图正中，跟着滚动 / 块重画走（同工具条 §tick）；图没了就收起。
+  useEffect(() => {
+    if (!imgShown) { setImgPos(null); return; }
+    const win = doc.defaultView!;
+    let raf = 0;
+    const tick = () => {
+      const el = imgShown.el;
+      if (!el.isConnected) { setHover((h) => (h && h.el === el ? null : h)); return; }
+      const frame = win.frameElement as HTMLElement | null;
+      const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
+      const r = el.getBoundingClientRect();
+      const top = r.top + r.height / 2 + win.scrollY;
+      const left = r.left + r.width / 2 + win.scrollX;
+      const scale = 1 / zoom;
+      setImgPos((p) => (p && p.top === top && p.left === left && p.scale === scale ? p : { top, left, scale }));
+      raf = win.requestAnimationFrame(tick);
+    };
+    raf = win.requestAnimationFrame(tick);
+    return () => win.cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imgShown?.el, doc]);
+
+  /** 按钮层上的两颗：先选中这一块（同点图），对回数据，再走 Edit（§pickFor）或 Regenerate（§regenFor）。 */
+  function onImageButton(target: ImgAt, mode: 'edit' | 'regenerate') {
+    const a = apiRef.current;
+    if (!a || a.locked) return;
+    typingRef.current?.end(true);
+    select(target.id);
+    setImgNote(null);
+    const found = resolveEl(target.el);
+    if (!found) return;
+    const { item, component, slot, r } = found;
+    if (!r.ok) {
+      const ref = r.slot ? item.props[r.slot] : undefined;
+      setActive({ id: target.id, slot, blockType: item.type, el: target.el, path: null, name: '', typing: false, ai: false, hint: hintFor(r.why, ref, true) });
+      return;
+    }
+    if (!r.image) return;
+    setActive(null);
+    const title = imageTitle(component, slot);
+    if (mode === 'edit' || !target.regenerate) { void pickFor(target.id, slot, item.type, target.el, r.path, r.value, title); return; }
+    void regenFor(target, r.path, r.value, title);
+  }
+
+  /**
+   * #1713 —— ✨ Regenerate：生成一张 → 当场换上、马上存（记录 `… · AI generated`）→ 开弹窗（新图打勾、上一张紧挨着）。
+   * 弹窗回来的是上一张，或者取消 ⟹ 换回上一张，第二笔存盘；回来的还是新图（Done）⟹ 什么都不做。
+   * 等的这几秒画布锁着，图不会被别处改；弹窗开着的时候那张图被改过（撤销、AI 聊天换了底稿）⟹ 不覆盖，说一句。
+   */
+  async function regenFor(target: ImgAt, path: InlinePath, before: string, title?: string) {
     const ap = apiRef.current;
     if (!ap) return;
-    const res = await ap.pickImage(before, { id, slot });
+    const { id, slot, el } = target;
+    setRegen(target);
+    const res = await ap.regenerateImage(before, { id, slot });
+    setRegen(null);
+    if (!res.ok) { setImgNote({ el, text: res.message }); return; }
+    const cur = getAt(itemById(id)?.props, path);
+    if (urlIn(cur) !== before) { setImgNote({ el, text: 'This image was changed while the AI was making a new one, so the new image was not used. It is in your image library.' }); return; }
+    if (!write(id, path, withUrl(cur, res.url), true)) { setImgNote({ el, text: 'This section is no longer on the page.' }); return; }
+    // 记录说「AI generated」：说明指到地址那一格（对象的 `imageUrl`），存盘那一刻还是这张才用（§aiNotesForSave）。
+    ap.noteAi({ id, path: typeof cur === 'string' ? path : [...path, 'imageUrl'], action: 'generated', text: res.url });
+    ap.saveNow();
+    const pick = await ap.pickImage(before, { id, slot }, { ...(title ? { title } : {}), fresh: res.url });
+    const now = getAt(itemById(id)?.props, path);
+    const want = pick.ok ? pick.url : pick.cancelled ? before : null;
+    if (want === null) { setActive({ id, slot, blockType: itemById(id)?.type || '', el, path: null, name: '', typing: false, ai: false, hint: (pick as { message: string }).message }); return; }
+    if (want === res.url) return; // Done 在新图上：已经存过了
+    if (urlIn(now) !== res.url) {
+      setActive({ id, slot, blockType: itemById(id)?.type || '', el, path: null, name: '', typing: false, ai: false, hint: 'This image was changed while you were choosing, so your choice was not used.' });
+      return;
+    }
+    if (write(id, path, withUrl(now, want), true)) ap.saveNow();
+  }
+
+  /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。
+   *  #1694 —— 成排的图那一格的值就是地址字符串（`logos.items.2.imageUrl`、`platforms.0.logoUrl`）：直接换成新地址。 */
+  async function pickFor(id: string, slot: string, blockType: string, el: HTMLElement, path: InlinePath, before: string, title?: string) {
+    const ap = apiRef.current;
+    if (!ap) return;
+    const res = await ap.pickImage(before, { id, slot }, title ? { title } : undefined);
     if (!res.ok) {
       if (!res.cancelled) setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: res.message });
       return;
@@ -489,10 +664,55 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     setNote('');   // Chris 2026-10-09：写完不说话 —— 文字换了就是反馈，撤销走左栏记录的 Revert（#1675）
   }
 
-  if (!active || !pos || (!active.hint && !active.ai)) return null;
+  // #1713 —— 图上那两颗（§onImageButton）。转圈 / 置灰 = 这张图在等生成；那一句 = 生成没成。
+  const imageBar = () => {
+    if (!imgShown || !imgPos) return null;
+    const target = imgShown;
+    const waiting = regen !== null && regen.el === target.el;
+    const off = waiting || !!api?.locked;
+    return createPortal(
+      <div
+        ref={imgBarMount}
+        data-editor-image-actions=""
+        data-editor-image-for={target.slot}
+        data-editor-image-busy={waiting ? '' : undefined}
+        style={{ position: 'absolute', zIndex: 2147482999, top: imgPos.top, left: imgPos.left, transform: `translate(-50%, -50%) scale(${imgPos.scale})`, transformOrigin: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: 'system-ui, sans-serif', fontSize: 13 }}
+        onMouseDown={(e) => e.preventDefault()}
+        // 同工具条：portal 出去的 click 仍顺着 React 组件树冒到 Puck 预览框的 onClick，它会清掉选中。
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', gap: 6, padding: 4, background: 'rgba(255, 255, 255, 0.92)', border: '1px solid #d0d5dd', borderRadius: 999, boxShadow: '0 4px 12px rgba(16, 24, 40, 0.16)' }}>
+          {target.regenerate && (
+            <button type="button" data-editor-image-regenerate="" disabled={off} style={{ ...PILL, opacity: off ? 0.55 : 1, cursor: off ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => onImageButton(target, 'regenerate')}>
+              {waiting ? (
+                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" data-editor-image-spinner="">
+                  <circle cx="7" cy="7" r="5.5" fill="none" stroke="#98a2b3" strokeWidth="2" />
+                  <path d="M7 1.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="#344054" strokeWidth="2" strokeLinecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 7 7" to="360 7 7" dur="0.8s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              ) : <span aria-hidden="true">✨</span>}
+              {waiting ? 'Generating…' : 'Regenerate'}
+            </button>
+          )}
+          <button type="button" data-editor-image-edit="" disabled={off} style={{ ...PILL, opacity: off ? 0.55 : 1, cursor: off ? 'not-allowed' : 'pointer' }} onClick={() => onImageButton(target, 'edit')}>
+            <span aria-hidden="true">✎</span> Edit
+          </button>
+        </div>
+        {imgNote && imgNote.el === target.el && (
+          <span data-editor-image-note="" style={{ maxWidth: 320, padding: '4px 8px', background: '#fff', border: '1px solid #fda29b', borderRadius: 8, color: '#b42318', textAlign: 'center' }}>{imgNote.text}</span>
+        )}
+      </div>,
+      doc.body,
+    );
+  };
+
+  // #1713 r2 —— 两种出口同一个形状（Fragment 的第 2 个孩子是按钮层）：形状一变，字的工具条收起那一下按钮层就被卸掉重挂，
+  //    正按在按钮上的那一下松开落在新节点上，浏览器不发 click（QA2 r1：刚点过字，第一下点 Regenerate / Edit 没反应）。
+  if (!active || !pos || (!active.hint && !active.ai)) return <>{null}{imageBar()}</>;
   const locked = !!api?.locked;
   const off = !!busy || locked;
-  return createPortal(
+  return <>{createPortal(
     <div
       ref={barRef}
       data-editor-inline-toolbar=""
@@ -546,5 +766,5 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       )}
     </div>,
     doc.body,
-  );
+  )}{imageBar()}</>;
 }

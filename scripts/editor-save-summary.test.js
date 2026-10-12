@@ -288,5 +288,24 @@ eq(JSON.stringify(aiNotesForSave(recordAiNote({}, { id: 'puck-bar', path: [barTe
   JSON.stringify({ 'shared:site-bar': { [barText.slot]: 'casual' } }), '共用块：键是 shared:<块库 id>');
 eq(JSON.stringify(recordAiNote({}, { id: 'puck-bar', path: [barText.slot], action: 'rhyme', text: 'S' })), '{}', '不认识的动作不记');
 
+// #1713 —— 画布图上的 ✨ Regenerate：说明的 path 指到地址那一格（`image.imageUrl`），text 是新图地址。整条从编辑器那一侧的
+//    纯函数走到 §describeSave，不手写 aiNotes：记录 `Hero · Image · AI generated`；换回上一张那一笔 ⟹ 只说 `Hero · Image`。
+console.log('⑩ #1713 Regenerate 换图：AI generated');
+const heroImg = fieldLabel(hero, 'image');
+const imgCanvas = (url) => [{ type: 'hero', props: { id: 'puck-hero', image: { imageUrl: url, alt: 'A van' }, _src: { entry: { id: 'home-hero-1', type: 'hero' }, shared: null } } }];
+const imgSaved = edit((j) => { at(j, 'home-hero-1').data.image = { imageUrl: '/photos/old.jpg', alt: 'A van' }; });
+const imgJson = (url) => { const j = JSON.parse(JSON.stringify(imgSaved)); at(j, 'home-hero-1').data.image = { imageUrl: url, alt: 'A van' }; return j; };
+notes = recordAiNote({}, { id: 'puck-hero', path: ['image', 'imageUrl'], action: 'generated', text: '/uploads/new.png' });
+r = aiNotesForSave(notes, imgCanvas('/uploads/new.png'));
+eq(describeSave({ saved: imgSaved, json: imgJson('/uploads/new.png'), root: null, shared: null, schema, rootLabels, shapeLabel: 'Layout', aiNotes: r.aiNotes }),
+  `${H} · ${heroImg} · AI generated`, '第一笔：换上生成的那张');
+eq(`${H} · ${heroImg}`, 'Hero · Image', '块名 / 字段名就是票上写的那两个（Hero · Image）');
+// 第二笔：老板在弹窗里点回上一张。第一笔已经存上（说明清掉了），这一笔的底是第一笔存下去的那份。
+const settled = settleAiNotes(notes, r.used);
+eq(describeSave({ saved: imgJson('/uploads/new.png'), json: imgJson('/photos/old.jpg'), root: null, shared: null, schema, rootLabels, shapeLabel: 'Layout', aiNotes: aiNotesForSave(settled, imgCanvas('/photos/old.jpg')).aiNotes }),
+  `${H} · ${heroImg}`, '第二笔：换回上一张 ⟹ 只说字段名');
+// 第一笔还没存上就换回去了（说明还在）：那一格已经不是生成的那张 ⟹ 说明作废，不说 AI generated。
+eq(JSON.stringify(aiNotesForSave(notes, imgCanvas('/photos/old.jpg')).aiNotes), '{}', '换回去了还没存 ⟹ 说明作废');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

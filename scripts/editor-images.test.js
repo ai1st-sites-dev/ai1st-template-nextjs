@@ -252,5 +252,28 @@ console.log('③ 画布上点到的图 → 数据里的哪一项（按地址对�
   check(!sourced.ok && sourced.why === 'sourced', '引用来的列表（items: {source}）里的图 ⟹ 点不动（sourced）', sourced);
 }
 
+// #1713 —— 画布图上悬停出不出 ✨ Regenerate（schema 的 `regenerate`）+ 弹窗标题的后半（`label`）。
+console.log('   #1713 图上的 Regenerate：成排的小图、generateImages: false 的槽不出');
+{
+  const all = [];
+  for (const c of schema.components) for (const e of c.inline) if (e.image) all.push({ id: `${c.type}.${e.path}`, ...e });
+  // 写死 false 的槽从 manifest 现取，再跟票上点名的三个对一下（多了 / 少了都要先看是不是票的前提变了）。
+  const noGen = [];
+  for (const [type, m] of manifests) for (const [slot, sp] of Object.entries(m.slots || {})) if (sp && sp.generateImages === false) noGen.push(`${type}.${slot}`);
+  check(JSON.stringify(noGen.sort()) === JSON.stringify(['logos.items', 'team.members', 'testimonials.items']), 'generateImages: false 的槽 = logos.items · team.members · testimonials.items', noGen.join(' '));
+  const under = (x) => noGen.some((s) => x.id === s || x.id.startsWith(`${s}.`));
+  const bad1 = all.filter((x) => x.regenerate && (x.url || under(x))).map((x) => x.id);
+  check(bad1.length === 0, '成排的小图（url）和 generateImages: false 槽里的图 ⟹ regenerate: false（只出 ✎）', bad1.join(' '));
+  const bad2 = all.filter((x) => !x.regenerate && !x.url && !under(x)).map((x) => x.id);
+  check(bad2.length === 0, '其余每一张「一个位置一张」的图 ⟹ regenerate: true', bad2.join(' '));
+  const pick = (id) => all.find((x) => x.id === id) || {};
+  check(pick('hero.image').regenerate === true && pick('team.members.photo').regenerate === false && pick('logos.items.imageUrl').regenerate === false,
+    '票上点名的三处：hero 大图出，team 头像、logos 一排里的一张不出', [pick('hero.image'), pick('team.members.photo'), pick('logos.items.imageUrl')]);
+  const unnamed = all.filter((x) => typeof x.label !== 'string' || !x.label).map((x) => x.id);
+  check(unnamed.length === 0, '每一格图都带位置名（弹窗标题的后半）', unnamed.join(' '));
+  const title = (type, p) => `${schema.components.find((c) => c.type === type).label} · ${pick(`${type}.${p}`).label}`;
+  check(title('hero', 'image') === 'Hero · Image' && title('team', 'members.photo') === 'Team · Photo', '弹窗标题：Hero · Image / Team · Photo', [title('hero', 'image'), title('team', 'members.photo')]);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

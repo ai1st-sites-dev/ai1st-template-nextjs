@@ -814,6 +814,7 @@ function entryLabel(e, idx, lib) {
 
 // ── #1676 每个改动说成什么 ─────────────────────────────────────────────────────────────────────────
 //   AI 按钮       `Hero · Headline · made shorter`       （说明由编辑器递进来：`aiNotes`，见 §aiNotesForSave）
+//   AI 换图       `Hero · Image · AI generated`          （#1713 画布图上的 Regenerate，同一条路）
 //   手改文字      `Hero · Subheading · "前 40 个字…"`
 //   换形态        `Hero · Layout → split`                 （值写形态 id，不写面板上带括号的那个 label；回到跟主题走 = `(default)`）
 //                 🔴 带预设的块（今天 15 个页面块全是）编辑器里**没有**形态下拉（`EditorApp.tsx` §buildConfig，#1463）——
@@ -825,8 +826,10 @@ function entryLabel(e, idx, lib) {
 //   其余字段（图片、链接、列表…）照旧只说字段名：`Hero · Background, Stats`。
 // 全部按规则算，不调 AI（每次自动保存一条，调 AI 又贵又慢又不确定）。
 
-/** AI 四个动作在记录里的说法。键 = `InlineEdit.tsx` 的 `REWRITE_ACTIONS`（按钮上的字是另一份）。 */
-const AI_ACTION_PHRASES = { longer: 'made longer', shorter: 'made shorter', casual: 'more casual', professional: 'more professional' };
+/** AI 四个动作在记录里的说法。键 = `InlineEdit.tsx` 的 `REWRITE_ACTIONS`（按钮上的字是另一份）。
+ *  #1713 —— 外加 `generated`：画布图上的 ✨ Regenerate 换上的那张图（`Hero · Image · AI generated`）。说明的 `text` 是新图地址，
+ *  `path` 指到地址那一格（`image.imageUrl`），作废规矩同字：存盘那一刻那一格已经不是这张图了 ⟹ 不说（§aiNotesForSave）。 */
+const AI_ACTION_PHRASES = { longer: 'made longer', shorter: 'made shorter', casual: 'more casual', professional: 'more professional', generated: 'AI generated' };
 /** 手改文字记录里新值最多带几个字（按字符，不按字节：中文 / emoji 不被切半）。 */
 const SUMMARY_TEXT_CHARS = 40;
 

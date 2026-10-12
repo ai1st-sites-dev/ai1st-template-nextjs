@@ -78,6 +78,13 @@
 //   §editorImagePrompt，同一个函数）+ 这块现在的标题；老板写的那句由 dashboard 接在后面，生成也是 dashboard 带凭证去打 ——
 //   这个页面照旧一个请求都不发。算不出来（找不到是哪一块 / 哪个槽）就三样都不带，Generate 只用老板写的那句。
 //   `blockType` / `slot` 只拿来写 Credits 那一行「哪一块」。
+// #1713 —— 画布图上悬停出 ✨ Regenerate / ✎ Edit（`InlineEdit.tsx` §ImageHoverBar）。Edit = 点图（上面那条），多带一个 `title`
+//   （弹窗标题 = 这个位置的名字，`Hero · Image`）。Regenerate 一键生成一张换上：
+//   发  ai1st:ai-image {id, prompt, blockType?, slot?}     dashboard 带凭证打 `POST /api/sites/{id}/ai/image`（同弹窗里的 Generate）
+//   收  ai1st:ai-image-result {id, ok, url?, message?}
+//   等的时候画布进 AI 锁（§useAiLockGuard，同聊天）；回来换上、马上存一笔（记录 `Hero · Image · AI generated`），再开弹窗：
+//   发  ai1st:pick-image {…, current: 上一张, fresh: 新图, title}   弹窗里新图打勾、上一张紧挨着，主按钮叫 Done；
+//   回来的是上一张（点了它再 Done）或取消 ⟹ 换回上一张，第二笔存盘。先存后问：这一张花了钱，老板关掉页面也不白花。
 //   行业不在站点文件里（`site_meta.json` 只有 siteId / leadApi / locales）：dashboard 在 `ai1st:editor-baseline` 里多带一个
 //   `industry`，这里记着；没送来就省掉行业那个词（同一个函数里那一支）。
 
@@ -105,7 +112,7 @@ import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from 
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
-import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RewriteResult } from './InlineEdit';
+import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
 import type { SiteData } from '@/lib/types/config';
 import type { IconTable } from '@/components/InlineIcon';
@@ -1016,6 +1023,10 @@ const KEPT_TEXT: Record<'external' | 'ai' | 'stale', string> = {
 };
 // #1657 —— 等 dashboard 回 AI 改写最多等多久（它那一侧调一次 Claude，正常几秒）。
 const REWRITE_WAIT_MS = 90_000;
+/** #1713 —— Regenerate 等 dashboard 回话多久（它自己等 manager 45 秒，`dashboard/src/api/image.ts` §GENERATE_WAIT_MS）。 */
+const REGENERATE_WAIT_MS = 60_000;
+/** #1713 —— 生成没成、dashboard 也没说为什么时那一句（同弹窗里 Generate 失败那句，`ImageLibraryModal.tsx` §GENERATE_FAILED）。 */
+const REGENERATE_FAILED = 'Could not generate an image. Try again or upload one.';
 // 停手多久算「一笔改完」（Chris：失焦或停手 1–2 秒）。
 const AUTOSAVE_IDLE_MS = 1500;
 // 浮条在的时候，发 AI 消息 / 换页 / 关编辑器都先停下来等他（不替他选「留下我的」）。`stale` 那种没得选，只能加载最新版本。
@@ -2034,8 +2045,13 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const keptRef = useRef<Kept>(kept);
   keptRef.current = kept;
   // §useAiLockGuard：点了发送、还没交给 dashboard（先存那一笔在路上）也算 —— 那一笔存的是点下去那一刻的画布。
-  const locked = chatPending || !!chat?.busy;
+  // #1713 —— 画布图上的 Regenerate 在等 dashboard 生成：同一把锁（期间别处改不了，§regenerateImage）。
+  const [regenerating, setRegenerating] = useState(false);
+  const locked = chatPending || !!chat?.busy || regenerating;
   useAiLockGuard(locked);
+  // #1713 —— 不算 Regenerate 的那一半：生成回来那一刻要马上存，等不到下一次渲染把 lockedRef 改回来。
+  const chatLockRef = useRef(false);
+  chatLockRef.current = chatPending || !!chat?.busy;
   // #1448 —— 换页那次握手在 message 监听里读它（监听只在 page / locale 变时重挂，读 state 会读到旧值）。
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
@@ -2046,6 +2062,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const rewritesRef = useRef(new Map<string, (r: RewriteResult) => void>());
   // #1693 —— 正在等的那一次选图（同一时刻只有一次）。
   const pickRef = useRef<{ id: string; done: (r: PickImageResult) => void } | null>(null);
+  // #1713 —— 正在等的那一次 Regenerate（同一时刻只有一次：等的时候画布锁着）。
+  const regenRef = useRef<{ id: string; done: (r: RegenerateResult) => void } | null>(null);
   // #1711 —— dashboard 在底稿里带来的行业（选图弹窗 Generate 的默认提示词要它）；没送来 = ''，那一句里就省掉它。
   const industryRef = useRef('');
   // #1660 —— 正在等 AI 写字的新块（画布上那枚标）；没写成时顶栏那一句。
@@ -2202,6 +2220,16 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         if (d.ok === true && typeof r.url === 'string' && r.url.trim()) p.done({ ok: true, url: r.url.trim() });
         else if (r.cancelled === true) p.done({ ok: false, cancelled: true });
         else p.done({ ok: false, message: typeof r.message === 'string' && r.message ? r.message : 'The image could not be chosen. Please try again.' });
+        return;
+      }
+      if (d.type === 'ai1st:ai-image-result') {
+        // #1713 —— 只认手上在等的那一次；地址只收非空字符串。
+        const r = d as { id?: unknown; url?: unknown; message?: unknown };
+        const p = regenRef.current;
+        if (!p || r.id !== p.id) return;
+        regenRef.current = null;
+        if (d.ok === true && typeof r.url === 'string' && r.url.trim()) p.done({ ok: true, url: r.url.trim() });
+        else p.done({ ok: false, message: typeof r.message === 'string' && r.message ? r.message : REGENERATE_FAILED });
         return;
       }
       if (d.type === 'ai1st:chat-sent') {
@@ -2583,7 +2611,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   }
 
   // #1693 —— 选一张图：交给 dashboard 开图片库（它带凭证上传 / 列图库），回话在 §onMessage 的 `ai1st:pick-image-result`。
-  function pickImage(current: string, at?: { id: string; slot: string }): Promise<PickImageResult> {
+  // #1713 —— `opts.title`：弹窗标题（这个位置的名字）；`opts.fresh`：Regenerate 刚换上的那张（弹窗里它打勾，`current` 是上一张）。
+  function pickImage(current: string, at?: { id: string; slot: string }, opts?: { title?: string; fresh?: string }): Promise<PickImageResult> {
     if (!trustedOrigin || window.parent === window) {
       return Promise.resolve({ ok: false, message: 'Open this editor from your dashboard to change images.' });
     }
@@ -2592,7 +2621,38 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     return new Promise((resolve) => {
       pickRef.current = { id, done: resolve };
       const gen = imagePromptFor(current, at);
-      postChat({ type: 'ai1st:pick-image', id, current, ...(gen ? gen : {}) });
+      postChat({ type: 'ai1st:pick-image', id, current, ...(gen ? gen : {}), ...(opts?.title ? { title: opts.title } : {}), ...(opts?.fresh ? { fresh: opts.fresh } : {}) });
+    });
+  }
+
+  // #1713 —— 画布图上的 ✨ Regenerate：默认提示词同弹窗里的 Generate（§imagePromptFor），生成交给 dashboard（它带凭证）。
+  //    等的时候画布锁着（§regenerating）；回话之前先把锁解开（lockedRef 当场改回，调用方接着就要写图、马上存）。
+  function regenerateImage(current: string, at: { id: string; slot: string }): Promise<RegenerateResult> {
+    if (!trustedOrigin || window.parent === window) {
+      return Promise.resolve({ ok: false, message: 'Open this editor from your dashboard to use AI.' });
+    }
+    if (lockedRef.current || regenRef.current) return Promise.resolve({ ok: false, message: 'The AI is editing this page. Wait for it to finish.' });
+    const gen = imagePromptFor(current, at);
+    if (!gen || !gen.prompt.trim()) return Promise.resolve({ ok: false, message: REGENERATE_FAILED });
+    cancelDesign(); // 同别的「AI 上锁」入口：Design 弹层里试看的那一下先退回
+    const id = `ri-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setRegenerating(true);
+    lockedRef.current = true;
+    cancelAutosave();
+    return new Promise((resolve) => {
+      const finish = (r: RegenerateResult) => {
+        clearTimeout(timer);
+        setRegenerating(false);
+        lockedRef.current = chatLockRef.current;
+        resolve(r);
+      };
+      const timer = setTimeout(() => {
+        if (regenRef.current?.id !== id) return;
+        regenRef.current = null;
+        finish({ ok: false, message: 'The AI did not answer in time. Please try again.' });
+      }, REGENERATE_WAIT_MS);
+      regenRef.current = { id, done: finish };
+      postChat({ type: 'ai1st:ai-image', id, prompt: gen.prompt, blockType: gen.blockType, slot: gen.slot });
     });
   }
 
@@ -2786,7 +2846,9 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
-  const inlineApi: InlineApi = { locked, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, pickImage };
+  // #1713 —— Regenerate 换上 / 换回那一笔：不等停手，马上存（先存后问）。上一笔还在路上 ⟹ 它落定后照常数停手再存。
+  const saveNow = () => flushAutosave();
+  const inlineApi: InlineApi = { locked, regenerating, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, pickImage, regenerateImage, saveNow };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };

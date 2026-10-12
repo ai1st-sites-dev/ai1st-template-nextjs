@@ -62,6 +62,10 @@ export interface EditorInlineSlot {
   image?: boolean;
   /** #1694 —— 成排的图那一格：值是地址字符串（`logos.items.2.imageUrl`），不是 `{imageUrl, alt}` 对象 */
   url?: boolean;
+  /** #1713 —— 图片格：这个位置的名字（manifest 的 editLabel，选图弹窗标题 `Hero · Image` 的后半） */
+  label?: string;
+  /** #1713 —— 图片格：悬停出不出 ✨ Regenerate（成排的小图、`generateImages: false` 的槽不出，只出 ✎ Edit） */
+  regenerate?: boolean;
 }
 export interface EditorComponent {
   type: string;
