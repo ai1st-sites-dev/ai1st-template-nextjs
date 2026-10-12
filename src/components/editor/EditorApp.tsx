@@ -1256,14 +1256,20 @@ function AiChatPanel() {
 }
 
 // 跟 Puck 那两格同一套 lucide 线条图标的尺寸（24 / 描边 2）；仓里没有 lucide-react，手写这一个。
-const AI_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+// #1722 —— 这几笔浮动条上的 AI Edit 也用（§BLOCKBAR_ICON.ai，16px），两处是同一份。
+const AI_ICON_SHAPES = (
+  <>
     <path d="M12 8V4H8" />
     <rect width="16" height="12" x="4" y="8" rx="2" />
     <path d="M2 14h2" />
     <path d="M20 14h2" />
     <path d="M15 13v2" />
     <path d="M9 13v2" />
+  </>
+);
+const AI_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {AI_ICON_SHAPES}
   </svg>
 );
 
@@ -1453,13 +1459,16 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
         <ActionBar.Group>
           {hasPresets && (
             <ActionBar.Action label="Design" onClick={design} disabled={!ui || ui.locked} data-editor-block-action="design" active={designOpen} aria-expanded={designOpen}>
+              {BLOCKBAR_ICON.design}
               <span style={BLOCKBAR_TEXT}>Design</span>
             </ActionBar.Action>
           )}
           <ActionBar.Action label="Edit content" onClick={editContent} data-editor-block-action="edit">
+            {BLOCKBAR_ICON.edit}
             <span style={BLOCKBAR_TEXT}>Edit content</span>
           </ActionBar.Action>
           <ActionBar.Action label="AI Edit" onClick={aiEdit} data-editor-block-action="ai">
+            {BLOCKBAR_ICON.ai}
             <span style={BLOCKBAR_TEXT}>AI Edit</span>
           </ActionBar.Action>
         </ActionBar.Group>
@@ -1511,6 +1520,14 @@ const BLOCKBAR_ICON = {
   up: blockbarSvg(<><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></>),
   down: blockbarSvg(<><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>),
   trash: blockbarSvg(<><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></>),
+  // #1722 —— 左组三颗文字按钮前的图标：调色盘 / 铅笔（lucide palette / pencil）/ 跟 AI 那一格同一个（§AI_ICON_SHAPES）。
+  design: blockbarSvg(<>
+    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+  </>),
+  edit: blockbarSvg(<><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></>),
+  ai: blockbarSvg(AI_ICON_SHAPES),
 };
 
 // #1710 —— Puck 自己那条整个藏掉（条改由 §BlockBars 画，§PuckActionBarSlot 只是个占位）。不藏的话选中块的右上角留一片
@@ -1546,7 +1563,14 @@ const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, dis
  */
 const POPOVER_W = 520;
 const THUMB_W = 236;
+// #1722 —— 格子高 = 那个预设缩完之后的实际高（§DesignThumbBody 量），不再是固定高的框。这个数只在还没量到的那一帧顶一下。
 const THUMB_H = 148;
+// #1722 —— 两列各自往下堆（同列上下两格之间、两列之间都是这个距离）。名字那一行写死行高 ⟹ 一格的高 = 缩略图高 + 6 + 16，
+//    摆位置只靠算术，不用再量一次整格。
+const THUMB_GAP = 12;
+const THUMB_NAME_H = 16;
+// #1722 —— 预设太高时格子最多这么高：画布可视区高的 60%（画布 document 的 px），超出的裁掉下边并淡出。
+const THUMB_MAX_VH = 0.6;
 // #1712 —— 为了不盖住浮动条最多缩到多矮（弹层自己的 px）：顶上标签 + 一排格子 + 底部按钮刚好放得下。
 const POPOVER_MIN_H = 300;
 const POPOVER: CSSProperties = {
@@ -1561,6 +1585,31 @@ const popoverTab = (on: boolean): CSSProperties => ({
 });
 type DesignTab = 'layout' | 'customize';
 
+/**
+ * #1722 —— 缩略图里缩放过的那一层：报出块渲染出来的高（未缩放的 px）。缩略图里的图片 / 字体晚到会改块高 ⟹ 一直盯着。
+ * 量的是 offsetHeight（布局高，不受 transform 影响），而这一层的宽固定是画布宽 ⟹ 格子高变了它也不变，不会来回推。
+ */
+function DesignThumbBody({ vw, onHeight, children }: { vw: number; onHeight: (h: number) => void; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const report = useRef(onHeight);
+  report.current = onHeight;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    report.current(el.offsetHeight);
+    const RO = (el.ownerDocument.defaultView as (Window & typeof globalThis) | null)?.ResizeObserver;
+    if (!RO) return;
+    const ro = new RO(() => report.current(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} style={{ width: vw, transform: `scale(${THUMB_W / vw})`, transformOrigin: 'top left', pointerEvents: 'none' }} aria-hidden="true">
+      {children}
+    </div>
+  );
+}
+
 function DesignPopover({ doc }: { doc: Document }) {
   const ui = useContext(EditorUiContext);
   const api = useContext(InlineApiContext);
@@ -1569,6 +1618,8 @@ function DesignPopover({ doc }: { doc: Document }) {
   const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
   const boxRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; scale: number; maxH: number } | null>(null);
+  // #1722 —— 每格缩略图里块渲染出来的高（未缩放的 px），按「块 id:第几个预设」记（换一块不用清）。
+  const [bodyH, setBodyH] = useState<Record<string, number>>({});
   // 画布里点到了外面：弹层已经收起、等那一下点击走完再退回（见文件头那段 🔴）。换了一块 / 关掉之后复位。
   const [leaving, setLeaving] = useState(false);
   // #1708 —— Layout / Customize 两页；切页不算改动，每次打开从 Layout 起。
@@ -1727,6 +1778,20 @@ function DesignPopover({ doc }: { doc: Document }) {
   const vw = doc.defaultView ? doc.defaultView.innerWidth : 1280;
   const pageSlug = api.page === 'home' ? undefined : api.page;
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  // #1722 —— 两列各自往下堆：第 1、3、5 个在左列，第 2、4 个在右列，每格紧接着同一列的上一格。DOM 顺序仍是预设顺序
+  //    （= Tab 顺序，键盘走的是阅读顺序），位置按算术摆。上限是画布 document 的 px，格子画在按 1/zoom 放大过的弹层里 ⟹ 除回去。
+  const cap = Math.floor((THUMB_MAX_VH * (doc.defaultView ? doc.defaultView.innerHeight : 800)) / (pos ? pos.scale : 1));
+  const colH = [0, 0];
+  const cells = (f.presets || []).map((p, i) => {
+    const measured = bodyH[`${id}:${i}`];
+    const full = measured ? Math.round((measured * THUMB_W) / vw) : THUMB_H;
+    const h = Math.min(full, cap);
+    const col = i % 2;
+    const top = colH[col];
+    colH[col] += h + 6 + THUMB_NAME_H + THUMB_GAP;
+    return { p, i, h, clipped: full > cap, top, left: col * (THUMB_W + THUMB_GAP) };
+  });
+  const layoutH = Math.max(0, Math.max(colH[0], colH[1]) - THUMB_GAP);
 
   return createPortal(
     <div ref={boxRef} data-editor-popover="" data-editor-popover-for={id} role="dialog" aria-label="Design"
@@ -1751,25 +1816,33 @@ function DesignPopover({ doc }: { doc: Document }) {
           ) : null}
         </div>
       ) : (
-      <div data-editor-design-layout="" style={{ display: 'grid', gridTemplateColumns: `repeat(2, ${THUMB_W}px)`, gap: 12, padding: 12, overflowY: 'auto', justifyContent: 'center' }}>
-        {(f.presets || []).map((p, i) => {
-          const on = current === p.name;
-          const thumbProps = { ...presetClickProps(f, props, p.name), id: `${id}~design-${i}` } as ItemProps;
-          return (
-            // 🔴 格子不是 <button>：缩略图里的块自己就有按钮，按钮套按钮是不合法的 HTML（React 当场报两条错）。
-            <div key={p.name} role="button" tabIndex={readOnly ? -1 : 0} aria-disabled={readOnly || undefined} data-editor-design-preset={p.name} aria-pressed={on}
-              onClick={() => { if (!readOnly) ui.pickDesign(p.name); }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: readOnly ? 'default' : 'pointer', outlineOffset: 2 }}>
-              <div data-editor-design-thumb="" style={{ width: THUMB_W, height: THUMB_H, overflow: 'hidden', borderRadius: 8, position: 'relative', background: '#fff',
-                boxShadow: on ? '0 0 0 2px #1d4ed8' : '0 0 0 1px #d0d5dd' }}>
-                <div style={{ width: vw, transform: `scale(${THUMB_W / vw})`, transformOrigin: 'top left', pointerEvents: 'none' }} aria-hidden="true">
-                  <CanvasBlockBody component={component} props={thumbProps} locale={api.locale} pageSlug={pageSlug} site={api.site} />
+      <div data-editor-design-layout="" style={{ padding: 12, overflowY: 'auto' }}>
+        <div style={{ position: 'relative', width: 2 * THUMB_W + THUMB_GAP, height: layoutH, margin: '0 auto' }}>
+          {cells.map(({ p, i, h, clipped, top, left }) => {
+            const on = current === p.name;
+            const thumbProps = { ...presetClickProps(f, props, p.name), id: `${id}~design-${i}` } as ItemProps;
+            const key = `${id}:${i}`;
+            return (
+              // 🔴 格子不是 <button>：缩略图里的块自己就有按钮，按钮套按钮是不合法的 HTML（React 当场报两条错）。
+              <div key={p.name} role="button" tabIndex={readOnly ? -1 : 0} aria-disabled={readOnly || undefined} data-editor-design-preset={p.name} aria-pressed={on}
+                onClick={() => { if (!readOnly) ui.pickDesign(p.name); }}
+                style={{ position: 'absolute', top, left, width: THUMB_W, display: 'flex', flexDirection: 'column', gap: 6, cursor: readOnly ? 'default' : 'pointer', outlineOffset: 2 }}>
+                <div data-editor-design-thumb="" style={{ width: THUMB_W, height: h, overflow: 'hidden', borderRadius: 8, position: 'relative', background: '#fff',
+                  boxShadow: on ? '0 0 0 2px #1d4ed8' : '0 0 0 1px #d0d5dd' }}>
+                  <DesignThumbBody vw={vw} onHeight={(v) => setBodyH((m) => (m[key] === v ? m : { ...m, [key]: v }))}>
+                    <CanvasBlockBody component={component} props={thumbProps} locale={api.locale} pageSlug={pageSlug} site={api.site} />
+                  </DesignThumbBody>
+                  {clipped ? (
+                    <div data-editor-design-thumb-fade="" aria-hidden="true"
+                      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 40, background: 'linear-gradient(rgba(255, 255, 255, 0), #fff)', pointerEvents: 'none' }} />
+                  ) : null}
                 </div>
+                <span style={{ height: THUMB_NAME_H, lineHeight: `${THUMB_NAME_H}px`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  fontSize: 12, fontWeight: on ? 600 : 500, color: on ? '#1d4ed8' : '#344054' }}>{p.name}</span>
               </div>
-              <span style={{ fontSize: 12, fontWeight: on ? 600 : 500, color: on ? '#1d4ed8' : '#344054' }}>{p.name}</span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
