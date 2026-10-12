@@ -1909,13 +1909,19 @@ function DesignPopover({ doc }: { doc: Document }) {
     const isHistoryBtn = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function' && !!(t as Element).closest(HISTORY_BUTTONS);
     // 撤销 / 前进那两颗：按下时 Cancel，紧跟着的 click 也不许落到 Puck 手里（那样就多退了一步）。
     // 🔴 吞 click 的监听不能挂在这个 effect 上：Cancel 一关弹层，React 就跑这里的清理，等 click 派发时它已经不在了（#1712）。
+    // #1735 r2 —— Content 页里 Form 那一格的「Edit this form」把表单对话框开在编辑器页上（§FormCopyDialog）：
+    // 在它里面按鼠标 / 按键是在接着改这一块，不是离开弹层。对话框自己的 Done / Cancel 只管表单那一笔。
+    const inFormDialog = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function' && !!(t as Element).closest('[data-editor-form-dialog]');
     const onPageDown = (e: Event) => {
+      if (inFormDialog(e.target)) return;
       if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); swallowNextHistoryClick(); }
       cancel();
     };
     // 没有按下就来的 click（键盘按的）：同样只 Cancel。
     const onPageClick = (e: Event) => { if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); cancel(); } };
     const onKey = (e: KeyboardEvent) => {
+      // 对话框里的撤销键留给输入框自己撤字（不让 Puck 退画布历史 —— 弹层里的改动没记历史）；Esc 由对话框自己收。
+      if (inFormDialog(e.target)) { if (isHistoryKey(e)) e.stopImmediatePropagation(); return; }
       if (isHistoryKey(e)) { e.preventDefault(); e.stopImmediatePropagation(); cancel(); return; }
       if (e.key === 'Escape') cancel();
     };
