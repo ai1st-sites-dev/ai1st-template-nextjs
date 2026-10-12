@@ -189,8 +189,6 @@ function presetNameOf(f: EditorField, v: OptionsValue, props: Record<string, unk
  */
 function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value: OptionsValue; onChange: (v: OptionsValue) => void; readOnly?: boolean }) {
   const v = value && typeof value === 'object' ? value : {};
-  const knobs = f.knobs || [];
-  const current = knobValues(f, v);
   // #1483 —— 带颜色的预设（pricing 的 Rainbow）：判「是哪个预设」要连这一块的颜色字段一起比，点预设要连颜色字段一起写。
   //    颜色是这一块的另外两个字段（bg / featuredColor），这个字段的 onChange 只改得动 `options` ⟹ 从 Puck 读出选中的那一块、
   //    按 block-knobs.js §presetClickProps 算出整块的新 props，一次 `replace` 写回。没有带颜色预设的块（colorSlots 空）
@@ -221,7 +219,21 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
         ))}
         <span style={{ ...chip(name === 'custom'), cursor: 'default' }} data-editor-custom={name === 'custom' ? 'true' : 'false'}>Custom</span>
       </div>
-      {knobs.map((k) => (
+      <KnobControls f={f} value={v} onChange={onChange} readOnly={readOnly} />
+    </div>
+  );
+}
+
+/**
+ * 每个旋钮一排单选 + 布尔修饰的勾选框。右栏（§OptionsField）和 Design 弹层的 Customize 页（#1708）画的都是这一份 ——
+ * 拧一下算出的新 `options` 只在这里算，两处只是交出去的路不同（右栏走 Puck 字段的 onChange，弹层走 §changeDesign）。
+ */
+function KnobControls({ f, value, onChange, readOnly }: { f: EditorField; value: OptionsValue; onChange: (v: OptionsValue) => void; readOnly?: boolean }) {
+  const v = value && typeof value === 'object' ? value : {};
+  const current = knobValues(f, v);
+  return (
+    <>
+      {(f.knobs || []).map((k) => (
         <div key={k.name} data-editor-knob={k.name}>
           <div style={SUB_LABEL}>{k.name.charAt(0).toUpperCase() + k.name.slice(1)}</div>
           <div style={CTRL_ROW}>
@@ -240,7 +252,7 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
           {b.charAt(0).toUpperCase() + b.slice(1)}
         </label>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -1123,6 +1135,8 @@ type EditorUi = {
   design: string | null;
   openDesign: (id: string) => void;
   pickDesign: (preset: string) => void;
+  /** #1708 —— Customize 页改了这一块的一个字段（旋钮 / 开关整份 `options`、背景 `bg`）。undefined = 删掉这个键。 */
+  changeDesign: (slot: string, value: unknown) => void;
   cancelDesign: () => void;
   doneDesign: () => void;
 };
@@ -1501,7 +1515,7 @@ const BLOCKBAR_CSS = `
 const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, display: 'inline-flex', translate: '-50% 0', transformOrigin: 'center bottom', cursor: 'default' };
 
 /**
- * #1700 —— Design 弹层：块浮动条上点 Design 弹出，贴着浮动条。顶上一排标签（本票只有 Layout；T10b-2 往这排加 Customize），
+ * #1700 —— Design 弹层：块浮动条上点 Design 弹出，贴着浮动条。顶上一排标签（Layout；#1708 加了 Customize：这一块的旋钮 + 开关 + 背景），
  * 底部 Cancel / Done。事务规矩（改了什么、什么时候存、撤销怎么记）在 EditorApp §openDesign，这里只管画和截出口。
  *
  * 画在画布 iframe 里（`CanvasLinkGuard` 拿到的那份 document，portal 进它的 body）：缩略图要用站的样式表和块组件，它们只在画布里有。
@@ -1534,6 +1548,11 @@ const POPOVER: CSSProperties = {
   fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#344054', lineHeight: 1.3, transformOrigin: 'top left',
 };
 const POPOVER_BTN: CSSProperties = { padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' };
+const popoverTab = (on: boolean): CSSProperties => ({
+  padding: '6px 10px 8px', border: 0, borderBottom: `2px solid ${on ? '#1d4ed8' : 'transparent'}`, background: 'none',
+  color: on ? '#1d4ed8' : '#475467', fontSize: 13, fontWeight: 600, cursor: on ? 'default' : 'pointer', fontFamily: 'inherit',
+});
+type DesignTab = 'layout' | 'customize';
 
 function DesignPopover({ doc }: { doc: Document }) {
   const ui = useContext(EditorUiContext);
@@ -1545,7 +1564,9 @@ function DesignPopover({ doc }: { doc: Document }) {
   const [pos, setPos] = useState<{ top: number; left: number; scale: number; maxH: number } | null>(null);
   // 画布里点到了外面：弹层已经收起、等那一下点击走完再退回（见文件头那段 🔴）。换了一块 / 关掉之后复位。
   const [leaving, setLeaving] = useState(false);
-  useEffect(() => { setLeaving(false); }, [id]);
+  // #1708 —— Layout / Customize 两页；切页不算改动，每次打开从 Layout 起。
+  const [tab, setTab] = useState<DesignTab>('layout');
+  useEffect(() => { setLeaving(false); setTab('layout'); }, [id]);
   // 监听里要的是最新的那一份（它们只在弹层开 / 关时挂一次）。
   const uiRef = useRef(ui);
   uiRef.current = ui;
@@ -1640,6 +1661,7 @@ function DesignPopover({ doc }: { doc: Document }) {
     if (!id) { setPos(null); return; }
     const win = doc.defaultView!;
     let raf = 0;
+    let lastNatural: number | null = null;
     const tick = () => {
       const anchor = doc.querySelector(`[data-editor-blockbar-for="${CSS.escape(id)}"]`) || doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
       const frame = win.frameElement as HTMLElement | null;
@@ -1647,11 +1669,16 @@ function DesignPopover({ doc }: { doc: Document }) {
       if (anchor) {
         const r = anchor.getBoundingClientRect();
         const box = boxRef.current;
-        const grid = box ? box.querySelector<HTMLElement>('[data-editor-design-layout]') : null;
+        // 当前那一页的内容区（Layout 的格子 / Customize 的控件，#1708）：两页都是自己会滚的那一块。
+        const grid = box ? box.querySelector<HTMLElement>('[data-editor-design-layout], [data-editor-design-customize]') : null;
         const vh = win.innerHeight;
         const gap = 8 / zoom;
         // 不受 maxHeight 影响的那个高度：外框 + 格子区的完整内容（格子区自己会滚，被压扁时 clientHeight 变、scrollHeight 不变）。
-        const natural = (box && grid ? box.offsetHeight - grid.clientHeight + grid.scrollHeight : 400) / zoom;
+        // 🔴 差 1.5 个像素以内不换（#1708）：内容高度带小数时（Customize 页的控件），这几个读数各自取整 ⟹ 放下了读成矮 1px、
+        //    压掉不到 1px 又读成高 1px，每帧来回翻，弹层一直在抖、按钮永远「不稳定」点不到（pricing 实测 665 ↔ 666）。
+        const measured = (box && grid ? box.offsetHeight - grid.clientHeight + grid.scrollHeight : 400) / zoom;
+        const natural = lastNatural !== null && Math.abs(measured - lastNatural) * zoom <= 1.5 ? lastNatural : measured;
+        lastNatural = natural;
         const room = vh - 2 * gap;
         const floor = Math.min(natural, POPOVER_MIN_H / zoom);
         const roomBelow = vh - gap - (r.bottom + gap);
@@ -1687,7 +1714,9 @@ function DesignPopover({ doc }: { doc: Document }) {
   const props = item.props as ItemProps;
   const options = (props[f.slot] && typeof props[f.slot] === 'object' ? props[f.slot] : {}) as OptionsValue;
   const current = presetNameOf(f, options, props);
-  const readOnly = !!((item as { readOnly?: Record<string, boolean> }).readOnly || {})[f.slot];
+  const locks = (item as { readOnly?: Record<string, boolean> }).readOnly || {};
+  const readOnly = !!locks[f.slot];
+  const bg = component.fields.find((x) => x.control === 'color' && x.slot === 'bg');
   const vw = doc.defaultView ? doc.defaultView.innerWidth : 1280;
   const pageSlug = api.page === 'home' ? undefined : api.page;
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
@@ -1697,11 +1726,24 @@ function DesignPopover({ doc }: { doc: Document }) {
       onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
       style={{ ...POPOVER, top: pos ? pos.top : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
       <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
-        <button type="button" role="tab" aria-selected data-editor-design-tab="layout"
-          style={{ padding: '6px 10px 8px', border: 0, borderBottom: '2px solid #1d4ed8', background: 'none', color: '#1d4ed8', fontSize: 13, fontWeight: 600, cursor: 'default', fontFamily: 'inherit' }}>
-          Layout
-        </button>
+        {(['layout', 'customize'] as const).map((t) => (
+          <button key={t} type="button" role="tab" aria-selected={tab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(tab === t)}>
+            {t === 'layout' ? 'Layout' : 'Customize'}
+          </button>
+        ))}
       </div>
+      {tab === 'customize' ? (
+        // #1708 —— 这一块的旋钮 + 开关 + 背景：右栏画的同一份控件（§KnobControls / §ColorField），改动交给 §changeDesign。
+        <div data-editor-design-customize="" style={{ padding: 12, overflowY: 'auto' }}>
+          <KnobControls f={f} value={options} onChange={(v) => ui.changeDesign(f.slot, v)} readOnly={readOnly} />
+          {bg ? (
+            <div data-editor-design-bg="">
+              <div style={SUB_LABEL}>Background</div>
+              <ColorField f={bg} value={props[bg.slot]} onChange={(v) => ui.changeDesign(bg.slot, v)} readOnly={!!locks[bg.slot]} />
+            </div>
+          ) : null}
+        </div>
+      ) : (
       <div data-editor-design-layout="" style={{ display: 'grid', gridTemplateColumns: `repeat(2, ${THUMB_W}px)`, gap: 12, padding: 12, overflowY: 'auto', justifyContent: 'center' }}>
         {(f.presets || []).map((p, i) => {
           const on = current === p.name;
@@ -1722,6 +1764,7 @@ function DesignPopover({ doc }: { doc: Document }) {
           );
         })}
       </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
         <button type="button" data-editor-design-cancel="" onClick={() => ui.cancelDesign()}
           style={{ ...POPOVER_BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
@@ -2522,6 +2565,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
    * #1700 —— Design 弹层是一个事务：只有 Done 提交（PM 2026-10-11 裁定 1）。
    *   打开   记下这一块此刻的 props；弹层开着时自动存停着（§holdReason 的 `design`），面板条说「点 Done 或 Cancel」。
    *   点一格 整块换成 §presetClickProps 算出来的 props（右栏点芯片同一份），`recordHistory: false` ⟹ 不在撤销里留中间步。
+   *          Customize 页（#1708）拧旋钮 / 勾开关 / 换背景同一条规矩（§changeDesign）；两页来回切、都改过，Done 也只记一步。
    *   Done   跟打开时比改过了 ⟹ 撤销历史补记一步（打开之前 → 现在），再照常数停手存一笔；没改 ⟹ 不存、不记。
    *   Cancel 退回打开时那份 props（`recordHistory: false`），不存、不记。
    * 🔴 任何把注意力移出弹层的动作都先 Cancel，再做它自己：点画布别处 / 点字 / 右栏 / 撤销键（只 Cancel，不再多退一步）
@@ -2548,6 +2592,16 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     const f = componentsByType.get(found.item.type)?.fields.find((x) => x.control === 'options' && (x.presets || []).length);
     if (!f) return;
     const props = presetClickProps(f, found.item.props, preset);
+    g.dispatch({ type: 'replace', destinationIndex: found.sel.index, destinationZone: found.sel.zone, data: { ...found.item, props }, recordHistory: false });
+  }
+  /** #1708 —— Customize 页的一下：值由 §KnobControls / §ColorField 算好（右栏同一份），这里只换这一个键，同 §pickDesign 不记历史。 */
+  function changeDesign(slot: string, value: unknown) {
+    const d = designRef.current;
+    const g = puckForDesign();
+    const found = d ? fillItem(g, d.id) : null;
+    if (!d || !g || !found) return;
+    const props: Record<string, unknown> = { ...found.item.props };
+    if (value === undefined) delete props[slot]; else props[slot] = value;
     g.dispatch({ type: 'replace', destinationIndex: found.sel.index, destinationZone: found.sel.zone, data: { ...found.item, props }, recordHistory: false });
   }
   /** 收起弹层。`commit` = Done。弹层没开着 ⟹ 什么都不做（各个出口都无条件调 Cancel）。 */
@@ -2616,7 +2670,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
     sendChat, revertChat: (messageId) => { cancelDesign(); postChat({ type: 'ai1st:chat-revert', messageId }); },
     fillNote, dismissFillNote: () => setFillNote(null),
-    design, openDesign, pickDesign, cancelDesign, doneDesign,
+    design, openDesign, pickDesign, changeDesign, cancelDesign, doneDesign,
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
