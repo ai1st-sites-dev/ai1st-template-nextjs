@@ -90,7 +90,7 @@
 
 import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Puck, ActionBar, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
+import { Puck, ActionBar, AutoField, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
 import SiteShell from '@/components/SiteShell';
@@ -1152,7 +1152,10 @@ type EditorUi = {
   dismissFillNote: () => void;
   /** #1700 —— Design 弹层开着的那一块（Puck id；null = 没开）和它的四个动作（§openDesign 那段注释是规矩的全文）。 */
   design: string | null;
-  openDesign: (id: string) => void;
+  /** #1735 —— `tab` 打开停在哪一页（不给 = Layout）；`focus` = 停在 Content 页时光标放进哪个字段。这一块已经开着 ⟹ 只切页。 */
+  openDesign: (id: string, tab?: DesignTab, focus?: string) => void;
+  /** #1735 —— 最近一次 §openDesign 要停的那一页（`n` 每次加一：同一块开着时再要一次也认得出来）。 */
+  designStart: { tab: DesignTab; focus?: string; n: number };
   pickDesign: (preset: string) => void;
   /** #1708 —— Customize 页改了这一块的一个字段（旋钮 / 开关整份 `options`、背景 `bg`）。undefined = 删掉这个键。 */
   changeDesign: (slot: string, value: unknown) => void;
@@ -1455,17 +1458,26 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
     dispatch({ type: 'setUi', ui: { itemSelector: { index: to, zone } }, recordHistory: true } as never);
   };
   const remove = () => { select(); dispatch({ type: 'remove', index, zone }); };
-  const editContent = () => {
-    select();
-    dispatch({ type: 'setUi', ui: { rightSideBarVisible: true } });
-    // 「这一块的第一个文字字段」按谓词现算（schema 里 `kind: 'text'` 的第一个；hero 是 headline）—— PM 2026-10-11 裁定，不写块名单。
-    const slot = inline?.components.get(item.type)?.fields.find((f) => f.kind === 'text')?.slot;
-    revealField(slot);
-  };
   // #1700 —— 有预设的块才有 Design（15 种页面块今天都有）。再点一下 = Cancel（弹层开着时它是唯一不算「点到外面」的地方，§DesignPopover）。
   //   别的块的弹层开着时点这一块的 Design：先 Cancel 那一个再开这一个（§openDesign 的规矩：注意力移出弹层一律先 Cancel）。
   const hasPresets = !!inline?.components.get(item.type)?.fields.some((f) => f.control === 'options' && (f.presets || []).length);
   const designOpen = !!ui && ui.design === id;
+  // #1735 —— Edit content 打开 Design 面板的 Content 页（不再开右栏），光标放进「这一块的第一个文字字段」：按谓词现算
+  //   （schema 里 `kind: 'text'` 的第一个；hero 是 headline）—— PM 2026-10-11 裁定，不写块名单。这一块的面板已经开着 ⟹ 只切到
+  //   Content 页，那一次打开里改过的不动；别的块的开着 ⟹ 先 Cancel 那一个（同 Design）。
+  //   开不了面板（AI 正在改、上了锁；没有预设的块 —— 今天没有）⟹ 照旧开右栏，别让这一下什么都不做。
+  const editContent = () => {
+    const slot = inline?.components.get(item.type)?.fields.find((f) => f.kind === 'text')?.slot;
+    if (ui && hasPresets && !ui.locked) {
+      if (ui.design && ui.design !== id) ui.cancelDesign();
+      select();
+      ui.openDesign(id, 'content', slot);
+      return;
+    }
+    select();
+    dispatch({ type: 'setUi', ui: { rightSideBarVisible: true } });
+    revealField(slot);
+  };
   const design = () => {
     if (!ui) return;
     if (designOpen) { ui.cancelDesign(); return; }
@@ -1757,7 +1769,8 @@ const popoverTab = (on: boolean): CSSProperties => ({
   padding: '6px 10px 8px', border: 0, borderBottom: `2px solid ${on ? '#1d4ed8' : 'transparent'}`, background: 'none',
   color: on ? '#1d4ed8' : '#475467', fontSize: 13, fontWeight: 600, cursor: on ? 'default' : 'pointer', fontFamily: 'inherit',
 });
-type DesignTab = 'layout' | 'customize';
+type DesignTab = 'layout' | 'customize' | 'content';
+const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content' };
 
 /**
  * #1722 —— 缩略图里缩放过的那一层：报出块渲染出来的高（未缩放的 px）。缩略图里的图片 / 字体晚到会改块高 ⟹ 一直盯着。
@@ -1784,6 +1797,49 @@ function DesignThumbBody({ vw, onHeight, children }: { vw: number; onHeight: (h:
   );
 }
 
+/** #1700 / #1708 —— Design 面板 Layout / Customize 两页画的那两个字段：预设那一格（Layout 的格子 + Customize 的旋钮）和背景。 */
+function designSlotsOf(component: EditorComponent) {
+  const preset = component.fields.find((x) => x.control === 'options' && (x.presets || []).length);
+  const bg = component.fields.find((x) => x.control === 'color' && x.slot === 'bg');
+  return { preset, bg };
+}
+
+/**
+ * #1735 —— Content 页画哪些字段：右栏这一块画的那一份（同一个 `resolveFields` 的结果、同一个顺序 —— 共用块 / 锁住的块顶上那句话、
+ * 写成引用的列表那一栏都跟着来），去掉另外两页已经有的那两个（§designSlotsOf）。`scripts/editor-design-content.test.js` 对 15 种块各量一次。
+ */
+export function designContentFields(component: EditorComponent, resolved: Fields): [string, Field][] {
+  const { preset, bg } = designSlotsOf(component);
+  return Object.entries(resolved).filter(([slot]) => slot !== preset?.slot && slot !== bg?.slot) as [string, Field][];
+}
+
+/**
+ * #1735 —— Content 页：字段定义取右栏那一份（编辑器 config 的 `resolveFields`），控件是 Puck 的 `AutoField` —— 右栏 Puck 画的同一套
+ *   （文字框、列表的加 / 删 / 拖动、图片的 Change 都是同一个组件）。改动交给 §changeDesign：不记历史、Done / Cancel 跟另两页一个事务。
+ *   面板在画布 iframe 里：Puck 的样式靠 `syncHostStyles`（§EDITOR_IFRAME）抄进了画布 document，所以 Puck 的控件在这里长得跟右栏一样。
+ *   每个字段外面一层 `data-editor-content-field="<slot>"`（同右栏的 `data-editor-field`，Edit content 落光标、e2e 找字段都靠它）。
+ */
+export function DesignContent({ component, item, ui, readOnly }: { component: EditorComponent; item: { type: string; props: ItemProps }; ui: EditorUi; readOnly: Record<string, boolean> }) {
+  const comp = usePuck((s) => s.config.components[item.type]) as { fields?: Fields; resolveFields?: (data: unknown, params: unknown) => Fields } | undefined;
+  const resolved = (comp?.resolveFields ? comp.resolveFields(item, {}) : comp?.fields) || {};
+  return (
+    <>
+      {designContentFields(component, resolved).map(([slot, field]) => (
+        <div key={slot} data-editor-content-field={slot} style={{ marginBottom: 16 }}>
+          {/* 公开的 AutoField 不画顶层字段的标题（右栏那份是 Puck 内部的 Label 画的）⟹ 这里补 Puck 的 FieldLabel；custom 字段的 render 自己画了标题。 */}
+          {field.type === 'custom' ? (
+            <AutoField field={field} value={item.props[slot]} onChange={(v: unknown) => ui.changeDesign(slot, v)} readOnly={!!readOnly[slot]} />
+          ) : (
+            <FieldLabel label={field.label || slot} el="div" readOnly={!!readOnly[slot]}>
+              <AutoField field={field} value={item.props[slot]} onChange={(v: unknown) => ui.changeDesign(slot, v)} readOnly={!!readOnly[slot]} />
+            </FieldLabel>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function DesignPopover({ doc }: { doc: Document }) {
   const ui = useContext(EditorUiContext);
   const api = useContext(InlineApiContext);
@@ -1796,9 +1852,26 @@ function DesignPopover({ doc }: { doc: Document }) {
   const [bodyH, setBodyH] = useState<Record<string, number>>({});
   // 画布里点到了外面：弹层已经收起、等那一下点击走完再退回（见文件头那段 🔴）。换了一块 / 关掉之后复位。
   const [leaving, setLeaving] = useState(false);
-  // #1708 —— Layout / Customize 两页；切页不算改动，每次打开从 Layout 起。
+  // #1708 —— Layout / Customize / Content（#1735）三页；切页不算改动。打开停在哪一页由 §openDesign 定（Design = Layout，Edit content = Content）。
   const [tab, setTab] = useState<DesignTab>('layout');
-  useEffect(() => { setLeaving(false); setTab('layout'); }, [id]);
+  const start = ui ? ui.designStart : null;
+  useEffect(() => { setLeaving(false); }, [id]);
+  useEffect(() => { if (id && start) setTab(start.tab); }, [id, start?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // #1735 —— Edit content：停在 Content 页之后，光标放进那个字段的第一个输入框（面板画出来、那一页挂上之后），页内滚到它。
+  useEffect(() => {
+    if (!id || !start || start.tab !== 'content') return;
+    const sel = start.focus ? `[data-editor-content-field="${CSS.escape(start.focus)}"]` : '[data-editor-content-field]';
+    whenFound(() => {
+      const box = boxRef.current;
+      if (!box || box.style.visibility !== 'visible') return null;
+      return box.querySelector<HTMLElement>(`[data-editor-design-content] ${sel}`);
+    }, (field) => {
+      const page = field.closest<HTMLElement>('[data-editor-design-content]');
+      // 字段顶（含标题）贴到这一页的内边距下沿；弹层按 1/zoom 放大过 ⟹ 屏幕上的差除回 scale 才是这一页自己的 px。
+      if (page) page.scrollTop += (field.getBoundingClientRect().top - page.getBoundingClientRect().top) * (page.offsetHeight / (page.getBoundingClientRect().height || page.offsetHeight)) - POPOVER_PAD;
+      field.querySelector<HTMLElement>('input:not([type=hidden]):not(:disabled), textarea:not(:disabled), select:not(:disabled)')?.focus({ preventScroll: true });
+    });
+  }, [id, start?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   // 监听里要的是最新的那一份（它们只在弹层开 / 关时挂一次）。
   const uiRef = useRef(ui);
   uiRef.current = ui;
@@ -1813,7 +1886,7 @@ function DesignPopover({ doc }: { doc: Document }) {
     if (!id) return;
     const cancel = () => uiRef.current?.cancelDesign();
     const inside = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function'
-      && !!(t as Element).closest('[data-editor-popover], [data-editor-block-action="design"]');
+      && !!(t as Element).closest('[data-editor-popover], [data-editor-block-action="design"], [data-editor-block-action="edit"]');
     const win = doc.defaultView;
     let leaving = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -1940,14 +2013,13 @@ function DesignPopover({ doc }: { doc: Document }) {
 
   if (!ui || !api || !id || !item || leaving) return null;
   const component = api.components.get(item.type);
-  const f = component?.fields.find((x) => x.control === 'options' && (x.presets || []).length);
+  const { preset: f, bg } = component ? designSlotsOf(component) : { preset: undefined, bg: undefined };
   if (!component || !f) return null;
   const props = item.props as ItemProps;
   const options = (props[f.slot] && typeof props[f.slot] === 'object' ? props[f.slot] : {}) as OptionsValue;
   const current = presetNameOf(f, options, props);
   const locks = (item as { readOnly?: Record<string, boolean> }).readOnly || {};
   const readOnly = !!locks[f.slot];
-  const bg = component.fields.find((x) => x.control === 'color' && x.slot === 'bg');
   const vw = doc.defaultView ? doc.defaultView.innerWidth : 1280;
   const pageSlug = api.page === 'home' ? undefined : api.page;
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
@@ -1973,13 +2045,18 @@ function DesignPopover({ doc }: { doc: Document }) {
       onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
       style={{ ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
       <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
-        {(['layout', 'customize'] as const).map((t) => (
+        {(['layout', 'customize', 'content'] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(tab === t)}>
-            {t === 'layout' ? 'Layout' : 'Customize'}
+            {DESIGN_TAB_LABEL[t]}
           </button>
         ))}
       </div>
-      {tab === 'customize' ? (
+      {tab === 'content' ? (
+        // #1735 —— 这一块的内容字段（右栏那一份，去掉另两页已有的）；超高在页内滚（面板封顶高见 §tick）。
+        <div data-editor-design-content="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
+          <DesignContent component={component} item={item as { type: string; props: ItemProps }} ui={ui} readOnly={locks} />
+        </div>
+      ) : tab === 'customize' ? (
         // #1708 —— 这一块的旋钮 + 开关 + 背景：右栏画的同一份控件（§KnobControls / §ColorField），改动交给 §changeDesign。
         <div data-editor-design-customize="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
           <KnobControls f={f} value={options} onChange={(v) => ui.changeDesign(f.slot, v)} readOnly={readOnly} />
@@ -2238,6 +2315,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   // #1700 —— Design 弹层开着的那一块：打开那一刻这一块的 props（Cancel 退回到它，Done 跟它比有没有改）。
   const designRef = useRef<{ id: string; before: Record<string, unknown> } | null>(null);
   const [design, setDesign] = useState<string | null>(null);
+  // #1735 —— 打开时停哪一页（Design 按钮 = Layout，Edit content = Content）。
+  const [designStart, setDesignStart] = useState<{ tab: DesignTab; focus?: string; n: number }>({ tab: 'layout', n: 0 });
 
   // #1453 —— autosave。画布每变一次（§Autosave）就重新数 AUTOSAVE_IDLE_MS；数到了存一笔（§flushAutosave）。
   // 停着的时候（AI 在改 · 浮条在问他要哪一版）不数；停的原因一解除就重新数一次（下面那个 effect）——
@@ -2912,11 +2991,17 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   function puckForDesign() {
     return getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck & ReturnType<GetPuck>) : null;
   }
-  function openDesign(id: string) {
-    if (lockedRef.current || designRef.current) return;
+  function openDesign(id: string, tab: DesignTab = 'layout', focus?: string) {
+    if (lockedRef.current) return;
+    // #1735 —— 这一块已经开着（Edit content 点在开着的面板上）：只切页，这一次打开里改过的照旧算在里面。
+    if (designRef.current) {
+      if (designRef.current.id === id) setDesignStart((p) => ({ tab, focus, n: p.n + 1 }));
+      return;
+    }
     const found = fillItem(puckForDesign(), id);
     if (!found) return;
     designRef.current = { id, before: found.item.props };
+    setDesignStart((p) => ({ tab, focus, n: p.n + 1 }));
     setDesign(id);
     cancelAutosave();
     reportPending(undefined);
@@ -3007,7 +3092,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
     sendChat, revertChat: (messageId) => { cancelDesign(); postChat({ type: 'ai1st:chat-revert', messageId }); },
     fillNote, dismissFillNote: () => setFillNote(null),
-    design, openDesign, pickDesign, changeDesign, cancelDesign, doneDesign,
+    design, designStart, openDesign, pickDesign, changeDesign, cancelDesign, doneDesign,
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
