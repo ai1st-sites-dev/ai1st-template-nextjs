@@ -1725,7 +1725,11 @@ const ITEMBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482100, disp
  * 🔴 弹层自己的鼠标 / 键盘事件不往外冒：React 的事件顺着组件树冒到 Puck 的预览框，它见目标不是块就把选中清掉；
  *    键盘冒到画布 document，Backspace 会被 Puck 当成「删掉选中的块」（#1683 那一条）。
  */
+// #1727 —— 这是弹层的最宽；画布切窄（Puck 的 Small = 360）放不下时，宽 = 画布可视区宽 − 两边各 POPOVER_EDGE（§DesignPopover 的 tick）。
 const POPOVER_W = 520;
+// #1727 —— Layout 页内容区左右各留的边（弹层自己的 px，同下面 JSX 里的 padding: 12）+ 弹层左右边框各 1 ⟹ 宽度够不够放两列按它算。
+const POPOVER_PAD = 12;
+const POPOVER_BORDER = 1;
 const THUMB_W = 236;
 // #1722 —— 格子高 = 那个预设缩完之后的实际高（§DesignThumbBody 量），不再是固定高的框。这个数只在还没量到的那一帧顶一下。
 const THUMB_H = 148;
@@ -1745,7 +1749,7 @@ const POPOVER_EDGE = 16;
 const POPOVER_BAR_GAP = 8;
 const POPOVER: CSSProperties = {
   position: 'fixed', zIndex: 2147483000, width: POPOVER_W, boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
-  background: '#fff', border: '1px solid #d0d5dd', borderRadius: 12, boxShadow: '0 12px 32px rgba(16, 24, 40, 0.18)',
+  background: '#fff', border: `${POPOVER_BORDER}px solid #d0d5dd`, borderRadius: 12, boxShadow: '0 12px 32px rgba(16, 24, 40, 0.18)',
   fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#344054', lineHeight: 1.3, transformOrigin: 'bottom left',
 };
 const POPOVER_BTN: CSSProperties = { padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' };
@@ -1787,7 +1791,7 @@ function DesignPopover({ doc }: { doc: Document }) {
   const item = usePuck((s) => (id ? (s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null) : null));
   const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
   const boxRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ bottom: number; left: number; scale: number; maxH: number } | null>(null);
+  const [pos, setPos] = useState<{ bottom: number; left: number; scale: number; maxH: number; w: number } | null>(null);
   // #1722 —— 每格缩略图里块渲染出来的高（未缩放的 px），按「块 id:第几个预设」记（换一块不用清）。
   const [bodyH, setBodyH] = useState<Record<string, number>>({});
   // 画布里点到了外面：弹层已经收起、等那一下点击走完再退回（见文件头那段 🔴）。换了一块 / 关掉之后复位。
@@ -1911,9 +1915,11 @@ function DesignPopover({ doc }: { doc: Document }) {
       const edge = POPOVER_EDGE / zoom;
       const h = Math.min(Math.max(vh * POPOVER_MAX_VH, POPOVER_MIN_H / zoom), vh - 2 * edge);
       const maxH = Math.max(1, Math.floor(h * zoom));
-      const left = win.innerWidth / 2 - POPOVER_W / zoom / 2;
+      // #1727 —— 宽（弹层自己的 px）：最宽 POPOVER_W，画布可视区放不下就缩到可视区宽 − 两边各 POPOVER_EDGE；横向仍以可视区中线为准（#1725）。
+      const w = Math.max(1, Math.min(POPOVER_W, Math.floor((win.innerWidth - 2 * edge) * zoom)));
+      const left = win.innerWidth / 2 - w / zoom / 2;
       const scale = 1 / zoom;
-      setPos((p) => (p && p.bottom === edge && p.left === left && p.scale === scale && p.maxH === maxH ? p : { bottom: edge, left, scale, maxH }));
+      setPos((p) => (p && p.bottom === edge && p.left === left && p.scale === scale && p.maxH === maxH && p.w === w ? p : { bottom: edge, left, scale, maxH, w }));
       const pad = `${Math.ceil(h + edge)}px`;
       if (spacer.style.height !== pad) spacer.style.height = pad;
       // 顶边（画布 document 坐标）= 内容的底；按 spacer 自己现在在哪校正，不用管它的定位祖先是谁。
@@ -1948,22 +1954,24 @@ function DesignPopover({ doc }: { doc: Document }) {
   // #1722 —— 两列各自往下堆：第 1、3、5 个在左列，第 2、4 个在右列，每格紧接着同一列的上一格。DOM 顺序仍是预设顺序
   //    （= Tab 顺序，键盘走的是阅读顺序），位置按算术摆。上限是画布 document 的 px，格子画在按 1/zoom 放大过的弹层里 ⟹ 除回去。
   const cap = Math.floor((THUMB_MAX_VH * (doc.defaultView ? doc.defaultView.innerHeight : 800)) / (pos ? pos.scale : 1));
-  const colH = [0, 0];
+  // #1727 —— 弹层窄到放不下两列（画布 Small 那一档）就退成一列，格子照样各自往下堆。
+  const cols = (pos ? pos.w : POPOVER_W) - 2 * (POPOVER_PAD + POPOVER_BORDER) >= 2 * THUMB_W + THUMB_GAP ? 2 : 1;
+  const colH = cols === 2 ? [0, 0] : [0];
   const cells = (f.presets || []).map((p, i) => {
     const measured = bodyH[`${id}:${i}`];
     const full = measured ? Math.round((measured * THUMB_W) / vw) : THUMB_H;
     const h = Math.min(full, cap);
-    const col = i % 2;
+    const col = i % cols;
     const top = colH[col];
     colH[col] += h + 6 + THUMB_NAME_H + THUMB_GAP;
     return { p, i, h, clipped: full > cap, top, left: col * (THUMB_W + THUMB_GAP) };
   });
-  const layoutH = Math.max(0, Math.max(colH[0], colH[1]) - THUMB_GAP);
+  const layoutH = Math.max(0, Math.max(...colH) - THUMB_GAP);
 
   return createPortal(
     <div ref={boxRef} data-editor-popover="" data-editor-popover-for={id} role="dialog" aria-label="Design"
       onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
-      style={{ ...POPOVER, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
+      style={{ ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
       <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
         {(['layout', 'customize'] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(tab === t)}>
@@ -1973,7 +1981,7 @@ function DesignPopover({ doc }: { doc: Document }) {
       </div>
       {tab === 'customize' ? (
         // #1708 —— 这一块的旋钮 + 开关 + 背景：右栏画的同一份控件（§KnobControls / §ColorField），改动交给 §changeDesign。
-        <div data-editor-design-customize="" style={{ padding: 12, overflowY: 'auto' }}>
+        <div data-editor-design-customize="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
           <KnobControls f={f} value={options} onChange={(v) => ui.changeDesign(f.slot, v)} readOnly={readOnly} />
           {bg ? (
             <div data-editor-design-bg="">
@@ -1983,8 +1991,8 @@ function DesignPopover({ doc }: { doc: Document }) {
           ) : null}
         </div>
       ) : (
-      <div data-editor-design-layout="" style={{ padding: 12, overflowY: 'auto' }}>
-        <div style={{ position: 'relative', width: 2 * THUMB_W + THUMB_GAP, height: layoutH, margin: '0 auto' }}>
+      <div data-editor-design-layout="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
+        <div style={{ position: 'relative', width: cols * THUMB_W + (cols - 1) * THUMB_GAP, height: layoutH, margin: '0 auto' }}>
           {cells.map(({ p, i, h, clipped, top, left }) => {
             const on = current === p.name;
             const thumbProps = { ...presetClickProps(f, props, p.name), id: `${id}~design-${i}` } as ItemProps;
