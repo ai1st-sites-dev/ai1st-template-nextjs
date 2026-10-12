@@ -814,7 +814,10 @@ function entryLabel(e, idx, lib) {
 
 // ── #1676 每个改动说成什么 ─────────────────────────────────────────────────────────────────────────
 //   AI 按钮       `Hero · Headline · made shorter`       （说明由编辑器递进来：`aiNotes`，见 §aiNotesForSave）
-//   AI 换图       `Hero · Image · AI generated`          （#1713 画布图上的 Regenerate，同一条路）
+//   换图          `Hero · Generate and replace image` / `Hero · Change image`   （#1733：块里那一格图（`control: 'image'`）换成
+//                 另一张就说动作 —— 带「生成」说明（画布 Regenerate、弹窗 Generate）说前一种，其余（上传 / 图库已有的 / 面板 Change）
+//                 说后一种；槽名照小写放进去（`Features · Change intro image`）。图那一段恒单独成段。只改了图片说明（alt）、
+//                 或把图删了，不算换图，照旧只说字段名。成排的图（logos 一排、team 头像）不在此列，照旧 `Logos · Items`）
 //   手改文字      `Hero · Subheading · "前 40 个字…"`
 //   换形态        `Hero · Layout → split`                 （值写形态 id，不写面板上带括号的那个 label；回到跟主题走 = `(default)`）
 //                 🔴 带预设的块（今天 15 个页面块全是）编辑器里**没有**形态下拉（`EditorApp.tsx` §buildConfig，#1463）——
@@ -827,8 +830,9 @@ function entryLabel(e, idx, lib) {
 // 全部按规则算，不调 AI（每次自动保存一条，调 AI 又贵又慢又不确定）。
 
 /** AI 四个动作在记录里的说法。键 = `InlineEdit.tsx` 的 `REWRITE_ACTIONS`（按钮上的字是另一份）。
- *  #1713 —— 外加 `generated`：画布图上的 ✨ Regenerate 换上的那张图（`Hero · Image · AI generated`）。说明的 `text` 是新图地址，
- *  `path` 指到地址那一格（`image.imageUrl`），作废规矩同字：存盘那一刻那一格已经不是这张图了 ⟹ 不说（§aiNotesForSave）。 */
+ *  #1713 —— 外加 `generated`：AI 生成换上的那张图。说明的 `text` 是新图地址，
+ *  `path` 指到地址那一格（`image.imageUrl`），作废规矩同字：存盘那一刻那一格已经不是这张图了 ⟹ 不说（§aiNotesForSave）。
+ *  #1733 —— 换图那一段不用这里的字，说成 `Hero · Generate and replace image`（§fieldSegments / §imageSwap）；这一项留着是给 §recordAiNote 认动作。 */
 const AI_ACTION_PHRASES = { longer: 'made longer', shorter: 'made shorter', casual: 'more casual', professional: 'more professional', generated: 'AI generated' };
 /** 手改文字记录里新值最多带几个字（按字符，不按字节：中文 / emoji 不被切半）。 */
 const SUMMARY_TEXT_CHARS = 40;
@@ -903,6 +907,13 @@ function fieldSegments(label, changed, notes, preset) {
   let plain = null;
   for (const { field: f, before, after } of changed) {
     if (preset && preset.covered.has(f.slot)) continue;
+    const swapped = imageSwap(f, before, after);
+    if (swapped) {
+      plain = null;
+      const gen = notes && has(notes, f.slot) && notes[f.slot] === 'generated';
+      segs.push(`${label} · ${gen ? 'Generate and replace' : 'Change'} ${f.label.toLowerCase()}`);
+      continue;
+    }
     const action = notes && has(notes, f.slot) ? AI_ACTION_PHRASES[notes[f.slot]] : undefined;
     // #1723 —— 画布条目条那几下（`item 3 removed`）：记在 `<slot>#items` 上（§aiNotesForSave），跟 AI 说明并排说。
     const items = notes && Array.isArray(notes[`${f.slot}${ITEM_NOTE_SUFFIX}`]) ? notes[`${f.slot}${ITEM_NOTE_SUFFIX}`] : [];
@@ -919,6 +930,13 @@ function fieldSegments(label, changed, notes, preset) {
     else { plain = [f.label]; segs.push(plain); }
   }
   return segs.map((s) => (Array.isArray(s) ? `${label} · ${s.join(', ')}` : s));
+}
+
+/** #1733 —— 块里那一格图（`control: 'image'`）这一笔是不是换成了另一张：地址变了、且换完还有图。 */
+function imageSwap(field, before, after) {
+  if (field.control !== 'image') return false;
+  const url = (v) => (isPlainObject(v) && typeof v.imageUrl === 'string' ? v.imageUrl.trim() : '');
+  return !!url(after) && url(after) !== url(before);
 }
 
 /** 同一块前后两份 `data` 里改过的字段（照 schema 的字段顺序）。 */

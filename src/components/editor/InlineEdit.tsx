@@ -33,7 +33,7 @@
 // #1713 —— 鼠标移到图上，图正中出 ✨ Regenerate · ✎ Edit（§ImageHoverBar）。按钮层也用 `registerOverlayPortal` 登记
 //   （`disableDrag`：按下去不是拖块），移到按钮上不算移开。Edit = 点图；弹窗标题 = 这个位置的名字（`Hero · Image`）。
 //   成排的小图、`generateImages: false` 的槽只出 ✎（schema 的 `regenerate`，`editor-schema.js` §inlineSlotsOf）。
-//   Regenerate（§regenFor）：图上转圈、按钮置灰、画布进 AI 锁 → 生成回来当场换上、马上存一笔（记录 `Hero · Image · AI generated`）→
+//   Regenerate（§regenFor）：图上转圈、按钮置灰、画布进 AI 锁 → 生成回来当场换上、马上存一笔（记录 `Hero · Generate and replace image`，#1733）→
 //   开弹窗，新图打勾、上一张紧挨着。回来的是上一张或取消 ⟹ 换回去，第二笔存盘。生成失败 ⟹ 画布不动、按钮下一句原因、不开弹窗。
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
@@ -56,7 +56,7 @@ type AiBusy = RewriteAction | 'custom';
 
 export type RewriteResult = { ok: true; fields: { name: string; text: string }[] } | { ok: false; message: string };
 /** #1693 —— 选图的结果：一张新图的地址 / 老板点了取消 / 没选成（说一句）。 */
-export type PickImageResult = { ok: true; url: string } | { ok: false; cancelled: true } | { ok: false; cancelled?: false; message: string };
+export type PickImageResult = { ok: true; url: string; generated?: boolean } | { ok: false; cancelled: true } | { ok: false; cancelled?: false; message: string };
 /** #1713 —— 画布图上 Regenerate 的结果：新图的地址（已经进了图片库）/ 没生成成（说一句）。 */
 export type RegenerateResult = { ok: true; url: string } | { ok: false; message: string };
 
@@ -586,7 +586,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
   }
 
   /**
-   * #1713 —— ✨ Regenerate：生成一张 → 当场换上、马上存（记录 `… · AI generated`）→ 开弹窗（新图打勾、上一张紧挨着）。
+   * #1713 —— ✨ Regenerate：生成一张 → 当场换上、马上存（记录 `… · Generate and replace image`，#1733）→ 开弹窗（新图打勾、上一张紧挨着）。
    * 弹窗回来的是上一张，或者取消 ⟹ 换回上一张，第二笔存盘；回来的还是新图（Done）⟹ 什么都不做。
    * 等的这几秒画布锁着，图不会被别处改；弹窗开着的时候那张图被改过（撤销、AI 聊天换了底稿）⟹ 不覆盖，说一句。
    */
@@ -601,7 +601,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     const cur = getAt(itemById(id)?.props, path);
     if (urlIn(cur) !== before) { setImgNote({ el, text: 'This image was changed while the AI was making a new one, so the new image was not used. It is in your image library.' }); return; }
     if (!write(id, path, withUrl(cur, res.url), true)) { setImgNote({ el, text: 'This section is no longer on the page.' }); return; }
-    // 记录说「AI generated」：说明指到地址那一格（对象的 `imageUrl`），存盘那一刻还是这张才用（§aiNotesForSave）。
+    // 记录说「生成」（`Generate and replace image`）：说明指到地址那一格（对象的 `imageUrl`），存盘那一刻还是这张才用（§aiNotesForSave）。
     ap.noteAi({ id, path: typeof cur === 'string' ? path : [...path, 'imageUrl'], action: 'generated', text: res.url });
     ap.saveNow();
     const pick = await ap.pickImage(before, { id, slot }, { ...(title ? { title } : {}), fresh: res.url });
@@ -613,7 +613,10 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       setActive({ id, slot, blockType: itemById(id)?.type || '', el, path: null, name: '', typing: false, ai: false, hint: 'This image was changed while you were choosing, so your choice was not used.' });
       return;
     }
-    if (write(id, path, withUrl(now, want), true)) ap.saveNow();
+    if (!write(id, path, withUrl(now, want), true)) return;
+    // #1733 —— 弹窗里又 Generate 了一张并选了它：第二笔也说「生成」；点回上一张 / 图库里的 ⟹ 不记，说成 `Change image`。
+    if (pick.ok && pick.generated && typeof now !== 'string') ap.noteAi({ id, path: [...path, 'imageUrl'], action: 'generated', text: want });
+    ap.saveNow();
   }
 
   /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。
@@ -634,7 +637,11 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     }
     if (!write(id, path, typeof cur === 'string' ? res.url : { ...cur, imageUrl: res.url }, true)) {
       setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: 'This section is no longer on the page.' });
+      return;
     }
+    // #1733 —— 选的是弹窗里 Generate 出来的那张：跟 Regenerate 一样记一条「生成」说明（指到地址那一格），
+    //    记录写 `Hero · Generate and replace image`。成排的图（值是地址字符串）不记：那一格照旧只说 `Logos · Items`。
+    if (res.generated && typeof cur !== 'string') ap.noteAi({ id, path: [...path, 'imageUrl'], action: 'generated', text: res.url });
   }
 
   async function runAi(action: AiBusy) {

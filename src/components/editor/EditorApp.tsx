@@ -72,7 +72,7 @@
 //
 // #1693 —— 换图（「一个位置一张」的图，面板 §ImageField.tsx + 画布里点图 §InlineEdit.tsx）：选图用 dashboard 的图片库，
 //   发  ai1st:pick-image {id, current, prompt?, blockType?, slot?}  dashboard 开图片库弹窗（单选；上传 / 选已有的都在它那边，带它自己的凭证）
-//   收  ai1st:pick-image-result {id, ok, url?, cancelled?, message?}   选了一张 = 新地址；取消 = cancelled
+//   收  ai1st:pick-image-result {id, ok, url?, generated?, cancelled?, message?}   选了一张 = 新地址（generated = 弹窗里生成的，#1733）；取消 = cancelled
 //   同一时刻只等一次：再点一次 Change，上一次算取消。不设超时 —— 老板在弹窗里挑多久都行。
 // #1711 —— 弹窗里多一颗 Generate（AI 生成一张）。`prompt` 是这里算好的默认提示词：建站那一句（`scripts/lib/slot-prompt.js`
 //   §editorImagePrompt，同一个函数）+ 这块现在的标题；老板写的那句由 dashboard 接在后面，生成也是 dashboard 带凭证去打 ——
@@ -82,7 +82,7 @@
 //   （弹窗标题 = 这个位置的名字，`Hero · Image`）。Regenerate 一键生成一张换上：
 //   发  ai1st:ai-image {id, prompt, blockType?, slot?}     dashboard 带凭证打 `POST /api/sites/{id}/ai/image`（同弹窗里的 Generate）
 //   收  ai1st:ai-image-result {id, ok, url?, message?}
-//   等的时候画布进 AI 锁（§useAiLockGuard，同聊天）；回来换上、马上存一笔（记录 `Hero · Image · AI generated`），再开弹窗：
+//   等的时候画布进 AI 锁（§useAiLockGuard，同聊天）；回来换上、马上存一笔（记录 `Hero · Generate and replace image`，#1733），再开弹窗：
 //   发  ai1st:pick-image {…, current: 上一张, fresh: 新图, title}   弹窗里新图打勾、上一张紧挨着，主按钮叫 Done；
 //   回来的是上一张（点了它再 Done）或取消 ⟹ 换回上一张，第二笔存盘。先存后问：这一张花了钱，老板关掉页面也不白花。
 //   行业不在站点文件里（`site_meta.json` 只有 siteId / leadApi / locales）：dashboard 在 `ai1st:editor-baseline` 里多带一个
@@ -2377,11 +2377,12 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       }
       if (d.type === 'ai1st:pick-image-result') {
         // #1693 —— 只认手上在等的那一次；地址只收非空字符串（别的形状当失败）。
-        const r = d as { id?: unknown; url?: unknown; cancelled?: unknown; message?: unknown };
+        // #1733 —— `generated: true` = 选的是弹窗里生成的那张（存盘记录说「生成」，§pickFor）。
+        const r = d as { id?: unknown; url?: unknown; cancelled?: unknown; message?: unknown; generated?: unknown };
         const p = pickRef.current;
         if (!p || r.id !== p.id) return;
         pickRef.current = null;
-        if (d.ok === true && typeof r.url === 'string' && r.url.trim()) p.done({ ok: true, url: r.url.trim() });
+        if (d.ok === true && typeof r.url === 'string' && r.url.trim()) p.done({ ok: true, url: r.url.trim(), ...(r.generated === true ? { generated: true } : {}) });
         else if (r.cancelled === true) p.done({ ok: false, cancelled: true });
         else p.done({ ok: false, message: typeof r.message === 'string' && r.message ? r.message : 'The image could not be chosen. Please try again.' });
         return;

@@ -289,23 +289,52 @@ eq(JSON.stringify(aiNotesForSave(recordAiNote({}, { id: 'puck-bar', path: [barTe
 eq(JSON.stringify(recordAiNote({}, { id: 'puck-bar', path: [barText.slot], action: 'rhyme', text: 'S' })), '{}', '不认识的动作不记');
 
 // #1713 —— 画布图上的 ✨ Regenerate：说明的 path 指到地址那一格（`image.imageUrl`），text 是新图地址。整条从编辑器那一侧的
-//    纯函数走到 §describeSave，不手写 aiNotes：记录 `Hero · Image · AI generated`；换回上一张那一笔 ⟹ 只说 `Hero · Image`。
-console.log('⑩ #1713 Regenerate 换图：AI generated');
+//    纯函数走到 §describeSave，不手写 aiNotes。
+// #1733 —— 块里那一格图换了就说动作：带「生成」说明 ⟹ `Hero · Generate and replace image`；不带 ⟹ `Hero · Change image`。
+console.log('⑩ #1713 / #1733 换图：Generate and replace image / Change image');
 const heroImg = fieldLabel(hero, 'image');
+if (heroImg !== 'Image') die(`hero 那一格图的 editLabel 现在是 ${heroImg}（正文的例子按 Image 写）`);
 const imgCanvas = (url) => [{ type: 'hero', props: { id: 'puck-hero', image: { imageUrl: url, alt: 'A van' }, _src: { entry: { id: 'home-hero-1', type: 'hero' }, shared: null } } }];
 const imgSaved = edit((j) => { at(j, 'home-hero-1').data.image = { imageUrl: '/photos/old.jpg', alt: 'A van' }; });
 const imgJson = (url) => { const j = JSON.parse(JSON.stringify(imgSaved)); at(j, 'home-hero-1').data.image = { imageUrl: url, alt: 'A van' }; return j; };
+const sayImg = (a) => describeSave({ root: null, shared: null, schema, rootLabels, shapeLabel: 'Layout', ...a });
 notes = recordAiNote({}, { id: 'puck-hero', path: ['image', 'imageUrl'], action: 'generated', text: '/uploads/new.png' });
 r = aiNotesForSave(notes, imgCanvas('/uploads/new.png'));
-eq(describeSave({ saved: imgSaved, json: imgJson('/uploads/new.png'), root: null, shared: null, schema, rootLabels, shapeLabel: 'Layout', aiNotes: r.aiNotes }),
-  `${H} · ${heroImg} · AI generated`, '第一笔：换上生成的那张');
-eq(`${H} · ${heroImg}`, 'Hero · Image', '块名 / 字段名就是票上写的那两个（Hero · Image）');
+eq(sayImg({ saved: imgSaved, json: imgJson('/uploads/new.png'), aiNotes: r.aiNotes }),
+  'Hero · Generate and replace image', '带「生成」说明的 hero 换图（Regenerate / 弹窗 Generate）');
+eq(sayImg({ saved: imgSaved, json: imgJson('/uploads/new.png'), aiNotes: {} }),
+  'Hero · Change image', '同一笔去掉「生成」说明 ⟹ Change image（上传 / 图库已有的 / 面板 Change）');
 // 第二笔：老板在弹窗里点回上一张。第一笔已经存上（说明清掉了），这一笔的底是第一笔存下去的那份。
 const settled = settleAiNotes(notes, r.used);
-eq(describeSave({ saved: imgJson('/uploads/new.png'), json: imgJson('/photos/old.jpg'), root: null, shared: null, schema, rootLabels, shapeLabel: 'Layout', aiNotes: aiNotesForSave(settled, imgCanvas('/photos/old.jpg')).aiNotes }),
-  `${H} · ${heroImg}`, '第二笔：换回上一张 ⟹ 只说字段名');
-// 第一笔还没存上就换回去了（说明还在）：那一格已经不是生成的那张 ⟹ 说明作废，不说 AI generated。
+eq(sayImg({ saved: imgJson('/uploads/new.png'), json: imgJson('/photos/old.jpg'), aiNotes: aiNotesForSave(settled, imgCanvas('/photos/old.jpg')).aiNotes }),
+  'Hero · Change image', 'Regenerate 之后点回上一张：第二笔 Change image');
+// 第一笔还没存上就换回去了（说明还在）：那一格已经不是生成的那张 ⟹ 说明作废。
 eq(JSON.stringify(aiNotesForSave(notes, imgCanvas('/photos/old.jpg')).aiNotes), '{}', '换回去了还没存 ⟹ 说明作废');
+// 槽名不是 Image 的：照槽名小写。
+const intro = field(feat, 'introImage');
+if (intro.control !== 'image' || intro.label !== 'Intro image') die(`features.introImage 现在是 ${intro.control} / ${intro.label}`);
+const featSaved = edit((j) => { at(j, 'home-features-2').data.introImage = { imageUrl: '/a.jpg', alt: '' }; });
+const featJson = edit((j) => { at(j, 'home-features-2').data.introImage = { imageUrl: '/b.jpg', alt: '' }; });
+eq(sayImg({ saved: featSaved, json: featJson }), `${F} · Change intro image`, 'features Intro image 换图');
+eq(sayImg({ saved: featSaved, json: featJson, aiNotes: { 'id:home-features-2': { introImage: 'generated' } } }),
+  `${F} · Generate and replace intro image`, 'features Intro image 生成换上');
+// 同一块里图和别的字段一起改：图那一段单独说（Band 是 hero 的图片条，只说字段名）。
+const band = field(hero, 'band');
+eq(sayImg({ saved: imgSaved, json: (() => { const j = imgJson('/uploads/new.png'); at(j, 'home-hero-1').data.band = [{ imageUrl: '/x.jpg' }]; return j; })() }),
+  `Hero · ${band.label}; Hero · Change image`, 'hero 图和 Band 一起改 ⟹ 拆成两段');
+eq(sayImg({ saved: imgSaved, json: (() => { const j = imgJson('/uploads/new.png'); at(j, 'home-hero-1').data.headline = 'New'; return j; })() }),
+  'Hero · Headline · "New"; Hero · Change image', '图 + 标题一起改');
+// 不算换图的：只改了图片说明 / 把图删了 ⟹ 照旧只说字段名。
+eq(sayImg({ saved: imgSaved, json: edit((j) => { at(j, 'home-hero-1').data.image = { imageUrl: '/photos/old.jpg', alt: 'A red van' }; }) }),
+  'Hero · Image', '只改图片说明（alt）⟹ 不是换图');
+eq(sayImg({ saved: imgSaved, json: edit((j) => { delete at(j, 'home-hero-1').data.image; }) }), 'Hero · Image', '把图删了 ⟹ 不是换图');
+// 不做：成排的图换一张（logos 一排）仍是 `Logos · Items` —— 带不带说明都一样。
+const logos = label('logos');
+const logoItems = field(logos, 'items');
+const logoSaved = { blocks: [{ id: 'home-logos-1', type: 'logos', data: { items: [{ imageUrl: '/l1.png', alt: 'Acme' }, { imageUrl: '/l2.png', alt: 'Beta' }] } }] };
+const logoJson = JSON.parse(JSON.stringify(logoSaved)); logoJson.blocks[0].data.items[1].imageUrl = '/l3.png';
+eq(sayImg({ saved: logoSaved, json: logoJson }), `${logos.label} · ${logoItems.label}`, 'logos 一排换一张：仍是 Logos · Items');
+eq(`${logos.label} · ${logoItems.label}`, 'Logos · Items', '块名 / 字段名就是正文写的那两个');
 console.log('⑪ #1723 画布条目条：删 / 上移 / 下移 各记一条，记录写 块 · 字段 · item N …');
 {
   const { itemListsOf, itemOp, recordItemNote } = require('./lib/editor-convert.js');
