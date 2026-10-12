@@ -115,6 +115,28 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
+  // 焦点出不去（#1735 r4）：对话框开着时，编辑器页别处、画布 iframe（Design 面板就在里面）都不许拿到焦点 ——
+  // 拿到了，那里的按键会按「对话框不在」的规矩走（顶栏撤销按钮上按 Enter、面板里按 Esc 都会 Cancel 面板）。
+  // 遮罩挡住了鼠标，这里挡键盘（Tab 出去）和程序挪焦点。焦点落到 <body>（点掉一颗随即消失的按钮）也拉回来。
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    // 焦点去了外面那一层（dashboard）不拉：那时这边 activeElement 也会落回 <body>，只能靠 hasFocus() 分 ——
+    // 子 iframe（画布）拿着焦点算 true，父页面拿着算 false。
+    const back = () => { if (!document.hasFocus()) return; const a = document.activeElement; if (!a || !root.contains(a)) root.focus(); };
+    const onFocusIn = (e: FocusEvent) => { if (!root.contains(e.target as Node)) back(); };
+    // 焦点进了 iframe：编辑器页这边只看到自己失焦（activeElement 变成那个 <iframe>），等它落定再拉。
+    const later = () => { setTimeout(back, 0); };
+    document.addEventListener('focusin', onFocusIn, true);
+    window.addEventListener('blur', later);
+    root.addEventListener('focusout', later);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn, true);
+      window.removeEventListener('blur', later);
+      root.removeEventListener('focusout', later);
+    };
+  }, []);
   const over = KEYS.filter((k) => Array.from(vals[k].trim()).length > CAPS[k]);
   const labelLen = (f: FormField) => Array.from((labels[f] || '').trim()).length;
   const labelsOver = fields.filter((f) => labelLen(f) > LABEL_CAP);
@@ -173,10 +195,12 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
   return (
     <div
       data-editor-form-dialog={form.id}
+      ref={rootRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label="Edit form"
-      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(16,24,40,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{ outline: 'none', position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(16,24,40,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 'min(440px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 12px 32px rgba(16,24,40,.24)' }}>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Edit form</div>
