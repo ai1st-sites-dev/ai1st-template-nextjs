@@ -11,8 +11,9 @@
  * 然后对 `BlockLeadForm` 真会画出来的每种字段（挂的类 = `form-control form-control-lg` 这样一对），找**生效**的那条
  * `border-radius`：选择器列表里含它任一个类的顶层规则里、最后一条声明（都是 0-1-0，靠源码次序决胜）。
  *   ① 单行输入框 / 下拉框 × 不带尺寸 / -lg / -sm 六种：生效值读 `var(--radius-button, …)`
- *   ② `textarea.form-control`：生效值是 `var(--radius-card, 0.5rem)` —— 留言框跟卡片那个角，不跟按钮（#1718；#1645 时是
- *      `min(var(--radius-button, …), 0.5rem)`）。读 `--radius-button` 的话胶囊档下多行框会变成胶囊，所以那一种也判红
+ *   ② `textarea.form-control`：生效值是 `min(var(--radius-button, var(--x-border-radius)), 1.5rem)` —— 留言框跟单行字段同一个数
+ *      （退路也同源），只是 1.5rem 封顶、胶囊档下不变椭圆（#1718 r4；r2 跟的是 `--radius-card`，主题里按钮 0px、卡片 22px 时一张表单两种角）。
+ *      读 `--radius-card` 的、不封顶的、退路跟单行字段不同源的，都判红（按「那条规则」判，不在这里替浏览器算 CSS 表达式 —— PM 裁定）
  *   ③ 阳性对照：把 §FORM_RADIUS 从 scss 里拿掉再编 + purge 一次，同一把尺必须读出 ① ② 全红
  *   ④ purge 对照：content 里没有 `textarea` 这个词时，② 那条被 purge 删掉、同一把尺读红 ——
  *      证明 ② 读的是 purge 之后的产物，今天它留得下来靠的是 `BlockLeadForm.tsx` 里字面的 `<textarea`
@@ -65,7 +66,7 @@ function winningRadius(css, sels, prop = 'border-radius') {
 }
 
 const READS_VAR = /^var\(\s*--radius-button\s*,\s*(.+)\)$/;
-const CAPPED = /^var\(\s*--radius-card\s*,\s*0?\.5rem\s*\)$/;   // #1718：留言框跟卡片那个角，退路 = #1645 那条在默认值下的读数
+const CAPPED = /^min\(\s*var\(\s*--radius-button\s*,\s*var\(\s*--x-border-radius\s*\)\s*\)\s*,\s*1\.5rem\s*\)$/;   // #1718 r4：跟单行字段同源，1.5rem 封顶
 
 /** 一份 CSS 量一遍：回 { fields: {sel: val}, fieldsOk, textarea, textareaOk } */
 function measure(css) {
@@ -128,10 +129,10 @@ const SURFACE_VAR = /^var\(\s*--radius-card\s*,\s*(.+?)\)(\s*!important)?$/;
   if (live.fieldsOk.length === N) ok(`${N}/${N} 读 var(--radius-button, …)`);
   else bad(`只有 ${live.fieldsOk.length}/${N} 读 --radius-button —— §FORM_RADIUS 被删了、被 purge 掉了，或被后面一条同特异度的规则盖掉了`);
 
-  console.log('② textarea.form-control：生效值读 --radius-card（跟卡片一个角，不跟按钮 —— 胶囊档下不变胶囊）');
+  console.log('② textarea.form-control：生效值跟单行字段同一个数（--radius-button，退路同源），1.5rem 封顶 —— 胶囊档下不变椭圆');
   console.log(`     ${TEXTAREA}: ${live.textarea}`);
-  if (live.textareaOk) ok('var(--radius-card, 0.5rem)');
-  else bad('不是 var(--radius-card, 0.5rem) —— 留言框没跟 Corner style 的卡片那个角（或跟了按钮，胶囊档下会变成胶囊）');
+  if (live.textareaOk) ok('min(var(--radius-button, var(--x-border-radius)), 1.5rem)');
+  else bad('不是 min(var(--radius-button, var(--x-border-radius)), 1.5rem) —— 留言框跟单行字段不是同一个数（一张表单两种角），或没封顶（胶囊档下变椭圆）');
 
   console.log('③ 阳性对照：拿掉 §FORM_RADIUS 再编 + purge，同一把尺必须读红');
   if (!ctrl) bad('site-css.js 没导出 FORM_RADIUS，或 siteScss 里找不到它的原文 —— 对照造不出来');

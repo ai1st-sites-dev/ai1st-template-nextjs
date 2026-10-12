@@ -145,10 +145,10 @@ const BTN_RADIUS = [
  * 不读 `--radius-button` ⟹ 首屏 / cta / 联系页的字段永远 16px、页脚（`size="sm"`）永远 8px。
  * 字段的 `border-radius` 是直接写的（不像 `.btn` 有一个组件变量可改），所以三种尺寸各一条，退路各取 Webpixels 自己那个值 ⟹
  * 变量缺席时单行字段 / 下拉框等于改前。-sm / -lg 跟不带尺寸那条特异度相同（0-1-0），排在它后面 ⟹ 后来的赢，跟 Webpixels 同一个次序。
- * 留言框（`textarea.form-control`，0-1-1）不跟按钮、跟**卡片**那个角 `--radius-card`（#1718，Chris 2026-10-11：round 档下单行字段是胶囊、
- *    留言框还是 8px，看着像没跟；他在 devtools 里给留言框试过 1.5rem）。为什么不跟按钮：胶囊档下多行框做成胶囊会变形（#1645 当初封顶 0.5rem
- *    就是为这个）；卡片那档最大 1.5rem，不会变形，又跟同一块里的卡片一个角。sharp 2px / subtle 0.75rem / round 1.5rem（数在 theme-settings.js §SURFACE_RADIUS）。
- *    变量缺席（不经 globals.css 的页面）⟹ 0.5rem，等于 #1645 时那条 `min()` 在默认值下的读数。
+ * 留言框（`textarea.form-control`，0-1-1）跟单行字段**同一个数**，只是封顶 1.5rem 防止胶囊档下变成椭圆（#1718 r4，Chris 2026-10-11：
+ *    主题按钮 0px、卡片 22px 的站上，三个单行框是直角、留言框却是圆角，「这里面不统一」—— r2 让它跟了 `--radius-card`，两个数一拉开表单就裂成两种角）。
+ *    逐档：sharp 0 · subtle 0.5rem · round 封顶 1.5rem（Chris 在 devtools 里给留言框试过、说还不错的那个数）—— 前两档等于单行字段，round 档单行是胶囊。
+ *    退路也跟单行字段同源（`--x-border-radius`）⟹ 变量缺席时同样一张表单一个角。
  * 🔒 `scripts/lib/site-css.test.js` 走 compile + purge 两步读这几条（purge 是最容易静默删掉一条规则的那一步）。
  */
 const FORM_RADIUS = [
@@ -165,7 +165,7 @@ const FORM_RADIUS = [
   '  border-radius: var(--radius-button, var(--x-border-radius-sm));',
   '}',
   'textarea.form-control {',
-  '  border-radius: var(--radius-card, 0.5rem);',
+  '  border-radius: min(var(--radius-button, var(--x-border-radius)), 1.5rem);',
   '}',
   '',
 ].join('\n');
