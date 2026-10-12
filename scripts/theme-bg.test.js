@@ -280,5 +280,35 @@ console.log('r2 pricing featuredColor');
   });
 }
 
+// ══ #1717 写歪时回给建站 AI 的那句话 ═══════════════════════════════════════════════════════════════
+// 那句话列几种写法，AI 就照着改成哪种；少列了主题名字，它就改写十六进制，这个站的背景从此不跟主题换。
+console.log('#1717 颜色槽写歪时的报文');
+{
+  const messageFor = (bg) => {
+    const r = manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'hero', data: { headline: 'H', bg } }] }] });
+    return r.problems.filter((p) => p.includes('("hero")') && p.includes(JSON.stringify(bg))).join('\n');
+  };
+  check('#1717 AC1 bg="brandsoft" ⟹ 报文里四个主题名字和 #rrggbb 都在（名字照正文抄，不从 contrast.js 读）', () => {
+    const msg = messageFor('brandsoft');
+    ok(msg, 'bg="brandsoft" 没被报，这一格的尺子是空的');
+    // 只看「或渐变」之前那段：渐变那段自己也带 "#rrggbb"（stops 里），整句查会被它喂饱，纯色十六进制那一项删了也照样绿。
+    const head = msg.split('或渐变')[0];
+    const missing = [...NAMES, '"#rrggbb"（六位十六进制）'].filter((n) => !head.includes(n));
+    ok(!missing.length, `报文里缺 ${missing.join(' / ')}：${msg}`);
+  });
+  check('#1717 AC3 往 THEME_BGS 临时加一个名字 ⟹ 报文跟着多它一个；删掉 ⟹ 报文复原（名字不是手抄进报文的）', () => {
+    const extra = 'probe-1717-bg';
+    const before = messageFor('brandsoft');
+    ok(!before.includes(extra), `加之前报文里就有 ${extra}`);
+    C.THEME_BGS[extra] = { css: 'var(--color-primary-100)', tone: 'light' };
+    let during;
+    try { during = messageFor('brandsoft'); } finally { delete C.THEME_BGS[extra]; }
+    const after = messageFor('brandsoft');
+    console.log(`     加之前：${before.split('——')[1]}\n     加之后：${during.split('——')[1]}`);
+    ok(during.includes(JSON.stringify(extra)), `加了 ${extra} 报文没跟：${during}`);
+    ok(after === before, `删掉之后报文没复原：${after}`);
+  });
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);
