@@ -6,10 +6,10 @@
  *   node scripts/editor-design-content.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
- * 「右栏这一块的字段」= 编辑器 config 里这一块 `resolveFields` 的结果：Puck 的右栏画的就是它的全部键（dist §FieldsInternal 的
- *   `Object.keys(s.fields.fields)`）。「内容字段」= 它去掉另两页已经有的两个 —— 预设那一格（`control: 'options'` 且有预设：
+ * 「右栏这一块的字段」= 编辑器 config 里这一块 `resolveFields` 的结果：Puck 的右栏画的就是它的全部键（Puck 产物 `@puckeditor/core/dist/index.js`
+ *   里 `FieldsInternal` 那段的 `Object.keys(s.fields.fields)`）。「内容字段」= 它去掉另两页已经有的两个 —— 预设那一格（`control: 'options'` 且有预设：
  *   Layout 的格子 + Customize 的旋钮）和背景（`bg`）。期望在本文件里照这句话自己算，不调被测的函数。
- * 被测的是真的 Content 页组件（EditorApp §DesignContent）：渲染一次，数它画出来的 `data-editor-content-field`。
+ * 被测的是真的 Content 页组件（EditorApp.tsx §DesignContent）：渲染一次，数它画出来的 `data-editor-content-field`。
  *   Puck 换成替身：`usePuck` 交出真 config（`buildConfig` 造的那份），`AutoField` 记下它收到的字段 / 值 / onChange。
  * 量三种块：普通的（15 种）· 共用块（右栏顶上多一句 `_shared`）· 锁住的块（`_locked`），后两种 Content 页也要有。
  * 反向对照在本文件里自己跑：把源码在内存里改成多扔掉一个字段（headline）再渲染，断言 15 种全被点名（不改盘上的文件）。

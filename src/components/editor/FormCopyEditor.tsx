@@ -106,6 +106,15 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const first = useRef<HTMLInputElement | null>(null);
   useEffect(() => { first.current?.focus(); }, []);
+  // Esc 收在 document 上，不挂在对话框元素上：点它的标题字 / 遮罩、或点掉一颗随即消失的「+ Add」按钮后，焦点在 <body>，
+  // 元素上的 onKeyDown 收不到 ⟹ 对话框关不掉（#1735 r3）。
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelRef.current(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
   const over = KEYS.filter((k) => Array.from(vals[k].trim()).length > CAPS[k]);
   const labelLen = (f: FormField) => Array.from((labels[f] || '').trim()).length;
   const labelsOver = fields.filter((f) => labelLen(f) > LABEL_CAP);
@@ -167,7 +176,6 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
       role="dialog"
       aria-modal="true"
       aria-label="Edit form"
-      onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
       style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(16,24,40,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 'min(440px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 12px 32px rgba(16,24,40,.24)' }}>
