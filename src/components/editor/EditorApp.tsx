@@ -1727,11 +1727,23 @@ function DesignPopover({ doc }: { doc: Document }) {
   //   下面的量全是画布 document 的 CSS px（弹层按 1/zoom 放大，它自己的 px 要 /zoom 换过来）。
   // 打开那一刻（弹层第一次画出来之后那一帧）块的下沿落在弹层顶边之下 ⟹ 把画布滚到块顶贴可视区顶，只滚这一次，之后老板自己滚。
   //   用画布 window 的 scrollTo，不用 scrollIntoView：后者连编辑器页上的祖先滚动容器一起滚。
+  // 页尾的块（r2）：画布已经滚到底时上面那一下没地方可滚 ⟹ 弹层开着时在页面内容最底下垫一段空白，高 = 弹层封顶高 + 底边
+  //   （≥ 弹层顶边到可视区下沿那段，切页 / 换预设弹层变矮也不用跟着缩，不会把滚到底的画布往回拽）。它是编辑器直接插进画布 DOM 的，
+  //   不在 Puck 的数据里 ⟹ 不进页面 JSON、不进发布的站；弹层一关（这个 effect 清理）就拿掉。
+  //   🔴 不能是 body 末尾的一个普通 div：Puck 的 `#frame-root` 只有一屏高，页面内容是溢出去的 ⟹ 普通 div 落在一屏处，
+  //   scrollHeight 一点不涨。所以它是绝对定位、每帧把顶边对到 `#frame-root` 内容的底（块变高了跟着往下挪），它自己不在 frame-root 里。
+  //   🔴 空白要在 scrollTo 之前写进 DOM（同一帧、同步写 style）：反了 scrollTo 会被旧的 scrollHeight 夹住。
   useEffect(() => {
     if (!id) { setPos(null); return; }
     const win = doc.defaultView!;
     let raf = 0;
     let revealed = false;
+    const spacer = doc.createElement('div');
+    spacer.setAttribute('data-editor-popover-spacer', '');
+    spacer.setAttribute('aria-hidden', 'true');
+    spacer.style.cssText = 'position:absolute;left:0;top:0;width:1px;height:0;margin:0;padding:0;border:0;visibility:hidden;pointer-events:none';
+    doc.body.appendChild(spacer);
+    const content = doc.getElementById('frame-root') || doc.body;
     const tick = () => {
       const frame = win.frameElement as HTMLElement | null;
       const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
@@ -1742,6 +1754,11 @@ function DesignPopover({ doc }: { doc: Document }) {
       const left = win.innerWidth / 2 - POPOVER_W / zoom / 2;
       const scale = 1 / zoom;
       setPos((p) => (p && p.bottom === edge && p.left === left && p.scale === scale && p.maxH === maxH ? p : { bottom: edge, left, scale, maxH }));
+      const pad = `${Math.ceil(h + edge)}px`;
+      if (spacer.style.height !== pad) spacer.style.height = pad;
+      // 顶边（画布 document 坐标）= 内容的底；按 spacer 自己现在在哪校正，不用管它的定位祖先是谁。
+      const off = content.getBoundingClientRect().top + content.scrollHeight - spacer.getBoundingClientRect().top;
+      if (Math.abs(off) >= 0.5) spacer.style.top = `${(parseFloat(spacer.style.top) || 0) + off}px`;
       const box = boxRef.current;
       if (!revealed && box && box.style.visibility === 'visible') {
         revealed = true;
@@ -1752,7 +1769,7 @@ function DesignPopover({ doc }: { doc: Document }) {
       raf = win.requestAnimationFrame(tick);
     };
     raf = win.requestAnimationFrame(tick);
-    return () => win.cancelAnimationFrame(raf);
+    return () => { win.cancelAnimationFrame(raf); spacer.remove(); };
   }, [id, doc]);
 
   if (!ui || !api || !id || !item || leaving) return null;
