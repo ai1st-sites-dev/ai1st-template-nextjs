@@ -394,12 +394,24 @@ const IMG = run('images', PAYLOAD({ geminiApiKey: 'stub-gemini' }), { images: tr
     assert.ok(filled.length >= 7, `只找到 ${filled.length} 个填上的槽（至少要 hero 1 + gallery 6）—— 判空`);
     assert.deepStrictEqual(filled.filter((x) => !x.shown).map((x) => `${x.slug} ${x.where}`), []);
   });
-  check('#1594 整条流程：images 事件的 generated = nano-banana-photo cost 事件条数 = 落盘填上的槽数（这一跑没有服务页主图 ⟹ reused 0）', () => {
+  // #1737 —— 照片和 logo 的操作名都是 `ai-image`，两者按 detail 分：logo 那条是 `Logo for <公司名>`，照片那些是槽的 key。
+  const LOGO_DETAIL = 'Logo for Silky Hair Salon';
+  check('#1594 整条流程：images 事件的 generated = 照片的 ai-image cost 事件条数 = 落盘填上的槽数（这一跑没有服务页主图 ⟹ reused 0）', () => {
     const ev = IMG.events.filter((e) => e.event === 'images');
     assert.strictEqual(ev.length, 1, JSON.stringify(ev));
-    const costs = IMG.events.filter((e) => e.event === 'cost' && e.operation === 'nano-banana-photo').length;
+    const costs = IMG.events.filter((e) => e.event === 'cost' && e.operation === 'ai-image' && e.detail !== LOGO_DETAIL).length;
     assert.strictEqual(ev[0].generated, costs, `generated ${ev[0].generated} · cost ${costs}`);
     assert.strictEqual(ev[0].generated + ev[0].reused, filled.length, `${JSON.stringify(ev[0])} · 落盘 ${filled.length}`);
+  });
+  check('#1737：logo 那条 cost 事件恰好一条，operation 是 ai-image', () => {
+    const logo = IMG.events.filter((e) => e.event === 'cost' && e.detail === LOGO_DETAIL);
+    assert.strictEqual(logo.length, 1, `detail === ${JSON.stringify(LOGO_DETAIL)} 的 cost 事件：${JSON.stringify(logo)}`);
+    assert.strictEqual(logo[0].operation, 'ai-image', JSON.stringify(logo[0]));
+  });
+  check('#1737：生图那一跑没有任何 cost 事件的 operation 以 nano-banana 开头（照片那几条也是 ai-image）', () => {
+    const costs = IMG.events.filter((e) => e.event === 'cost');
+    assert.deepStrictEqual(costs.filter((e) => String(e.operation).startsWith('nano-banana')).map((e) => `${e.operation} · ${e.detail}`), []);
+    assert.ok(costs.filter((e) => e.operation === 'ai-image' && e.detail !== LOGO_DETAIL).length >= 7, '照片的 ai-image cost 事件不到 7 条（hero 1 + gallery 6）—— 判空');
   });
 }
 

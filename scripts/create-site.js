@@ -530,7 +530,7 @@ async function generateSlotPhotos({ pages, manifests, industry, primaryColor, th
       // #1566 —— key 已收进 SLOT_KEY_MAX_BYTES（按这个后缀推的），这里换别的后缀要回 image-slots.js 改那一处。
       fs.writeFileSync(path.join(outputDir, `${key}${IMAGE_FILE_SUFFIX}`), imageBytes);
       if (emitFn) emitFn('cost', {
-        operation: 'nano-banana-photo',
+        operation: 'ai-image',
         provider: 'Google',
         model: NANO_BANANA_MODEL, // #1251
         // #1715：Google 价目页 2026-10-11 读：$30.00 / 1M image output tokens，页面自己写 "Equivalent to $0.0336 per 1K resolution image"。
@@ -3547,7 +3547,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
   } else {
     const logoStart = Date.now();
     try {
-      progress('Generating AI logo via Nano Banana...', 47);
+      progress('Generating AI logo...', 47);
       // Reverse-lookup themeName from the theme object so we can pick the
       // right styleAdjective out of the registry (themeName itself isn't
       // passed into generateContent — only the theme object is).
@@ -3573,14 +3573,14 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
       try {
         finalLogoBuf = await cropAndResizeLogo(logoBuf, 80);
       } catch (err) {
-        debug(`[nano-banana-logo] post-process failed (using raw): ${err.message}`);
+        debug(`[logo] post-process failed (using raw): ${err.message}`);
         finalLogoBuf = logoBuf;
       }
       fs.writeFileSync(path.join(publicDir, 'logo.png'), finalLogoBuf);
       brand.logoUrl = '/logo.png';
       brand.logoHasWordmark = false;
       emit('cost', {
-        operation: 'nano-banana-logo',
+        operation: 'ai-image',
         provider: 'Google',
         model: NANO_BANANA_MODEL, // #1251
         // #1715：Google 价目页 2026-10-11 读：$30.00 / 1M image output tokens，页面自己写 "Equivalent to $0.0336 per 1K resolution image"。
@@ -3588,9 +3588,9 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
         duration: Date.now() - logoStart,
         detail: `Logo for ${companyName}`,
       });
-      debug(`[nano-banana-logo] generated logo for ${companyName} (raw ${logoBuf.length} bytes, final ${finalLogoBuf.length} bytes, gen ${postProcessStart - logoStart}ms, post-process ${Date.now() - postProcessStart}ms)`);
+      debug(`[logo] generated logo for ${companyName} (raw ${logoBuf.length} bytes, final ${finalLogoBuf.length} bytes, gen ${postProcessStart - logoStart}ms, post-process ${Date.now() - postProcessStart}ms)`);
     } catch (err) {
-      debug(`[nano-banana-logo] gen failed, fallback to text: ${err.message}`);
+      debug(`[logo] gen failed, fallback to text: ${err.message}`);
       emit('debug', { logoFallback: 'text', reason: err.message });
       // brand.logoUrl stays '' → Header/Footer render ServiceIcon + text.
     }
@@ -3605,7 +3605,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
   // uploaded their own photos (imagesInstruction already fed Claude → Claude
   // assigned imageUrl from uploadedImages).
   if (uploadedImages.length === 0) {
-    progress('Generating AI business photos via Nano Banana (slot-driven)...', 75);
+    progress('Generating AI business photos...', 75);
     const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
     const photosOutputDir = path.join(path.resolve(__dirname, '..'), 'public', 'photos');
     const result = await generateSlotPhotos({
@@ -3618,7 +3618,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
       outputDir: photosOutputDir,
       emitFn: emit,
     });
-    debug(`[nano-banana-photo] v2 slot-driven: ${result.success}/${result.attempted} succeeded (total slots ${result.totalSlots}, cap ${photoHardCap})`);
+    debug(`[photos] v2 slot-driven: ${result.success}/${result.attempted} succeeded (total slots ${result.totalSlots}, cap ${photoHardCap})`);
     recordImageCounts(result);
   }
 
