@@ -16,7 +16,7 @@ export function resolveInlineSlot(args: {
   locked?: boolean;
   /** #1734 —— 被点的是占位图（`data-placeholder`）：那一格在数据里必须是空的，`text` 不用 */
   placeholder?: boolean;
-  /** #1734 —— 占位图外层的 `data-item`（`items.2`）：列表项的真实下标 */
+  /** 图片格外层的 `data-item`（`items.2`）：列表里的图（#1734 占位图、#1745 地址重复）真实下标从这里取 */
   item?: string;
 }): InlineResolved;
 export function setAt<T>(obj: T, path: InlinePath, value: unknown): T;

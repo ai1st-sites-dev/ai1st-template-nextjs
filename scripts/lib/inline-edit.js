@@ -68,7 +68,7 @@ function stripIndex(attr) {
  * @param {string[]} [args.sourced]  这一块展开时写下的 `_sourced` 的键（写成引用的槽名）
  * @param {boolean}  [args.locked]   这一块是锁住的（`_src.locked`）
  * @param {boolean}  [args.placeholder]  被点的是占位图（`data-placeholder`，#1734）：`text` 不用
- * @param {string}   [args.item]     占位图外层的 `data-item`（`items.2`）：列表项的真实下标从这里取
+ * @param {string}   [args.item]     图片格外层的 `data-item`（`items.2`）：列表里的图（占位图 #1734、地址重复的图 #1745）真实下标从这里取
  * @returns {{ ok: true, path: (string|number)[], name: string, value: string, typing: boolean, ai: boolean, image: boolean }
  *          | { ok: false, why: 'unknown'|'sourced'|'locked'|'mismatch'|'ambiguous', slot?: string }}
  *   `name` = 数据里的路径（真实下标），交给 AI 接口的字段名就是它。图片格的 `value` 是现在那张图的地址。
@@ -86,19 +86,28 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
   const urlOf = (v) => (typeof v === 'string' ? v : v !== null && typeof v === 'object' ? v.imageUrl : undefined);
   const key = (v) => (entry.image ? norm(urlOf(v)) : norm(v));
   const nums = segs.map((s, i) => (/^\d+$/.test(s) ? i : -1)).filter((i) => i >= 0);
+  // 列表里的图按外层 `data-item` 认是哪一项（块按数据里的下标挂，§itemPath）：前缀跟 slot 对不上、下标越界 ⟹ null。
+  const byItem = (at) => {
+    const m = /^(.*)\.(\d+)$/.exec(String(item || ''));
+    if (!m || m[1] !== segs.slice(0, at).join('.')) return null;
+    const list = getAt(props, segs.slice(0, at));
+    const j = Number(m[2]);
+    if (!Array.isArray(list) || j >= list.length) return null;
+    return [...segs.slice(0, at), j, ...segs.slice(at + 1)];
+  };
   let path;
   if (placeholder && entry.image) {
     if (nums.length === 0) path = segs;
     else if (nums.length === 1) {
-      const at = nums[0];
-      const m = /^(.*)\.(\d+)$/.exec(String(item || ''));
-      if (!m || m[1] !== segs.slice(0, at).join('.')) return { ok: false, why: 'mismatch' };
-      const list = getAt(props, segs.slice(0, at));
-      const j = Number(m[2]);
-      if (!Array.isArray(list) || j >= list.length) return { ok: false, why: 'mismatch' };
-      path = [...segs.slice(0, at), j, ...segs.slice(at + 1)];
+      path = byItem(nums[0]);
+      if (!path) return { ok: false, why: 'mismatch' };
     } else return { ok: false, why: 'ambiguous' };
     if (key(getAt(props, path)) !== '') return { ok: false, why: 'mismatch' };
+  } else if (entry.image && nums.length === 1 && item) {
+    // #1745 —— 列表里的图有 `data-item` 就按它认，不在整列里按地址找：同一列两项用同一张图（skipAI 站整列都是同一张）
+    //    按地址找必然 ambiguous ⟹ 换不了。认到的那一项还得就是画布上这张（地址对得上），对不上 ⟹ mismatch，不写到别的项上。
+    path = byItem(nums[0]);
+    if (!path || key(getAt(props, path)) !== shown) return { ok: false, why: 'mismatch' };
   } else if (nums.length === 0) {
     path = segs;
     // 不就地打字的那种（`content.body`：画布上是排过版的段落 / 列表，跟 markdown 原文按构造对不上）不比：

@@ -28,7 +28,7 @@
 //
 // #1693 —— 图片格（`<img data-slot>`，inline 清单里 `image: true`）：点它 = 面板上点 Change —— 不打字、不出工具条，
 //   直接 `InlineApi.pickImage`（EditorApp 经 dashboard 开图片库），选了一张就经同一个 `replace` 把 `imageUrl` 换掉、记一笔撤销历史。
-//   对回数据用图的地址（`<img>` 的 `src` 属性，§resolveInlineSlot）。等老板挑图的时候那张图被改过（撤销、AI 聊天换了底稿）⟹ 不覆盖，说一句。
+//   对回数据用图的地址（`<img>` 的 `src` 属性，§resolveInlineSlot）；列表里的图先按外层 `data-item` 认是哪一项（#1745）。等老板挑图的时候那张图被改过（撤销、AI 聊天换了底稿）⟹ 不覆盖，说一句。
 //
 // #1713 —— 鼠标移到图上，图正中出 ✨ Regenerate · ✎ Edit（§ImageHoverBar）。按钮层也用 `registerOverlayPortal` 登记
 //   （`disableDrag`：按下去不是拖块），移到按钮上不算移开。Edit = 点图；弹窗标题 = 这个位置的名字（`Hero · Image`）。
@@ -253,8 +253,9 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     // #1693 —— 图片格拿图的地址去对（`src` 属性原样，不是 `.src` —— 那个是补全过的绝对地址）。
     const text = el.tagName === 'IMG' ? el.getAttribute('src') || '' : el.textContent || '';
     // #1734 —— 占位图：数据里那一格是空的，按 `data-item` 认是哪一项（§resolveInlineSlot）。
+    // #1745 —— 列表里的图一律带上 `data-item`：同一列两项地址相同时按地址认不出是哪一项。
     const placeholder = el.tagName === 'IMG' && el.hasAttribute('data-placeholder');
-    const at = placeholder ? el.closest('[data-item]')?.getAttribute('data-item') || undefined : undefined;
+    const at = el.tagName === 'IMG' ? el.closest('[data-item]')?.getAttribute('data-item') || undefined : undefined;
     const r = resolveInlineSlot({ component, props: item.props, slot, text, sourced, locked: !!item.props._src?.locked, placeholder, item: at });
     return { id, item, component, slot, r };
   };

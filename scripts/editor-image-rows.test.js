@@ -326,6 +326,27 @@ console.log('④ 画布上点到的那张 → 数据里的哪一项（按地址�
   check(pl.ok && JSON.stringify(pl.path) === JSON.stringify(['platforms', 1, 'logoUrl']) && pl.image === true && pl.value === '/yelp.png', '平台 logo ⟹ platforms[1].logoUrl', pl);
   const miss = inline.resolveInlineSlot({ component: compOf('logos'), props: { items: [{ imageUrl: '/l1.svg', alt: '' }] }, slot: 'items.0.imageUrl', text: '/zzz.svg' });
   check(!miss.ok && miss.why === 'mismatch', '地址对不上任何一项 ⟹ mismatch', miss);
+  // #1745 —— 同一列两项是同一张图：画布带上外层 `data-item` ⟹ 按它认，不按地址找（没带 = 上面那格，照旧 ambiguous）。
+  const logos = compOf('logos');
+  const same = { items: [0, 1, 2, 3, 4, 5].map((i) => ({ imageUrl: '/images/grid-pattern.svg', alt: `L${i}` })) };
+  const by = (slot, item, text = '/images/grid-pattern.svg', props = same) => inline.resolveInlineSlot({ component: logos, props, slot, text, item });
+  const d3 = by('items.3.imageUrl', 'items.3');
+  check(d3.ok && JSON.stringify(d3.path) === JSON.stringify(['items', 3, 'imageUrl']) && d3.value === '/images/grid-pattern.svg', '#1745 六项同一张图、data-item=items.3 ⟹ items[3].imageUrl', d3);
+  // 块先筛掉没图的项：画布序号跟数据下标不一样时，下标以 data-item 为准。
+  const gap = { items: [{ alt: 'no image' }, ...same.items.slice(0, 2)] };
+  const g = by('items.1.imageUrl', 'items.2', '/images/grid-pattern.svg', gap);
+  check(g.ok && JSON.stringify(g.path) === JSON.stringify(['items', 2, 'imageUrl']), '#1745 画布第 1 张、data-item=items.2 ⟹ items[2]（数据里的下标）', g);
+  const pfx = by('items.3.imageUrl', 'stats.3');
+  check(!pfx.ok && pfx.why === 'mismatch', '#1745 data-item 前缀不是这个槽 ⟹ mismatch', pfx);
+  const oob = by('items.3.imageUrl', 'items.9');
+  check(!oob.ok && oob.why === 'mismatch', '#1745 data-item 越界 ⟹ mismatch', oob);
+  const stale = by('items.0.imageUrl', 'items.0', '/images/grid-pattern.svg', { items: [{ imageUrl: '/other.svg' }, ...same.items.slice(1)] });
+  check(!stale.ok && stale.why === 'mismatch', '#1745 data-item 指的那一项地址跟画布上这张不一样（画布过时）⟹ mismatch，不写到它上面', stale);
+  const nested = inline.resolveInlineSlot({ component: pricing, props: { logos: { items: [LOGOS[0], LOGOS[0]] } }, slot: 'logos.items.1.imageUrl', text: LOGOS[0].imageUrl, item: 'logos.items.1' });
+  check(nested.ok && JSON.stringify(nested.path) === JSON.stringify(['logos', 'items', 1, 'imageUrl']), '#1745 对象里的一列（pricing logos.items）同图两项、data-item=logos.items.1 ⟹ logos.items[1]', nested);
+  // 字的格子不认 data-item（本票只管图）：同一列两行字一模一样，带了 item 照旧 ambiguous（#1686 的判法）。
+  const txt = inline.resolveInlineSlot({ component: compOf('features'), props: { items: [{ title: 'Same' }, { title: 'Same' }] }, slot: 'items.1.title', text: 'Same', item: 'items.1' });
+  check(!txt.ok && txt.why === 'ambiguous', '#1745 字的格子带了 data-item 也不按它认 ⟹ 照旧 ambiguous', txt);
 }
 
 // ══ ⑤ 必填的格（#1707）══════════════════════════════════════════════════════════════════════════
