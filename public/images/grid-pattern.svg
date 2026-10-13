@@ -1,8 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-  <defs>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" stroke-width="1" opacity="0.5"/>
-    </pattern>
-  </defs>
-  <rect width="100%" height="100%" fill="url(#grid)"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <!-- #1734 占位图：浅灰底 + 正中一个线条图片图标（Chris 2026-10-13 要「一看就是占位图」，照 Durable 那种）。文件名沿用旧名，全仓按路径引用它。 -->
+  <rect width="400" height="300" fill="#eef1f5"/>
+  <g fill="none" stroke="#c3ccd8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="160" y="110" width="80" height="80" rx="14"/>
+    <path d="M162 176 L186 152 Q192 146 198 152 L226 180"/>
+    <path d="M212 166 L220 158 Q226 152 232 158 L238 164"/>
+  </g>
+  <circle cx="219" cy="131" r="5" fill="#c3ccd8"/>
 </svg>
