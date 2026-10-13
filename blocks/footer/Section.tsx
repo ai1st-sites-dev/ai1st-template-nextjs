@@ -62,8 +62,11 @@ export type FormMode = 'none' | 'teaser' | 'full';
 export interface FooterLink { label: string; href: string; icon?: string }
 /** #1530 —— `city`：`row` 底栏露「电话 + 城市」读它（`{source: "brand"}` 从 `brand.locations[].city` 展开）；没有就那一格不画，不从地址串猜。 */
 export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string; city?: string }
-/** #1632 —— 关键词页按服务分组的那几栏（构建从当前页面现算，`scripts/lib/shell-data.js`）；只有 `layout=columns` 画。 */
-export interface FooterKeywordGroup { title: string; links: FooterLink[] }
+/**
+ * #1632 —— 关键词页按服务分组的那几栏（构建从当前页面现算，`scripts/lib/shell-data.js`）。
+ * #1739 —— `href`：这组挂的那个服务在 `columns.services` 里的地址（挂不上服务的组没有）；slim-row / stacked 按它把服务和组对起来。
+ */
+export interface FooterKeywordGroup { title: string; href?: string; links: FooterLink[] }
 export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean; keywordGroups?: FooterKeywordGroup[] }
 /** #1471 —— 块只选一张站级表单（空 = 第一张）；露多少是旋钮 `options.form`。 */
 export interface FooterForm { id?: string }
@@ -237,11 +240,14 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
 
   // ── 主体（按 layout）───────────────────────────────────────────────────────────────────────────
   const rowBody = () => (
-    <div className={`d-flex ${mainReverse} align-items-md-center justify-content-between gap-6`} data-footer-main="">
-      {brandMark()}
-      <nav className="ftr-nav" aria-label="Footer">{linkRow(nav)}</nav>
-      {socialIcons()}
-    </div>
+    <>
+      <div className={`d-flex ${mainReverse} align-items-md-center justify-content-between gap-6`} data-footer-main="">
+        {brandMark()}
+        <nav className="ftr-nav" aria-label="Footer">{linkRow(nav)}</nav>
+        {socialIcons()}
+      </div>
+      {serviceLinksSlim()}
+    </>
   );
 
   // T2.2 的 centered + minimal 合成这一个（Chris 2026-09-27，只留居中一种）。间距照 Webpixels footer-4：
@@ -253,6 +259,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
       {nav.length ? <nav className="mb-8" aria-label="Footer">{linkRow(nav, 'justify-content-center fs-5')}</nav> : null}
       {socialIcons('justify-content-center mb-8')}
       {contactLine(['phone', 'address', 'hours'], 'justify-content-center text-sm mb-8')}
+      {serviceLinksStacked()}
       {formPart('mx-auto mb-8 text-start')}
     </div>
   );
@@ -271,6 +278,57 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
       </ul>
     </div>
   );
+
+  // #1739 —— slim-row / stacked 的服务链接区（图册 `gen-footers.py` §kw_slim / §kw_stacked）：照 `columns.services` 的顺序
+  //    每个服务一组，服务名链到服务页，后面跟它的关键词页（按 `href` 对上，没有就只露名字）；挂不上任何服务的关键词组
+  //    排在最后，标题不带链接。columns 不读它（照旧：服务一栏 + 只出有关键词页的组）。两样都没有 ⟹ 整块不出。
+  const kwByService = new Map(keywordGroups.filter((g) => g.href).map((g) => [g.href as string, g]));
+  const serviceGroups: { title: string; href?: string; links: FooterLink[] }[] = [
+    ...services.map((s) => ({ title: s.label, href: s.href, links: list(kwByService.get(s.href)?.links) })),
+    ...keywordGroups.filter((g) => !g.href || !services.some((s) => s.href === g.href)).map((g) => ({ title: g.title, links: list(g.links) })),
+  ];
+  const groupTitle = (g: { title: string; href?: string }, cls: string) => (g.href
+    ? <SiteLink className={`${cls} ${headTone} text-decoration-none`} href={g.href}>{g.title}</SiteLink>
+    : <span className={`${cls} ${headTone}`}>{g.title}</span>);
+  // slim-row：一个服务一行（服务名加粗 + 用 · 隔开的关键词页）；≥768 两列、手机一列。夹在主行和底栏之间，分隔线跟底栏同一种。
+  const serviceLinksSlim = () => (serviceGroups.length ? (
+    <div className={`border-top ${lineTone} mt-10 pt-6 text-sm`} data-footer-services="">
+      <div className="row gy-2 gx-8">
+        {serviceGroups.map((g, i) => (
+          <div className="col-12 col-md-6" key={i} data-footer-service={i}>
+            <div className={`d-flex flex-wrap align-items-baseline column-gap-2 row-gap-1 ${reverse ? 'flex-row-reverse' : ''}`}>
+              {groupTitle(g, 'fw-semibold')}
+              {/* `·` 跟在前一条后面（不放在后一条前面）：手机上折行时，新的一行不会以一个点开头。 */}
+              {g.links.map((l, j) => (
+                <span key={j} className="d-inline-flex align-items-baseline column-gap-2">
+                  <SiteLink className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</SiteLink>
+                  {j < g.links.length - 1 ? <span className={`${mutedTone} opacity-50`} aria-hidden="true">·</span> : null}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null);
+  // stacked：居中，每个服务一个大写小标题（链到服务页）+ 一排居中的关键词页；≥768 两两并排，手机竖排。在联系一行下面。
+  const serviceLinksStacked = () => (serviceGroups.length ? (
+    <div className="row gy-6 w-100 mw-4xl mx-auto mb-8 text-sm" data-footer-services="">
+      {serviceGroups.map((g, i) => (
+        <div className="col-12 col-md-6" key={i} data-footer-service={i}>
+          <div className="mb-2">{groupTitle(g, 'text-uppercase text-xs ls-wider fw-bold')}</div>
+          {g.links.length ? (
+            <ul className="list-unstyled d-flex flex-wrap justify-content-center column-gap-4 row-gap-1 mb-0">
+              {g.links.map((l, j) => (
+                <li key={j}><SiteLink className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</SiteLink></li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  ) : null);
+
   // `.row` 上的方向工具类同样带 `!important`，所以反向直接用工具类（§mainReverse），不另写规则。
   const columnsBody = () => (
     <div className={`row gy-10 ${reverse ? mainReverse : ''}`} data-footer-main="">
