@@ -32,6 +32,7 @@ const ITEM_ORIG = '__orig';
 const { isSourceRef } = require('./item-sources');
 // #1676 —— 记录里「换成了哪个预设」跟面板上亮哪个预设用同一个判法（§panelPreset）。
 const { presetFor, knobDefault } = require('./block-knobs');
+const { effectiveRegionKnobs } = require('./region-options');
 
 // 页面上有、而这个站的组件清单里没有的块（区块库删掉了它的类型，老页面 JSON 里还留着）。
 // 构建对它只打一行 `Unknown block type` 就跳过（`SectionRenderer`），编辑器也不许因为它打不开 ——
@@ -1089,8 +1090,12 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
       const name = (rootLabels && rootLabels[field]) || field;
       const v = root[field];
       if (REGION_OPTION_SHAPE[field]) {
-        const segs = regionOptionSegments(name, isPlainObject(rootBefore) ? rootBefore[field] : undefined, v, has(root, REGION_OPTION_SHAPE[field]));
-        if (segs.length) parts.push(...segs); else parts.push(name);
+        const shapeField = REGION_OPTION_SHAPE[field];
+        const before = isPlainObject(rootBefore) ? rootBefore : {};
+        const shapeChanged = has(root, shapeField);
+        const segs = regionOptionSegments(name, REGION_OF_OPTIONS[field], before[shapeField], shapeChanged ? root[shapeField] : before[shapeField], before[field], v, shapeChanged);
+        // 同一笔里换了预设 ⟹ 清旋钮那一半已经由预设那一项说了，这里一格都没有就不再补一个光秃秃的区名。
+        if (segs.length) parts.push(...segs); else if (!shapeChanged) parts.push(name);
         continue;
       }
       // #1681 —— Business info 四样是文字框：跟块文字同一个规矩（手改写新值），清空 = `(empty)`。
@@ -1106,22 +1111,32 @@ const ROOT_CHOICE_FIELDS = new Set(['layout', 'headerShape', 'footerShape']);
 
 /** #1738 —— 顶栏 / 页脚的底色 + 旋钮那两个字段 → 同一区的预设字段（选预设时两个一起变，见 §regionOptionSegments）。 */
 const REGION_OPTION_SHAPE = { headerOptions: 'headerShape', footerOptions: 'footerShape' };
+const REGION_OF_OPTIONS = { headerOptions: 'header', footerOptions: 'footer' };
 
 /**
  * #1738 —— 底色 + 旋钮这一笔逐格说：`Header · Background` · `Header · Menu → below` · `Header · Topbar → on`。
- * 同一笔里预设也换了（`shapeChanged`）⟹ 被清掉的旋钮不说（那是「照新预设画」，预设那一项已经说了）。
+ * 旋钮和归预设管的开关比的是**生效值**（§effectiveRegionKnobs：预设给底、存下的盖上去），不是存下的那几格 ——
+ * Customize 拧一个旋钮会把整组生效值一起存（§regionKnobChange，耦合纠正要它），按存下的比就会把没动的 Layout / Brand 也报成改了。
+ * 同一笔里预设也换了（`shapeChanged`）⟹ 旋钮那一半不说（那是「照新预设画」，预设那一项已经说了），只说底色和别的开关。
  */
-function regionOptionSegments(name, before, after, shapeChanged) {
+function regionOptionSegments(name, region, shapeBefore, shapeAfter, before, after, shapeChanged) {
   const a = isPlainObject(before) ? before : {};
   const b = isPlainObject(after) ? after : {};
+  const cap = (k) => k.charAt(0).toUpperCase() + k.slice(1);
   const out = [];
+  if (!deepEqual(a.bg, b.bg)) out.push(`${name} · Background${b.bg === undefined ? ' → (default)' : ''}`);
+  const effA = effectiveRegionKnobs(region, shapeBefore, a);
+  const effB = effectiveRegionKnobs(region, shapeAfter, b);
+  for (const k of Object.keys(effB)) {
+    if (shapeChanged || deepEqual(effA[k], effB[k])) continue;
+    out.push(`${name} · ${cap(k)} → ${typeof effB[k] === 'boolean' ? (effB[k] ? 'on' : 'off') : effB[k]}`);
+  }
+  // 不归预设管的开关（顶栏 `icons`）：没存 = 关（块自己的默认，`blocks/header/Section.tsx` 的 `icons = false`）。
   for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])]) {
-    if (deepEqual(a[k], b[k])) continue;
-    if (b[k] === undefined && shapeChanged) continue;
-    const label = k === 'bg' ? 'Background' : k.charAt(0).toUpperCase() + k.slice(1);
-    if (k === 'bg') out.push(`${name} · ${label}${b[k] === undefined ? ' → (default)' : ''}`);
-    else if (typeof b[k] === 'boolean') out.push(`${name} · ${label} → ${b[k] ? 'on' : 'off'}`);
-    else out.push(`${name} · ${label} → ${b[k] === undefined ? '(default)' : b[k]}`);
+    if (k === 'bg' || k in effB) continue;
+    if (typeof a[k] !== 'boolean' && typeof b[k] !== 'boolean') continue;
+    if ((a[k] === true) === (b[k] === true)) continue;
+    out.push(`${name} · ${cap(k)} → ${b[k] === true ? 'on' : 'off'}`);
   }
   return out;
 }
