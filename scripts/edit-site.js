@@ -1072,8 +1072,8 @@ The site is defined by JSON configuration files:
 
 - **brand.json** — Company name, tagline, logoIcon, logoUrl (the logo image — see "Images" below), color palette (primary 50-900 shades, accent 50-600 shades), fonts (googleFontsUrl, families), email, phone, locations, socialLinks
   Buttons, the header top bar and the footer that write the phone, email, address or social links as a reference
-  ({"source": "phone"} / {"source": "email"} / {"source": "address"} / {"source": "brand"} / {"source": "social"}, or {phone} /
-  {email} in a button label) follow brand.json automatically — so when the owner's phone number, email, address or social
+  ({"source": "phone"} / {"source": "email"} / {"source": "address"} / {"source": "brand"} / {"source": "social"})
+  follow brand.json automatically — so when the owner's phone number, email, address or social
   links change, change brand.json and do not go and edit those pages.
 - **seo.json** — Domain, locale, meta title/description, targetKeywords (the keywords the owner chose in keyword research — do not invent or rewrite them), Schema.org config
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products

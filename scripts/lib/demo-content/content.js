@@ -81,7 +81,7 @@ const DEMO_CONTENT = {
     ctas: [
       { label: 'Book a service', href: '/contact', style: 'solid', icon: 'calendar-check' },
       // #1506 —— 电话按钮写成引用：号码不抄进块里，渲染前从站点数据（单格页是 DEMO_SITE.brand）填。
-      { label: '{phone}', href: { source: 'phone' }, style: 'outline', icon: 'telephone' },
+      { label: 'Call us', href: { source: 'phone' }, style: 'outline', icon: 'telephone' },
       { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
       { label: 'Directions', href: '/contact', style: 'link' },
       { label: 'Warranty', href: '/warranty', style: 'link' },
@@ -250,7 +250,7 @@ const DEMO_CONTENT = {
     ctas: [
       { label: 'Book a free check', href: '/contact', style: 'solid' },
       // #1506 —— 同 hero：电话按钮写成引用。
-      { label: 'Call {phone}', href: { source: 'phone' }, style: 'outline' },
+      { label: 'Call us', href: { source: 'phone' }, style: 'outline' },
       { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
       { label: 'Directions', href: '/contact', style: 'link' },
       { label: 'Warranty', href: '/warranty', style: 'link' },

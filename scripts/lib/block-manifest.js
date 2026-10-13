@@ -1251,7 +1251,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       }
 
       // ⑪ #1506 —— 写成引用的联系方式：按钮（任何块里有 label 又有 href 的对象，按形状认）的 `href` 只能是
-      //    {source: "phone" | "email"}、`label` 里只认 {phone} / {email}；页头顶条那一项、页脚的对象槽（`footer.contact`）
+      //    {source: "phone" | "email"}（`label` 是普通文字，不查 —— #1758）；页头顶条那一项、页脚的对象槽（`footer.contact`）
       //    只能是登记的源。规则全在 `scripts/lib/item-sources.js`，这里只把它的问题清单报出来。
       //    （列表槽的整槽引用 —— features.items / footer.social —— 归下面第 ⑤ 条那一支。）
       for (const p of contactRefProblems(sec.type, data)) flag(`${where}: ${p}`);

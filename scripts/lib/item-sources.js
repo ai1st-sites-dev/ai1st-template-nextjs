@@ -18,7 +18,7 @@
 //    和另外两类位置 —— 表也住在这个文件顶上：
 //    · `ITEM_SLOTS`    哪个块的哪份列表里**每一项**可以整项写成引用（`header.topbar.contact[]`）。
 //    · 按钮            **不登记**：任何块里「有 `label` 又有 `href` 的对象」都认（§resolveButtons，按形状认、不按块名），
-//                      `href` 接 `BUTTON_SOURCES`，`label` 里认 `LABEL_PLACEHOLDERS`。新块不用登记就能用。
+//                      `href` 接 `BUTTON_SOURCES`；`label` 是普通文字，写什么显示什么（#1758）。新块不用登记就能用。
 //    `footer.contact` / `footer.social` 是整槽换值，跟 `features.items` 同一回事，所以登记在 `BLOCK_SLOTS`。
 //    🔴 电话 → `tel:`、邮箱 → `mailto:` 只用 `contact-facts.js` 那两个函数（contact / footer 也用它们）。
 //
@@ -206,10 +206,11 @@ const ITEM_SLOTS = {
   'header': { 'topbar.contact': ['phone', 'email', 'address'] },
 };
 
-/** #1506 —— 按钮（任何块里有 `label` 又有 `href` 的对象）的 `href` 能写成哪几个源；`label` 里认哪几个占位。 */
+/**
+ * #1506 —— 按钮（任何块里有 `label` 又有 `href` 的对象）的 `href` 能写成哪几个源。
+ * #1758 —— `label` 里的 `{phone}` / `{email}` 不再展开：按钮文字是普通文字，写什么显示什么（Chris 2026-10-13「不留」）。
+ */
 const BUTTON_SOURCES = ['phone', 'email'];
-const LABEL_PLACEHOLDERS = ['phone', 'email'];
-const PLACEHOLDER_RE = /\{([A-Za-z_][\w-]*)\}/g;
 
 /**
  * #1506 —— 提示词里讲按钮的那一句（建站 `create-site.js`、改站 `edit-site.js` 都印它，不各写一份）。
@@ -217,9 +218,10 @@ const PLACEHOLDER_RE = /\{([A-Za-z_][\w-]*)\}/g;
  */
 const BUTTON_REF_PROMPT = 'Phone and email buttons: never write the phone number or email address into a page. '
   + 'In any button ({label, href, ...}) write href as {"source": "phone"} or {"source": "email"} '
-  + '(add "location": 1 for the second location, and so on), and if the button text should show it, write {phone} or {email} '
-  + 'in the label, e.g. {"label": "Call {phone}", "href": {"source": "phone"}}. They are filled in from brand.json when the site '
-  + 'is built, so they stay right when the number changes. Do not write phone numbers in body text either.';
+  + '(add "location": 1 for the second location, and so on). The button label is plain text that is shown as written, '
+  + 'e.g. {"label": "Call us", "href": {"source": "phone"}} — the phone number and email address go only in that href reference. '
+  + 'It is filled in from brand.json when the site is built, so it stays right when the number changes. '
+  + 'Do not write phone numbers in body text either.';
 
 /**
  * #1506 —— 页头顶条 / 页脚里那三个位置怎么写引用（`header` / `footer` 还没进提示词：它们是 staging 外壳块，
@@ -294,7 +296,7 @@ function isButton(v) {
 
 /**
  * #1506 —— 一个块的 data 里写成引用的联系方式问题清单（`validateSite` 调；空 = 合法）。下面几处：
- *   · 按钮：`href` 是对象 ⟹ 只能是 `BUTTON_SOURCES` 的引用；`label` 里的 `{…}` 只认 `LABEL_PLACEHOLDERS`
+ *   · 按钮：`href` 是对象 ⟹ 只能是 `BUTTON_SOURCES` 的引用（`label` 是普通文字，不查 —— #1758）
  *   · `ITEM_SLOTS`：那份列表里是对象且带 `source` 的那一项 ⟹ 只能是登记的那几个源
  *   · 半截形状（#1520）：不是按钮、`href` 却是对象（`{icon, text, href: {source: "phone"}}`）⟹ 报一条。
  *     展开那一侧（§resolveItemSlots 认整项、§resolveButtons 认按钮）两条路都认不出它，对象会原样留到渲染端。
@@ -307,11 +309,6 @@ function contactRefProblems(type, data) {
     if (!isObj(v)) return;
     if (at && isButton(v)) {
       if (isObj(v.href)) out.push(...refProblemsAt(`${at}.href`, BUTTON_SOURCES, v.href));
-      for (const [, name] of v.label.matchAll(PLACEHOLDER_RE)) {
-        if (!LABEL_PLACEHOLDERS.includes(name)) {
-          out.push(`"${at}.label" 里的 {${name}} 不认识 —— 按钮文字里只认 ${LABEL_PLACEHOLDERS.map((x) => `{${x}}`).join(' / ')}`);
-        }
-      }
     } else if (at && isObj(v.href)) {
       const why = 'label' in v ? 'label 不是字符串' : '没有 label';
       out.push(`"${at}.href" 是对象，但这一项不是按钮（${why}）—— 引用 {"source": …} 只能写在按钮 {label, href} 的 href 里，`
@@ -393,28 +390,16 @@ function resolveItemSlots(type, data, ctx) {
 const DROP = Symbol('drop');
 
 /**
- * #1506 —— 一个按钮：`href` 写成引用 ⟹ 换成 `tel:` / `mailto:`；`label` 里的 `{phone}` / `{email}` ⟹ 换成号码 / 邮箱原文
- * （占位用 `href` 引用的那一家门店，没写就第一家）。指向的东西不存在 ⟹ DROP（整个按钮不画）。没有引用 ⟹ 原样返回。
+ * #1506 —— 一个按钮：`href` 写成引用 ⟹ 换成 `tel:` / `mailto:`。指向的东西不存在 ⟹ DROP（整个按钮不画）。
+ * 没有引用 ⟹ 原样返回。`label` 一个字不动（#1758：按钮文字写什么显示什么）。
  */
 function resolveButton(btn, ctx, type) {
   const ref = isObj(btn.href) ? btn.href : null;
-  const names = [...btn.label.matchAll(PLACEHOLDER_RE)].map((m) => m[1]).filter((n) => LABEL_PLACEHOLDERS.includes(n));
-  if (!ref && !names.length) return btn;
-  let href = btn.href;
-  if (ref) {
-    const def = isSourceRef(ref) && BUTTON_SOURCES.includes(ref.source) ? SOURCES[ref.source] : null;
-    const f = def ? def.fact(ref, ctx) : null;
-    if (!f) { logMissing(ctx, type, `按钮「${btn.label}」的 href ${JSON.stringify(ref)}`); return DROP; }
-    href = f.href;
-  }
-  const at = ref && Number.isInteger(ref.location) ? { location: ref.location } : {};
-  let label = btn.label;
-  for (const n of new Set(names)) {
-    const f = contactFact(n, at, ctx);
-    if (!f) { logMissing(ctx, type, `按钮「${btn.label}」里的 {${n}}`); return DROP; }
-    label = label.split(`{${n}}`).join(f.text);
-  }
-  return { ...btn, href, label };
+  if (!ref) return btn;
+  const def = isSourceRef(ref) && BUTTON_SOURCES.includes(ref.source) ? SOURCES[ref.source] : null;
+  const f = def ? def.fact(ref, ctx) : null;
+  if (!f) { logMissing(ctx, type, `按钮「${btn.label}」的 href ${JSON.stringify(ref)}`); return DROP; }
+  return { ...btn, href: f.href };
 }
 
 /**
@@ -472,7 +457,7 @@ function describeRef(ref) {
 }
 
 module.exports = {
-  SOURCES, BLOCK_SLOTS, ITEM_SLOTS, BUTTON_SOURCES, LABEL_PLACEHOLDERS, SOURCED_KEY, SERVICE_ICON_ALIASES,
+  SOURCES, BLOCK_SLOTS, ITEM_SLOTS, BUTTON_SOURCES, SOURCED_KEY, SERVICE_ICON_ALIASES,
   BUTTON_REF_PROMPT, REGION_REF_PROMPTS,
   isSourceRef, sourcesFor, refProblems, contactRefProblems, expandRef, resolveItemSources, blocksUseSource, promptAlternatives, describeRef,
 };

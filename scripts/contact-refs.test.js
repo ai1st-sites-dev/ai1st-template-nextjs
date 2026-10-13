@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 /**
  * contact-refs.test.js — #1506：按钮 / 页头顶条 / 页脚里的电话、邮箱、地址、社交链接可写成引用
- * （`{source: "phone"}` …、按钮文字里的 `{phone}` / `{email}`），构建时从 brand.json 展开（`scripts/lib/item-sources.js`）。
+ * （`{source: "phone"}` …），构建时从 brand.json 展开（`scripts/lib/item-sources.js`）。
+ * #1758 起按钮文字里的 `{phone}` / `{email}` 不再展开 —— 按钮文字写什么显示什么（见 §#1758 那一段）。
  *
  * 跑法:  node scripts/contact-refs.test.js   （或 `npm run test:scripts`，它按文件名发现）
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 管哪几条：
  *   AC1  跟着变：夹具站只改 brand.json 的 locations[0].phone，页面 / 页头 / 页脚数据一个字节不动，重新构建 ⟹
- *        hero 按钮的 href、按钮文字、cta 按钮、页头顶条电话、页脚电话全部变成新号码
+ *        hero / cta 按钮的 href、页头顶条电话、页脚电话全部变成新号码（按钮文字是普通文字，两次一样 —— #1758）
  *        （真跑：skipAI 建站 → sync-config.js → 子进程里加载那棵树的真 config；hero / cta 走真 HomePage，
  *        #1425（T3）起 header / footer 也走真路径：真 SiteShell，data 是构建写进 config-data 的
  *        `regions.<区>.dataByLocale`（`lib/shell-data.js` 派生），形态用 theme.json 的 regionLayout 钉成
@@ -132,7 +133,7 @@ const BRAND = {
 const logs = [];
 const CTX = { services: [], pages: [], url: (s) => `/${s}`, learnMore: 'Learn more', brand: BRAND, log: (m) => logs.push(m) };
 const resolve1 = (type, data, ctx = CTX) => lib.resolveItemSources([{ id: 'b', type, data }], ctx)[0].data;
-const phoneBtn = (extra = {}) => ({ label: 'Call {phone}', href: { source: 'phone', ...extra }, style: 'outline' });
+const phoneBtn = (extra = {}) => ({ label: 'Call us', href: { source: 'phone', ...extra }, style: 'outline' });
 const renderFooter = (data) => renderToStaticMarkup(React.createElement(Footer, { shape: 'columns', data, iconTable: icons.iconTableFor('footer', data) }));
 const renderHeader = (data) => renderToStaticMarkup(React.createElement(Header, { shape: 'topbar', data, iconTable: icons.iconTableFor('header', data) }));
 const headerData = (contact, ctx = CTX) => resolve1('header', { ...clone(demo.DEMO_CONTENT['header']), topbar: { ...clone(demo.DEMO_CONTENT['header'].topbar), contact } }, ctx);
@@ -161,7 +162,7 @@ const headerVariant = (from, to) => {
 console.log('── AC2 tel:：期望值 + 三处用同一个函数');
 {
   const btn = resolve1('hero', { ctas: [phoneBtn()] }).ctas[0];
-  check(btn.href === 'tel:6045550142' && btn.label === 'Call (604) 555-0142', `按钮：(604) 555-0142 ⟹ href ${btn.href} · 文字「${btn.label}」`);
+  check(btn.href === 'tel:6045550142' && btn.label === 'Call us', `按钮：(604) 555-0142 ⟹ href ${btn.href} · 文字「${btn.label}」`);
   const plus = { ...CTX, brand: { ...BRAND, locations: [{ ...BRAND.locations[0], phone: '+1 604-555-0142' }] } };
   const top = headerData([{ source: 'phone' }], plus).topbar.contact[0];
   check(top.href === 'tel:+16045550142' && top.text === '+1 604-555-0142' && top.icon === 'telephone',
@@ -196,7 +197,7 @@ console.log('── AC2 tel:：期望值 + 三处用同一个函数');
 console.log('\n── AC3 多门店：location 1 ⟹ 第二家');
 {
   const btn = resolve1('cta', { ctas: [phoneBtn({ location: 1 })] }).ctas[0];
-  check(btn.href === 'tel:+16045550199' && btn.label === 'Call +1 604-555-0199', `按钮 ⟹ ${btn.href} · 「${btn.label}」`);
+  check(btn.href === 'tel:+16045550199' && btn.label === 'Call us', `按钮 ⟹ ${btn.href} · 「${btn.label}」`);
   const top = headerData([{ source: 'address', location: 1 }]).topbar.contact[0];
   check(top.text === '88 Queen St E, Toronto' && top.icon === 'geo-alt' && !top.href, `页头顶条地址 ⟹ ${JSON.stringify(top)}`);
   const fc = footerData({ source: 'brand', location: 1 }).contact;
@@ -214,7 +215,7 @@ console.log('\n── AC3 多门店：location 1 ⟹ 第二家');
 console.log('\n── AC4 指向不存在的东西：不画那一项、其它照常、不抛错、打一行日志');
 {
   const noEmail = { ...CTX, brand: { ...BRAND, email: '' } };
-  const ctas = [{ label: 'Book', href: '/quote' }, { label: 'Email {email}', href: { source: 'email' } }, phoneBtn()];
+  const ctas = [{ label: 'Book', href: '/quote' }, { label: 'Email us', href: { source: 'email' } }, phoneBtn()];
   logs.length = 0;
   let out; let threw = null;
   try { out = resolve1('hero', { ctas }, noEmail).ctas; } catch (e) { threw = e; }
@@ -223,9 +224,8 @@ console.log('\n── AC4 指向不存在的东西：不画那一项、其它照
   logs.length = 0;
   const far = resolve1('hero', { ctas: [ctas[0], phoneBtn({ location: 5 })] }).ctas;
   check(far.length === 1 && far[0].label === 'Book' && logs.length === 1, `location 5（只有两家）⟹ 那个按钮不画、其它照常、一行日志（${far.length} 个按钮，${logs.length} 行）`);
-  logs.length = 0;
-  const onlyText = resolve1('cta', { ctas: [{ label: 'Write to {email}', href: '/contact' }] }, noEmail).ctas;
-  check(onlyText.length === 0 && logs.length === 1, '文字里的 {email} 也一样：没有邮箱 ⟹ 那个按钮不画');
+  // 📌 原来这里还有一格「文字里的 {email}：没有邮箱 ⟹ 那个按钮不画」—— #1758 退役了按钮文字里的占位符，
+  //    反过来的那一格（照画、文字原样、不打日志）在 §#1758 那一段。
   const top = headerData([{ source: 'email' }, { icon: 'clock', text: 'Mon–Sat' }, { source: 'phone', location: 5 }], noEmail).topbar.contact;
   check(top.length === 1 && top[0].text === 'Mon–Sat', `页头顶条：邮箱 / 第 6 家都不在 ⟹ 只剩手写那一项（${JSON.stringify(top)}）`);
   const fc = footerData({ source: 'brand', location: 5 }).contact;
@@ -251,7 +251,7 @@ console.log('\n── AC5 所有块都认（按形状认，不按块名）');
   for (const [type, data, pick] of cases) {
     const b = pick(resolve1(type, data));
     const where = type === 'features' ? `${type}.${Object.keys(data)[0]}` : type;
-    check(b && b.href === 'tel:6045550142' && b.label === 'Call (604) 555-0142', `${where} ⟹ ${b && b.href}`);
+    check(b && b.href === 'tel:6045550142' && b.label === 'Call us', `${where} ⟹ ${b && b.href}`);
   }
   const plain = { id: 'p', type: 'hero', data: { ctas: [{ label: 'Book', href: '/quote' }] } };
   const blocks = [plain];
@@ -286,13 +286,12 @@ console.log('\n── AC6 validateSite');
     [[{ label: 'Fax', href: { source: 'fax' } }], '{source:"fax"}'],
     [[{ label: 'Call', href: { source: 'phone', location: -1 } }], '{source:"phone", location:-1}'],
     [[{ label: 'Call', href: { source: 'phone', x: 1 } }], '{source:"phone", x:1}'],
-    [[{ label: 'Call {fax}', href: '/contact' }], 'label "Call {fax}"'],
   ]) {
     const p = v(hero(ctas));
     check(p.length === 1, `${label} ⟹ 报一条`, p.join(' | ') || '0 条');
   }
   const good = [
-    ...hero([phoneBtn(), phoneBtn({ location: 1 }), { label: 'Email {email}', href: { source: 'email' } }, { label: 'Call', href: { source: 'phone', location: 0 } }]),
+    ...hero([phoneBtn(), phoneBtn({ location: 1 }), { label: 'Email us', href: { source: 'email' } }, { label: 'Call', href: { source: 'phone', location: 0 } }]),
     { id: 'hd', type: 'header', data: { topbar: { contact: [{ source: 'phone' }, { source: 'email' }, { source: 'address', location: 1 }, { icon: 'clock', text: 'x' }] } } },
     { id: 'ft', type: 'footer', data: { contact: { source: 'brand', location: 1 }, social: { source: 'social' } } },
   ];
@@ -357,7 +356,7 @@ console.log('\n── #1520 ③ 有邮箱、一家门店都没有：email 引用
   check(ctas.length === 1 && ctas[0].href === 'mailto:hello@x.example' && logs.length === 0,
     `cta 的 {source:"email"} 按钮 ⟹ ${JSON.stringify(ctas)}（${logs.length} 行日志）`);
   const lbl = resolve1('hero', { ctas: [{ label: 'Write to {email}', href: '/contact' }] }, C3).ctas;
-  check(lbl.length === 1 && lbl[0].label === 'Write to hello@x.example', `按钮文字里的 {email} ⟹ 「${lbl[0] && lbl[0].label}」`);
+  check(lbl.length === 1 && lbl[0].label === 'Write to {email}', `#1758：按钮文字里的 {email} 原样（「${lbl[0] && lbl[0].label}」）`);
   const top = headerData([{ source: 'email' }], C3).topbar.contact;
   check(top.length === 1 && top[0].href === 'mailto:hello@x.example', `页头顶条 {source:"email"} ⟹ ${JSON.stringify(top)}`);
   const fc = footerData({ source: 'brand' }, C3).contact;
@@ -496,13 +495,41 @@ console.log('\n── AC8 提示词');
 {
   const P = lib.BUTTON_REF_PROMPT;
   check(/Phone and email buttons: never write the phone number/.test(P) && P.includes('{"source": "phone"}') && P.includes('{"source": "email"}')
-    && P.includes('{phone}') && P.includes('{email}'), '那一句含「never write the phone number」、两种 href 写法、两种文字占位');
+    && /plain text/.test(P), '那一句含「never write the phone number」、两种 href 写法、按钮文字是普通文字');
+  // #1758 —— 提示词不再教 AI 往 label 里写 {phone} / {email}（`{"source": "phone"}` 那种引用不算：它里面没有 `{phone}` 这个子串）。
+  const edit0 = fs.readFileSync(path.join(__dirname, 'edit-site.js'), 'utf-8');
+  const brandPara = edit0.slice(edit0.indexOf('- **brand.json**'), edit0.indexOf('- **seo.json**'));
+  check(!/\{phone\}|\{email\}/.test(P) && !/\{phone\}|\{email\}/.test(brandPara) && brandPara.includes('{"source": "phone"}'),
+    '#1758：建站那句和改站讲 brand.json 那段都不含 {phone} / {email}（href 的引用照旧在）');
   const create = fs.readFileSync(path.join(__dirname, 'create-site.js'), 'utf-8');
   const edit = fs.readFileSync(path.join(__dirname, 'edit-site.js'), 'utf-8');
   check(/BUTTONS:\n\$\{BUTTON_REF_PROMPT\}/.test(create), '建站提示词印它（create-site.js 的 BUTTONS 段）');
   check(/\n\$\{BUTTON_REF_PROMPT\}\n/.test(edit), '改站提示词印它（edit-site.js 的 SYSTEM_PROMPT）');
   const at = edit.indexOf('- **brand.json**');
   check(at > 0 && /follow brand\.json automatically/.test(edit.slice(at, at + 700)), '改站提示词讲 brand.json 那段含「follow brand.json automatically」那句');
+}
+
+// ══ #1758 按钮文字里不再认 {phone} / {email} ═══════════════════════════════════════════════════════
+console.log('\n── #1758 按钮文字写什么显示什么：label 里的 {phone} / {email} 不再展开，href 的引用照常');
+{
+  // 验收 4：label 原文不动、href 照常换成 tel:（改前这一格红：label 会被换成号码）。
+  logs.length = 0;
+  const b = resolve1('hero', { ctas: [{ label: 'Call {phone}', href: { source: 'phone' } }] }).ctas[0];
+  check(b && b.label === 'Call {phone}' && b.href === 'tel:6045550142' && logs.length === 0,
+    `{ label: 'Call {phone}', href: {source:'phone'} } ⟹ 文字「${b && b.label}」· ${b && b.href}（${logs.length} 行日志）`);
+  // 同一件事的另一半：href 是普通链接、label 里写 {email}，没有邮箱的站 ⟹ 按钮照画、文字原样、不打日志（改前：整颗不画）。
+  const noEmail = { ...CTX, brand: { ...BRAND, email: '' } };
+  const t = resolve1('cta', { ctas: [{ label: 'Write to {email}', href: '/contact' }] }, noEmail).ctas;
+  check(t.length === 1 && t[0].label === 'Write to {email}' && logs.length === 0,
+    `没有邮箱、label 写 {email}、href 是 /contact ⟹ 照画、文字原样（${JSON.stringify(t)}，${logs.length} 行日志）`);
+  // 验收 5：label 里写不认识的 {…}，校验不再报它（改前：「不认识」报一条）。阳性对照：同一页里 href 写错的源照样报。
+  const v = (ctas) => manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ id: 'h', type: 'hero', data: { headline: 'x', ctas } }] }], scope: 'edit' }).problems
+    .filter((p) => /source|location|nonsense|不认识/.test(p));
+  const p0 = v([{ label: 'Call {nonsense}', href: '/contact' }]);
+  console.log(`  校验 label "Call {nonsense}" ⟹ ${p0.length} 条${p0.length ? '：' + p0.join(' | ') : ''}`);
+  check(p0.length === 0, 'label 里的 {nonsense} 不再报（按钮文字就是普通文字）', p0.join(' | '));
+  const p1 = v([{ label: 'Call {nonsense}', href: '/contact' }, { label: 'Fax', href: { source: 'fax' } }]);
+  check(p1.length === 1 && /fax/.test(p1[0]), `阳性对照：href 写 {source:"fax"} 照样报一条（${p1.join(' | ')}）`);
 }
 
 // ══ AC10 ══════════════════════════════════════════════════════════════════════════════════════════
@@ -536,9 +563,9 @@ console.log('\n── AC1 只改 brand.json 跟着变（真跑 create-site.js sk
   const D = demo.DEMO_CONTENT;
   home.blocks = [
     { id: 'hero-ref', type: 'hero', shape: 'centered', role: 'essential', region: 'content', weight: 10,
-      data: { ...clone(D['hero']), ctas: [{ label: 'Book a service', href: '/', style: 'solid' }, { label: 'Call {phone}', href: { source: 'phone' }, style: 'outline' }] } },
+      data: { ...clone(D['hero']), ctas: [{ label: 'Book a service', href: '/', style: 'solid' }, { label: 'Call us', href: { source: 'phone' }, style: 'outline' }] } },
     { id: 'cta-ref', type: 'cta', shape: 'centered', role: 'essential', region: 'content', weight: 20,
-      data: { ...clone(D['cta']), ctas: [{ label: 'Phone {phone}', href: { source: 'phone' }, style: 'solid' }] } },
+      data: { ...clone(D['cta']), ctas: [{ label: 'Phone us', href: { source: 'phone' }, style: 'solid' }] } },
   ];
   fs.writeFileSync(homeFile, JSON.stringify(home, null, 2));
   // #1425（T3）—— 页头 / 页脚走真路径：data 是 sync-config 从 navigation.json + brand.json + services.json 派生、写进
@@ -607,17 +634,22 @@ process.stdout.write(JSON.stringify(out));
   check(!!(r1.raw.header && r1.raw.footer) && /"source":"phone"/.test(rawText) && !rawText.includes('6045550142') && !rawText.includes('555-0142'),
     `站点数据的 regions.<区>.dataByLocale.en 存的是引用（含 {source:"phone"}、不含号码）：${rawText.slice(0, 200)}`);
   check(b1.hero !== '' && b1.cta !== '', '第一次构建：首页上 hero 和 cta 都渲染出来了（不是空串）');
-  check(has(b1.hero, '6045550142', 'Call (604) 555-0142'), '第一次：hero 按钮 href="tel:6045550142"、文字「Call (604) 555-0142」');
-  check(has(b1.cta, '6045550142', 'Phone (604) 555-0142'), '第一次：cta 按钮 href="tel:6045550142"、文字「Phone (604) 555-0142」');
+  check(has(b1.hero, '6045550142', 'Call us'), '第一次：hero 按钮 href="tel:6045550142"、文字「Call us」');
+  check(has(b1.cta, '6045550142', 'Phone us'), '第一次：cta 按钮 href="tel:6045550142"、文字「Phone us」');
   check(has(b1.header, '6045550142', '(604) 555-0142'), '第一次：页头顶条电话 (604) 555-0142 · tel:6045550142');
   check(has(b1.footer, '6045550142', '(604) 555-0142'), '第一次：页脚电话 (604) 555-0142 · tel:6045550142');
 
   setPhone('+1 778-555-0100');
   const b2 = read(build());
   check(shas() === s0, '两次构建之间页面 JSON（home.json）和页头页脚 data 的来源（navigation.json / services.json）一个字节没动（sha256 相同）');
-  for (const k of ['hero', 'cta', 'header', 'footer']) {
+  for (const k of ['header', 'footer']) {
     check(has(b2[k], '+17785550100', '+1 778-555-0100') && !b2[k].includes('6045550142') && !b2[k].includes('(604) 555-0142'),
       `第二次：${k} 全部变成新号码（tel:+17785550100、「+1 778-555-0100」），旧号码一处不剩`);
+  }
+  // #1758 —— 按钮文字是普通文字：链接跟着变成新号码，文字两次一样（不再有号码可换）。
+  for (const [k, text] of [['hero', 'Call us'], ['cta', 'Phone us']]) {
+    check(has(b2[k], '+17785550100', text) && !b2[k].includes('6045550142') && !b2[k].includes('555-0142'),
+      `第二次：${k} 按钮 href 变成 tel:+17785550100、文字仍是「${text}」，旧号码一处不剩`);
   }
   check(b1.hero !== b2.hero, '两次渲染的 hero 确实不同（这一格不是在比两份一样的东西）');
 }
