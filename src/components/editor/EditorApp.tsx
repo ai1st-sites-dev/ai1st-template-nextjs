@@ -1866,8 +1866,11 @@ const BLOCKBAR_ICON = {
 
 // #1710 —— Puck 自己那条整个藏掉（条改由 §BlockBars 画，§PuckActionBarSlot 只是个占位）。不藏的话选中块的右上角留一片
 //    看不见却点得着的空框（Puck 那层 `min-height: 36px`、`cursor: grab`）。Puck 的类名带 hash ⟹ 按前缀认。
+// Content 页画在网站的 iframe 里，网站的 Bootstrap reboot 把 `label` 设成 inline-block；Puck 子字段的输入框包在 `<label>` 里，
+//    label 缩成字宽，输入框（width: 100%）跟着变窄 ⟹ 面板里把 label 还原成块（Chris 2026-10-13：Eyebrow 那一格应该满宽）。
 const BLOCKBAR_CSS = `
-[data-puck-overlay]:has([data-editor-blockbar-slot]) [class*="DraggableComponent-actionsOverlay"] { display: none !important; }`;
+[data-puck-overlay]:has([data-editor-blockbar-slot]) [class*="DraggableComponent-actionsOverlay"] { display: none !important; }
+[data-editor-content-field] label { display: block; }`;
 // 条本身：画布可视区里 `position: fixed`（§useBlockBarPos 给 bottom / left），横向以 left 为中线；画布缩放过（Puck 的 Auto zoom）
 // ⟹ 按 1/zoom 放大，屏幕上跟 Puck 原来那条一样大。层级在 Design 弹层（§POPOVER）之下。
 const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, display: 'inline-flex', translate: '-50% 0', transformOrigin: 'center bottom', cursor: 'default' };
