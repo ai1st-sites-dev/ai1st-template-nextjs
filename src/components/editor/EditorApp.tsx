@@ -2382,11 +2382,14 @@ function EditorFields({ children }: { children?: ReactNode }) {
 }
 // Puck 原来那条：`.PuckFields--wrapFields .PuckFields-field + .PuckFields-field { border-top; margin-top }`。包一层之后两个
 // field 不再是兄弟 ⟹ 照「前面有过一个真画出来的字段」重写（Puck 不画的字段 FieldsChild 返回 null，包着的 div 是空的）。
+// 最后一条：编辑器页也加载了网站的 Bootstrap，reboot 把 `label` 设成 inline-block，Puck 包着输入框 / 下拉的 `<label>` 缩成字宽 ⟹
+//    右栏的输入框跟着变窄；还原成块（Chris 2026-10-13；底部面板那一半在 §BLOCKBAR_CSS）。
 const FIELD_MARK_CSS = `
 [class*="PuckFields--wrapFields"] [data-editor-field]:has(> [class*="PuckFields-field_"]) ~ [data-editor-field] > [class*="PuckFields-field_"] {
   border-top: var(--puck-border-width-regular) solid var(--puck-color-border);
   margin-top: var(--puck-space-2);
-}`;
+}
+[class*="PuckFields"] label { display: block; }`;
 
 const EDITOR_OVERRIDES = { header: EditorNotes, headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard, actionBar: PuckActionBarSlot, fields: EditorFields };
 // #1657 —— 🔴 必须是模块级常量，不许写回 JSX 里的字面量。Puck 的画布有一个 effect（依赖里有 `iframe`）：历史里只有一条时，
