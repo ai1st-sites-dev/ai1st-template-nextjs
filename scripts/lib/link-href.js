@@ -15,6 +15,10 @@
 //   `http:` `https:` `mailto:` `tel:`（大小写不论），以及站内路径（`/` 开头，第二个字不是 `/` 也不是 `\`）。
 //   空串 = 没填链接，不归这里管。其余一律拒 —— `javascript:` / `vbscript:` / `data:` / `file:` / `#锚点` /
 //   不带斜杠的相对路径都在「其余」里。
+//   📌 #1755 例外一条，只给【块里】的链接：`#<块 id>`（按钮弹窗的 Page section —— 跳到这一页的某一块，块根带同名 `id`，
+//   `blockAttrs.ts`）。判据 §BLOCK_ANCHOR：`#` 后面至少一个字、没有空白 / 控制字符 / 第二个 `#`。同一页里的锚点不会离开这一页，
+//   没有协议可以夹带。`navigation.json` 的链接、表单的 `redirect`（`hrefAllowed` 本身）照旧拒：外壳和表单在每一页都有，
+//   一个 `#块 id` 只在一页上有落点。
 // 🔴 白名单，不是黑名单：今天拦住 `javascript:` 的是 React 19 渲染时的一个行为（它只认这一种），
 //    列黑名单就是再抄一份那个「只认几种」。
 // 🔴 带控制字符（含 tab / 换行）的一律拒：浏览器解析 URL 时会先把 tab 和换行删掉，
@@ -47,6 +51,8 @@ const { hrefAllowed } = require('./href-allowed');
 const { isSourceRef, BUTTON_SOURCES } = require('./item-sources');
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+// #1755 —— 块里的链接还收「这一页的某一块」（文件头「放行什么」那条例外）。
+const BLOCK_ANCHOR = /^#[^\s#\u0000-\u001f\u007f]+$/;
 
 /** `navigation.json` 里老板的链接住在哪几个键上（对应哪个块的哪个槽位）。 */
 // 📌 #1425（T3）删过 `topbar.link`（公告条那个区随旧库退役，链接不再画）；#1528 它又画到页面上了（派生成 header 的
@@ -109,7 +115,7 @@ function blockLinks(blocks) {
       if (Object.prototype.hasOwnProperty.call(v, 'href')) {
         const h = v.href;
         if (typeof h === 'string') {
-          out.push({ place: `${b.type}.${at}`, where: `the ${name} block`, label: v.label, href: h, item: item.join('.') });
+          out.push({ place: `${b.type}.${at}`, where: `the ${name} block`, label: v.label, href: h, item: item.join('.'), inBlock: true });
         }
         // 🔴 引用写法（#1506：按钮 `href: {"source": "phone"}` / `{"source": "email"}`）**显式**放行：它展开成什么由
         //    `item-sources.js` 定（只会是 `tel:` / `mailto:`），这里不判。别靠下面那句「不是字符串就不归这里管」
@@ -166,14 +172,15 @@ function linksOf(kind, doc) {
  * @param {unknown} before  磁盘上现在那份（没有 ⟹ `null`）
  */
 function linkRejection(kind, next, before) {
+  const ok = (l) => hrefAllowed(l.href) || (!!l.inBlock && BLOCK_ANCHOR.test(l.href));
   const had = new Map();
   for (const l of linksOf(kind, before)) {
-    if (hrefAllowed(l.href)) continue;
+    if (ok(l)) continue;
     const k = `${l.place}\u0000${l.href}`;
     had.set(k, (had.get(k) || 0) + 1);
   }
   for (const l of linksOf(kind, next)) {
-    if (hrefAllowed(l.href)) continue;
+    if (ok(l)) continue;
     const k = `${l.place}\u0000${l.href}`;
     if (had.get(k)) { had.set(k, had.get(k) - 1); continue; }
     // 两样都截短：worker 把这句话截在 600 字（`blocks_task.go` §maxRefusalChars），按钮字可以长到 500 ——
@@ -186,9 +193,9 @@ function linkRejection(kind, next, before) {
     const which = l.item ? ` (item ${l.item})` : '';
     return `${what} in ${l.where}${which} goes to ${JSON.stringify(shown)}, which is not an `
       + 'address a link can use. A link can go to a web address (https://…), an email (mailto:…), a phone '
-      + 'number (tel:…) or a page on this website (starting with /). Nothing was changed.';
+      + `number (tel:…)${l.inBlock ? ', a page on this website (starting with /) or a section of this page (#…)' : ' or a page on this website (starting with /)'}. Nothing was changed.`;
   }
   return null;
 }
 
-module.exports = { hrefAllowed, linksOf, linkRejection, NAV_LINKS };
+module.exports = { hrefAllowed, linksOf, linkRejection, NAV_LINKS, BLOCK_ANCHOR };

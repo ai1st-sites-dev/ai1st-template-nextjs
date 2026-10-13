@@ -280,6 +280,11 @@ function fieldsOf(manifest) {
       }
       addOptionalHref(subs, spec);
     }
+    // #1755 —— 按钮列表（项的顶层必有 `label` + `href`，Link 那格带本店引用 —— 正是上面 #1518 / #1521 补的那几条）：编辑器整个
+    //    换成一套按钮控件（Link Type 五选一 + 那一格 + Button label，`src/components/editor/ButtonLink.tsx`），画布上点按钮开按钮弹窗。
+    //    按形状派生、不写块名单（今天是 hero / cta / content / page-header 的 `ctas`、features / milestones 的 `introCtas`）。
+    const button = kind === 'list' && itemTopKeys(spec && spec.shape).includes('label')
+      && subs.some((x) => x.sub === 'label') && subs.some((x) => x.sub === LINK_HREF && x.sources);
     fields.push({
       slot,
       kind,
@@ -291,6 +296,7 @@ function fieldsOf(manifest) {
       // #1723 —— 全部列表都挂（画布上的条目条到 `min` 灰掉 🗑，跟面板同一个数）：今天能删到 0 的 faq / features 面板
       //    改完到 `minItems` 就不让删 —— 删到 0 存盘时 validateSite 本来就拦（block-manifest.js「至少要 N 项」）。
       ...(kind === 'list' ? itemBounds(spec) : {}),
+      ...(button ? { button: true } : {}),
     });
   }
   return fields;

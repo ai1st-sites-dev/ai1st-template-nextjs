@@ -87,6 +87,8 @@ export type InlineApi = {
   regenerateImage: (current: string, at: { id: string; slot: string }) => Promise<RegenerateResult>;
   /** #1713 —— 马上存手上这一笔（Regenerate 换上 / 换回：先存后问）。 */
   saveNow: () => void;
+  /** #1755 —— 画布上点了一颗按钮（`slot` = 按钮列表 `ctas` / `introCtas`，`index` = 数据里的下标）：开按钮弹窗。 */
+  openButton: (id: string, slot: string, index: number) => void;
 };
 export const InlineApiContext = createContext<InlineApi | null>(null);
 
@@ -292,6 +294,20 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         registerOverlayPortal(el);
         el.setAttribute('data-editor-inline', '');
       }
+      // #1755 —— 按钮（按钮列表里的一项，`Button.tsx` 挂着按数据下标的 `data-item="ctas.1"`）整颗收得到鼠标：点哪儿都开按钮弹窗，
+      //    不按里面那段字去对数据（`{phone}` 那种对不上的照样开）。哪几列是按钮列表由 schema 说（`button: true`），不写块名单。
+      for (const el of Array.from(doc.querySelectorAll('[data-puck-component] [data-item]')) as HTMLElement[]) {
+        if (seen.has(el)) continue;
+        const id = el.closest('[data-puck-component]')?.getAttribute('data-puck-component');
+        const item = id ? itemById(id) : undefined;
+        if (!item) continue;
+        seen.add(el);
+        const m = /^(.*)\.\d+$/.exec(el.getAttribute('data-item') || '');
+        const component = a.components.get(item.type);
+        if (!m || !component || !component.fields.some((f) => f.button && f.slot === m[1])) continue;
+        registerOverlayPortal(el);
+        el.setAttribute('data-editor-button', '');
+      }
     };
     const schedule = () => { if (!raf) raf = doc.defaultView!.requestAnimationFrame(scan); };
     scan();
@@ -376,6 +392,31 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (barRef.current && barRef.current.contains(t)) return;
       // #1700 —— Design 弹层里的点击归弹层自己（缩略图里的字不是画布上的字）。
       if (t.closest('[data-editor-popover]')) return;
+      // #1755 —— 点到按钮（含按钮里那段字）：开按钮弹窗，不进打字、不出提示。
+      const btn = t.closest('[data-editor-button]') as HTMLElement | null;
+      if (btn) {
+        const bid = btn.closest('[data-puck-component]')?.getAttribute('data-puck-component');
+        const m = /^(.*)\.(\d+)$/.exec(btn.getAttribute('data-item') || '');
+        if (!bid || !m) return;
+        e.preventDefault();
+        e.stopPropagation();
+        select(bid);
+        typingRef.current?.end(true);
+        setNote('');
+        const a = apiRef.current;
+        if (!a || a.locked) { setActive(null); return; }
+        const item = itemById(bid);
+        if (item?.props._src?.locked) {
+          setActive({ id: bid, slot: m[1], blockType: item.type, el: btn, path: null, name: '', typing: false, ai: false, hint: LOCKED_HINT });
+          return;
+        }
+        setActive(null);
+        // 等这一下点击走完再开：开着 Design 面板 / 别的按钮弹窗时，这一下按在画布上是「点外面」，那一边要在 click 之后才 Cancel
+        //    （EditorApp §DesignPopover 的出口：pointerup 之后排一个任务）—— 排在它后面，先收旧的、再开新的。
+        const at = { id: bid, slot: m[1], index: Number(m[2]) };
+        doc.defaultView!.setTimeout(() => apiRef.current?.openButton(at.id, at.slot, at.index), 0);
+        return;
+      }
       const el = t.closest('[data-editor-inline]') as HTMLElement | null;
       if (!el) return;
       const comp = el.closest('[data-puck-component]');

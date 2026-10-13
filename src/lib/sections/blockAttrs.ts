@@ -62,6 +62,10 @@ export interface BlockAttrs {
    *  🔴 值不在这里算：`scripts/blocks.js` 的 `generatedBlockId()` 是唯一算它的地方（建站写盘和
    *  构建期归一化两条路都调它），这里跟 `shape` / `has` 一样只负责把写下的值送到 DOM。 */
   'data-block-id'?: string;
+  /** #1755 —— 同一个值再写一份 HTML `id`：按钮的 Link Type 选 Page section 存成 `#<块的 id>`，跳过去要有地方落。
+   *  取块自己的 id、不按位置算 —— 块挪了顺序，链接照样指同一块。值的来历同上面 `data-block-id`（不在这里算、没有就不写）。
+   *  🔴 它同样不是画法钩子：主题表不许写 `#…` 选择器（`theme-css-lint.js`）。 */
+  id?: string;
   /** #1318 — 这个块排成什么样。`public/shapes.css` 靠 `[data-block][data-shape]` 点名。 */
   'data-shape'?: string;
   /** #1331 — 可选槽位填了没：manifest 里 required:false 且填了的每个槽位一个 `data-has-<槽位>="true"`。 */
@@ -95,6 +99,7 @@ export function blockAttrs(type: string, block?: BlockConfig): BlockAttrs {
   // 一个看起来正常、却指不回任何一条页面 JSON 记录的名字 —— 而那是静默的（点得中、改不动）。
   if (block && typeof block.id === 'string' && block.id) {
     attrs['data-block-id'] = block.id;
+    attrs.id = block.id;
   }
   // #1318 — `data-shape`，这个块排成什么样。
   // 📌 #1341 之前它旁边还有 #998 那第三个钩子（内容结构：这个块有没有配图），两个钩子并存、

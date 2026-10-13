@@ -117,6 +117,7 @@ import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-pl
 import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
+import { ButtonEditor, buttonHrefField } from './ButtonLink';
 import type { SiteData } from '@/lib/types/config';
 import type { IconTable } from '@/components/InlineIcon';
 
@@ -462,7 +463,7 @@ export type { EditorFormChoice } from './FormCopyEditor';
 
 /** manifest 的一个槽位 → 一个 Puck 字段。控件由 `kind` 决定（editor-schema.js 文件头那张表）。
  *  #1471 —— `form` 槽的 `id`（选站级表单库里哪一张）画成下拉：选项 = 这个语言的表单名（`site-forms.js` §formIdOptions）。 */
-function puckField(f: EditorField, forms: EditorFormChoice[], site: SiteData): Field {
+function puckField(f: EditorField, forms: EditorFormChoice[], site: SiteData, locale: string): Field {
   switch (f.control) {
     case 'text':
       return { type: 'text', label: f.label };
@@ -532,7 +533,11 @@ function puckField(f: EditorField, forms: EditorFormChoice[], site: SiteData): F
       return {
         type: 'array',
         label: f.label,
-        arrayFields: Object.fromEntries(f.subs.map((s) => [s.sub, subField(s, site)])),
+        // #1755 —— 按钮列表（`ctas` / `introCtas`）：每项展开 = 画布按钮弹窗那一套（`ButtonLink.tsx`）—— Link Type 那一排 + 那一格在前，
+        //    Button label 跟在后面。列表本身（加 / 删 / 拖动 / 摘要）照旧是 Puck 的。
+        arrayFields: f.button
+          ? { href: buttonHrefField(site, locale), ...Object.fromEntries(f.subs.filter((s) => s.sub !== 'href').map((s) => [s.sub, s.sub === 'label' ? ({ type: 'text', label: 'Button label' } as Field) : subField(s, site)])) }
+          : Object.fromEntries(f.subs.map((s) => [s.sub, subField(s, site)])),
         defaultItemProps: {},
         getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, f.summary || f.subs.map((s) => s.sub)),
         // #1694 —— 条数上下限（点评平台 1–4）：Puck 到了就把加 / 删灰掉。没写就不带。
@@ -731,7 +736,7 @@ export function buildConfig(site: SiteData, schema: EditorSchema, locale: string
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
-    for (const f of c.fields) fields[f.slot] = puckField(f, forms, site);
+    for (const f of c.fields) fields[f.slot] = puckField(f, forms, site, locale);
     // #1463 —— 带预设的块（hero）不再给「Layout」形态下拉：预设那一排就是它，两处各选一个会互相打架。
     //    `_shape` 这个 prop 照旧在（defaultProps / 页面 JSON 里原来那个值），存盘原样带回去。
     const hasPresets = c.fields.some((f) => f.control === 'options' && (f.presets || []).length > 0);
@@ -1936,8 +1941,9 @@ const popoverTab = (on: boolean): CSSProperties => ({
   padding: '6px 10px 8px', border: 0, borderBottom: `2px solid ${on ? '#1d4ed8' : 'transparent'}`, background: 'none',
   color: on ? '#1d4ed8' : '#475467', fontSize: 13, fontWeight: 600, cursor: on ? 'default' : 'pointer', fontFamily: 'inherit',
 });
-type DesignTab = 'layout' | 'customize' | 'content';
-const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content' };
+// #1755 —— `button` 不是一页：画布上点按钮开的按钮弹窗（§DesignPopover 的 `button` 那一支），借 Design 面板的事务和出口。
+type DesignTab = 'layout' | 'customize' | 'content' | 'button';
+const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content', button: 'Button' };
 
 /**
  * #1738 —— Design 面板也给顶栏 / 页脚开。它们不是 Puck 的块（外壳区，`blocks/header/Section.tsx` 文件头），面板认它们用这两个 id
@@ -2230,6 +2236,38 @@ function DesignPopover({ doc }: { doc: Document }) {
   if (!ui || !api || !id || leaving || (!item && !(region && rootProps))) return null;
   const vw = doc.defaultView ? doc.defaultView.innerWidth : 1280;
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  // #1755 —— 按钮弹窗：画布上点了一颗按钮（InlineEdit §onClick → `openDesign(id, 'button', 'ctas.1')`）。改的是这一块那一列里的那一项，
+  //    每一下经 §changeDesign 整列换掉（不记历史、画布当场变）；Done / Cancel、点外面 / Esc / 撤销键 = Cancel，全跟 Design 面板同一套。
+  //    判据取 `designStart`（跟 `design` 同一次 setState 里定），不取 `tab`：`tab` 要等下面那个 effect 才跟上，第一帧会画成 Layout。
+  if (start && start.tab === 'button' && item) {
+    const m = /^(.*)\.(\d+)$/.exec(start.focus || '');
+    const props = item.props as ItemProps;
+    const slot = m ? m[1] : '';
+    const index = m ? Number(m[2]) : -1;
+    const list = m && Array.isArray(props[slot]) ? (props[slot] as unknown[]) : [];
+    const cur = list[index];
+    if (!cur || typeof cur !== 'object' || Array.isArray(cur)) return null;
+    const locks = (item as { readOnly?: Record<string, boolean> }).readOnly || {};
+    const readOnly = !!locks[slot] || !!locks[`${slot}[*].href`];
+    return createPortal(
+      <div ref={boxRef} data-editor-popover="" data-editor-button-dialog="" data-editor-popover-for={id} data-editor-button-for={start.focus} role="dialog" aria-label="Button"
+        onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
+        {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
+        <div data-editor-button-title="" style={{ padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>Button</div>
+        <div data-editor-button-body="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
+          <ButtonEditor item={cur as Record<string, unknown>} readOnly={readOnly} site={api.site} locale={api.locale}
+            onChange={(next) => { const nl = list.slice(); nl[index] = next; ui.changeDesign(slot, nl); }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
+          <button type="button" data-editor-design-cancel="" onClick={() => ui.cancelDesign()}
+            style={{ ...POPOVER_BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
+          <button type="button" data-editor-design-done="" onClick={() => ui.doneDesign()}
+            style={{ ...POPOVER_BTN, border: 0, background: '#1d4ed8', color: '#fff' }}>Done</button>
+        </div>
+      </div>,
+      doc.body,
+    );
+  }
   // 两支（页面块 / 顶栏页脚）各自算出：Layout 页每一格画什么、亮哪一格、Customize 页画什么、有哪几页、Content 页画什么。
   let presets: NonNullable<EditorField['presets']>;
   let current: string;
@@ -2445,7 +2483,8 @@ const LOCKED_PERMISSIONS = { drag: false, duplicate: false, delete: false, edit:
 function inContentInput(t: EventTarget | null): boolean {
   if (!t || typeof (t as Element).closest !== 'function') return false;
   const el = t as HTMLElement;
-  if (!el.closest('[data-editor-design-content]')) return false;
+  // #1755 —— 按钮弹窗里的 Button label / 网址 / 号码同一条（票正文做什么 7：Ctrl+Z 只撤框里的字，不关弹窗）。
+  if (!el.closest('[data-editor-design-content], [data-editor-button-dialog]')) return false;
   return el.tagName === 'TEXTAREA' || el.isContentEditable
     || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image', 'hidden'].includes((el as HTMLInputElement).type));
 }
@@ -3441,7 +3480,9 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   // #1713 —— Regenerate 换上 / 换回那一笔：不等停手，马上存（先存后问）。上一笔还在路上 ⟹ 它落定后照常数停手再存。
   const saveNow = () => flushAutosave();
   const noteItem: InlineApi['noteItem'] = (n) => { aiNotesRef.current = recordItemNote(aiNotesRef.current, n); };
-  const inlineApi: InlineApi = { locked, regenerating, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, noteItem, pickImage, regenerateImage, saveNow };
+  // #1755 —— 画布上点了一颗按钮：开按钮弹窗（§DesignPopover 的 `button` 那一支）。
+  const openButton: InlineApi['openButton'] = (id, slot, index) => openDesign(id, 'button', `${slot}.${index}`);
+  const inlineApi: InlineApi = { locked, regenerating, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, noteItem, pickImage, regenerateImage, saveNow, openButton };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };

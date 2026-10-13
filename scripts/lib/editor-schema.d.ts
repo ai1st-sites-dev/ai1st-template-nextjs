@@ -34,6 +34,8 @@ export interface EditorField {
   /** #1694 —— 带图的列表的条数上下限（manifest `minItems` / `maxItems`；没写就不带） */
   min?: number;
   max?: number;
+  /** #1755 —— list 是一列按钮（`ctas` / `introCtas`：项是 `{label, href, …}`）：每项是 Link Type + 那一格 + Button label，画布上点按钮开按钮弹窗 */
+  button?: boolean;
   /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
   summary?: string[];
   /** color：预设色板（`#rrggbb` / `brand` / 跟主题走的名字，#1698） */

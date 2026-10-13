@@ -336,5 +336,38 @@ for (const href of BAD) {
   expectRefused(`write-editor-save.js hero.ctas ${href.split(':')[0]}:`, run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) }, { page }), [home], before);
 }
 
+// ══ ⑫ #1755：块里的 `#<块 id>`（按钮弹窗的 Page section）收；外壳 / 表单那一侧照旧拒 ═══════════════════════════
+console.log('⑫ #1755：块里的链接收 #<块 id>，navigation 照旧拒');
+{
+  const { linkRejection, hrefAllowed } = require(path.join(NEXT, 'scripts', 'lib', 'link-href.js'));
+  const pageOf = (h) => ({ blocks: [{ id: 'home-hero-0', type: 'hero', data: { headline: 'x', ctas: [{ label: 'Jump', href: h, style: 'solid', arrow: true }] } }] });
+  for (const kind of ['page', 'any']) {
+    for (const h of ['#home-cta-7', '#services-faq-3', '#Hero_1']) check(linkRejection(kind, pageOf(h), null) === null, `kind=${kind} 块里 ${JSON.stringify(h)} → 收`);
+    for (const h of ['#', '#a b', '#a\tb', '#a#b', ' #a', '#a ', '##a', 'javascript:#a']) {
+      const m = linkRejection(kind, pageOf(h), null);
+      check(typeof m === 'string' && /section of this page/.test(m), `kind=${kind} 块里 ${JSON.stringify(h)} → 拒，话里说得出能填 #…`, m);
+    }
+  }
+  check(linkRejection('site-blocks', { promo: { type: 'cta', visibility: ['*'], data: { ctas: [{ label: 'Go', href: '#home-cta-7' }] } } }, null) === null, 'kind=site-blocks 块里 #<块 id> → 收（块就是块，判据不分文件）');
+  const navOf = (h) => ({ header: { cta: { label: 'Book', href: h } } });
+  for (const kind of ['navigation', 'any']) {
+    const m = linkRejection(kind, navOf('#home-cta-7'), null);
+    check(typeof m === 'string' && !/section of this page/.test(m), `kind=${kind} navigation 的 header.cta = #home-cta-7 → 照旧拒（外壳每页都有，锚点只一页有落点）`, m);
+  }
+  check(hrefAllowed('#home-cta-7') === false, 'hrefAllowed 本身不变（表单 redirect / 外壳派生用它）');
+}
+
+// ══ ⑬ #1755：真进程 —— 编辑器存盘那两条路收按钮里的 #<块 id>，值逐字落盘 ═════════════════════════════
+console.log('⑬ #1755：write-page.js / write-editor-save.js 收 #<块 id>');
+for (const script of ['write-page.js', 'write-editor-save.js']) {
+  const page = read(home);
+  const href = '#home-anchor-target';
+  page.blocks.push({ type: 'hero', data: { headline: `Anchor ${script}`, ctas: [{ label: 'Jump', href, style: 'link', arrow: true }] } });
+  const r = run(work, script, { page: 'home', locale: 'en', baseHash: sha(home) }, script === 'write-page.js' ? page : { page });
+  const saved = read(home).blocks.find((b) => b.data && b.data.headline === `Anchor ${script}`);
+  check(r.rc === 0 && !!saved && JSON.stringify(saved.data.ctas[0]) === JSON.stringify({ label: 'Jump', href, style: 'link', arrow: true }),
+    `${script}：hero.ctas 的 ${href} 落盘、其余键逐个不变`, `rc=${r.rc} ${JSON.stringify(r.line)} ${saved ? JSON.stringify(saved.data.ctas) : '没写进去'}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
