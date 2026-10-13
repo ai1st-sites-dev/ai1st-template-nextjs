@@ -1594,11 +1594,14 @@ function ItemBars({ doc }: { doc: Document }) {
  * 🔴 按坐标认，不按 target 往上找：Puck 画布里块的子元素收不到鼠标（没选中的块，鼠标事件的 target 就是块本身；
  *    能点的字是 InlineEdit 一段一段登记成 overlay portal 才收得到）⟹ `target.closest('[data-item]')` 读空。
  *    取这一块里框住鼠标的 `[data-item]`，几个都框住时取面积最小的（最里面那一项）。
+ * #1744 —— 图上那层 ✎ Edit 按钮（InlineEdit §imageBar）portal 在 body 上、贴在图正中，不在任何块里：小 logo（56 px 宽）
+ *    整格都被它盖住，鼠标落在按钮上就读空、条目条永远不出。停在按钮上 = 停在那张图上 ⟹ 按坐标找它底下那一块。
  */
 function itemKeyAt(el: Element, x: number, y: number): string | null {
   const bar = el.closest('[data-editor-itembar-for]');
   if (bar) return bar.getAttribute('data-editor-itembar-for');
-  const comp = el.closest('[data-puck-component]');
+  const under = el.closest('[data-editor-image-actions]') ? el.ownerDocument.elementsFromPoint(x, y).find((e) => e.closest('[data-puck-component]')) : el;
+  const comp = under?.closest('[data-puck-component]');
   const id = comp?.getAttribute('data-puck-component');
   if (!comp || !id) return null;
   let best: { item: string; area: number } | null = null;
@@ -1621,6 +1624,9 @@ type ItemBarPos = { top: number; left: number; scale: number; above: boolean; be
  *   条目条是画布上的操作，↑ 灰 = 画出来的第一项、↓ 灰 = 画出来的最后一项（#1723 PM 裁 B）。看不见的几项照旧在右栏动。
  *   ↑ 那一侧也要看画布：块会先 filter 掉空项（hero stats 没字的那格），数据第 0 项被滤掉时画出来的第一项是 stats.1。
  *   「画出来」= 在 DOM 里（轮播没露出来的那几张也算，翻过去看得到），不看可见性。
+ * #1744 —— 项比条还窄（logo、头像那种小图）：条贴在项里就把整格盖住 —— 图上的 ✎ Edit 收起、点图正中落在 🗑 上。
+ *   这时条挪到项的外面：上方（右沿对齐、底边 = 项上沿 − 间距）→ 放不下就下方 → 都放不下才退回贴在项里。
+ *   宽窄按条自己画出来的宽度比（已乘过 1/zoom，跟项同一个口径），每帧现量；条还没画出来那一帧按宽项放。宽项位置照旧。
  */
 function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | null {
   const [pos, setPos] = useState<ItemBarPos | null>(null);
@@ -1646,6 +1652,13 @@ function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | nu
         const frame = win.frameElement as HTMLElement | null;
         const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
         next = { top: Math.max(r.top, 0) + ITEMBAR_GAP, left: r.right - ITEMBAR_GAP, scale: 1 / zoom, above, below };
+        const b = doc.querySelector(`[data-editor-itembar-for="${CSS.escape(`${id} ${item}`)}"]`)?.getBoundingClientRect();
+        if (b && b.width > r.width) {
+          const up = r.top - ITEMBAR_GAP - b.height;
+          const down = r.bottom + ITEMBAR_GAP;
+          if (up >= 0) next = { ...next, top: up, left: r.right };
+          else if (down + b.height <= vh) next = { ...next, top: down, left: r.right };
+        }
       }
       setPos((p) => (p === next || (p && next && p.top === next.top && p.left === next.left && p.scale === next.scale && p.above === next.above && p.below === next.below) ? p : next));
     };
