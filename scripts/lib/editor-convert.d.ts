@@ -62,6 +62,9 @@ export interface RootValues {
   phone?: string;
   email?: string;
   address?: string;
+  /** #1738 —— 顶栏 / 页脚的底色 + 旋钮（`theme.json` 的 `regionOptions`，形状在 region-options.js） */
+  headerOptions?: Record<string, unknown>;
+  footerOptions?: Record<string, unknown>;
 }
 export function rootToPuck(values: RootValues): Record<string, unknown>;
 export function puckRootChanges(args: {
@@ -115,6 +118,8 @@ export function describeSave(args: {
   /** #1676 —— 老板拖过的块键（`id:<id>` / `ref:<ref>`），最后拖的在最后。 */
   dragged?: string[];
   slug?: string;
+  /** #1738 —— 存盘前的 root 现值（顶栏 / 页脚的底色 + 旋钮逐格说改了哪一格要跟它比）。 */
+  rootBefore?: Record<string, unknown>;
 }): string;
 /** #1676 —— AI 按钮的说明（实现与三条作废规矩在 .js）。 */
 export type AiNote = { action: string; path: (string | number)[]; text: string } | ItemNote;

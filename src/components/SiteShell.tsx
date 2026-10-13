@@ -7,6 +7,7 @@ import { LocalBusinessJsonLd, WebSiteJsonLd } from './JsonLd';
 import { getServices, leadFormSite, localeSwitchIndex } from '@/lib/config';
 import { itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import type { BlockConfig, SiteData } from '@/lib/types/config';
+import { applyRegionOptions } from '../../scripts/lib/region-options.js';
 
 // TICKET-129: shared layout wrapper used by [locale]/layout.tsx and the
 // default-locale root alias pages (src/app/page.tsx, [...slug]/page.tsx,
@@ -39,10 +40,15 @@ import type { BlockConfig, SiteData } from '@/lib/types/config';
 // #1405 —— `shell`：编辑器画布用的覆盖值（布局 / 顶栏形态 / 页脚形态；公告条文字随 #1425 退役）。编辑器的 root 字段
 // 改了之后画布要当场变，而站上的这几样是构建时烤进 config 的 —— 所以编辑器把它手上那一份传进来，
 // 走的仍是这一个组件、这几个真组件（票正文做什么 3「不做简化版」）。站上的页面不传它，行为一个字节不变。
+//
+// #1738 —— `headerOptions` / `footerOptions`：编辑器手上的底色 + 旋钮（Design 面板里试看 / 还没存的那一份）。不传 = 站上存的那份
+// （`regions.<区>.options`，构建期从 theme.json 的 `regionOptions` 读）。
 export interface ShellOverride {
   layout: { regions: string[]; repeatVariants?: Record<string, string> };
   headerShape: string;
   footerShape: string;
+  headerOptions?: Record<string, unknown>;
+  footerOptions?: Record<string, unknown>;
 }
 
 /** 一个区那个块这次要用的图标表：构建期查好的，这种语言的那一份（没有就落回默认语言）。 */
@@ -51,12 +57,35 @@ function shellIconTable(site: SiteData, region: 'header' | 'footer', locale: str
   return (byLocale[locale] ?? byLocale[site.defaultLocale] ?? {}) as IconTable;
 }
 
-/** 一个区那个块这次要画的 data：这种语言的那一份（没有就落回默认语言），引用展开之后。 */
-function shellBlockData(site: SiteData, region: 'header' | 'footer', locale: string): Record<string, unknown> {
+/**
+ * 一个区那个块这次要画的 data：这种语言的那一份（没有就落回默认语言），引用展开之后，再叠上底色 + 旋钮（#1738：
+ * `options` 没给就用站上存的那份）。
+ */
+function shellBlockData(site: SiteData, region: 'header' | 'footer', locale: string, options?: Record<string, unknown>): Record<string, unknown> {
   const byLocale = site.regions[region].dataByLocale || {};
   const raw = byLocale[locale] ?? byLocale[site.defaultLocale] ?? {};
   const [b] = resolveItemSources([{ type: region, data: raw } as unknown as BlockConfig], itemSourceContext(site, locale));
-  return ((b && b.data) || {}) as Record<string, unknown>;
+  return applyRegionOptions(((b && b.data) || {}) as Record<string, unknown>, options ?? site.regions[region].options) as Record<string, unknown>;
+}
+
+/**
+ * #1738 —— 只画一个区（顶栏或页脚），data 走跟下面整页外壳同一条路（§shellBlockData）。编辑器 Design 面板 Layout 页的缩略图用它：
+ * 格子里是「选这个预设之后顶栏会长成的样子」，形态和旋钮由调用方给。
+ */
+export function ShellRegion({ site, locale, region, shape, options }: { site: SiteData; locale: string; region: 'header' | 'footer'; shape: string; options?: Record<string, unknown> }) {
+  const homeHref = locale === site.defaultLocale ? '/' : `/${locale}`;
+  const data = shellBlockData(site, region, locale, options);
+  if (region === 'header') return <Header shape={shape} data={data as HeaderNewData} homeHref={homeHref} iconTable={shellIconTable(site, 'header', locale)} />;
+  return <Footer shape={shape} locale={locale} homeHref={homeHref} data={data as FooterNewData} iconTable={shellIconTable(site, 'footer', locale)} leadForm={footerLeadFormOf(site, locale)} />;
+}
+
+/** #1665 —— 页脚是浏览器端组件，读不到站点内容：它表单要的东西在这里取好递下去（服务下拉的选项 + 提交地址 / 站 / 表单库）。
+ *  这一处 getServices 在 `scripts/lib/page-deps.js` 的 ACCOUNTED 里写明了（站级外壳，不算进哪一页的 <lastmod>）。 */
+function footerLeadFormOf(site: SiteData, locale: string) {
+  return {
+    services: (getServices(site, locale) || []).map((s) => ({ id: s.id, name: s.name })),
+    ...leadFormSite(site, locale),
+  };
 }
 
 // #1628 —— `notFound`：只有 app/not-found.tsx 传，交给语言开关（404 页上一律回目标语言首页）。
@@ -75,14 +104,9 @@ export default function SiteShell({ site, locale, page, shell, notFound, childre
   };
   // #1425 QA2 r1 F2 —— logo 回首页的那个链接（TICKET-129：默认语言走根路径）。
   const homeHref = locale === defaultLocale ? '/' : `/${locale}`;
-  const headerData = shellBlockData(site, 'header', locale);
-  const footerData = shellBlockData(site, 'footer', locale);
-  // #1665 —— 页脚是浏览器端组件，读不到站点内容：它表单要的东西在这里取好递下去（服务下拉的选项 + 提交地址 / 站 / 表单库）。
-  //    这一处 getServices 在 `scripts/lib/page-deps.js` 的 ACCOUNTED 里写明了（站级外壳，不算进哪一页的 <lastmod>）。
-  const footerLeadForm = {
-    services: (getServices(site, locale) || []).map((s) => ({ id: s.id, name: s.name })),
-    ...leadFormSite(site, locale),
-  };
+  const headerData = shellBlockData(site, 'header', locale, shell?.headerOptions);
+  const footerData = shellBlockData(site, 'footer', locale, shell?.footerOptions);
+  const footerLeadForm = footerLeadFormOf(site, locale);
 
   return (
     <>

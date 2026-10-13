@@ -601,6 +601,17 @@ function rootSchema(catalog, opts) {
     layouts,
     header: pickable('header'),
     footer: pickable('footer'),
+    // #1738 —— 顶栏 / 页脚在 Design 面板里的那两格：预设 + 旋钮（`control: 'options'`）和底色（`control: 'color'`），
+    //    跟页面块同一个 §fieldsOf 算（manifest 取 catalog 里解析过 `ref` 的那份 —— `bg` 是 `{ ref: 'bg' }`）。
+    regions: Object.fromEntries(['header', 'footer'].map((r) => {
+      const m = catalog.manifests.get(r);
+      const fields = m ? fieldsOf(m) : [];
+      return [r, {
+        label: m && typeof m.displayName === 'string' && m.displayName ? m.displayName : r,
+        preset: fields.find((f) => f.control === 'options' && (f.presets || []).length) || null,
+        bg: fields.find((f) => f.control === 'color' && f.slot === 'bg') || null,
+      }];
+    })),
   };
 }
 

@@ -151,6 +151,9 @@ function otherValues(cur) {
     phone: cur.phone === '(416) 555-0199' ? '(416) 555-0100' : '(416) 555-0199',
     email: cur.email === 'hello@renamed.example' ? 'hi@renamed.example' : 'hello@renamed.example',
     address: cur.address === '100 Queen St W, Toronto, ON' ? '1 Yonge St, Toronto, ON' : '100 Queen St W, Toronto, ON',
+    // #1738 —— 顶栏 / 页脚的底色 + 旋钮：一个对象，跟现值不同就行（每一格都得是 manifest 认的，`region-options.js`）。
+    headerOptions: cur.headerOptions && cur.headerOptions.menu === 'below' ? { bg: '#1e293b' } : { bg: '#0f172a', logo: 'center', menu: 'below', icons: true },
+    footerOptions: cur.footerOptions && cur.footerOptions.brand === 'right' ? { form: 'teaser' } : { bg: 'brand', brand: 'right' },
   };
 }
 
@@ -162,7 +165,7 @@ const localeBrandFiles = (site) => fs.readdirSync(site, { withFileTypes: true })
 function roundTripProblems() {
   const problems = [];
   // 🔴 这张名单故意手写、不照分派表遍历：守卫要量的就是「分派表少了谁」（下面那格反向把一行拿掉）。
-  for (const f of ['layout', 'headerShape', 'footerShape', 'brandName', 'phone', 'email', 'address']) {
+  for (const f of ['layout', 'headerShape', 'footerShape', 'headerOptions', 'footerOptions', 'brandName', 'phone', 'email', 'address']) {
     freshSite();
     const before = readRoot('en');
     const want = otherValues(before)[f];
@@ -187,7 +190,7 @@ function roundTripProblems() {
 console.log('① 往返（分派表每一行）');
 {
   const problems = roundTripProblems();
-  check(problems.length === 0, '7 个 root 字段各写一次都读得回来、不碰别的字段（brand 四样只写站根的 brand.json）', problems.join(' · '));
+  check(problems.length === 0, '9 个 root 字段各写一次都读得回来、不碰别的字段（brand 四样只写站根的 brand.json）', problems.join(' · '));
 
   // 反向：把分派表的 footerShape 那一行拿掉（editor-root.js 拿的是同一个数组）。#1425（T3）：原来拿的是 topbarLink。
   const table = fieldsMod.ROOT_FIELDS;

@@ -19,6 +19,8 @@
 //   brandName                  → site/brand.json 的 name[<这次存盘的语言>]（#1681；键里的 '{locale}' 在 §resolveKey 换掉）
 //   email                      → site/brand.json 的 email
 //   phone / address            → site/brand.json 的 locations[0].phone / .address（只管第一家门店）
+//   headerOptions / footerOptions → site/theme.json 的 regionOptions.header / .footer（#1738：底色 + 旋钮，一个对象；
+//                                空对象 = 删掉那个键）
 // 🔴 那张表是唯一的一份：读、写、往返守卫都照它走。少一行 ⟹ 那个字段改了不落盘，守卫点名它
 //    （`scripts/editor-root.test.js` ①）。
 //
@@ -33,6 +35,7 @@ const path = require('path');
 const pageLayoutLib = require('./page-layout');
 const siteRegions = require('./site-regions');
 const { pickableShapesOf } = require('../region-layout');
+const { regionOptionsProblems, cleanRegionOptions } = require('./region-options');
 
 const { ROOT_FIELDS } = require('./editor-root-fields');
 
@@ -53,6 +56,7 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 /** #1681 —— 分派表 `key` 里的语言占位符（`editor-root-fields.js` 只放它，解析在这里）。 */
 const LOCALE_SLOT = '{locale}';
 const BRAND_FIELDS = ['brandName', 'email', 'phone', 'address'];
+const REGION_OPTION_FIELDS = ['headerOptions', 'footerOptions'];
 
 /**
  * 这个站的默认语言：判据同构建（`sync-config.js` 那段）—— 没有 `site_meta.json` 是扁平老站，默认语言 `en`；
@@ -96,6 +100,9 @@ function readRootValues({ siteDir, localeDir, locale, layoutsDir }) {
     layout: pageLayoutLib.resolveSiteLayout(siteDir, layoutsDir).layoutId,
     headerShape: regions.header.shape,
     footerShape: regions.footer.shape,
+    // #1738 —— 存下的底色 + 旋钮（清洗过的；没存 = {}）。
+    headerOptions: regions.header.options || {},
+    footerOptions: regions.footer.options || {},
     ...readBrandValues(siteDir, locale),
   };
 }
@@ -139,6 +146,12 @@ function checkShape(root, layouts) {
     if (!(typeof root[field] === 'string' && ok.includes(root[field]))) {
       bad(`${field} 不是 blocks/${block}/ 里能挑的形态：${JSON.stringify(root[field])}（有的是 ${ok.join(' / ')}）`);
     }
+  }
+  // #1738 —— 底色 + 旋钮：一个对象，每一格都得是那个块 manifest 里认的（`region-options.js` §regionOptionsProblems）。
+  for (const [field, block] of [['headerOptions', 'header'], ['footerOptions', 'footer']]) {
+    if (!(field in root)) continue;
+    const problems = regionOptionsProblems(block, root[field]);
+    if (problems.length) bad(`${field} 不对：${problems.join(' · ')}`);
   }
   // #1681 —— Business info：都是文字。电话 / 邮箱 / 地址可以清空（用到它们的顶栏那一项 / 按钮自己不画，
   // `item-sources.js` §contactFact）；网站名字不许空 —— 那句话给老板看（拒收码，进状态栏）。
@@ -226,6 +239,14 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
     }
     // 电话 / 邮箱 / 地址清空 = 删掉那个键：读它们的地方（顶栏 / 按钮 / JsonLd / llms.txt）都按「没有」处理。
     const v = root[f.field];
+    if (REGION_OPTION_FIELDS.includes(f.field)) {
+      // #1738 —— 空对象 = 删掉那个键；`regionOptions` 删空了也一起删（不留一个 `{}` 在 theme.json 里）。
+      const clean = cleanRegionOptions(f.field === 'headerOptions' ? 'header' : 'footer', v);
+      const empty = !Object.keys(clean).length;
+      setAt(entry.doc, key, empty ? null : clean);
+      if (empty && isObj(entry.doc[key[0]]) && !Object.keys(entry.doc[key[0]]).length) delete entry.doc[key[0]];
+      continue;
+    }
     setAt(entry.doc, key, BRAND_FIELDS.includes(f.field) && f.field !== 'brandName' && !v.trim() ? null : v);
   }
 

@@ -677,6 +677,8 @@ function rootToPuck(values) {
     headerShape: values.headerShape,
     footerShape: values.footerShape,
   };
+  // #1738 —— 顶栏 / 页脚的底色 + 旋钮（一个对象；老站仓里的底稿不带 ⟹ 不放键，编辑器那头留构建时那份）。
+  for (const k of ['headerOptions', 'footerOptions']) if (isPlainObject(values[k])) out[k] = { ...values[k] };
   for (const k of ['brandName', 'phone', 'email', 'address']) if (typeof values[k] === 'string') out[k] = values[k];
   return out;
 }
@@ -990,10 +992,12 @@ function movedBlock(before, after, keyOf, dragged) {
  *   `shared:<块库 id>` 共用块；已按作废规矩筛过，见 §aiNotesForSave）。`dragged`：老板拖过的块键（最后拖的在最后），
  *   只用来分辨相邻两块对调时是谁动了。两个都可缺。
  *   #1703 —— `slug`：这一页是哪页（按 `visibility` 注进这一页的共用块要按它认；缺 = 只认 `"*"`）。
+ *   #1738 —— `rootBefore`：打开时（或上一次存下去）的 root 现值。顶栏 / 页脚的底色 + 旋钮是一个对象，记录要逐格说改了哪一格
+ *   （`Header · Background`、`Header · Menu → below`），得跟它比。缺 = 只说字段名。
  * @returns {string} 一行话，各项用「; 」隔开（`Hero · Headline · made shorter; Moved Features up`）。
  *   一项都认不出（例如只动了一个没有字段的块）⟹ 一句通用话，不回空串：什么都没改的那一笔调用方根本不会存。
  */
-function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabels, shapeLabel, aiNotes, dragged, slug }) {
+function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabels, shapeLabel, aiNotes, dragged, slug, rootBefore }) {
   const idx = schemaIndex(schema);
   const lib = isPlainObject(siteBlocks) ? siteBlocks : {};
   const notes = isPlainObject(aiNotes) ? aiNotes : {};
@@ -1084,6 +1088,11 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
       if (!has(root, field)) continue;
       const name = (rootLabels && rootLabels[field]) || field;
       const v = root[field];
+      if (REGION_OPTION_SHAPE[field]) {
+        const segs = regionOptionSegments(name, isPlainObject(rootBefore) ? rootBefore[field] : undefined, v, has(root, REGION_OPTION_SHAPE[field]));
+        if (segs.length) parts.push(...segs); else parts.push(name);
+        continue;
+      }
       // #1681 —— Business info 四样是文字框：跟块文字同一个规矩（手改写新值），清空 = `(empty)`。
       if (typeof v !== 'string') parts.push(name);
       else parts.push(ROOT_CHOICE_FIELDS.has(field) ? `${name} → ${v || '(default)'}` : `${name} · ${quoteText(v)}`);
@@ -1094,6 +1103,28 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
 
 /** 外壳四样里是「选一项」的那几个：记录里带上选了哪一项（`Page layout (whole website) → standard`）。 */
 const ROOT_CHOICE_FIELDS = new Set(['layout', 'headerShape', 'footerShape']);
+
+/** #1738 —— 顶栏 / 页脚的底色 + 旋钮那两个字段 → 同一区的预设字段（选预设时两个一起变，见 §regionOptionSegments）。 */
+const REGION_OPTION_SHAPE = { headerOptions: 'headerShape', footerOptions: 'footerShape' };
+
+/**
+ * #1738 —— 底色 + 旋钮这一笔逐格说：`Header · Background` · `Header · Menu → below` · `Header · Topbar → on`。
+ * 同一笔里预设也换了（`shapeChanged`）⟹ 被清掉的旋钮不说（那是「照新预设画」，预设那一项已经说了）。
+ */
+function regionOptionSegments(name, before, after, shapeChanged) {
+  const a = isPlainObject(before) ? before : {};
+  const b = isPlainObject(after) ? after : {};
+  const out = [];
+  for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])]) {
+    if (deepEqual(a[k], b[k])) continue;
+    if (b[k] === undefined && shapeChanged) continue;
+    const label = k === 'bg' ? 'Background' : k.charAt(0).toUpperCase() + k.slice(1);
+    if (k === 'bg') out.push(`${name} · ${label}${b[k] === undefined ? ' → (default)' : ''}`);
+    else if (typeof b[k] === 'boolean') out.push(`${name} · ${label} → ${b[k] ? 'on' : 'off'}`);
+    else out.push(`${name} · ${label} → ${b[k] === undefined ? '(default)' : b[k]}`);
+  }
+  return out;
+}
 
 // ── #1676 AI 按钮的说明：从按下去到写进记录 ────────────────────────────────────────────────────────
 //

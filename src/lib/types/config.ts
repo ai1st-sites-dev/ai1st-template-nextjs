@@ -282,6 +282,8 @@ export interface RegionShape {
   dataByLocale?: Record<string, Record<string, unknown>>;
   /** 语言 → 这个区那个块的内联图标表（构建期按展开后的 data 查好，`scripts/lib/icons.js` §iconTableFor）。 */
   iconTableByLocale?: Record<string, Record<string, { viewBox: string; body: string }>>;
+  /** #1738 —— 老板存的底色 + 旋钮（`theme.json` 的 `regionOptions.<区>`，清洗过）；没存过就没有这个键。外壳渲染时叠进 data。 */
+  options?: Record<string, unknown>;
 }
 
 export interface RegionsConfig {
