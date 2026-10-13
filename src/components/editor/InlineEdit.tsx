@@ -131,12 +131,15 @@ type Active = {
 };
 
 const LOCKED_HINT = "This section can't be edited here. It is kept as is when you save.";
-const PANEL_HINT = 'Change this text in the panel on the right.';
+// #1750 —— 指的是今天走得通的那一步：右栏默认收着（#1742），块的字段在这一块那条浮动条的 Edit content 里（#1735）。
+//   括注那半句是今天多出来的一步：提示亮着时这一块的浮动条按 #1658 的互斥不出来，按 Esc 关掉提示它才出来。
+//   它写成括注、不写成第一个动作 —— #1754（提示不藏浮动条）落地后括注仍然是真的，届时由那张票去掉。
+const PANEL_HINT = 'To change this text, click “Edit content” on this section’s toolbar (press Esc first if you don’t see it).';
 // #1694 —— 点到的是一张图、却对不上唯一一项（同一张图在一排里出现两次 ⟹ ambiguous）：说 image，不说 text（QA2 观察 1）。
-const PANEL_IMAGE_HINT = 'Change this image in the panel on the right.';
+const PANEL_IMAGE_HINT = 'To change this image, click “Edit content” on this section’s toolbar (press Esc first if you don’t see it).';
 
 function hintFor(why: string, sourcedRef: unknown, isImage = false): string {
-  if (why === 'sourced') return `${describeRef(sourcedRef)} Change them there, or use “Write these items by hand” in the panel on the right.`;
+  if (why === 'sourced') return `${describeRef(sourcedRef)} Change them there, or click “Edit content” on this section’s toolbar (press Esc first if you don’t see it) and use “Write these items by hand”.`;
   if (why === 'locked') return LOCKED_HINT;
   return isImage ? PANEL_IMAGE_HINT : PANEL_HINT;
 }

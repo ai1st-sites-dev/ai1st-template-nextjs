@@ -1304,7 +1304,7 @@ const AI_PLUGIN_NAME = 'ai-chat';
 //   但它把每一格的面板都一直挂着、只切可见 ⟹ 这一格的面板（§SettingsRail，画空的）在 layout effect 里看见
 //   `plugin.current` 变成自己，就在这一帧画出来之前把 plugin / 左栏可见性还原成点之前那样，改为翻右栏。AI 聊天不卸载。
 //   打开时清掉选中：右栏显示的是整站设置（Business info、Page layout），不是某一块的字段；之后选中一块照旧显示那一块。
-//   `desktopOnly`：手机布局不出这一格（票正文：窗口 < 768 照旧）。
+//   `desktopOnly`：手机布局不出这一格 —— Puck 的边界是窗口 < 638 px（`@media (min-width: 638px)`，#1750 现取；#1742 票正文写的 768 不是它）。
 const SETTINGS_PLUGIN_NAME = 'site-settings';
 const SETTINGS_ICON = (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

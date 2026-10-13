@@ -136,8 +136,9 @@ const REJECT_REASON = {
     'page-layout.json is not edited here. It picks which page layout (which regions every page is '
     + 'made of) this site uses; the build reads it, and a site without the file gets the "standard" '
     + 'layout.\n'
-    + 'The owner changes it in the page editor: on the website\'s edit page, '
-    + '"Page layout (whole website)" on the right. If the owner asks to change the page layout, point them '
+    + 'The owner changes it in the page editor: on the website\'s edit page, click "Settings" (the gear) in the '
+    + 'bar on the left, then "Page layout (whole website)" in the panel that opens on the right. '
+    + 'If the owner asks to change the page layout, point them '
     + 'there — do not write this file yourself.',
   // 📌 `navigation.json` **不在这张表里** —— #1104 起它是有条件可写的（改构建不碰的那几处放行，
   // 改构建重写的那几处拒），判断在 `lib/navigation-owned.js`，理由回给模型的也是那边那句。

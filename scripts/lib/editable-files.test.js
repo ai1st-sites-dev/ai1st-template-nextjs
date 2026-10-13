@@ -203,7 +203,7 @@ const canWrite = (p) => writeRejection(p) === null;
     { mustNot: 'It is auto-regenerated from page metadata.',
       why: 'SYSTEM_PROMPT 里那句「整份由页面元数据自动重建」又回来了 —— header.cta 恰恰不是' },
     // page-layout.json —— #1405 之后的真话：在页面编辑器里改（原来钉的是「没人改得了」，那句本票之后是假的）
-    { must: 'the owner changes it in the page editor: "Page layout (whole website)" on the right',
+    { must: 'the owner changes it in the page editor: click "Settings" (the gear) in the bar on the left, then "Page layout (whole website)" in the panel that opens on the right',
       why: 'SYSTEM_PROMPT 没把老板指到页面编辑器 —— 模型会说布局换不了，而编辑器里就能换' },
     { mustNot: 'nothing in the product changes it today',
       why: 'SYSTEM_PROMPT 里「没人改得了 page-layout.json」又回来了 —— #1405 之后页面编辑器写它' },
