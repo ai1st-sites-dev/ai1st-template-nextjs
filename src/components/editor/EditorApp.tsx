@@ -1446,8 +1446,14 @@ type BarPos = { bottom: number; left: number; scale: number };
  * 没变不重画。
  * #1725 —— Design 弹层开着时「可视区下沿」换成弹层顶边 − POPOVER_BAR_GAP：条不钻到弹层底下，Design 按钮永远点得到。
  *   弹层的顶边从 DOM 读（`data-editor-popover`，还没画出来那一帧是 visibility: hidden，不算）。
+ * #1748 —— `avoid`（块的条传，顶栏 / 页脚的条不传）：条盖住这一块里某个小目标（`[data-item]`、图片格 `img[data-slot]`）的
+ *   【中心点】时在块里往上挪 —— 底边挪到被盖住中心点的那几项里最上面那个的上沿 − 边距，还盖着就接着挪；挪出块上沿 / 可视区顶部
+ *   就退回原位（那时靠 §itemKeyAt 按坐标认底下那一项兜底）。块比可视区高时条贴的是可视区下沿，正好压在滚进来的按钮上（azure-29 的 hero）。
+ *   只擦到一角（中心点没被盖）不躲：一张卡片被划掉底下一截还剩大半能点，躲它条就会跳出几百 px。
+ *   普通文字槽不躲：文字点别处还能改，躲它高块的条就找不到落脚点。中心点没被盖 ⟹ 位置一个像素不动。
+ *   条的宽高按它自己画出来的读（已乘过 1/zoom，跟块里的元素同一个口径），每帧现量；条还没画出来那一帧按不压放。
  */
-function useBlockBarPos(doc: Document, id: string): BarPos | null {
+function useBlockBarPos(doc: Document, id: string, avoid = false): BarPos | null {
   const [pos, setPos] = useState<BarPos | null>(null);
   useLayoutEffect(() => {
     const win = doc.defaultView;
@@ -1463,13 +1469,23 @@ function useBlockBarPos(doc: Document, id: string): BarPos | null {
         const frame = win.frameElement as HTMLElement | null;
         const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
         next = { bottom: vh - (Math.min(r.bottom, floor) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
+        const b = avoid && el ? doc.querySelector(`[data-editor-blockbar-for="${CSS.escape(id)}"]`)?.getBoundingClientRect() : null;
+        if (el && b && b.height) {
+          const targets = Array.from(el.querySelectorAll('[data-item], img[data-slot]')).map((e) => e.getBoundingClientRect()).filter((t) => t.width > 0 && t.height > 0);
+          const hits = (bottom: number) => targets.filter((t) => { const cx = (t.left + t.right) / 2, cy = (t.top + t.bottom) / 2; return cx >= b.left && cx <= b.right && cy >= bottom - b.height && cy <= bottom; });
+          const top = Math.max(r.top, 0);
+          let bottom = vh - next.bottom;
+          let hit = hits(bottom);
+          while (hit.length && bottom - b.height >= top) { bottom = Math.min(...hit.map((t) => t.top)) - BLOCKBAR_GAP; hit = hits(bottom); }
+          if (!hit.length && bottom - b.height >= top) next = { ...next, bottom: vh - bottom };
+        }
       }
       setPos((p) => (p === next || (p && next && p.bottom === next.bottom && p.left === next.left && p.scale === next.scale) ? p : next));
     };
     measure();
     let raf = win.requestAnimationFrame(function tick() { measure(); raf = win.requestAnimationFrame(tick); });
     return () => win.cancelAnimationFrame(raf);
-  }, [doc, id]);
+  }, [doc, id, avoid]);
   return pos;
 }
 
@@ -1494,7 +1510,7 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
   const count = usePuck((s) => s.appState.data.content.length);
   const inline = useContext(InlineApiContext);
   const ui = useContext(EditorUiContext);
-  const pos = useBlockBarPos(doc, id);
+  const pos = useBlockBarPos(doc, id, true);
   const props = (item?.props || {}) as ItemProps;
   const sel = item ? getSelectorForId(id) : undefined;
   if (!item || !sel || props._src?.locked || !pos) return null;
@@ -1675,11 +1691,12 @@ function ItemBars({ doc }: { doc: Document }) {
  *    取这一块里框住鼠标的 `[data-item]`，几个都框住时取面积最小的（最里面那一项）。
  * #1744 —— 图上那层 ✎ Edit 按钮（InlineEdit §imageBar）portal 在 body 上、贴在图正中，不在任何块里：小 logo（56 px 宽）
  *    整格都被它盖住，鼠标落在按钮上就读空、条目条永远不出。停在按钮上 = 停在那张图上 ⟹ 按坐标找它底下那一块。
+ * #1748 —— 块的条（同样 portal 在 body 上）也一样：它压着某一项时，停在条上 = 按坐标认它底下那一项。条自己的按钮照旧点得到。
  */
 function itemKeyAt(el: Element, x: number, y: number): string | null {
   const bar = el.closest('[data-editor-itembar-for]');
   if (bar) return bar.getAttribute('data-editor-itembar-for');
-  const under = el.closest('[data-editor-image-actions]') ? el.ownerDocument.elementsFromPoint(x, y).find((e) => e.closest('[data-puck-component]')) : el;
+  const under = el.closest('[data-editor-image-actions], [data-editor-blockbar-for]') ? el.ownerDocument.elementsFromPoint(x, y).find((e) => e.closest('[data-puck-component]')) : el;
   const comp = under?.closest('[data-puck-component]');
   const id = comp?.getAttribute('data-puck-component');
   if (!comp || !id) return null;
