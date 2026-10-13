@@ -1924,6 +1924,9 @@ function DesignPopover({ doc }: { doc: Document }) {
     const onKey = (e: KeyboardEvent) => {
       // 对话框开着：撤销键留给输入框自己撤字（不让 Puck 退画布历史 —— 弹层里的改动没记历史）；Esc 由对话框自己收（§FormCopyDialog）。
       if (formDialogOpen()) { if (isHistoryKey(e)) e.stopImmediatePropagation(); return; }
+      // #1743 —— 光标在 Content 页自己的输入框里：同上，撤销键留给输入框撤字，不 Cancel 弹层。
+      // 判据取按键的 target，不取 `doc.activeElement`：焦点回到编辑器页之后，画布那份 activeElement 仍指着上次那个输入框。
+      if (isHistoryKey(e) && inContentInput(e.target)) { e.stopImmediatePropagation(); return; }
       if (isHistoryKey(e)) { e.preventDefault(); e.stopImmediatePropagation(); cancel(); return; }
       if (e.key === 'Escape') cancel();
     };
@@ -2184,6 +2187,15 @@ function swallowNextHistoryClick() {
   document.addEventListener('click', eat, true);
   document.addEventListener('pointerup', later, true);
   timer = setTimeout(done, 1500);
+}
+
+// #1743 —— Content 页（§DesignContent）里能打字的那几样：文字框 / 多行框（含 richtext）/ contenteditable。
+function inContentInput(t: EventTarget | null): boolean {
+  if (!t || typeof (t as Element).closest !== 'function') return false;
+  const el = t as HTMLElement;
+  if (!el.closest('[data-editor-design-content]')) return false;
+  return el.tagName === 'TEXTAREA' || el.isContentEditable
+    || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image', 'hidden'].includes((el as HTMLInputElement).type));
 }
 
 function isHistoryKey(e: KeyboardEvent): boolean {
