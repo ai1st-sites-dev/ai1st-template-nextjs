@@ -123,6 +123,9 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
         layout: pageLayout.id,
         headerShape: regions.header.shape,
         footerShape: regions.footer.shape,
+        // #1738 —— 顶栏 / 页脚的底色 + 旋钮：同一份构建算出来的（`regions.<区>.options`，没存过 = {}）。
+        headerOptions: regions.header.options || {},
+        footerOptions: regions.footer.options || {},
         // #1681 —— Business info 四样：同一份构建算出来的 brand（名字取这种语言那一格，同站上顶栏的读法）。
         brandName: getBrandName(site, locale),
         phone: site.brand.locations?.[0]?.phone ?? '',

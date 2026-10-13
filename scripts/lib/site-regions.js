@@ -27,6 +27,7 @@ const path = require('path');
 const { themes, regionShapesFor } = require('../themes');
 const { resolveRegionShapes } = require('../region-layout');
 const pageLayoutLib = require('./page-layout');
+const { readRegionOptions } = require('./region-options');
 
 // ── 下面这两个函数 2026-08-20 从 `sync-config.js` 搬过来（#1104 r6），逐字未改，只把它们读的
 //    `siteDir` 从模块作用域换成入参。注释一起搬 —— 它们记的是这两个函数为什么长这样。 ──────────
@@ -68,6 +69,15 @@ const pageLayoutLib = require('./page-layout');
 // its list, falls back to the default and says so in `notes` (which sync-config.js prints). A second
 // check here would be a second list to forget — the same reason #991's `css` check reads the
 // filesystem instead of keeping a list.
+/** `theme.json` 解析后的对象；不在 / 读不出 ⟹ `{}`（读不出由 sync-config.js 的 readAppliedThemeId 报）。 */
+function readThemeMeta(siteDir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(siteDir, 'theme.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+
 function readPreviewRegionLayout(siteDir) {
   const themePath = path.join(siteDir, 'theme.json');
   if (!fs.existsSync(themePath)) return {};
@@ -140,6 +150,10 @@ function resolveSiteRegionLayout(siteDir, pending) {
     ...(structureThemeId ? regionShapesFor(structureThemeId) : {}),
     ...explicitRegionLayout,
   });
+  // #1738 —— 老板在编辑器里给顶栏 / 页脚选的底色 + 旋钮（`theme.json` 的 `regionOptions`，形状与清洗在 `region-options.js`）。
+  //    只在存了东西时挂 `options` 这个键：没存过的站产物一个字节不变。外壳在渲染时叠进 data（`SiteShell.tsx`）。
+  const options = readRegionOptions(readThemeMeta(siteDir));
+  for (const r of ['header', 'footer']) if (regions[r] && Object.keys(options[r]).length) regions[r].options = options[r];
   return { regions, structureThemeId, explicitRegionLayout };
 }
 

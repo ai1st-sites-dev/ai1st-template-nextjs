@@ -93,7 +93,7 @@ import { createPortal } from 'react-dom';
 import { Puck, ActionBar, AutoField, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
-import SiteShell from '@/components/SiteShell';
+import SiteShell, { ShellRegion, type ShellOverride } from '@/components/SiteShell';
 import EditorChat, { type ChatScope, type EditorChatState } from './EditorChat';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
@@ -107,6 +107,7 @@ import {
 } from '../../../scripts/lib/editor-convert.js';
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
+import { customizeKnobNames, effectiveRegionKnobs, regionKnobChange, regionPresetName, regionPresetPick } from '../../../scripts/lib/region-options.js';
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
@@ -814,23 +815,14 @@ export function buildConfig(site: SiteData, schema: EditorSchema, locale: string
 
 const NOTE_STYLE = { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#475467' } as const;
 
-// 形态下拉底下那句话（票正文做什么 5）。它是真话：只有换成另一套主题才清掉按站覆盖（worker §themeWriteCommand），
-// 只改颜色字体 / 更新网站都留着。
-const SHAPE_NOTE: Field = {
-  type: 'custom',
-  label: 'About these styles',
-  render: () => (
-    <p data-editor-shape-note style={NOTE_STYLE}>
-      Header and footer styles apply to every page and every language. Changing the theme puts them back to the
-      new theme&apos;s own styles.
-    </p>
-  ),
-} as Field;
-
 type RootProps = {
   layout?: string;
   headerShape?: string;
   footerShape?: string;
+  /** #1738 —— 顶栏 / 页脚的底色 + 旋钮（`theme.json` 的 `regionOptions`，形状在 `region-options.js`）。没有右栏字段：
+   *  只在 Design 面板里改（§DesignPopover 的区那一支），存盘照分派表逐字段比。 */
+  headerOptions?: Record<string, unknown>;
+  footerOptions?: Record<string, unknown>;
   brandName?: string;
   phone?: string;
   email?: string;
@@ -890,7 +882,7 @@ function withBusinessInfo(site: SiteData, locale: string, p: RootProps): SiteDat
 }
 
 /** root 的画法：外壳 + 把面板里的 Business info 交给画布上的块（§LiveSiteContext）。 */
-function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: { layout: { regions: string[]; repeatVariants: Record<string, string> }; headerShape: string; footerShape: string }; children?: ReactNode }) {
+function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: ShellOverride; children?: ReactNode }) {
   const { brandName, phone, email, address } = props;
   const live = useMemo(() => withBusinessInfo(site, locale, { brandName, phone, email, address }), [site, locale, brandName, phone, email, address]);
   return (
@@ -903,20 +895,19 @@ function RootShell({ site, locale, props, shell, children }: { site: SiteData; l
 }
 
 /**
- * #1405 —— 外壳三样：Puck 的 root 字段（整页一份，不在块列表里）。可选值全部来自构建时的 schema
- * （形态 = 子目录去掉候选；布局 = `page-layouts/` 库），这里不写任何名单。
+ * #1405 —— 外壳：Puck 的 root 字段（整页一份，不在块列表里）。右栏 Page 里只剩布局一个下拉（可选值来自构建时的 schema，
+ * `page-layouts/` 库）；顶栏 / 页脚的预设、底色、旋钮 #1738 起在画布上点中它们、在 Design 面板里改（§RegionBars / §DesignPopover），
+ * 右栏不再有那两个下拉。
  *
- * 🔴 **这里不判「哪些组合构建不收」**（带公告条的布局 + 透明浮层顶栏 / 缺某种语言的公告条文字）：那条规则
- *    只住在站里的写盘脚本（用构建同一个 `needsTopbar`），拒了那句话原样回到状态栏（票正文做什么 6）。
- *    在这里按自己的判断禁用选项，总有一天一个说行、一个说不行。
- * 🔴 唯一在这里灰掉的是「布局自己钉了页脚形态」时的页脚下拉（做什么 8）—— 判据是 schema 给的 `pinsFooter`
- *    （从布局文件算出来的），不是布局名。
+ * 🔴 **这里不判「哪些组合构建不收」**：那条规则只住在站里的写盘脚本，拒了那句话原样回到状态栏（#1405 票正文做什么 6）。
  */
-/** 外壳三样在面板上叫什么。#1454 —— 存盘记录（§describeSave）用同一份：老板在记录里读到的就是他点的那个字段名。 */
+/** 外壳在存盘记录（§describeSave）里叫什么（#1454：老板在记录里读到的就是他点的那个东西）。#1738：顶栏 / 页脚写成 `Header · …` / `Footer · …`。 */
 const ROOT_FIELD_LABELS: Record<string, string> = {
   layout: 'Page layout (whole website)',
-  headerShape: 'Header style (whole website)',
-  footerShape: 'Footer style (whole website)',
+  headerShape: 'Header · Layout',
+  footerShape: 'Footer · Layout',
+  headerOptions: 'Header',
+  footerOptions: 'Footer',
 };
 /** 存盘记录（§describeSave）用的那一份：外壳三样同面板，Business info 带上组名。 */
 const ROOT_SAVE_LABELS: Record<string, string> = {
@@ -925,43 +916,19 @@ const ROOT_SAVE_LABELS: Record<string, string> = {
 };
 
 function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
-  const opts = (names: string[]) => names.map((n) => ({ value: n, label: n }));
   const fields: Fields = {
-    // #1681 —— Business info 放在三个下拉上面（票正文做什么 6）。
+    // #1681 —— Business info 放在布局下拉上面（票正文做什么 6；#1738 起顶栏 / 页脚那两个下拉删了）。
     _businessInfo: BUSINESS_INFO_HEADING,
     brandName: { type: 'text', label: BUSINESS_INFO_LABELS.brandName },
     phone: { type: 'text', label: BUSINESS_INFO_LABELS.phone },
     email: { type: 'text', label: BUSINESS_INFO_LABELS.email },
     address: { type: 'text', label: BUSINESS_INFO_LABELS.address },
     layout: { type: 'select', label: ROOT_FIELD_LABELS.layout, options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
-    headerShape: { type: 'select', label: ROOT_FIELD_LABELS.headerShape, options: opts(schema.root.header) },
-    footerShape: { type: 'select', label: ROOT_FIELD_LABELS.footerShape, options: opts(schema.root.footer) },
-    _shapeNote: SHAPE_NOTE,
   };
   const layoutOf = (id: unknown) => schema.root.layouts.find((l) => l.id === id);
   return {
     fields,
-    resolveFields: (data: { props?: RootProps }) => {
-      if (!layoutOf(data.props?.layout)?.pinsFooter) return fields;
-      return {
-        ...fields,
-        footerShape: {
-          type: 'custom',
-          label: 'Footer style (whole website)',
-          render: () => (
-            <FieldLabel label="Footer style (whole website)" readOnly>
-              <div data-editor-footer-pinned>
-                <select disabled value="" style={{ width: '100%', padding: 6 }} aria-label="Footer style">
-                  <option value="">Set by the page layout</option>
-                </select>
-                <p style={{ ...NOTE_STYLE, marginTop: 6 }}>This layout comes with its own footer styles, so this can&apos;t be changed while it is selected.</p>
-              </div>
-            </FieldLabel>
-          ),
-        } as Field,
-      };
-    },
-    render: ({ children, layout, headerShape, footerShape, ...rest }: RootProps) => {
+    render: ({ children, layout, headerShape, footerShape, headerOptions, footerOptions, ...rest }: RootProps) => {
       const l = layoutOf(layout) || schema.root.layouts[0];
       return (
         <RootShell
@@ -972,6 +939,8 @@ function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
             layout: { regions: l ? l.regions : ['header', 'content', 'footer'], repeatVariants: l ? l.repeatVariants : {} },
             headerShape: headerShape || '',
             footerShape: footerShape || '',
+            ...(headerOptions ? { headerOptions } : {}),
+            ...(footerOptions ? { footerOptions } : {}),
           }}
         >
           {children}
@@ -991,7 +960,9 @@ function openRoot(built: PuckLikeData['root'], sent: unknown): PuckLikeData['roo
   if (!sent || typeof sent !== 'object' || Array.isArray(sent)) return built;
   const v = sent as Record<string, unknown>;
   const str = (k: string) => (typeof v[k] === 'string' ? { [k]: v[k] as string } : {});
-  const got = { ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...str('brandName'), ...str('phone'), ...str('email'), ...str('address') };
+  // #1738 —— 底色 + 旋钮是对象：只收对象（形状由站里 `region-options.js` 清洗过）。
+  const obj = (k: string) => (v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { [k]: v[k] as Record<string, unknown> } : {});
+  const got = { ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...obj('headerOptions'), ...obj('footerOptions'), ...str('brandName'), ...str('phone'), ...str('email'), ...str('address') };
   if (!Object.keys(got).length) return built;
   return { ...built, props: rootToPuck({ ...built.props, ...got } as never) };
 }
@@ -1164,6 +1135,8 @@ type EditorUi = {
   doneDesign: () => void;
   /** #1741 —— 撤销 / 前进此刻能不能按（§HistoryReport 报，EditorApp 转给 dashboard 的顶栏）。 */
   reportHistory: (canUndo: boolean, canRedo: boolean) => void;
+  /** #1738 —— 顶栏 / 页脚在 Design 面板里的两格（schema 的 `root.regions`）。 */
+  regionDesign: EditorSchema['root']['regions'];
 };
 const EditorUiContext = createContext<EditorUi | null>(null);
 
@@ -1357,7 +1330,7 @@ function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; doc
     doc.addEventListener('click', onClick, true);
     return () => doc.removeEventListener('click', onClick, true);
   }, [doc]);
-  return <>{children}{doc && <InlineEditLayer doc={doc} />}{doc && <BlockBars doc={doc} />}{doc && <ItemBars doc={doc} />}{doc && <DesignPopover doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
+  return <>{children}{doc && <InlineEditLayer doc={doc} />}{doc && <BlockBars doc={doc} />}{doc && <RegionBars doc={doc} />}{doc && <ItemBars doc={doc} />}{doc && <DesignPopover doc={doc} />}<style>{BLOCKBAR_CSS}</style></>;
 }
 
 /**
@@ -1444,7 +1417,7 @@ function useBlockBarPos(doc: Document, id: string): BarPos | null {
     const win = doc.defaultView;
     if (!win) return;
     const measure = () => {
-      const el = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+      const el = designTargetEl(doc, id); // #1738 —— 顶栏 / 页脚的条也用这一份（§REGION_DESIGN_ID）
       const r = el ? el.getBoundingClientRect() : null;
       const vh = win.innerHeight;
       const pop = doc.querySelector<HTMLElement>('[data-editor-popover]');
@@ -1564,6 +1537,76 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
           </ActionBar.Action>
           <ActionBar.Action label="Delete" disabled={!perm.delete} onClick={remove} data-editor-block-action="delete">
             {BLOCKBAR_ICON.trash}
+          </ActionBar.Action>
+        </ActionBar.Group>
+      </ActionBar>
+    </span>,
+    doc.body,
+  );
+}
+
+/**
+ * #1738 —— 顶栏 / 页脚的条：画布上鼠标停在它们上面、或点中了它们，出跟块同一种条，按钮只有 Design · AI Edit（外壳不能挪也不能删；
+ * Edit content 归 B 票）。它们不是 Puck 的块 ⟹ 不经过 Puck 的选中：「点中」是这里自己记的（画布里按下鼠标落在它上面 = 点中，
+ * 落在别处 = 放开），面板开着的那一个也一直出条（它的 Design 是「再点一下 = Cancel」那颗按钮，同块）。
+ * 正在打字（同 #1710）时悬停不出条（顶栏 / 页脚里的字今天不能直接点着改，没有字工具条那一层互斥）。
+ */
+function regionKeyAt(el: Element): string | null {
+  const bar = el.closest('[data-editor-regionbar-for]');
+  if (bar) return bar.getAttribute('data-editor-regionbar-for');
+  if (el.closest('[data-editor-popover], [data-editor-blockbar], [data-editor-itembar-block]')) return null;
+  const r = el.closest('[data-block="header"], [data-block="footer"]');
+  return r ? r.getAttribute('data-block') : null;
+}
+
+function RegionBars({ doc }: { doc: Document }) {
+  const ui = useContext(EditorUiContext);
+  const hovered = useCanvasHoverOf(doc, regionKeyAt);
+  const typing = useInlineTyping();
+  const [picked, setPicked] = useState<string | null>(null);
+  useEffect(() => {
+    const onDown = (e: Event) => {
+      const t = e.target;
+      setPicked(t && typeof (t as Element).closest === 'function' ? regionKeyAt(t as Element) : null);
+    };
+    doc.addEventListener('pointerdown', onDown, true);
+    return () => doc.removeEventListener('pointerdown', onDown, true);
+  }, [doc]);
+  const open = regionOfDesign(ui ? ui.design : null);
+  const shown = (['header', 'footer'] as const).filter((r) => r === open || r === picked || (!typing && r === hovered));
+  return <>{shown.map((r) => <RegionBar key={r} doc={doc} region={r} />)}</>;
+}
+
+function RegionBar({ doc, region }: { doc: Document; region: Region }) {
+  const dispatch = usePuck((s) => s.dispatch);
+  const ui = useContext(EditorUiContext);
+  const id = REGION_DESIGN_ID[region];
+  const pos = useBlockBarPos(doc, id);
+  if (!pos || !ui) return null;
+  const designOpen = ui.design === id;
+  const design = () => {
+    if (designOpen) { ui.cancelDesign(); return; }
+    if (ui.design) ui.cancelDesign();
+    ui.openDesign(id);
+  };
+  // 同块的 AI Edit（§BlockBar）：开左栏的 AI 聊天、光标放进输入框。
+  const aiEdit = () => {
+    dispatch({ type: 'setUi', ui: { leftSideBarVisible: true, plugin: { current: AI_PLUGIN_NAME } } } as never);
+    whenFound(() => Array.from(document.querySelectorAll<HTMLTextAreaElement>('[data-editor-chat-input]:not(:disabled)')).find((el) => el.getClientRects().length > 0), (el) => el.focus());
+  };
+  const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  return createPortal(
+    <span data-editor-blockbar="" data-editor-regionbar-for={region} onClick={halt}
+      {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
+      <ActionBar>
+        <ActionBar.Group>
+          <ActionBar.Action label="Design" onClick={design} disabled={ui.locked} data-editor-block-action="design" active={designOpen} aria-expanded={designOpen}>
+            {BLOCKBAR_ICON.design}
+            <span style={BLOCKBAR_TEXT}>Design</span>
+          </ActionBar.Action>
+          <ActionBar.Action label="AI Edit" onClick={aiEdit} data-editor-block-action="ai">
+            {BLOCKBAR_ICON.ai}
+            <span style={BLOCKBAR_TEXT}>AI Edit</span>
           </ActionBar.Action>
         </ActionBar.Group>
       </ActionBar>
@@ -1829,6 +1872,31 @@ type DesignTab = 'layout' | 'customize' | 'content';
 const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content' };
 
 /**
+ * #1738 —— Design 面板也给顶栏 / 页脚开。它们不是 Puck 的块（外壳区，`blocks/header/Section.tsx` 文件头），面板认它们用这两个 id
+ * （Puck 的块 id 不会以 `~` 开头）。改的是 root 上的两个字段：预设 = `<区>Shape`，底色 + 旋钮 = `<区>Options`（分派表
+ * `editor-root-fields.js`）；整站一份，存盘照分派表逐字段比。
+ */
+type Region = 'header' | 'footer';
+const REGION_DESIGN_ID: Record<Region, string> = { header: '~region:header', footer: '~region:footer' };
+const REGION_ROOT: Record<Region, { shape: 'headerShape' | 'footerShape'; options: 'headerOptions' | 'footerOptions' }> = {
+  header: { shape: 'headerShape', options: 'headerOptions' },
+  footer: { shape: 'footerShape', options: 'footerOptions' },
+};
+function regionOfDesign(id: string | null | undefined): Region | null {
+  return id === REGION_DESIGN_ID.header ? 'header' : id === REGION_DESIGN_ID.footer ? 'footer' : null;
+}
+/** 画布上那个区的根元素（不算 Design 面板缩略图里画的那几份）。 */
+function regionEl(doc: Document, region: Region): HTMLElement | null {
+  return Array.from(doc.querySelectorAll<HTMLElement>(`[data-block="${region}"]`)).find((el) => !el.closest('[data-editor-popover]')) || null;
+}
+/** 画布上 Design 面板正在改的那一个（块 / 区）的根元素。 */
+function designTargetEl(doc: Document, id: string): Element | null {
+  const region = regionOfDesign(id);
+  return region ? regionEl(doc, region) : doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+}
+const asOptions = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {});
+
+/**
  * #1722 —— 缩略图里缩放过的那一层：报出块渲染出来的高（未缩放的 px）。缩略图里的图片 / 字体晚到会改块高 ⟹ 一直盯着。
  * 量的是 offsetHeight（布局高，不受 transform 影响），而这一层的宽固定是画布宽 ⟹ 格子高变了它也不变，不会来回推。
  */
@@ -1900,7 +1968,10 @@ function DesignPopover({ doc }: { doc: Document }) {
   const ui = useContext(EditorUiContext);
   const api = useContext(InlineApiContext);
   const id = ui ? ui.design : null;
-  const item = usePuck((s) => (id ? (s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null) : null));
+  // #1738 —— 开的是顶栏 / 页脚：没有 Puck 条目，改的是 root 上那两个字段（§REGION_ROOT）。
+  const region = regionOfDesign(id);
+  const item = usePuck((s) => (id && !region ? (s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null) : null));
+  const rootProps = usePuck((s) => (region ? ((s.appState.data.root as { props?: Record<string, unknown> } | undefined)?.props || null) : null));
   const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
   const boxRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ bottom: number; left: number; scale: number; maxH: number; w: number } | null>(null);
@@ -1933,9 +2004,10 @@ function DesignPopover({ doc }: { doc: Document }) {
   uiRef.current = ui;
 
   // 选中的块换了 / 这一块没了（被撤销、删掉、换了底稿）⟹ Cancel。
+  //    顶栏 / 页脚不是 Puck 的块、选中它们不经过 Puck ⟹ 不看这一条（点画布别处由下面的出口收）。
   useEffect(() => {
-    if (id && (selectedId !== id || !item)) ui?.cancelDesign();
-  }, [id, selectedId, item, ui]);
+    if (id && !region && (selectedId !== id || !item)) ui?.cancelDesign();
+  }, [id, region, selectedId, item, ui]);
 
   // 出口：画布里 / 编辑器页上按下鼠标、撤销键、Esc。
   useEffect(() => {
@@ -2062,7 +2134,7 @@ function DesignPopover({ doc }: { doc: Document }) {
       const box = boxRef.current;
       if (!revealed && box && box.style.visibility === 'visible') {
         revealed = true;
-        const el = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+        const el = designTargetEl(doc, id);
         const r = el ? el.getBoundingClientRect() : null;
         if (r && r.bottom > box.getBoundingClientRect().top) win.scrollTo({ top: win.scrollY + r.top, behavior: 'instant' });
       }
@@ -2072,25 +2144,92 @@ function DesignPopover({ doc }: { doc: Document }) {
     return () => { win.cancelAnimationFrame(raf); spacer.remove(); };
   }, [id, doc]);
 
-  if (!ui || !api || !id || !item || leaving) return null;
-  const component = api.components.get(item.type);
-  const { preset: f, bg } = component ? designSlotsOf(component) : { preset: undefined, bg: undefined };
-  if (!component || !f) return null;
-  const props = item.props as ItemProps;
-  const options = (props[f.slot] && typeof props[f.slot] === 'object' ? props[f.slot] : {}) as OptionsValue;
-  const current = presetNameOf(f, options, props);
-  const locks = (item as { readOnly?: Record<string, boolean> }).readOnly || {};
-  const readOnly = !!locks[f.slot];
+  if (!ui || !api || !id || leaving || (!item && !(region && rootProps))) return null;
   const vw = doc.defaultView ? doc.defaultView.innerWidth : 1280;
-  const pageSlug = api.page === 'home' ? undefined : api.page;
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  // 两支（页面块 / 顶栏页脚）各自算出：Layout 页每一格画什么、亮哪一格、Customize 页画什么、有哪几页、Content 页画什么。
+  let presets: NonNullable<EditorField['presets']>;
+  let current: string;
+  let readOnly: boolean;
+  let thumb: (p: NonNullable<EditorField['presets']>[number], i: number) => ReactNode;
+  let customize: ReactNode;
+  let content: ReactNode = null;
+  let tabs: DesignTab[] = ['layout', 'customize', 'content'];
+  if (region && rootProps) {
+    // #1738 —— 顶栏 / 页脚。缩略图 = 「选这个预设之后它会长成的样子」：同一个 §ShellRegion（外壳那条 data 路径），形态 + 旋钮按
+    //   `region-options.js` §regionPresetPick 算（同 §pickDesign）。Customize 页的旋钮只出 §customizeKnobNames（页脚的 layout 就是预设，
+    //   在 Layout 页选）；值给的是实际生效的那一组（形态给底 + 存下的盖上去），亮哪一格才对得上画布。拧一下交给 §changeDesign 的是
+    //   「哪一格 → 什么值」，耦合的纠正在那边做。Content 页归 B 票（#1738 正文「不做」），这里只有两页。
+    const spec = ui.regionDesign[region];
+    const f = spec.preset;
+    if (!f) return null;
+    const k = REGION_ROOT[region];
+    const shape = String(rootProps[k.shape] || '');
+    const opts = asOptions(rootProps[k.options]);
+    const site = api.site;
+    presets = f.presets || [];
+    current = regionPresetName(region, shape, opts);
+    readOnly = false;
+    tabs = ['layout', 'customize'];
+    thumb = (p) => {
+      const pick = regionPresetPick(region, p.name, opts);
+      return <ShellRegion site={site} locale={api.locale} region={region} shape={pick ? pick.shape : p.shape} options={pick ? pick.options : opts} />;
+    };
+    const { bg: bgValue, ...knobOpts } = opts;
+    const knobV = { ...knobOpts, ...effectiveRegionKnobs(region, shape, opts) };
+    const shown = customizeKnobNames(region);
+    const knobField = { ...f, knobs: (f.knobs || []).filter((x) => shown.includes(x.name)) } as EditorField;
+    customize = (
+      <>
+        <KnobControls f={knobField} value={knobV} onChange={(v) => {
+          const key = Object.keys(v).find((x) => v[x] !== knobV[x]);
+          if (key) ui.changeDesign(key, v[key]);
+        }} />
+        {spec.bg ? (
+          <div data-editor-design-bg="">
+            <div style={SUB_LABEL}>Background</div>
+            <ColorField f={spec.bg} value={bgValue} onChange={(v) => ui.changeDesign('bg', v)} />
+          </div>
+        ) : null}
+      </>
+    );
+  } else {
+    const component = item ? api.components.get(item.type) : undefined;
+    const { preset: f, bg } = component ? designSlotsOf(component) : { preset: undefined, bg: undefined };
+    if (!item || !component || !f) return null;
+    const props = item.props as ItemProps;
+    const options = (props[f.slot] && typeof props[f.slot] === 'object' ? props[f.slot] : {}) as OptionsValue;
+    const locks = (item as { readOnly?: Record<string, boolean> }).readOnly || {};
+    const pageSlug = api.page === 'home' ? undefined : api.page;
+    presets = f.presets || [];
+    current = presetNameOf(f, options, props);
+    readOnly = !!locks[f.slot];
+    thumb = (p, i) => {
+      const thumbProps = { ...presetClickProps(f, props, p.name), id: `${id}~design-${i}` } as ItemProps;
+      return <CanvasBlockBody component={component} props={thumbProps} locale={api.locale} pageSlug={pageSlug} site={api.site} />;
+    };
+    // #1708 —— 这一块的旋钮 + 开关 + 背景：右栏画的同一份控件（§KnobControls / §ColorField），改动交给 §changeDesign。
+    customize = (
+      <>
+        <KnobControls f={f} value={options} onChange={(v) => ui.changeDesign(f.slot, v)} readOnly={readOnly} />
+        {bg ? (
+          <div data-editor-design-bg="">
+            <div style={SUB_LABEL}>Background</div>
+            <ColorField f={bg} value={props[bg.slot]} onChange={(v) => ui.changeDesign(bg.slot, v)} readOnly={!!locks[bg.slot]} />
+          </div>
+        ) : null}
+      </>
+    );
+    // #1735 —— 这一块的内容字段（右栏那一份，去掉另两页已有的）。
+    content = <DesignContent component={component} item={item as { type: string; props: ItemProps }} ui={ui} readOnly={locks} />;
+  }
   // #1722 —— 两列各自往下堆：第 1、3、5 个在左列，第 2、4 个在右列，每格紧接着同一列的上一格。DOM 顺序仍是预设顺序
   //    （= Tab 顺序，键盘走的是阅读顺序），位置按算术摆。上限是画布 document 的 px，格子画在按 1/zoom 放大过的弹层里 ⟹ 除回去。
   const cap = Math.floor((THUMB_MAX_VH * (doc.defaultView ? doc.defaultView.innerHeight : 800)) / (pos ? pos.scale : 1));
   // #1727 —— 弹层窄到放不下两列（画布 Small 那一档）就退成一列，格子照样各自往下堆。
   const cols = (pos ? pos.w : POPOVER_W) - 2 * (POPOVER_PAD + POPOVER_BORDER) >= 2 * THUMB_W + THUMB_GAP ? 2 : 1;
   const colH = cols === 2 ? [0, 0] : [0];
-  const cells = (f.presets || []).map((p, i) => {
+  const cells = presets.map((p, i) => {
     const measured = bodyH[`${id}:${i}`];
     const full = measured ? Math.round((measured * THUMB_W) / vw) : THUMB_H;
     const h = Math.min(full, cap);
@@ -2100,40 +2239,33 @@ function DesignPopover({ doc }: { doc: Document }) {
     return { p, i, h, clipped: full > cap, top, left: col * (THUMB_W + THUMB_GAP) };
   });
   const layoutH = Math.max(0, Math.max(...colH) - THUMB_GAP);
+  const shownTab = tabs.includes(tab) ? tab : 'layout';
 
   return createPortal(
     <div ref={boxRef} data-editor-popover="" data-editor-popover-for={id} role="dialog" aria-label="Design"
       onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
       {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
       <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
-        {(['layout', 'customize', 'content'] as const).map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(tab === t)}>
+        {tabs.map((t) => (
+          <button key={t} type="button" role="tab" aria-selected={shownTab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(shownTab === t)}>
             {DESIGN_TAB_LABEL[t]}
           </button>
         ))}
       </div>
-      {tab === 'content' ? (
-        // #1735 —— 这一块的内容字段（右栏那一份，去掉另两页已有的）；超高在页内滚（面板封顶高见 §tick）。
+      {shownTab === 'content' ? (
+        // #1735 —— 超高在页内滚（面板封顶高见 §tick）。
         <div data-editor-design-content="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
-          <DesignContent component={component} item={item as { type: string; props: ItemProps }} ui={ui} readOnly={locks} />
+          {content}
         </div>
-      ) : tab === 'customize' ? (
-        // #1708 —— 这一块的旋钮 + 开关 + 背景：右栏画的同一份控件（§KnobControls / §ColorField），改动交给 §changeDesign。
+      ) : shownTab === 'customize' ? (
         <div data-editor-design-customize="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
-          <KnobControls f={f} value={options} onChange={(v) => ui.changeDesign(f.slot, v)} readOnly={readOnly} />
-          {bg ? (
-            <div data-editor-design-bg="">
-              <div style={SUB_LABEL}>Background</div>
-              <ColorField f={bg} value={props[bg.slot]} onChange={(v) => ui.changeDesign(bg.slot, v)} readOnly={!!locks[bg.slot]} />
-            </div>
-          ) : null}
+          {customize}
         </div>
       ) : (
       <div data-editor-design-layout="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
         <div style={{ position: 'relative', width: cols * THUMB_W + (cols - 1) * THUMB_GAP, height: layoutH, margin: '0 auto' }}>
           {cells.map(({ p, i, h, clipped, top, left }) => {
             const on = current === p.name;
-            const thumbProps = { ...presetClickProps(f, props, p.name), id: `${id}~design-${i}` } as ItemProps;
             const key = `${id}:${i}`;
             return (
               // 🔴 格子不是 <button>：缩略图里的块自己就有按钮，按钮套按钮是不合法的 HTML（React 当场报两条错）。
@@ -2143,7 +2275,7 @@ function DesignPopover({ doc }: { doc: Document }) {
                 <div data-editor-design-thumb="" style={{ width: THUMB_W, height: h, overflow: 'hidden', borderRadius: 8, position: 'relative', background: '#fff',
                   boxShadow: on ? '0 0 0 2px #1d4ed8' : '0 0 0 1px #d0d5dd' }}>
                   <DesignThumbBody vw={vw} onHeight={(v) => setBodyH((m) => (m[key] === v ? m : { ...m, [key]: v }))}>
-                    <CanvasBlockBody component={component} props={thumbProps} locale={api.locale} pageSlug={pageSlug} site={api.site} />
+                    {thumb(p, i)}
                   </DesignThumbBody>
                   {clipped ? (
                     <div data-editor-design-thumb-fade="" aria-hidden="true"
@@ -2749,6 +2881,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       summary = describeSave({
         saved: base.saved, json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
         schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_SAVE_LABELS, shapeLabel: SHAPE_FIELD_LABEL, aiNotes, dragged, slug: page,
+        rootBefore: (base.initial.root as { props?: Record<string, unknown> } | undefined)?.props,
       });
     } catch { /* 记录退回 manager 那句通用话 */ }
     // #1634 —— 改了表单文案：说一句是哪张表单（只改了表单时它就是这一笔的全部说明）。
@@ -3026,6 +3159,13 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   function puckForDesign() {
     return getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck & ReturnType<GetPuck>) : null;
   }
+  // #1738 —— 顶栏 / 页脚那一支改的是 root（§REGION_ROOT）：读现值、整份换回去，都不记历史（同块那一支的 `replace`）。
+  type DesignPuck = NonNullable<ReturnType<typeof puckForDesign>>;
+  const rootPropsOf = (g: DesignPuck) => ({ ...((g.appState.data.root as { props?: Record<string, unknown> } | undefined)?.props || {}) });
+  function setRootProps(g: DesignPuck, props: Record<string, unknown>) {
+    const root = (g.appState.data.root || {}) as Record<string, unknown>;
+    (g.dispatch as unknown as (a: unknown) => void)({ type: 'replaceRoot', root: { ...root, props }, recordHistory: false });
+  }
   function openDesign(id: string, tab: DesignTab = 'layout', focus?: string) {
     if (lockedRef.current) return;
     // #1735 —— 这一块已经开着（Edit content 点在开着的面板上）：只切页，这一次打开里改过的照旧算在里面。
@@ -3033,9 +3173,17 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       if (designRef.current.id === id) setDesignStart((p) => ({ tab, focus, n: p.n + 1 }));
       return;
     }
-    const found = fillItem(puckForDesign(), id);
-    if (!found) return;
-    designRef.current = { id, before: found.item.props };
+    const g = puckForDesign();
+    let before: Record<string, unknown>;
+    if (regionOfDesign(id)) {
+      if (!g) return;
+      before = rootPropsOf(g);
+    } else {
+      const found = fillItem(g, id);
+      if (!found) return;
+      before = found.item.props;
+    }
+    designRef.current = { id, before };
     setDesignStart((p) => ({ tab, focus, n: p.n + 1 }));
     setDesign(id);
     cancelAutosave();
@@ -3044,6 +3192,16 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   function pickDesign(preset: string) {
     const d = designRef.current;
     const g = puckForDesign();
+    const region = d ? regionOfDesign(d.id) : null;
+    if (region) {
+      // #1738 —— 预设 = 形态；存下的旋钮 / 归预设管的开关清掉，底色和 icons 留着（`region-options.js` §regionPresetPick）。
+      if (!g) return;
+      const props = rootPropsOf(g);
+      const k = REGION_ROOT[region];
+      const r = regionPresetPick(region, preset, asOptions(props[k.options]));
+      if (r) setRootProps(g, { ...props, [k.shape]: r.shape, [k.options]: r.options });
+      return;
+    }
     const found = d ? fillItem(g, d.id) : null;
     if (!d || !g || !found) return;
     const f = componentsByType.get(found.item.type)?.fields.find((x) => x.control === 'options' && (x.presets || []).length);
@@ -3055,6 +3213,24 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   function changeDesign(slot: string, value: unknown) {
     const d = designRef.current;
     const g = puckForDesign();
+    const region = d ? regionOfDesign(d.id) : null;
+    if (region) {
+      // #1738 —— `bg` = 底色（undefined = None，删键）；别的是一个旋钮 / 开关：顶栏 logo × menu 有耦合，按「刚拧的是它」纠正后
+      //    整组写进去（`region-options.js` §regionKnobChange —— 只写拧的那一个，渲染时会按 logo 为准改回去）。
+      if (!g) return;
+      const props = rootPropsOf(g);
+      const k = REGION_ROOT[region];
+      const opts = asOptions(props[k.options]);
+      let next: Record<string, unknown>;
+      if (slot === 'bg') {
+        next = { ...opts };
+        if (value === undefined) delete next.bg; else next.bg = value;
+      } else {
+        next = regionKnobChange(region, String(props[k.shape] || ''), opts, slot, value);
+      }
+      setRootProps(g, { ...props, [k.options]: next });
+      return;
+    }
     const found = d ? fillItem(g, d.id) : null;
     if (!d || !g || !found) return;
     const props: Record<string, unknown> = { ...found.item.props };
@@ -3068,15 +3244,19 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     designRef.current = null;
     setDesign(null);
     const g = puckForDesign();
-    const found = fillItem(g, d.id);
-    if (g && found && !deepEqual(found.item.props, d.before)) {
+    const region = regionOfDesign(d.id);
+    const found = region ? null : fillItem(g, d.id);
+    const now = g && region ? rootPropsOf(g) : found ? found.item.props : null;
+    if (g && now && !deepEqual(now, d.before)) {
       if (commit) {
         // 同 AI 那一步（§onMessage 的 `reason: ai`）：自己拼进历史，不走 `setData({recordHistory: true})` 的 250ms 防抖。
         // 当前那一条还是打开之前的画布（弹层里每一下都没记），在它后面接一条「现在」⟹ 一次 Ctrl+Z 回到打开之前。
         const at = g.history.index;
         const { indexes: _stale, ...cur } = g.appState as unknown as Record<string, unknown>; // eslint-disable-line @typescript-eslint/no-unused-vars
         g.history.setHistories([...g.history.histories.slice(0, at + 1).map(noIndexes), { id: `design-${Date.now()}`, state: cur as PuckHistory['state'] }]);
-      } else {
+      } else if (region) {
+        setRootProps(g, d.before);
+      } else if (found) {
         g.dispatch({ type: 'replace', destinationIndex: found.sel.index, destinationZone: found.sel.zone, data: { ...found.item, props: d.before }, recordHistory: false });
       }
     }
@@ -3151,6 +3331,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     fillNote, dismissFillNote: () => setFillNote(null),
     design, designStart, openDesign, pickDesign, changeDesign, cancelDesign, doneDesign,
     reportHistory,
+    regionDesign: schema.root.regions,
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };

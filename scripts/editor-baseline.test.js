@@ -93,6 +93,9 @@ function builtRoot(locale) {
     layout: lastRoot.pageLayout.id,
     headerShape: lastRoot.regions.header.shape,
     footerShape: lastRoot.regions.footer.shape,
+    // #1738 —— 顶栏 / 页脚的底色 + 旋钮（page.tsx：`regions.<区>.options || {}`）。
+    headerOptions: lastRoot.regions.header.options || {},
+    footerOptions: lastRoot.regions.footer.options || {},
     // #1681 —— Business info 四样（page.tsx：名字同 getBrandName，其余取构建里的 brand）。
     brandName: brand.name[locale] ?? brand.name[defaultLocale] ?? Object.values(brand.name)[0] ?? '',
     email: brand.email ?? '',
@@ -246,6 +249,9 @@ console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存�
     layout: FIXTURE_LAYOUT,
     headerShape: other('header', before.headerShape),
     footerShape: other('footer', before.footerShape),
+    // #1738 —— 顶栏 / 页脚的底色 + 旋钮（同在 theme.json，同一条写路）。
+    headerOptions: { bg: '#0f172a', logo: 'center', menu: 'below' },
+    footerOptions: { brand: 'right' },
     // #1681 —— brand.json 那四样也走同一条写路、同一个底稿。
     brandName: `${before.brandName} 1681`,
     email: 'changed-1681@example.com',
@@ -259,11 +265,13 @@ console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存�
   for (const w of writes) fs.writeFileSync(w.file, w.content);
   check(writes.length === 3, `写了 3 份文件（page-layout.json / theme.json / brand.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
   const got = editorBaseline({ rootDir: multi, page: 'home', locale: 'en' });
-  const sameRoot = (a, b) => !!a && Object.keys(b).length === Object.keys(a).length && Object.keys(b).every((k) => a[k] === b[k]);
-  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那七样', JSON.stringify(got.root));
+  // #1738 —— 底色 + 旋钮是对象：按值比（JSON），不按引用。
+  const eq = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  const sameRoot = (a, b) => !!a && Object.keys(b).length === Object.keys(a).length && Object.keys(b).every((k) => eq(a[k], b[k]));
+  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那九样', JSON.stringify(got.root));
   // 反向：构建里（= 编辑器页烤进去的首屏）还是旧的 —— 不送 root 的话编辑器显示的就是这一份（票正文「不见了」）。
-  const stale = Object.keys(change).filter((k) => before[k] === (got.root || {})[k]);
-  check(stale.length === 0, '七样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
+  const stale = Object.keys(change).filter((k) => eq(before[k], (got.root || {})[k]));
+  check(stale.length === 0, '九样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
 
   // 读不出来 ⟹ 不带 root（编辑器沿用构建时那份），底稿其余照常。
   // #1425（T3）：弄坏的原来是 navigation.json（公告条那一样住在那儿，今天 root 不读它了）。root 今天读的站级文件

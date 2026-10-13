@@ -384,5 +384,39 @@ console.log('⑪ #1723 画布条目条：删 / 上移 / 下移 各记一条，�
   eq(say(r1.after, both), `${H} · ${S} · made shorter, item 3 removed`, 'AI 说明 + 条目条在同一字段 ⟹ 并排说');
 }
 
+// #1738 —— 顶栏 / 页脚 Customize 那一笔：只说生效值真变了的那几格（QA2 r1：没动的 Layout / Brand 也被报成改了），
+// 同一笔里换了预设 ⟹ 不再补一个光秃秃的区名（QA2 r1：`Footer · Layout → slim-row; Footer`）。
+// 存下去的对象用面板自己那条路（§regionKnobChange / §regionPresetPick）造，不手写：手写的那份跟面板存的不是同一个形状就白测了。
+{
+  const ro = require('./lib/region-options.js');
+  for (const f of ['headerOptions', 'footerOptions']) if (!rootLabels[f]) die(`ROOT_FIELD_LABELS 里没有 ${f}`);
+  const HO = rootLabels.headerOptions; const FO = rootLabels.footerOptions;
+  const say = (root, rootBefore) => describeSave({ saved: null, json: null, root, shared: null, schema, rootLabels, shapeLabel: 'Layout', rootBefore });
+  // 页脚：只拧 form、再选深色底（QA2 r1 Q3 那一笔）
+  const fShape = '';
+  const fOpts = { ...ro.regionKnobChange('footer', fShape, {}, 'form', 'full'), bg: '#0f172a' };
+  eq(Object.keys(fOpts).length > 2, true, '页脚拧一个旋钮存下的是整组生效值（所以记录必须按生效值比）');
+  eq(say({ footerOptions: fOpts }, { footerShape: fShape }), `${FO} · Background; ${FO} · Form → full`, '页脚 form + 底色：没动的 Layout / Brand 不报');
+  // 页脚：先存过旋钮，再在 Layout 页选预设（QA2 r1 Q4 那一笔）
+  const pick = ro.regionPresetPick('footer', 'slim-row', fOpts);
+  eq(say({ footerShape: pick.shape, footerOptions: pick.options }, { footerShape: fShape, footerOptions: fOpts }),
+    `${rootLabels.footerShape} → ${pick.shape}`, '页脚选预设清旋钮：只说预设，底色留着不报、尾巴不补空区名');
+  const pickH = ro.regionPresetPick('header', 'stacked', { menu: 'below', logo: 'center' });
+  eq(say({ headerShape: pickH.shape, headerOptions: pickH.options }, { headerShape: '', headerOptions: { menu: 'below', logo: 'center' } }),
+    `${rootLabels.headerShape} → ${pickH.shape}`, '顶栏选预设清旋钮：只说预设');
+  // 顶栏 menu → below（耦合纠正会连 logo 一起动；动了的照实说，没动的不说）
+  const hShape = '';
+  const hOpts = ro.regionKnobChange('header', hShape, {}, 'menu', 'below');
+  const effBefore = ro.effectiveRegionKnobs('header', hShape, {});
+  const effAfter = ro.effectiveRegionKnobs('header', hShape, hOpts);
+  const want = Object.keys(effAfter).filter((k) => effAfter[k] !== effBefore[k]).map((k) => `${HO} · ${k.charAt(0).toUpperCase() + k.slice(1)} → ${effAfter[k]}`).join('; ');
+  eq(want.includes(`${HO} · Menu → below`), true, '顶栏 menu → below 真改了 menu（造数自检）');
+  eq(say({ headerOptions: hOpts }, { headerShape: hShape }), want, '顶栏 menu → below：只说生效值变了的那几格');
+  // 不归预设管的开关（icons）：勾上 / 取消
+  eq(say({ headerOptions: ro.regionKnobChange('header', hShape, {}, 'icons', true) }, { headerShape: hShape }), `${HO} · Icons → on`, '顶栏勾上 icons');
+  eq(say({ headerOptions: {} }, { headerShape: hShape, headerOptions: { icons: true } }), `${HO} · Icons → off`, '顶栏取消 icons（键删掉 = 关）');
+  eq(say({ headerOptions: {} }, { headerShape: hShape, headerOptions: { bg: '#0f172a' } }), `${HO} · Background → (default)`, '顶栏底色改回默认');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

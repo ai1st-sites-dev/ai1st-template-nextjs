@@ -98,6 +98,8 @@ export interface EditorRootSchema {
   layouts: EditorLayout[];
   header: string[];
   footer: string[];
+  /** #1738 —— 顶栏 / 页脚在 Design 面板里的两格（预设 + 旋钮、底色）；manifest 没有的那一格是 null */
+  regions: Record<'header' | 'footer', { label: string; preset: EditorField | null; bg: EditorField | null }>;
 }
 export interface EditorSchema {
   components: EditorComponent[];
