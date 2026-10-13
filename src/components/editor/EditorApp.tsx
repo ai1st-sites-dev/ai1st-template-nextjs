@@ -917,7 +917,7 @@ const ROOT_SAVE_LABELS: Record<string, string> = {
 
 function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
   const fields: Fields = {
-    // #1681 —— Business info 放在三个下拉上面（票正文做什么 6）。
+    // #1681 —— Business info 放在布局下拉上面（票正文做什么 6；#1738 起顶栏 / 页脚那两个下拉删了）。
     _businessInfo: BUSINESS_INFO_HEADING,
     brandName: { type: 'text', label: BUSINESS_INFO_LABELS.brandName },
     phone: { type: 'text', label: BUSINESS_INFO_LABELS.phone },
@@ -1549,7 +1549,7 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
  * #1738 —— 顶栏 / 页脚的条：画布上鼠标停在它们上面、或点中了它们，出跟块同一种条，按钮只有 Design · AI Edit（外壳不能挪也不能删；
  * Edit content 归 B 票）。它们不是 Puck 的块 ⟹ 不经过 Puck 的选中：「点中」是这里自己记的（画布里按下鼠标落在它上面 = 点中，
  * 落在别处 = 放开），面板开着的那一个也一直出条（它的 Design 是「再点一下 = Cancel」那颗按钮，同块）。
- * 正在打字（同 #1710）、或某一块的字工具条开着时，悬停不出条。
+ * 正在打字（同 #1710）时悬停不出条（顶栏 / 页脚里的字今天不能直接点着改，没有字工具条那一层互斥）。
  */
 function regionKeyAt(el: Element): string | null {
   const bar = el.closest('[data-editor-regionbar-for]');
