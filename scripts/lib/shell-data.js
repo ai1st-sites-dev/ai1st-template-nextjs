@@ -24,7 +24,8 @@
 //    #1648 起页脚没有 CTA 条：navigation.json 页脚那一段里还留着的 CTA 那一格不派生、不报错（页尾号召只由页面里的 CTA 块负责）。
 //    站内链接都跟 `localizeHref` 走。
 // 📌 #1632：关键词页那几栏（按服务分组）现在画了 —— `columns.keywordGroups`，**每次构建从这一语言的当前页面现算**
-//    （`keywordFooterColumns`，跟建站、sync-config 同一个函数），只有 `layout=columns` 的两个预设画。
+//    （`keywordFooterColumns`，跟建站、sync-config 同一个函数）。#1739 起三种排布都画：每组多带一个 `href`
+//    （它挂的那个服务在 `columns.services` 里的地址），slim-row / stacked 按它把服务和组对起来。
 //    🔴 navigation.json 里 `footer.columns[1..]` 那份副本**仍然不读**：sync-config 只在还没有第 1 栏时写它一次
 //    （建站之后增删的关键词页进不去 / 删掉的留死链），所以它会陈旧；`footer.columns[].title` 同样不读。
 // 📌 navigation.json 的 `topbar`（一句话公告）#1425 随公告条那个区退役时数据没删；#1528 起接回 header 的
@@ -32,7 +33,7 @@
 
 const { hrefAllowed } = require('./href-allowed');
 const { isKeywordPage } = require('./keyword-service');
-const { keywordFooterColumns } = require('./keyword-pages');
+const { keywordFooterColumns, serviceIdOfKeywordPath } = require('./keyword-pages');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
@@ -123,9 +124,10 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   const columns = Array.isArray(f.columns) ? f.columns : [];
   const hasPage = new Set((Array.isArray(pages) ? pages : []).map((p) => p && p.slug));
   // 服务那一栏的链接规则照旧页脚（有详情页去详情页，没有就落到服务页上它那一节）。
-  const serviceLinks = (Array.isArray(services) ? services : [])
-    .filter((s) => isObj(s) && str(s.id) && str(s.name))
+  const svcList = (Array.isArray(services) ? services : []).filter((s) => isObj(s) && str(s.id) && str(s.name));
+  const serviceLinks = svcList
     .map((s) => ({ label: str(s.name), href: loc(hasPage.has(`services/${s.id}`) ? `/services/${s.id}` : `/services#${s.id}`) }));
+  const serviceHref = new Map(svcList.map((s, i) => [str(s.id), serviceLinks[i].href]));
 
   const footer = {};
   if (logo) footer.logo = logo;
@@ -138,7 +140,14 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   const kwPages = (Array.isArray(pages) ? pages : []).filter((p) => p && p.slug !== 'home' && isKeywordPage(p));
   const keywordGroups = kwPages.length
     ? keywordFooterColumns(kwPages, services, locale)
-      .map((g) => ({ title: str(g.title), links: links(g.links, loc) }))
+      .map((g) => {
+        // #1739 —— 这组挂在哪个服务上：组里的页是 `services/<id>/<词>`（第一条一定是页，「全部 N 页」只会是最后一条）。
+        //    挂得上 `services` 里的一项 ⟹ 带上它在服务栏里那个地址（slim-row / stacked 按它把服务和组对起来、服务名链过去）；
+        //    挂不上（老形状 `<服务slug>/<词>`、或服务目录里没有这个 id）⟹ 不带 `href`，标题照旧不带链接。
+        const first = Array.isArray(g.links) && g.links[0] ? str(g.links[0].href).replace(/^\//, '') : '';
+        const href = serviceHref.get(serviceIdOfKeywordPath(first));
+        return { title: str(g.title), ...(href ? { href } : {}), links: links(g.links, loc) };
+      })
       .filter((g) => g.title && g.links.length)
     : [];
   if (keywordGroups.length) footer.columns.keywordGroups = keywordGroups; // 没有关键词页就不写这个键

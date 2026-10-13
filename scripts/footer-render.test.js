@@ -385,5 +385,101 @@ console.log('\n⑧ 栏名跟着 locale 走（#1640）');
   loadSection();
 }
 
+// ══ ⑨ #1739：slim-row / stacked 也画服务页 + 关键词页链接（图册 gen-footers.py §kw_slim / §kw_stacked）═════════
+console.log('\n⑨ slim-row / stacked 的服务链接区（#1739）');
+{
+  // 夹具（正文验收 1）：3 个服务，第一个有 2 个关键词页、另两个没有；再加一组挂不上服务的（老形状，没有 href）。
+  const SVC = [
+    { label: 'Auto Repair', href: '/services/auto-repair' },
+    { label: 'Vehicle Maintenance', href: '/services#vehicle-maintenance' },
+    { label: 'Automotive Diagnostics', href: '/services/automotive-diagnostics' },
+  ];
+  const KW = [
+    { title: 'Auto Repair', href: '/services/auto-repair', links: [
+      { label: 'BMW Mechanic Near Me in Vaughan', href: '/services/auto-repair/bmw-mechanic-near-me-in-vaughan' },
+      { label: 'Brake repair Vaughan', href: '/services/auto-repair/brake-repair-vaughan' },
+    ] },
+  ];
+  const ORPHAN = { title: 'Oil Change', links: [{ label: 'Oil change Toronto', href: '/oil-change/oil-change-toronto' }] };
+  const data = (columns) => ({ ...base, columns: { contact: true, ...columns } });
+  // 按 `<div` / `</div>` 配对取出一个节点的整段 HTML（没有 HTML 解析器可用，块里每组都是 div 包着）。
+  const nodeAt = (html, attr) => {
+    const at = html.indexOf(attr);
+    if (at < 0) return null;
+    const start = html.lastIndexOf('<div', at);
+    const re = /<div\b|<\/div>/g; re.lastIndex = start;
+    let depth = 0; let m;
+    while ((m = re.exec(html))) { depth += m[0] === '</div>' ? -1 : 1; if (!depth) return html.slice(start, re.lastIndex); }
+    return null;
+  };
+  const anchors = (h) => [...(h || '').matchAll(/<a [^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map((m) => ({ href: m[1], text: m[2] }));
+  const groupsOf = (html) => {
+    const out = [];
+    for (let i = 0; ; i += 1) { const g = nodeAt(html, `data-footer-service="${i}"`); if (!g) break; out.push(anchors(g)); }
+    return out;
+  };
+  const judge = (html) => {
+    const g = groupsOf(html);
+    const names = g.map((a) => a[0] && a[0].text);
+    return {
+      g,
+      ok: g.length === 4
+        && SVC.every((s, i) => g[i][0] && g[i][0].text === s.label && g[i][0].href === s.href)
+        && g[0].length === 3 && KW[0].links.every((l, j) => g[0][j + 1].href === l.href && g[0][j + 1].text === l.label)
+        && g[1].length === 1 && g[2].length === 1
+        // 挂不上服务的那组排最后：标题不是链接，只有它的关键词页。
+        && g[3].length === 1 && g[3][0].href === ORPHAN.links[0].href && nodeAt(html, 'data-footer-service="3"').includes('>Oil Change<'),
+      names,
+    };
+  };
+  const full = data({ services: SVC, keywordGroups: [...KW, ORPHAN] });
+  for (const shape of ['slim-row', 'stacked']) {
+    const h = render(shape, full);
+    const r = judge(h);
+    check(r.ok, `${shape}：3 个服务名按 services 的顺序、各链到服务页；2 个关键词页在 Auto Repair 那组；另两个只有名字；挂不上服务的组排最后、标题不带链接`,
+      JSON.stringify(r.g));
+    check(count(h, 'data-footer-services=') === 1, `${shape}：服务链接区恰好 1 块`);
+  }
+  // columns 不变：没有这一块，关键词区照旧只出有关键词页的组（Auto Repair + Oil Change 两栏）。
+  const col = render('columns', full);
+  check(!col.includes('data-footer-services=') && count(col, 'data-footer-col="kw-') === 2, 'columns：没有服务链接区，关键词栏照旧 2 栏');
+  // slim-row 的位置：主行之后、底栏之前。
+  const slim = render('slim-row', full);
+  check(slim.indexOf('data-footer-main') < slim.indexOf('data-footer-services') && slim.indexOf('data-footer-services') < slim.indexOf('data-footer-bottom'), 'slim-row：在主行和底栏之间');
+  // stacked 的位置：联系那一行之后。
+  const st = render('stacked', full);
+  check(st.indexOf('data-footer-part="contact"') > 0 && st.indexOf('data-footer-part="contact"') < st.indexOf('data-footer-services'), 'stacked：在联系那一行下面');
+  // 深底：服务名用 headTone（白），关键词页用 linkTone（link-light），不硬抄图册的 text-muted / text-reset。
+  const dk = render('slim-row', { ...full, bg: '#0f172a' });
+  const dkNode = nodeAt(dk, 'data-footer-service="0"') || '';
+  check(/class="[^"]*fw-semibold[^"]*text-white/.test(dkNode) && dkNode.includes('link-light') && !/text-muted|text-reset/.test(dkNode), '深底：服务名白字、关键词页 link-light，没有 text-muted / text-reset');
+
+  // 验收 2：一个服务都没有、也没有关键词页 ⟹ 两种排布都不出这一块（也不留分隔线）。
+  for (const shape of ['slim-row', 'stacked']) {
+    const empty = render(shape, data({ services: [] }));
+    check(!empty.includes('data-footer-service'), `${shape}：没有服务也没有关键词页 ⟹ 没有这一块的节点`);
+    const noCols = render(shape, { ...base, columns: undefined });
+    check(!noCols.includes('data-footer-service'), `${shape}：columns 整个没有 ⟹ 同样没有`);
+  }
+  // slim-row 空的时候，主行和底栏之间只有底栏那一道分隔线（不多出一道空的）。
+  const emptySlim = render('slim-row', data({ services: [] }));
+  const mainEnd = emptySlim.indexOf('data-footer-bottom');
+  check(count(emptySlim.slice(emptySlim.indexOf('data-footer-main'), mainEnd), 'border-top') === 1, 'slim-row 空：主行到底栏之间只有底栏自己那一道 border-top');
+
+  // 反向对照（正文验收 1 点名的那一格）：slim-row 改回不画这一块 ⟹ 上面 slim-row 那格要红。stacked 同样做一次。
+  const src = fs.readFileSync(SECTION, 'utf-8');
+  for (const [shape, call] of [['slim-row', '{serviceLinksSlim()}'], ['stacked', '{serviceLinksStacked()}']]) {
+    const broken = src.replace(call, '');
+    if (broken === src) { bad(`反向对照（${shape}）没改到源码（锚点 ${call} 找不到）—— 这一格什么都没证明`); continue; }
+    const r = judge(renderToStaticMarkup(React.createElement(loadSection(broken).default, { shape, data: full, iconTable: ICONS })));
+    check(!r.ok, `反向对照：${shape} 改回不画 ⟹ 判据读到红（${r.g.length} 组）`);
+  }
+  // 反向对照：块不按 href 配对（每个服务都只露名字）⟹ Auto Repair 那组读不到关键词页，判据要红。
+  const unpaired = src.replace('list(kwByService.get(s.href)?.links)', '[]');
+  if (unpaired === src) bad('反向对照（配对）没改到源码 —— 这一格什么都没证明');
+  else check(!judge(renderToStaticMarkup(React.createElement(loadSection(unpaired).default, { shape: 'slim-row', data: full, iconTable: ICONS }))).ok, '反向对照：不按 href 配对 ⟹ 判据读到红');
+  loadSection();
+}
+
 console.log(`\n${fail ? '🔴' : '✅'} footer-render: ${pass} 过 / ${fail} 不过`);
 process.exit(fail ? 1 : 0);

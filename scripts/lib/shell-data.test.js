@@ -200,10 +200,12 @@ console.log('── ⑧ #1632：关键词页栏从当前页面现算（columns.k
   ];
   const d8 = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: KW, year: 2026 });
   const g = d8.footer.columns.keywordGroups || [];
+  // #1739 —— 每组多带 `href` = 它那个服务在 `columns.services` 里的地址（有详情页去详情页，没有落到服务页那一节）。
   check(JSON.stringify(g) === JSON.stringify([
-    { title: 'Brakes', links: [{ label: 'Cheap brakes', href: '/services/brakes/cheap-brakes' }, { label: 'Brake repair Toronto', href: '/services/brakes/brake-repair-toronto' }] },
-    { title: 'Tires', links: [{ label: 'Winter tires', href: '/services/tires/winter-tires' }] },
-  ]), `每个服务一栏、栏名取服务名、栏内按 navOrder、链接就是那几页：${JSON.stringify(g)}`);
+    { title: 'Brakes', href: '/services/brakes', links: [{ label: 'Cheap brakes', href: '/services/brakes/cheap-brakes' }, { label: 'Brake repair Toronto', href: '/services/brakes/brake-repair-toronto' }] },
+    { title: 'Tires', href: '/services#tires', links: [{ label: 'Winter tires', href: '/services/tires/winter-tires' }] },
+  ]), `每个服务一栏、栏名取服务名、栏内按 navOrder、链接就是那几页、带服务页地址：${JSON.stringify(g)}`);
+  check(g.every((x) => d8.footer.columns.services.some((s) => s.href === x.href)), '每组的 href 都能在 columns.services 里找到同一个地址（块按它配对）');
   const all = g.flatMap((x) => x.links.map((l) => l.href));
   check(!all.includes('/brakes/pads'), 'navigation.json 第 1 栏里那条页面里没有的链接（/brakes/pads）不出现');
   check(!all.some((h) => h === '/about' || h === '/' || h === '/services/brakes'), '首页、普通页、服务详情页都不进关键词栏（先去掉首页再 isKeywordPage）');
@@ -216,6 +218,19 @@ console.log('── ⑧ #1632：关键词页栏从当前页面现算（columns.k
   const zh8 = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: KW, locale: 'zh', defaultLocale: 'en', year: 2026 });
   const zhH = (zh8.footer.columns.keywordGroups || []).flatMap((x) => x.links.map((l) => l.href));
   check(zhH.length === 3 && zhH.every((h) => h.startsWith('/zh/services/')), `副语言（zh）关键词页链接都带 /zh：${zhH.join(' ')}`);
+  const zhG = zh8.footer.columns.keywordGroups || [];
+  check(zhG.map((x) => x.href).join(' ') === '/zh/services/brakes /zh/services#tires'
+    && zhG.every((x) => zh8.footer.columns.services.some((s) => s.href === x.href)), `#1739 副语言（zh）组的 href 也带 /zh、跟服务栏同一个地址：${zhG.map((x) => x.href).join(' ')}`);
+  // #1739 —— 挂不上服务的组不带 href：老形状 `<服务slug>/<词>`，以及 id 在服务目录里没有的那种。
+  const orphan = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, year: 2026, pages: [
+    { slug: 'services/brakes/cheap-brakes', title: 'Cheap brakes', navOrder: 50, keyword: 'cheap brakes' },
+    { slug: 'oil-change/oil-change-toronto', title: 'Oil change Toronto', navOrder: 50, keyword: 'oil change toronto' },
+    { slug: 'services/glass/windshield-repair', title: 'Windshield repair', navOrder: 50, keyword: 'windshield repair' },
+  ] }).footer.columns.keywordGroups || [];
+  const byTitle = Object.fromEntries(orphan.map((x) => [x.title, x]));
+  check(orphan.length === 3 && byTitle.Brakes && byTitle.Brakes.href === '/services#brakes'
+    && byTitle['Oil Change'] && !('href' in byTitle['Oil Change']) && byTitle.Glass && !('href' in byTitle.Glass),
+  `#1739 挂得上服务的组带 href；老形状 / 服务目录里没有的 id 那两组没有 href 这个键：${JSON.stringify(orphan.map((x) => [x.title, x.href]))}`);
   // 11 个关键词页：10 条，最后一条「全部 11 页 →」指向服务详情页。
   const many = Array.from({ length: 11 }, (_, i) => ({ slug: `services/brakes/w${i}`, title: `W${i}`, navOrder: 50 + i }));
   const g11 = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: many, year: 2026 }).footer.columns.keywordGroups[0].links;
