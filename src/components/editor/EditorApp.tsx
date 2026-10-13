@@ -1473,11 +1473,18 @@ function useBlockBarPos(doc: Document, id: string, avoid = false): BarPos | null
         if (el && b && b.height) {
           const targets = Array.from(el.querySelectorAll('[data-item], img[data-slot]')).map((e) => e.getBoundingClientRect()).filter((t) => t.width > 0 && t.height > 0);
           const hits = (bottom: number) => targets.filter((t) => { const cx = (t.left + t.right) / 2, cy = (t.top + t.bottom) / 2; return cx >= b.left && cx <= b.right && cy >= bottom - b.height && cy <= bottom; });
+          // #1754 —— 只有提示的那种字的工具条跟块的条同时在（InlineEdit 不再为它置互斥位）：整个矩形都不许压（不只中心点），留一个 GAP。
+          const hint = doc.querySelector('[data-editor-inline-hint]')?.closest('[data-editor-inline-toolbar]')?.getBoundingClientRect();
+          const onHint = (bottom: number) => !!hint && hint.width > 0 && b.left < hint.right && b.right > hint.left
+            && bottom - b.height < hint.bottom + BLOCKBAR_GAP && bottom > hint.top - BLOCKBAR_GAP;
+          const blockers = (bottom: number) => [...hits(bottom).map((t) => t.top), ...(onHint(bottom) ? [hint!.top] : [])];
           const top = Math.max(r.top, 0);
           let bottom = vh - next.bottom;
-          let hit = hits(bottom);
-          while (hit.length && bottom - b.height >= top) { bottom = Math.min(...hit.map((t) => t.top)) - BLOCKBAR_GAP; hit = hits(bottom); }
+          let hit = blockers(bottom);
+          while (hit.length && bottom - b.height >= top) { bottom = Math.min(...hit) - BLOCKBAR_GAP; hit = blockers(bottom); }
           if (!hit.length && bottom - b.height >= top) next = { ...next, bottom: vh - bottom };
+          // 往上让到块顶也让不开提示 ⟹ 放到提示下面（可视区里放得下的话）；条压住小目标那一种照旧留在原处（#1748）。
+          else if (hint && onHint(vh - next.bottom) && hint.bottom + BLOCKBAR_GAP + b.height <= vh) next = { ...next, bottom: vh - (hint.bottom + BLOCKBAR_GAP + b.height) };
         }
       }
       setPos((p) => (p === next || (p && next && p.bottom === next.bottom && p.left === next.left && p.scale === next.scale) ? p : next));
@@ -1494,7 +1501,8 @@ function BlockBars({ doc }: { doc: Document }) {
   const hovered = useCanvasHover(doc);
   const inlineOpen = useInlineOpen();
   const typing = useInlineTyping();
-  // 字的工具条开着 ⟹ 选中那块不出条（#1658 的互斥）；正在打字 ⟹ 悬停也不出条。Enter 结束打字后工具条还在，悬停照常出条。
+  // 字的工具条开着 ⟹ 选中那块不出条（#1658 的互斥；#1754 起只有一句提示的那种不算 —— InlineEdit 不为它置这一位）；
+  // 正在打字 ⟹ 悬停也不出条。Enter 结束打字后工具条还在，悬停照常出条。
   const ids = [inlineOpen ? null : selectedId, typing || hovered === selectedId ? null : hovered].filter((x): x is string => !!x);
   return <>{ids.map((id) => <BlockBar key={id} doc={doc} id={id} selected={id === selectedId} />)}</>;
 }

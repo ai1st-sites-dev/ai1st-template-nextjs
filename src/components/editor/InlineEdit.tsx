@@ -91,6 +91,7 @@ export type InlineApi = {
 export const InlineApiContext = createContext<InlineApi | null>(null);
 
 // #1658 —— 点中的是一段字（工具条 / 打字）还是块的空白处：块的浮动条（EditorApp §BlockBars）看这一位让位，同一时刻只出一条。
+//    #1754 起只有提示的那种工具条不置这一位（两条同时在，块的条躲开提示的矩形 —— EditorApp §useBlockBarPos）。
 //    两边不是同一个组件（都画在画布 document 上，但浮动条归 EditorApp），又都只有一份 ⟹ 模块级的一位 + 订阅。
 // #1710 —— 另一位「正在打字」（光标在 contenteditable 里，§startTyping 到 end）：这时别的块悬停也不出条；按 Enter 结束打字后
 //    字的工具条还开着，但悬停照常出条（票正文做什么 2）。
@@ -411,6 +412,12 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (t && (t as Element).closest?.('[data-editor-popover]')) return; // #1700 —— 点在 Design 弹层里不算点到别处
       if (t && a.el.contains(t)) return;
       if (t && (t as Element).closest?.('[data-editor-inline]')) return; // 点另一段字：交给 click 那一支
+      // #1754 —— 按在块的条上（只有提示时它跟提示同时在）：等松手再收起。提示一收，块的条就不用再躲它、下一帧挪回原处，
+      //    按下到松手之间挪走 ⟹ 松手落在别处，浏览器不发 click（同 #1713 r2）。pointerup 跟 click 同一个任务里派，中间没有帧。
+      if (t && (t as Element).closest?.('[data-editor-blockbar]')) {
+        doc.addEventListener('pointerup', () => { setActive(null); setNote(''); }, { capture: true, once: true });
+        return;
+      }
       setActive(null);
       setNote('');
     };
@@ -426,7 +433,9 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc]);
 
-  useEffect(() => { setInlineOpen(!!active); }, [active]);
+  // #1754 —— 只有一句提示的那种（`hint`，不出按钮）不算「字的工具条开着」：它点名的下一步（这一块浮动条上的 Edit content）
+  //    就在块的条上，藏起来就够不到。判据取工具条自己的形态（下面渲染时 `active.hint ?` 那一支），不在各个调用点猜。
+  useEffect(() => { setInlineOpen(!!active && !active.hint); }, [active]);
   useEffect(() => () => setInlineOpen(false), []);
   // #1710 —— 打字途中整层被卸掉（换页 / 换底稿重挂画布）时不会走到 end，这一位要自己复位，否则悬停从此不出条。
   useEffect(() => () => setInlineTyping(false), []);
