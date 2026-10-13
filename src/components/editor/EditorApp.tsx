@@ -1079,7 +1079,7 @@ function fillItem(g: FillPuck | null, id: string) {
 }
 type GetPuck = () => {
   appState: { data: Data; ui?: unknown };
-  history: { histories: PuckHistory[]; index: number; setHistories: (h: PuckHistory[]) => void; setHistoryIndex: (i: number) => void };
+  history: { histories: PuckHistory[]; index: number; setHistories: (h: PuckHistory[]) => void; setHistoryIndex: (i: number) => void; back: () => void; forward: () => void };
 };
 
 /**
@@ -1094,14 +1094,14 @@ function HistoryNote({ aiStep, locked }: { aiStep: { id: string; mixed: boolean 
   // 撤销历史的读数（当前位置 / 条数）：不显示，给验收量「AI 这一下记没记进历史」用。
   const probe = <span data-editor-history hidden data-index={history.index} data-length={history.histories.length} />;
   if (locked) return (
-    <span data-editor-ai-lock style={{ fontSize: 13, color: '#475467' }}>
+    <span data-editor-ai-lock style={{ ...NOTE_PAD, fontSize: 13, color: '#475467' }}>
       {probe}
       The AI is editing this page — you can keep editing when it&apos;s done.
     </span>
   );
   if (!sharedStays) return probe;
   return (
-    <span data-editor-shared-stays style={{ fontSize: 13, color: '#b54708' }}>
+    <span data-editor-shared-stays style={{ ...NOTE_PAD, fontSize: 13, color: '#b54708' }}>
       {probe}
       Changes the AI made to shared sections are not undone here — use Revert in the AI chat for those.
     </span>
@@ -1148,7 +1148,7 @@ type EditorUi = {
   rawKey: 'blocks' | 'sections';
   sendChat: (text: string, scope: ChatScope | null) => void;
   revertChat: (messageId: number) => void;
-  /** #1660 —— 新块的 AI 文案没写成，顶栏那一句（null = 不说话）。 */
+  /** #1660 —— 新块的 AI 文案没写成，画布上方细条里那一句（null = 不说话；#1741 之前住在 Puck 头部）。 */
   fillNote: string | null;
   dismissFillNote: () => void;
   /** #1700 —— Design 弹层开着的那一块（Puck id；null = 没开）和它的四个动作（§openDesign 那段注释是规矩的全文）。 */
@@ -1162,6 +1162,8 @@ type EditorUi = {
   changeDesign: (slot: string, value: unknown) => void;
   cancelDesign: () => void;
   doneDesign: () => void;
+  /** #1741 —— 撤销 / 前进此刻能不能按（§HistoryReport 报，EditorApp 转给 dashboard 的顶栏）。 */
+  reportHistory: (canUndo: boolean, canRedo: boolean) => void;
 };
 const EditorUiContext = createContext<EditorUi | null>(null);
 
@@ -1172,6 +1174,7 @@ function EditorHeaderActions() {
     <>
       <DispatchHandle handle={ui.dispatchRef} getter={ui.getPuckRef} />
       <Autosave onChange={ui.onCanvasChange} />
+      <HistoryReport locked={ui.locked} report={ui.reportHistory} />
       <HistoryNote aiStep={ui.aiStep} locked={ui.locked} />
       <FillNote text={ui.fillNote} onDismiss={ui.dismissFillNote} />
       <SaveStatus status={ui.status} onRetry={ui.retrySave} hideError={!!ui.kept} />
@@ -1179,11 +1182,42 @@ function EditorHeaderActions() {
   );
 }
 
+/**
+ * #1741 —— 替掉 Puck 自己的头部（「Page」标题、两个收起侧栏的图标、撤销 / 前进 —— 这三样都不要了：撤销 / 前进在 dashboard
+ * 的顶栏，§HistoryReport）。Puck 把 headerActions（上面那个组件）作为 `actions` 交进来：它们要在 Puck 的 store 之下才拿得到
+ * dispatch / 历史，所以这一层还在，只是变成画布上方一条细条，**只在有话要说时有高度**（AI 在改 · 共用块撤不掉 · AI 文案没写成 ·
+ * 没存上 + Try again）。🔴 没话说时是元素在、高度 0，不是不渲染：里面那两个探针（`data-editor-history` /
+ * `data-editor-status`）静默态也有 spec 在读（PM #1741 裁定 ①）。挪进 dashboard 顶栏不行：那几句会把一行顶栏撑成竖排（#1442 量过）。
+ * 📌 有话时每一句自己带上下内边距（§NOTE_PAD），条本身没有 padding / 边框 ⟹ 空的时候量得到 0。
+ */
+function EditorNotes({ actions }: { actions: ReactNode; children?: ReactNode }) {
+  return (
+    <div data-editor-notes="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, padding: '0 12px', background: '#fff' }}>
+      {actions}
+    </div>
+  );
+}
+const NOTE_PAD = { padding: '6px 0' } as const;
+
+/**
+ * #1741 —— 撤销 / 前进搬到 dashboard 的顶栏之后，那两颗按钮该不该亮由这里说：每变一次就报一次 `ai1st:history-state`
+ * （dashboard 据此画 / 灰掉那两颗；没收到过这条的是老编辑器，顶栏就不出这两颗 —— 它自己的头部里还有，PM 裁定 ②）。
+ * AI 在改这一页 ⟹ 两颗都灰（§useAiLockGuard 的规矩；dashboard 那一侧点不到，按下来的消息这里也不认，§requestHistory）。
+ */
+function HistoryReport({ locked, report }: { locked: boolean; report: (canUndo: boolean, canRedo: boolean) => void }) {
+  const hasPast = usePuck((s) => s.history.hasPast);
+  const hasFuture = usePuck((s) => s.history.hasFuture);
+  const ref = useRef(report);
+  ref.current = report;
+  useEffect(() => { ref.current(hasPast && !locked, hasFuture && !locked); }, [hasPast, hasFuture, locked]);
+  return null;
+}
+
 /** #1660 —— 新块的 AI 文案没写成：一句话 + 关掉它的叉。占位还在块上，老板照样能改。 */
 function FillNote({ text, onDismiss }: { text: string | null; onDismiss: () => void }) {
   if (!text) return null;
   return (
-    <span data-editor-fill-note role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#b42318' }}>
+    <span data-editor-fill-note role="status" style={{ ...NOTE_PAD, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#b42318' }}>
       {text}
       <button type="button" aria-label="Dismiss" onClick={onDismiss} style={{ border: 0, background: 'none', color: '#b42318', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
     </span>
@@ -1294,7 +1328,15 @@ const AI_ICON = (
 const AI_PLUGIN_NAME = 'ai-chat';
 const EDITOR_PLUGINS = [{ name: AI_PLUGIN_NAME, label: 'AI', icon: AI_ICON, render: AiChatPanel, mobilePanelHeight: 'toggle' as const }];
 // 打开编辑器默认就是 AI 这一格（不设的话 Puck 选第一格 Blocks，聊天就藏起来了）。只在 <Puck> 挂载那一次生效。
-const EDITOR_UI = { plugin: { current: AI_PLUGIN_NAME } };
+// #1741 —— 画布满宽、按真实宽度排版，没有尺寸 / 缩放那一行（Chris 2026-10-12：要看 iPad / 手机去 Preview 里切）。
+//   只给 Puck 一个 `width: '100%'` 的 viewport：它算缩放时（`getZoomConfig`）只有 width 是数字才缩小 ⟹ zoom 恒为 1，
+//   画布里网站的 innerWidth = 画布宽，响应式断点照常生效。`ui` 里写了 `viewports.current`，Puck 就跳过开机时那段
+//   「按窗口宽度挑一个最接近的 viewport」；`controlsVisible: false` ⟹ 画布上方那一行（四个尺寸图标 + 缩放 + 100%）不画。
+const EDITOR_VIEWPORTS = [{ width: '100%' as const, height: 'auto' as const, label: 'Full width' }];
+const EDITOR_UI = {
+  plugin: { current: AI_PLUGIN_NAME },
+  viewports: { current: { width: '100%' as const, height: 'auto' as const }, controlsVisible: false, options: EDITOR_VIEWPORTS },
+};
 
 /**
  * #1447 —— 画布里的链接一律不导航，只选中。画布是 Puck 的内层 iframe，但组件树（含块里的 `next/link`）挂在编辑器页上
@@ -1907,21 +1949,17 @@ function DesignPopover({ doc }: { doc: Document }) {
       win?.addEventListener('pointercancel', finish, true);
       timer = setTimeout(finish, 1500);
     };
-    const isHistoryBtn = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function' && !!(t as Element).closest(HISTORY_BUTTONS);
-    // 撤销 / 前进那两颗：按下时 Cancel，紧跟着的 click 也不许落到 Puck 手里（那样就多退了一步）。
-    // 🔴 吞 click 的监听不能挂在这个 effect 上：Cancel 一关弹层，React 就跑这里的清理，等 click 派发时它已经不在了（#1712）。
+    // #1741 —— 撤销 / 前进那两颗搬到了 dashboard 顶栏：按下去是一条 `ai1st:undo` 消息，弹层开着时只 Cancel 由 §requestHistory 管
+    //    （#1712 那条「紧跟着的 click 不许落到 Puck 手里」随按钮一起没了 —— 编辑器页上已经没有那两颗按钮）。
     // #1735 r2 —— Content 页里 Form 那一格的「Edit this form」把表单对话框开在编辑器页上（§FormCopyDialog）：
     // 它开着时按鼠标 / 按键是在接着改这一块，不是离开弹层。对话框自己的 Done / Cancel 只管表单那一笔。
     // 🔴 判据是「对话框开着没有」，不是「按键的 target 在不在对话框里」（r3）：点它的标题字 / 遮罩、或点掉一颗随即消失的
     //    「+ Add」按钮，焦点就掉到 <body> 上，target 不在对话框里 ⟹ r2 那版把 Esc 当成了 Cancel 弹层。
     const formDialogOpen = () => !!document.querySelector('[data-editor-form-dialog]');
-    const onPageDown = (e: Event) => {
+    const onPageDown = () => {
       if (formDialogOpen()) return;
-      if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); swallowNextHistoryClick(); }
       cancel();
     };
-    // 没有按下就来的 click（键盘按的）：同样只 Cancel。
-    const onPageClick = (e: Event) => { if (isHistoryBtn(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); cancel(); } };
     const onKey = (e: KeyboardEvent) => {
       // 对话框开着：撤销键留给输入框自己撤字（不让 Puck 退画布历史 —— 弹层里的改动没记历史）；Esc 由对话框自己收（§FormCopyDialog）。
       if (formDialogOpen()) { if (isHistoryKey(e)) e.stopImmediatePropagation(); return; }
@@ -1933,7 +1971,6 @@ function DesignPopover({ doc }: { doc: Document }) {
     };
     doc.addEventListener('pointerdown', onCanvasDown, true);
     document.addEventListener('pointerdown', onPageDown, true);
-    document.addEventListener('click', onPageClick, true);
     window.addEventListener('keydown', onKey, true);
     if (win && win !== window) win.addEventListener('keydown', onKey, true);
     return () => {
@@ -1942,7 +1979,6 @@ function DesignPopover({ doc }: { doc: Document }) {
       win?.removeEventListener('pointercancel', finish, true);
       doc.removeEventListener('pointerdown', onCanvasDown, true);
       document.removeEventListener('pointerdown', onPageDown, true);
-      document.removeEventListener('click', onPageClick, true);
       window.removeEventListener('keydown', onKey, true);
       if (win && win !== window) win.removeEventListener('keydown', onKey, true);
     };
@@ -2143,7 +2179,7 @@ const FIELD_MARK_CSS = `
   margin-top: var(--puck-space-2);
 }`;
 
-const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard, actionBar: PuckActionBarSlot, fields: EditorFields };
+const EDITOR_OVERRIDES = { header: EditorNotes, headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard, actionBar: PuckActionBarSlot, fields: EditorFields };
 // #1657 —— 🔴 必须是模块级常量，不许写回 JSX 里的字面量。Puck 的画布有一个 effect（依赖里有 `iframe`）：历史里只有一条时，
 //    它每跑一次就把那一条换成**当前**画布。字面量每次 EditorApp 重画都是新对象 ⟹ 那个 effect 每次都跑 ⟹ 打开后的第一笔改动
 //    （画布上打字、AI 改写，都是先写进画布、停手才记历史）在记进历史之前碰上一次重画，「改之前」那一条就被换成改之后，Ctrl+Z 退不回去。
@@ -2159,37 +2195,14 @@ const EDITOR_IFRAME = { enabled: true, syncHostStyles: true, waitForStyles: true
  * 三段，判据各不同（PM r2 三审 §二 量过）：
  *   改字段 / 拖 / 增删块 / 复制 ⟹ Puck 的 `permissions`（全局那一份；它会在 prop 换了时重算，不用重挂 Puck）。
  *   自动存 ⟹ 锁着时不数停手的时间（§onCanvasChange）。
- *   撤销 / 前进 ⟹ 不在 `permissions` 里。按钮是 Puck 顶栏自己画的（`title="undo"` / `"redo"`），快捷键是 Puck 在编辑器
- *     页和画布 iframe 两个 document 上**冒泡阶段**收的 keydown（`monitorHotkeys(document)` / `monitorHotkeys(frameDoc)`）
- *     ⟹ 在两个 window 上挂**捕获阶段**的监听，锁着时把这两样拦下（§useAiLockGuard）。
+ *   撤销 / 前进 ⟹ 不在 `permissions` 里。#1741 起按钮在 dashboard 顶栏：锁着时那两颗是灰的（§HistoryReport 报的
+ *     canUndo / canRedo），发进来的消息也不认（§requestHistory）。快捷键是 Puck 在编辑器页和画布 iframe 两个 document 上
+ *     **冒泡阶段**收的 keydown（`monitorHotkeys(document)` / `monitorHotkeys(frameDoc)`）⟹ 在两个 window 上挂**捕获阶段**的
+ *     监听，锁着时拦下（§useAiLockGuard）。
  * 📌 两个 permissions 对象是模块级常量：Puck 按对象身份判「换了没有」（`useRegisterPermissionsSlice` 的 deps）。
  */
 const OPEN_PERMISSIONS = { drag: true, duplicate: true, delete: true, edit: true, insert: true };
 const LOCKED_PERMISSIONS = { drag: false, duplicate: false, delete: false, edit: false, insert: false };
-const HISTORY_BUTTONS = 'button[title="undo"], button[title="redo"]';
-
-/**
- * #1712 —— Design 弹层开着时按下了撤销 / 前进：把紧跟着的那一下 click 吞掉。独立于弹层的生命周期（按下那一刻弹层就关了）。
- * 松开之后排一个任务就摘掉（click 跟 pointerup 在同一个任务里派发，同 §DesignPopover 的 afterUp）；按住拖走了也有兜底。
- */
-function swallowNextHistoryClick() {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const done = () => {
-    if (timer) clearTimeout(timer);
-    document.removeEventListener('click', eat, true);
-    document.removeEventListener('pointerup', later, true);
-  };
-  const eat = (e: Event) => {
-    const t = e.target as Element | null;
-    if (t && typeof t.closest === 'function' && t.closest(HISTORY_BUTTONS)) { e.preventDefault(); e.stopImmediatePropagation(); }
-    done();
-  };
-  const later = () => { setTimeout(done, 0); };
-  document.addEventListener('click', eat, true);
-  document.addEventListener('pointerup', later, true);
-  timer = setTimeout(done, 1500);
-}
-
 // #1743 —— Content 页（§DesignContent）里能打字的那几样：文字框 / 多行框（含 richtext）/ contenteditable。
 function inContentInput(t: EventTarget | null): boolean {
   if (!t || typeof (t as Element).closest !== 'function') return false;
@@ -2209,43 +2222,23 @@ function useAiLockGuard(locked: boolean) {
     if (!locked) return;
     const stop = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation(); };
     const onKey = (e: KeyboardEvent) => { if (isHistoryKey(e)) stop(e); };
-    const onPointer = (e: Event) => {
-      const t = e.target as Element | null;
-      if (t && typeof t.closest === 'function' && t.closest(HISTORY_BUTTONS)) stop(e);
-    };
     const wins: Window[] = [window];
     const frame = document.querySelector('iframe#preview-frame') as HTMLIFrameElement | null;
     if (frame?.contentWindow && frame.contentWindow !== window) wins.push(frame.contentWindow);
-    for (const w of wins) {
-      w.addEventListener('keydown', onKey, true);
-      w.addEventListener('click', onPointer, true);
-      w.addEventListener('pointerdown', onPointer, true);
-    }
-    // 按钮看得出是灰的（`disabled` 属性归 Puck 管，React 重渲染时会写回去，所以这里只改样子）。
-    const style = document.createElement('style');
-    style.setAttribute('data-editor-ai-lock-style', '');
-    style.textContent = `${HISTORY_BUTTONS} { opacity: 0.4; cursor: not-allowed; }`;
-    document.head.appendChild(style);
-    return () => {
-      for (const w of wins) {
-        w.removeEventListener('keydown', onKey, true);
-        w.removeEventListener('click', onPointer, true);
-        w.removeEventListener('pointerdown', onPointer, true);
-      }
-      style.remove();
-    };
+    for (const w of wins) w.addEventListener('keydown', onKey, true);
+    return () => { for (const w of wins) w.removeEventListener('keydown', onKey, true); };
   }, [locked]);
 }
 
 /**
- * #1453 —— 顶栏里的存盘状态。「Saving… / All changes saved」说在 dashboard 的面板条上（它知道这一笔到底落没落盘），
+ * #1453 —— 存盘状态（#1741 起住在画布上方那条细条里，§EditorNotes）。「Saving… / All changes saved」说在 dashboard 的顶栏上（它知道这一笔到底落没落盘），
  * 这里只在**没存上**时说话，并给一颗「再试一次」。`data-editor-status` 一直在（不显示也在），给验收读这一侧的状态。
  * `hideError`：画布底部那条浮条（§Kept）已经在说为什么没存、该怎么办，这里不再说第二遍。
  */
 function SaveStatus({ status, onRetry, hideError }: { status: Status; onRetry: () => void; hideError: boolean }) {
   const show = status.kind === 'error' && !hideError;
   return (
-    <span data-editor-status={status.kind} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+    <span data-editor-status={status.kind} style={{ ...(show ? NOTE_PAD : {}), display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       {show && <span style={{ fontSize: 13, color: '#b42318' }}>{status.text}</span>}
       {show && (
         <button type="button" data-editor-retry onClick={onRetry} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #b42318', background: '#fff', color: '#b42318', fontSize: 13, cursor: 'pointer' }}>
@@ -2317,6 +2310,10 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   // #1448 —— 换页那次握手在 message 监听里读它（监听只在 page / locale 变时重挂，读 state 会读到旧值）。
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
+  // #1741 —— dashboard 顶栏的撤销 / 前进（`ai1st:undo` / `ai1st:redo`）。监听只挂一次，按下去时要的是那一刻的规矩 ⟹ 每次渲染换新（§requestHistory）。
+  const historyReqRef = useRef<(dir: 'undo' | 'redo') => void>(() => {});
+  // 上一次报给 dashboard 的那两个值：没变就不再发（每次重渲染都会跑到 §HistoryReport 的 effect 依赖之外的地方）。
+  const historySentRef = useRef('');
   // #1448 —— dashboard 要换页、在等手上这一笔落盘（`sending` 同 pendingChatRef：只认那一笔自己的 `saved` 底稿）。
   const pendingLeaveRef = useRef<{ id: string; sending: object } | null>(null);
   // #1657 —— 画布上正在打的那一格（§InlineFreezeContext）；在等 AI 改写回话的那几次（id → 回话交给谁）。
@@ -2439,6 +2436,10 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         // #1634 —— 没存上的那笔表单文案不留着重发（被拒的话再发一百次也是同一句）：丢掉，原因已经在状态栏，老板重新打开面板再改。
         if (d.ok !== true && sendingRef.current?.forms && pendingFormRef.current === sendingRef.current.forms) pendingFormRef.current = null;
         if (d.ok !== true) { sendingRef.current = null; reportPending(undefined); }
+        return;
+      }
+      if (d.type === 'ai1st:undo' || d.type === 'ai1st:redo') {
+        historyReqRef.current(d.type === 'ai1st:undo' ? 'undo' : 'redo');
         return;
       }
       if (d.type === 'ai1st:editor-flush') {
@@ -3101,6 +3102,28 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   }
   if (empty) return empty;
 
+  /**
+   * #1741 —— 撤销 / 前进的那几条规矩，按钮搬到 dashboard 顶栏之后都住这一处（以前分别挂在 Puck 头部那两颗按钮的 DOM 事件上）：
+   *   AI 在改这一页 ⟹ 不动（#1410；顶栏那两颗已经是灰的，这里再拦一道，消息总能被别处发进来）。
+   *   表单对话框开着 ⟹ 不动（#1735：那时在改表单的字，不退画布历史）。
+   *   Design 弹层开着 ⟹ 只 Cancel 弹层，不多退一步（#1712：弹层里试看的改动没记历史，退一步就退到了它前面那一笔）。
+   * 键盘那一路（画布 / 编辑器页里按 Ctrl+Z）不经过这里：Puck 自己收，锁和弹层照旧在 §useAiLockGuard / §DesignPopover 里拦。
+   */
+  historyReqRef.current = (dir) => {
+    if (locked) return;
+    if (document.querySelector('[data-editor-form-dialog]')) return;
+    if (design) { cancelDesign(); return; }
+    const g = getPuckRef.current ? getPuckRef.current() : null;
+    if (!g) return;
+    if (dir === 'undo') g.history.back(); else g.history.forward();
+  };
+  function reportHistory(canUndo: boolean, canRedo: boolean) {
+    const key = `${canUndo}|${canRedo}`;
+    if (historySentRef.current === key) return;
+    historySentRef.current = key;
+    postChat({ type: 'ai1st:history-state', canUndo, canRedo });
+  }
+
   const ui: EditorUi = {
     locked,
     dispatchRef, getPuckRef, aiStep, kept, onCanvasChange, status,
@@ -3114,6 +3137,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     sendChat, revertChat: (messageId) => { cancelDesign(); postChat({ type: 'ai1st:chat-revert', messageId }); },
     fillNote, dismissFillNote: () => setFillNote(null),
     design, designStart, openDesign, pickDesign, changeDesign, cancelDesign, doneDesign,
+    reportHistory,
   };
 
   const noteAi: InlineApi['noteAi'] = (n) => { aiNotesRef.current = recordAiNote(aiNotesRef.current, n); };
@@ -3141,6 +3165,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         config={config}
         data={canvas.data as unknown as Data}
         iframe={EDITOR_IFRAME}
+        viewports={EDITOR_VIEWPORTS}
         onAction={onAction as never}
         overrides={EDITOR_OVERRIDES}
         plugins={EDITOR_PLUGINS}
