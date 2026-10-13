@@ -1597,7 +1597,7 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return createPortal(
     <span data-editor-blockbar="" data-editor-regionbar-for={region} onClick={halt}
-      style={{ ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
+      {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
         <ActionBar.Group>
           <ActionBar.Action label="Design" onClick={design} disabled={ui.locked} data-editor-block-action="design" active={designOpen} aria-expanded={designOpen}>

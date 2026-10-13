@@ -7,7 +7,8 @@ import type { CSSProperties } from 'react';
  *   · 编辑器页那一侧：EditorApp 的 `data-editor-root`（Puck 两栏、顶栏、AI 栏、Edit form 弹窗都在它里面）。
  *     🔴 不能挂在编辑器页的 `<html>` 上：Puck 开画布时把这一页 `<html>` / `<body>` 的属性整份抄到画布的根上
  *        （`@puckeditor/core` §CopyHostStyles → syncAttributes），画布里的网站就跟着变浅了。
- *   · 画布 iframe 里：portal 进画布 body 的五个浮层各自最外那一层（块的条、条目条、Design 面板、字的工具条、图上的操作条）。
+ *   · 画布 iframe 里：portal 进画布 body 的六个浮层各自最外那一层（块的条、条目条、Design 面板、字的工具条、图上的操作条，
+ *     以及 #1738 顶栏 / 页脚的条 §RegionBar）。
  *     画布的根必须保持网站自己的深浅，所以不挂在画布根上。
  *
  * 三样一起才够（跟 site-css.js §SCHEME_SURFACES 里「填了 bg 的块拉回 light」同一个道理）：
