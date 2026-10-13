@@ -39,6 +39,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { registerOverlayPortal, useGetPuck } from '@puckeditor/core';
+import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import type { EditorComponent } from '../../../scripts/lib/editor-schema';
 import { resolveInlineSlot, setAt, getAt, typedValue, type InlinePath } from '../../../scripts/lib/inline-edit.js';
 import { describeRef, itemSourceContext, resolveItemSources, SOURCED_KEY } from '@/lib/sections/item-sources';
@@ -691,7 +692,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         data-editor-image-actions=""
         data-editor-image-for={target.slot}
         data-editor-image-busy={waiting ? '' : undefined}
-        style={{ position: 'absolute', zIndex: 2147482999, top: imgPos.top, left: imgPos.left, transform: `translate(-50%, -50%) scale(${imgPos.scale})`, transformOrigin: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: 'system-ui, sans-serif', fontSize: 13 }}
+        {...EDITOR_LIGHT}
+        style={{ ...EDITOR_LIGHT_STYLE, position: 'absolute', zIndex: 2147482999, top: imgPos.top, left: imgPos.left, transform: `translate(-50%, -50%) scale(${imgPos.scale})`, transformOrigin: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: 'system-ui, sans-serif', fontSize: 13 }}
         onMouseDown={(e) => e.preventDefault()}
         // 同工具条：portal 出去的 click 仍顺着 React 组件树冒到 Puck 预览框的 onClick，它会清掉选中。
         onClick={(e) => e.stopPropagation()}
@@ -732,7 +734,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       ref={barRef}
       data-editor-inline-toolbar=""
       data-editor-inline-for={active.slot}
-      style={{ ...(active.hint ? BAR : CARD), top: pos.top, left: pos.left, ...(pos.width ? { width: pos.width } : {}), transform: pos.scale !== 1 ? `scale(${pos.scale})` : undefined, transformOrigin: 'top left' }}
+      {...EDITOR_LIGHT}
+      style={{ ...EDITOR_LIGHT_STYLE, ...(active.hint ? BAR : CARD), top: pos.top, left: pos.left, ...(pos.width ? { width: pos.width } : {}), transform: pos.scale !== 1 ? `scale(${pos.scale})` : undefined, transformOrigin: 'top left' }}
       // 按钮按下去不抢焦点：正在打的那一格不失焦，AI 那一支自己先把它收尾。
       onMouseDown={(e) => e.preventDefault()}
       // 🔴 portal 出去的 click 仍顺着 React 组件树往上冒，会冒到 Puck 预览框的 onClick —— 它见目标不是块就清掉选中

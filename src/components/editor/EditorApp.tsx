@@ -113,6 +113,7 @@ import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from 
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
+import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
 import type { SiteData } from '@/lib/types/config';
@@ -1494,7 +1495,7 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return createPortal(
     <span data-editor-blockbar="" data-editor-blockbar-for={id} data-editor-blockbar-selected={selected ? '' : undefined} onClick={halt}
-      style={{ ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
+      {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
         <ActionBar.Group>
           {hasPresets && (
@@ -1644,7 +1645,7 @@ function ItemBar({ doc, id, item: itemAttr }: { doc: Document; id: string; item:
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return createPortal(
     <span data-editor-itembar="" data-editor-itembar-for={`${id} ${itemAttr}`} data-editor-itembar-block={id} onClick={halt}
-      style={{ ...ITEMBAR_BOX, top: pos.top, left: pos.left, transform: `scale(${pos.scale})` }}>
+      {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...ITEMBAR_BOX, top: pos.top, left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
         <ActionBar.Group>
           <ActionBar.Action label="Move up" disabled={busy || index <= 0 || !pos.above} onClick={() => act('up')} data-editor-item-action="up">
@@ -2054,7 +2055,7 @@ function DesignPopover({ doc }: { doc: Document }) {
   return createPortal(
     <div ref={boxRef} data-editor-popover="" data-editor-popover-for={id} role="dialog" aria-label="Design"
       onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
-      style={{ ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
+      {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
       <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
         {(['layout', 'customize', 'content'] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(tab === t)}>
@@ -3133,7 +3134,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     <InlineFreezeContext.Provider value={freeze}>
     <FillingContext.Provider value={filling}>
     <IconTablesContext.Provider value={iconTables || NO_ICON_TABLES}>
-    <div data-editor-root style={{ height: '100vh' }}>
+    {/* #1740 —— 编辑器页这一侧固定浅色（§EDITOR_LIGHT：挂这一层，不挂 <html>）。 */}
+    <div data-editor-root {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, height: '100vh' }}>
       <Puck
         key={canvas.key}
         config={config}
