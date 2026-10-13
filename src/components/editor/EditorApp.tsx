@@ -1299,15 +1299,51 @@ const AI_ICON = (
 // 🔴 必须带 `name`：Puck 只收 `name && render` 都在的那一格，缺 name 静默不出现。别撞 blocks / outline / fields / legacy-side-bar。
 // Puck 的 plugins 是追加在 Blocks / Outline 之后，所以这一格排第三（票正文：不调它的上下位置）。
 const AI_PLUGIN_NAME = 'ai-chat';
-const EDITOR_PLUGINS = [{ name: AI_PLUGIN_NAME, label: 'AI', icon: AI_ICON, render: AiChatPanel, mobilePanelHeight: 'toggle' as const }];
+// #1742 —— 竖栏第四格 Settings：开 / 关右栏（整站设置），**不换走左边正在显示的那一格**（票正文：AI 聊天照旧）。
+//   Puck 0.23 的竖栏每一格点了都是 `setUi({ plugin: { current: 这一格 }, leftSideBarVisible: true })`，没有自定义 onClick 的口子；
+//   但它把每一格的面板都一直挂着、只切可见 ⟹ 这一格的面板（§SettingsRail，画空的）在 layout effect 里看见
+//   `plugin.current` 变成自己，就在这一帧画出来之前把 plugin / 左栏可见性还原成点之前那样，改为翻右栏。AI 聊天不卸载。
+//   打开时清掉选中：右栏显示的是整站设置（Business info、Page layout），不是某一块的字段；之后选中一块照旧显示那一块。
+//   `desktopOnly`：手机布局不出这一格（票正文：窗口 < 768 照旧）。
+const SETTINGS_PLUGIN_NAME = 'site-settings';
+const SETTINGS_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+function SettingsRail() {
+  const current = usePuck((s) => s.appState.ui.plugin?.current);
+  const left = usePuck((s) => s.appState.ui.leftSideBarVisible);
+  const right = usePuck((s) => s.appState.ui.rightSideBarVisible);
+  const dispatch = usePuck((s) => s.dispatch);
+  const before = useRef<{ plugin: string; left: boolean }>({ plugin: AI_PLUGIN_NAME, left: true });
+  useLayoutEffect(() => {
+    if (current !== SETTINGS_PLUGIN_NAME) {
+      if (current) before.current = { plugin: current, left };
+      return;
+    }
+    dispatch({
+      type: 'setUi',
+      ui: { plugin: { current: before.current.plugin }, leftSideBarVisible: before.current.left, rightSideBarVisible: !right, ...(right ? {} : { itemSelector: null }) },
+    } as never);
+  }, [current, left, right, dispatch]);
+  return <></>;
+}
+const EDITOR_PLUGINS = [
+  { name: AI_PLUGIN_NAME, label: 'AI', icon: AI_ICON, render: AiChatPanel, mobilePanelHeight: 'toggle' as const },
+  { name: SETTINGS_PLUGIN_NAME, label: 'Settings', icon: SETTINGS_ICON, render: SettingsRail, desktopOnly: true },
+];
 // 打开编辑器默认就是 AI 这一格（不设的话 Puck 选第一格 Blocks，聊天就藏起来了）。只在 <Puck> 挂载那一次生效。
 // #1741 —— 画布满宽、按真实宽度排版，没有尺寸 / 缩放那一行（Chris 2026-10-12：要看 iPad / 手机去 Preview 里切）。
 //   只给 Puck 一个 `width: '100%'` 的 viewport：它算缩放时（`getZoomConfig`）只有 width 是数字才缩小 ⟹ zoom 恒为 1，
 //   画布里网站的 innerWidth = 画布宽，响应式断点照常生效。`ui` 里写了 `viewports.current`，Puck 就跳过开机时那段
 //   「按窗口宽度挑一个最接近的 viewport」；`controlsVisible: false` ⟹ 画布上方那一行（四个尺寸图标 + 缩放 + 100%）不画。
 const EDITOR_VIEWPORTS = [{ width: '100%' as const, height: 'auto' as const, label: 'Full width' }];
+// #1742 —— 右栏默认收起，把宽度留给画布；只是初始值，别处（§editContent 上锁时的兜底、竖栏的 Settings）照样能打开它。
 const EDITOR_UI = {
   plugin: { current: AI_PLUGIN_NAME },
+  rightSideBarVisible: false,
   viewports: { current: { width: '100%' as const, height: 'auto' as const }, controlsVisible: false, options: EDITOR_VIEWPORTS },
 };
 
@@ -3268,7 +3304,17 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   function doneDesign() { closeDesign(true); }
 
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
-  function onAction(action: PuckAction, _next: unknown, prev: { data?: { content?: { props?: { id?: unknown } }[] } }) {
+  function onAction(action: PuckAction, next: { ui?: { rightSideBarVisible?: boolean } }, prev: { data?: { content?: { props?: { id?: unknown } }[] }; ui?: { rightSideBarVisible?: boolean } }) {
+    // #1742 —— 撤销 / 前进（Puck 的 `set`：整份换成历史里那一刻的 state，连 `ui` 一起）不许动右栏：右栏开机收着，
+    //   老板用 Settings 打开之后改一笔、Ctrl+Z，右栏会跟着退回「记那一笔时」的样子（多半是收着）。撤销退的是网站，不是面板。
+    //   这里还在 Puck 的 reducer 里头 ⟹ 等这一下走完再把它放回去（setUi 不记历史，前进那一串不受影响）。
+    if (action.type === 'set') {
+      const was = prev?.ui?.rightSideBarVisible;
+      if (typeof was === 'boolean' && was !== next?.ui?.rightSideBarVisible) {
+        setTimeout(() => dispatchRef.current?.({ type: 'setUi', ui: { rightSideBarVisible: was } } as never), 0);
+      }
+      return;
+    }
     // #1660 —— 新块落下：等这一下 dispatch 走完再发（这里还在 Puck 的 reducer 里头）。
     if (action.type === 'insert') {
       const { id, componentType } = action as { id?: string; componentType: string };
