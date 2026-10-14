@@ -35,12 +35,15 @@
 //   成排的小图、`generateImages: false` 的槽只出 ✎（schema 的 `regenerate`，`editor-schema.js` §inlineSlotsOf）。
 //   Regenerate（§regenFor）：图上转圈、按钮置灰、画布进 AI 锁 → 生成回来当场换上、马上存一笔（记录 `Hero · Generate and replace image`，#1733）→
 //   开弹窗，新图打勾、上一张紧挨着。回来的是上一张或取消 ⟹ 换回去，第二笔存盘。生成失败 ⟹ 画布不动、按钮下一句原因、不开弹窗。
+// #1760 —— 列表里的一项恰好一张能换的图（§itemImageOf）：图上这层不出，这两颗并进这一项的条目条（EditorApp §ItemBar）。
+//   条目条只画按钮；做事的那一半（§onImageButton、转圈、生成没成那一句）照旧在这里，经 §runItemImage / §useItemImageState 接过去。
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { registerOverlayPortal, useGetPuck } from '@puckeditor/core';
 import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import type { EditorComponent } from '../../../scripts/lib/editor-schema';
+import { itemListsOf } from '../../../scripts/lib/editor-convert.js';
 import { resolveInlineSlot, setAt, getAt, typedValue, type InlinePath } from '../../../scripts/lib/inline-edit.js';
 import { describeRef, itemSourceContext, resolveItemSources, SOURCED_KEY } from '@/lib/sections/item-sources';
 import type { BlockConfig, SiteData } from '@/lib/types/config';
@@ -184,6 +187,59 @@ function sourcedSlots(item: Item, site: SiteData, locale: string, page: string):
 function visibleIn(el: Element): boolean {
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0;
+}
+
+// ── #1760 列表里一项带图：图的按钮并进这一项的条目条 ─────────────────────────────────────────────────────
+
+/**
+ * 条目条对得上的那一列（#1723）：`itemAttr`（`items.2`、`proof.avatars.0`）对上 schema 里的一列（§itemListsOf）、那一列是数组
+ * （引用写法 `{source}` 不是）、下标在里面；块锁着（`_src.locked`）⟹ null。条目条出不出、图并不并进去，都按这一个。
+ */
+export function itemListAt(component: EditorComponent | undefined, props: Item['props'] | undefined, itemAttr: string) {
+  const segs = itemAttr.split('.');
+  const index = Number(segs.pop());
+  const spec = component ? itemListsOf(component).find((l) => l.path.join('.') === segs.join('.')) : undefined;
+  const list = spec && props ? getAt(props, spec.path) : undefined;
+  if (!props || props._src?.locked || !spec || !Array.isArray(list) || !Number.isInteger(index) || index >= list.length) return null;
+  return { spec, list: list as unknown[], index };
+}
+
+/**
+ * 这一项里能换的图：登记过的 `img[data-editor-inline]`、是图片格（§imageCell）、最近的 `[data-item]` 就是这一项（里面再套一层项的不算）。
+ * 同一项画了几份（轮播）按 `data-slot` 去重。恰好一张才并 —— 没有图、两张以上（今天没有这种块）⟹ null，照旧各出各的。
+ */
+export function itemImageOf(comp: Element, component: EditorComponent, itemAttr: string): { el: HTMLElement; regenerate: boolean } | null {
+  const imgs: HTMLElement[] = [];
+  for (const it of Array.from(comp.querySelectorAll(`[data-item="${CSS.escape(itemAttr)}"]`))) {
+    for (const e of [it, ...Array.from(it.querySelectorAll('img[data-editor-inline]'))]) {
+      if (e.tagName === 'IMG' && e.hasAttribute('data-editor-inline') && e.closest('[data-item]') === it && imageCell(component, e.getAttribute('data-slot') || '')) imgs.push(e as HTMLElement);
+    }
+  }
+  if (new Set(imgs.map((e) => e.getAttribute('data-slot'))).size !== 1) return null;
+  const el = imgs.find(visibleIn) || imgs[0];
+  return { el, regenerate: !!imageCell(component, el.getAttribute('data-slot') || '')?.regenerate };
+}
+
+/** 条目条上那张图的状态：`regen` = 正在等生成的那一项（`<块 id> <data-item>`，条一直留着）；`note` = 生成没成那一句挂在哪一项。 */
+export type ItemImageState = { regen: string | null; note: { item: string; text: string } | null };
+const NO_ITEM_IMAGE: ItemImageState = { regen: null, note: null };
+let itemImageState: ItemImageState = NO_ITEM_IMAGE;
+let itemImageRun: ((el: HTMLElement, item: string, mode: 'edit' | 'regenerate') => void) | null = null;
+const itemImageSubs = new Set<() => void>();
+function setItemImageState(next: Partial<ItemImageState>) {
+  itemImageState = { ...itemImageState, ...next };
+  itemImageSubs.forEach((f) => f());
+}
+export function useItemImageState(): ItemImageState {
+  return useSyncExternalStore((f) => { itemImageSubs.add(f); return () => { itemImageSubs.delete(f); }; }, () => itemImageState, () => NO_ITEM_IMAGE);
+}
+/** 条目条上点了图的 ✎ / ✨：同图上那两颗（§onImageButton）。`item` = `<块 id> <data-item>`。 */
+export function runItemImage(el: HTMLElement, item: string, mode: 'edit' | 'regenerate') {
+  itemImageRun?.(el, item, mode);
+}
+/** 那一句收起（鼠标换了一项）。 */
+export function clearItemImageNote() {
+  if (itemImageState.note) setItemImageState({ note: null });
 }
 
 /** 块重挂之后元素换了：按块 id + `data-slot` 重新找（同一个 slot 出现两次时取看得见的那个）。 */
@@ -550,7 +606,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
 
   // ── #1713 图上悬停出 ✨ Regenerate · ✎ Edit ─────────────────────────────────────────────────────────────
   //   hover = 鼠标下那张图；regen = 正在等生成的那张（转圈，鼠标移开也留着）；imgNote = 生成没成那一句（挂在那张图的按钮下）。
-  type ImgAt = { el: HTMLElement; id: string; slot: string; regenerate: boolean };
+  //   #1760 —— `item`：这张图并进了条目条（`<块 id> <data-item>`）⟹ 转圈、那一句归条目条画（§itemImageState），图上这层不出。
+  type ImgAt = { el: HTMLElement; id: string; slot: string; regenerate: boolean; item?: string };
   const [hover, setHover] = useState<ImgAt | null>(null);
   const [regen, setRegen] = useState<ImgAt | null>(null);
   const [imgNote, setImgNote] = useState<{ el: HTMLElement; text: string } | null>(null);
@@ -567,23 +624,38 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     if (el) imgBarCleanupRef.current = registerOverlayPortal(el, { disableDrag: true }) || null;
   }, []);
 
+  /** 鼠标下 / 条目条上那张图 → 它是哪一块的哪一格；`item` 见 §ImgAt。 */
+  const imgAt = (t: Element): ImgAt | null => {
+    const el = t.closest('[data-editor-inline]') as HTMLElement | null;
+    if (!el || el.tagName !== 'IMG') return null;
+    const comp = el.closest('[data-puck-component]');
+    const id = comp?.getAttribute('data-puck-component');
+    const a = apiRef.current;
+    const item = id ? itemById(id) : undefined;
+    const component = item && a ? a.components.get(item.type) : undefined;
+    const slot = el.getAttribute('data-slot') || '';
+    const cell = component ? imageCell(component, slot) : null;
+    if (!id || !cell || !comp || !component) return null;
+    // #1760 —— 这一项出条目条（§itemListAt）、而且这一项里能换的图就这一张 ⟹ 并进条目条。
+    const row = el.closest('[data-item]');
+    const attr = row && comp.contains(row) ? row.getAttribute('data-item') || '' : '';
+    const one = attr && itemListAt(component, item?.props, attr) ? itemImageOf(comp, component, attr) : null;
+    const merged = one && one.el.getAttribute('data-slot') === slot ? `${id} ${attr}` : undefined;
+    return { el, id, slot, regenerate: !!cell.regenerate, ...(merged ? { item: merged } : {}) };
+  };
+  // #1760 —— 条目条上那两颗走这里（每次渲染换成最新的 §onImageButton）。
   useEffect(() => {
-    const at = (t: Element): ImgAt | null => {
-      const el = t.closest('[data-editor-inline]') as HTMLElement | null;
-      if (!el || el.tagName !== 'IMG') return null;
-      const id = el.closest('[data-puck-component]')?.getAttribute('data-puck-component');
-      const a = apiRef.current;
-      const item = id ? itemById(id) : undefined;
-      const component = item && a ? a.components.get(item.type) : undefined;
-      const slot = el.getAttribute('data-slot') || '';
-      const cell = component ? imageCell(component, slot) : null;
-      return id && cell ? { el, id, slot, regenerate: !!cell.regenerate } : null;
-    };
+    itemImageRun = (el, item, mode) => { const t = imgAt(el); if (t) onImageButton({ ...t, item }, mode); };
+    return () => { itemImageRun = null; };
+  });
+
+  useEffect(() => {
     const onOver = (e: MouseEvent) => {
       const t = e.target as Element | null;
       if (!t || typeof t.closest !== 'function') return;
       if (imgBarRef.current && imgBarRef.current.contains(t)) return; // 移到按钮上不算移开
-      const next = at(t);
+      const at = imgAt(t);
+      const next = at && !at.item ? at : null; // #1760 —— 并进条目条的图：图上这层不出
       setHover((h) => (h && next && h.el === next.el ? h : next));
     };
     const onLeave = () => setHover(null); // 鼠标出了画布
@@ -630,6 +702,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     typingRef.current?.end(true);
     select(target.id);
     setImgNote(null);
+    clearItemImageNote();
     const found = resolveEl(target.el);
     if (!found) return;
     const { item, component, slot, r } = found;
@@ -653,14 +726,16 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
   async function regenFor(target: ImgAt, path: InlinePath, before: string, title?: string) {
     const ap = apiRef.current;
     if (!ap) return;
-    const { id, slot, el } = target;
-    setRegen(target);
+    const { id, slot, el, item } = target;
+    // #1760 —— 并进条目条的图：转圈、那一句由条目条画。
+    const say = (text: string) => (item ? setItemImageState({ note: { item, text } }) : setImgNote({ el, text }));
+    if (item) setItemImageState({ regen: item }); else setRegen(target);
     const res = await ap.regenerateImage(before, { id, slot });
-    setRegen(null);
-    if (!res.ok) { setImgNote({ el, text: res.message }); return; }
+    if (item) setItemImageState({ regen: null }); else setRegen(null);
+    if (!res.ok) { say(res.message); return; }
     const cur = getAt(itemById(id)?.props, path);
-    if (urlIn(cur) !== before) { setImgNote({ el, text: 'This image was changed while the AI was making a new one, so the new image was not used. It is in your image library.' }); return; }
-    if (!write(id, path, withUrl(cur, res.url), true)) { setImgNote({ el, text: 'This section is no longer on the page.' }); return; }
+    if (urlIn(cur) !== before) { say('This image was changed while the AI was making a new one, so the new image was not used. It is in your image library.'); return; }
+    if (!write(id, path, withUrl(cur, res.url), true)) { say('This section is no longer on the page.'); return; }
     // 记录说「生成」（`Generate and replace image`）：说明指到地址那一格（对象的 `imageUrl`），存盘那一刻还是这张才用（§aiNotesForSave）。
     ap.noteAi({ id, path: typeof cur === 'string' ? path : [...path, 'imageUrl'], action: 'generated', text: res.url });
     ap.saveNow();

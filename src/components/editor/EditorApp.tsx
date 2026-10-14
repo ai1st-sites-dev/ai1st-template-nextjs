@@ -103,7 +103,7 @@ import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
   THEME_DEFAULT, canvasShape, shapeOptions, describeSave, nestedPartSet, recordAiNote, aiNotesForSave, settleAiNotes,
-  itemListsOf, itemOp, recordItemNote, type ItemOp,
+  itemOp, recordItemNote, type ItemOp,
 } from '../../../scripts/lib/editor-convert.js';
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
@@ -117,7 +117,7 @@ import { designAiRounds, designAiWater } from '../../../scripts/lib/design-ai-ro
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
 import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
-import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
+import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, itemListAt, itemImageOf, runItemImage, useItemImageState, clearItemImageNote, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
 import { ButtonEditor, buttonHrefField } from './ButtonLink';
 import type { SiteData } from '@/lib/types/config';
@@ -1712,9 +1712,15 @@ function ItemBars({ doc }: { doc: Document }) {
   const hovered = useCanvasHoverOf(doc, itemKeyAt, true);
   const typing = useInlineTyping();
   const ui = useContext(EditorUiContext);
-  if (!hovered || typing || (ui && ui.design)) return null;
-  const cut = hovered.lastIndexOf(' ');
-  return <ItemBar key={hovered} doc={doc} id={hovered.slice(0, cut)} item={hovered.slice(cut + 1)} />;
+  // #1760 —— 条上那张图在等生成：那一项的条一直留着（鼠标移开也留着，同原来图上那层）；生成没成那一句，鼠标换了一项就收起。
+  const img = useItemImageState();
+  useEffect(() => { if (img.note && img.note.item !== hovered) clearItemImageNote(); }, [hovered, img.note]);
+  if (typing || (ui && ui.design)) return null;
+  const keys = [hovered, img.regen].filter((k, i, all): k is string => !!k && all.indexOf(k) === i);
+  return <>{keys.map((k) => {
+    const cut = k.lastIndexOf(' ');
+    return <ItemBar key={k} doc={doc} id={k.slice(0, cut)} item={k.slice(cut + 1)} />;
+  })}</>;
 }
 
 /**
@@ -1724,6 +1730,7 @@ function ItemBars({ doc }: { doc: Document }) {
  *    取这一块里框住鼠标的 `[data-item]`，几个都框住时取面积最小的（最里面那一项）。
  * #1744 —— 图上那层 ✎ Edit 按钮（InlineEdit §imageBar）portal 在 body 上、贴在图正中，不在任何块里：小 logo（56 px 宽）
  *    整格都被它盖住，鼠标落在按钮上就读空、条目条永远不出。停在按钮上 = 停在那张图上 ⟹ 按坐标找它底下那一块。
+ *    #1760 起列表里一项一张图的并进了条目条，图上那层不出；这一支照旧有人走：不在列表里的单张图（hero 主图这种）图上那层照旧出；一项两张以上的图也不并（今天没有这种块）；它还跟块的条共用这一个条件（PM 裁定 1）。
  * #1748 —— 块的条（同样 portal 在 body 上）也一样：它压着某一项时，停在条上 = 按坐标认它底下那一项。条自己的按钮照旧点得到。
  */
 function itemKeyAt(el: Element, x: number, y: number): string | null {
@@ -1747,6 +1754,21 @@ function itemKeyAt(el: Element, x: number, y: number): string | null {
 const ITEMBAR_GAP = 6;
 type ItemBarPos = { top: number; left: number; scale: number; above: boolean; below: boolean };
 /**
+ * #1760 —— 并了图的条（§ItemBar 上有 ✎ Edit）比原来宽：项比条宽、条留在项里贴右上角时，可能正好压在这一项的小图上
+ *   （QA2 r1：azure-29 的 logo 格子 166 宽、左边一张 32 的 logo，条 155 宽 ⟹ 6 个 logo 全被盖住）。
+ *   判据：条贴在项里的那个位置跟这张图相交，而且图比条窄（logo、头像这种小图 —— 盖上就看不见了）⟹ 当成窄项，挪到项外面。
+ *   大照片（team / gallery）比条宽，条只压一个角，位置照旧（正文做什么 3「比条宽的项位置不变」）。
+ */
+function coversItemImage(bar: Element, box: Element, b: DOMRect, top: number, right: number): boolean {
+  if (!bar.querySelector('[data-editor-image-edit]')) return false;
+  const img = Array.from(box.querySelectorAll('img[data-editor-inline]')).find((e) => e.closest('[data-item]') === box);
+  if (!img) return false;
+  const i = img.getBoundingClientRect();
+  if (i.width <= 0 || i.height <= 0 || i.width >= b.width) return false;
+  return i.left < right && i.right > right - b.width && i.top < top + b.height && i.bottom > top;
+}
+
+/**
  * 那一项右上角（项的上沿出了可视区就贴可视区上沿）；项看不见 ⟹ null。每帧量，同 §useBlockBarPos。
  * `above` / `below`：这一块里同一列还有没有【画出来的】、下标比它小 / 大的项。块可能只画前几项（hero 写死 stats 3 · ctas 2，
  *   `blocks/hero/Section.tsx` §MAX）⟹ 画布上最后一项的 ↓ 按数据算还能换，换完它从画布上消失、冒出一个没见过的 ——
@@ -1767,7 +1789,8 @@ function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | nu
     const measure = () => {
       const comp = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
       const els = comp ? Array.from(comp.querySelectorAll(`[data-item="${CSS.escape(item)}"]`)) : [];
-      const r = els.map((e) => e.getBoundingClientRect()).find((x) => x.width > 0 && x.height > 0);
+      const box = els.find((e) => { const x = e.getBoundingClientRect(); return x.width > 0 && x.height > 0; });
+      const r = box ? box.getBoundingClientRect() : undefined;
       const cut = item.lastIndexOf('.');
       const head = item.slice(0, cut + 1);
       const at = Number(item.slice(cut + 1));
@@ -1785,7 +1808,7 @@ function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | nu
         next = { top: Math.max(r.top, 0) + ITEMBAR_GAP, left: r.right - ITEMBAR_GAP, scale: 1 / zoom, above, below };
         const bar = doc.querySelector(`[data-editor-itembar-for="${CSS.escape(`${id} ${item}`)}"]`);
         const b = bar?.getBoundingClientRect();
-        if (b && (b.width > r.width || !!bar?.querySelector('[data-editor-item-action="edit"]'))) {
+        if (b && (b.width > r.width || !!bar?.querySelector('[data-editor-item-action="edit"]') || (bar && box && coversItemImage(bar, box, b, next.top, next.left)))) {
           const up = r.top - ITEMBAR_GAP - b.height;
           const down = r.bottom + ITEMBAR_GAP;
           if (up >= 0) next = { ...next, top: up, left: r.right };
@@ -1801,21 +1824,30 @@ function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | nu
   return pos;
 }
 
+/**
+ * #1760 —— 这一项里恰好一张能换的图（InlineEdit §itemImageOf）：图的按钮并进来，`✨ Regenerate · ✎ Edit ｜ ↑ · ↓ · 🗑`，图上那层不出。
+ *   ✨ 只给能重新生成的图（schema 的 `regenerate`，同原来图上那层）。两颗做的事经 InlineEdit §runItemImage，跟原来图上那两颗同一条路；
+ *   在等生成 ⟹ ✨ 转圈、条一直留着（§ItemBars）；生成没成那一句挂在条下面。
+ */
 function ItemBar({ doc, id, item: itemAttr }: { doc: Document; id: string; item: string }) {
   const item = usePuck((s) => s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null);
   const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
   const getPuck = useGetPuck();
   const inline = useContext(InlineApiContext);
+  const imgState = useItemImageState();
   const pos = useItemBarPos(doc, id, itemAttr);
-  const segs = itemAttr.split('.');
-  const index = Number(segs.pop());
-  const props = (item?.props || {}) as ItemProps;
-  const spec = item ? itemListsOf(inline?.components.get(item.type)).find((l) => l.path.join('.') === segs.join('.')) : undefined;
-  const list = spec ? getAt(props, spec.path) : undefined;
-  if (!item || props._src?.locked || !spec || !Array.isArray(list) || !Number.isInteger(index) || index >= list.length || !pos) return null;
+  const component = item ? inline?.components.get(item.type) : undefined;
+  const at = item ? itemListAt(component, item.props as ItemProps, itemAttr) : null;
+  if (!item || !at || !pos) return null;
+  const { spec, list, index } = at;
+  const key = `${id} ${itemAttr}`;
+  const comp = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+  const img = comp && component ? itemImageOf(comp, component, itemAttr) : null;
+  const waiting = imgState.regen === key;
+  const note = imgState.note && imgState.note.item === key ? imgState.note.text : '';
   // #1755 r3 —— 按钮列表那一列（schema 的 `button`）⟹ 多一颗 ✎ Edit。
-  const button = !!inline?.components.get(item.type)?.fields.find((f) => f.control === 'list' && f.slot === spec.slot)?.button;
-  // AI 聊天在改这一页：整条都灰（同面板 LOCKED_PERMISSIONS 那一套，改了也会被 AI 那一笔盖掉）。
+  const button = !!component?.fields.find((f) => f.control === 'list' && f.slot === spec.slot)?.button;
+  // AI 聊天在改这一页（生成图也上这把锁）：整条都灰（同面板 LOCKED_PERMISSIONS 那一套，改了也会被 AI 那一笔盖掉）。
   const busy = !!inline?.locked;
   const selectIt = () => {
     const g = getPuck();
@@ -1840,9 +1872,23 @@ function ItemBar({ doc, id, item: itemAttr }: { doc: Document; id: string; item:
   };
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return createPortal(
-    <span data-editor-itembar="" data-editor-itembar-for={`${id} ${itemAttr}`} data-editor-itembar-block={id} onClick={halt}
+    <span data-editor-itembar="" data-editor-itembar-for={key} data-editor-itembar-block={id} onClick={halt}
       {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...ITEMBAR_BOX, top: pos.top, left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
+        {img && (
+          <ActionBar.Group>
+            {img.regenerate && (
+              <ActionBar.Action label="Regenerate" disabled={busy} onClick={() => runItemImage(img.el, key, 'regenerate')} data-editor-image-regenerate="" data-editor-image-busy={waiting ? '' : undefined}>
+                {waiting ? ITEMBAR_SPINNER : BLOCKBAR_ICON.sparkles}
+                <span style={BLOCKBAR_TEXT}>{waiting ? 'Generating…' : 'Regenerate'}</span>
+              </ActionBar.Action>
+            )}
+            <ActionBar.Action label="Edit" disabled={busy} onClick={() => runItemImage(img.el, key, 'edit')} data-editor-image-edit="">
+              {BLOCKBAR_ICON.edit}
+              <span style={BLOCKBAR_TEXT}>Edit</span>
+            </ActionBar.Action>
+          </ActionBar.Group>
+        )}
         {button && (
           <ActionBar.Group>
             <ActionBar.Action label="Edit" disabled={busy} onClick={edit} data-editor-item-action="edit">
@@ -1863,6 +1909,7 @@ function ItemBar({ doc, id, item: itemAttr }: { doc: Document; id: string; item:
           </ActionBar.Action>
         </ActionBar.Group>
       </ActionBar>
+      {note && <span data-editor-image-note="" style={ITEMBAR_NOTE}>{note}</span>}
     </span>,
     doc.body,
   );
@@ -1907,7 +1954,21 @@ const BLOCKBAR_ICON = {
   </>),
   edit: blockbarSvg(<><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></>),
   ai: blockbarSvg(AI_ICON_SHAPES),
+  // #1760 —— 条目条上图的 Regenerate（lucide sparkles）。
+  sparkles: blockbarSvg(<>
+    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+    <path d="M20 3v4" /><path d="M22 5h-4" /><path d="M4 17v2" /><path d="M5 18H3" />
+  </>),
 };
+// #1760 —— 在等生成：✨ 换成转圈（同原来图上那层 InlineEdit §imageBar 的那一个，放大到图标的 16px）。
+const ITEMBAR_SPINNER = (
+  <svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true" data-editor-image-spinner="">
+    <circle cx="7" cy="7" r="5.5" fill="none" stroke="#98a2b3" strokeWidth="2" />
+    <path d="M7 1.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="#344054" strokeWidth="2" strokeLinecap="round">
+      <animateTransform attributeName="transform" type="rotate" from="0 7 7" to="360 7 7" dur="0.8s" repeatCount="indefinite" />
+    </path>
+  </svg>
+);
 
 // #1710 —— Puck 自己那条整个藏掉（条改由 §BlockBars 画，§PuckActionBarSlot 只是个占位）。不藏的话选中块的右上角留一片
 //    看不见却点得着的空框（Puck 那层 `min-height: 36px`、`cursor: grab`）。Puck 的类名带 hash ⟹ 按前缀认。
@@ -1920,7 +1981,9 @@ const BLOCKBAR_CSS = `
 // ⟹ 按 1/zoom 放大，屏幕上跟 Puck 原来那条一样大。层级在 Design 弹层（§POPOVER）之下。
 const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, display: 'inline-flex', translate: '-50% 0', transformOrigin: 'center bottom', cursor: 'default' };
 // #1723 —— 条目条：贴那一项的右上角（§useItemBarPos 给 top / left = 右上角），往左展开；压在块的条之上、字的工具条之下（#1657 优先）。
-const ITEMBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482100, display: 'inline-flex', translate: '-100% 0', transformOrigin: 'right top', cursor: 'default' };
+// #1760 —— 竖排：生成没成那一句挂在条下面（右沿对齐）；没有那一句时跟原来一样大。
+const ITEMBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482100, display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, translate: '-100% 0', transformOrigin: 'right top', cursor: 'default' };
+const ITEMBAR_NOTE: CSSProperties = { maxWidth: 320, padding: '4px 8px', background: '#fff', border: '1px solid #fda29b', borderRadius: 8, color: '#b42318', fontSize: 13, textAlign: 'center' };
 
 /**
  * #1700 —— Design 弹层：块浮动条上点 Design 弹出，固定在画布可视区底部、水平居中（#1725：不随块走、不随滚动走，两页同一位置）。顶上一排标签（Layout；#1708 加了 Customize：这一块的旋钮 + 开关 + 背景），
