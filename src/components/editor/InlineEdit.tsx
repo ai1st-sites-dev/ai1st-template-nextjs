@@ -153,6 +153,11 @@ function hintFor(why: string, sourcedRef: unknown, isImage = false): string {
 }
 
 /** #1713 —— 画布上这个 `data-slot` 是不是一张图（inline 清单里 `image: true` 那一条；去掉序号再比）。 */
+/** #1755 —— `el` 是不是按钮列表里的一颗（`data-item="ctas.1"`，那一列在 schema 里标了 `button: true`）。登记那两遍用同一个判据。 */
+function buttonItem(el: Element | null, component: EditorComponent | undefined): boolean {
+  const m = el ? /^(.*)\.\d+$/.exec(el.getAttribute('data-item') || '') : null;
+  return !!m && !!component && component.fields.some((f) => f.button && f.slot === m[1]);
+}
 function imageCell(component: EditorComponent, slot: string) {
   const bare = slot.split('.').filter((x) => !/^\d+$/.test(x)).join('.');
   return component.inline.find((p) => p.path === bare && p.image) || null;
@@ -351,6 +356,9 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         const slot = el.getAttribute('data-slot') || '';
         const bare = slot.split('.').filter((s) => !/^\d+$/.test(s)).join('.');
         if (!component || !component.inline.some((p) => p.path === bare)) continue;
+        // #1755 r4 —— 按钮里那段字不单独登记：整颗按钮由下面那一遍登记（点哪儿都开按钮弹窗），里面再挂一层就是第二圈虚线、
+        //    而且点不进去（§onClick 先认 `[data-editor-button]`）。改字走弹窗的 Button label。
+        if (buttonItem(el.closest('[data-item]'), component)) continue;
         registerOverlayPortal(el);
         el.setAttribute('data-editor-inline', '');
       }
@@ -362,9 +370,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         const item = id ? itemById(id) : undefined;
         if (!item) continue;
         seen.add(el);
-        const m = /^(.*)\.\d+$/.exec(el.getAttribute('data-item') || '');
-        const component = a.components.get(item.type);
-        if (!m || !component || !component.fields.some((f) => f.button && f.slot === m[1])) continue;
+        if (!buttonItem(el, a.components.get(item.type))) continue;
         registerOverlayPortal(el);
         el.setAttribute('data-editor-button', '');
       }

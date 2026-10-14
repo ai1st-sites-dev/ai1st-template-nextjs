@@ -122,7 +122,7 @@ import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, itemListAt, itemImageOf, runItemImage, useItemImageState, clearItemImageNote, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField, ImageUrlControl } from './ImageField';
-import { ButtonEditor, buttonHrefField } from './ButtonLink';
+import { ButtonEditor, ButtonLinkEnvContext, buttonHrefField } from './ButtonLink';
 import {
   navMenuToPanel, panelRows, buttonPage, moveShown, setShown, setLabel, navMenuProblem, navMenuChanges, applyPageNav, liveShellData,
   type NavPanel, type NavChange,
@@ -4163,12 +4163,28 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     (g.dispatch as unknown as (a: unknown) => void)({ type: 'replaceRoot', root: { ...root, props: { ...rootPropsOf(g), ...contact } }, recordHistory: !d });
   };
   const editingForm = formEditing ? formList.find((f) => f.id === formEditing) : undefined;
+  // #1755 r4 —— 按钮控件（弹窗 / Content 页 / 右栏）里「去 Settings → Business info 改」那一下，和它显示值用的那份站点数据。
+  //   弹层开着 ⟹ 先 Done：这是弹窗自己给的动作，老板去改的正是这颗按钮要用的号码，当 Cancel 会把他刚选的 Link Type 一起退掉
+  //   （PM 2026-10-14 定：「点外面 = Cancel」管的是意外离开，这一下不是）。Done 被拦下（顶栏那条）⟹ 面板留着、不跳。
+  //   然后同竖栏 Settings（§SettingsRail）：清掉选中、打开右栏 —— 右栏显示的就是整站设置，Business info 滚进来。
+  const buttonLinkEnv = {
+    liveSite: (s: SiteData, l: string, root: Record<string, unknown>) => withBusinessInfo(s, l, root as RootProps),
+    openBusinessInfo: () => {
+      if (designRef.current) {
+        doneDesign();
+        if (designRef.current) return;
+      }
+      dispatchRef.current?.({ type: 'setUi', ui: { rightSideBarVisible: true, itemSelector: null } } as never);
+      setTimeout(() => document.querySelector('[data-editor-business-info]')?.scrollIntoView({ block: 'start' }), 50);
+    },
+  };
 
   return (
     <SharedInfoContext.Provider value={sharedInfo}>
     <EditorUiContext.Provider value={ui}>
     <FormsContext.Provider value={formsCtx}>
     <InlineApiContext.Provider value={inlineApi}>
+    <ButtonLinkEnvContext.Provider value={buttonLinkEnv}>
     <InlineFreezeContext.Provider value={freeze}>
     <FillingContext.Provider value={filling}>
     <IconTablesContext.Provider value={iconTables || NO_ICON_TABLES}>
@@ -4207,6 +4223,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     </IconTablesContext.Provider>
     </FillingContext.Provider>
     </InlineFreezeContext.Provider>
+    </ButtonLinkEnvContext.Provider>
     </InlineApiContext.Provider>
     </FormsContext.Provider>
     </EditorUiContext.Provider>

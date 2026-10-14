@@ -7,9 +7,10 @@
 //     Button label 是紧跟着的那一格文字）。
 // 选中哪一类不另存：由 `href` 推（`scripts/lib/button-link.js` 文件头那张表）。刚点了一类、那一格还空着（`href` 是空串）时按刚点的那一类显示。
 
-import { useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { createUsePuck, type Field } from '@puckeditor/core';
 import { InlineApiContext } from './InlineEdit';
+import { SOURCES } from '@/lib/sections/item-sources';
 import { localeUrl } from '@/lib/config';
 import { LINK_TYPES, linkTypeOf, hrefFor, externalUrl, withButton, type LinkType } from '../../../scripts/lib/button-link.js';
 import type { SiteData } from '@/lib/types/config';
@@ -25,6 +26,27 @@ const chip = (on: boolean, off: boolean): CSSProperties => ({
   padding: '6px 10px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', whiteSpace: 'nowrap', cursor: off ? 'default' : 'pointer',
   border: on ? '1px solid #1d4ed8' : '1px solid #d0d5dd', background: on ? '#eff4ff' : '#fff', color: on ? '#1d4ed8' : '#344054', fontWeight: on ? 600 : 500,
 });
+
+/**
+ * #1755 r4 —— 编辑器递进来的两样（EditorApp 提供；不在编辑器里 = null，下面照构建时那份显示、不出指路）：
+ *   · `liveSite`：构建时那份站点数据，Business info 换成 Page 面板里的现值（就是 EditorApp §withBusinessInfo，画布按它画）——
+ *     弹窗里显示的号码 / 邮箱跟画布上那颗按钮同一份，老板刚在 Business info 里改了也对得上；
+ *   · `openBusinessInfo`：「去 Settings → Business info 改」那一下 —— 弹窗开着就先 Done（存下来，不退），再打开右栏的 Business info。
+ */
+export const ButtonLinkEnvContext = createContext<{
+  liveSite: (site: SiteData, locale: string, root: Record<string, unknown>) => SiteData;
+  openBusinessInfo: () => void;
+} | null>(null);
+
+/** 这颗按钮的 `{source: "phone" | "email"}` 构建出来是哪个号码 / 邮箱（同一个展开函数，`item-sources.js` §contactFact）。空 = 那一格没填。 */
+function contactText(kind: 'phone' | 'email', ref: unknown, site: SiteData): string {
+  const src = (SOURCES as Record<string, { fact?: (r: unknown, c: unknown) => { text?: string } | null }>)[kind];
+  const fact = src && src.fact ? src.fact({ source: kind, ...(ref && typeof ref === 'object' ? ref : {}) }, { brand: site.brand }) : null;
+  return (fact && fact.text) || '';
+}
+
+const HINT: CSSProperties = { fontSize: 12, color: '#667085', margin: '6px 0 0', lineHeight: 1.4 };
+const HINT_LINK: CSSProperties = { padding: 0, border: 0, background: 'none', color: '#1d4ed8', font: 'inherit', cursor: 'pointer', textDecoration: 'underline' };
 
 type PuckItem = { type: string; props: { id?: unknown; _src?: { pid?: unknown; view?: { id?: unknown } } } };
 
@@ -74,6 +96,9 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale }: {
   value: unknown; onChange: (v: unknown) => void; readOnly?: boolean; site: SiteData; locale: string;
 }) {
   const sections = useSections();
+  const env = useContext(ButtonLinkEnvContext);
+  const rootProps = usePuck((s) => (s.appState.data.root as { props?: Record<string, unknown> } | undefined)?.props);
+  const live = env && rootProps ? env.liveSite(site, locale, rootProps) : site;
   const inferred = linkTypeOf(value);
   // 刚点的那一类：`href` 还是空的（Page link 什么都没选的样子）时才用它，一填上就以 `href` 推出来的为准。
   const [picked, setPicked] = useState<LinkType | null>(null);
@@ -84,7 +109,7 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale }: {
     setPicked(t);
     onChange(t === 'email' || t === 'phone' ? hrefFor(t, { business: true }) : '');
   };
-  const locations = Array.isArray(site.brand && site.brand.locations) ? site.brand.locations : [];
+  const locations = Array.isArray(live.brand && live.brand.locations) ? live.brand.locations : [];
   const ref = value && typeof value === 'object' ? (value as { source?: unknown; location?: unknown }) : null;
   const at = ref && Number.isInteger(ref.location) ? (ref.location as number) : 0;
 
@@ -123,12 +148,17 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale }: {
     const other = isPhone ? 'Other number' : 'Other email';
     const attr = isPhone ? 'phone' : 'email';
     const prefix = isPhone ? 'tel:' : 'mailto:';
+    // #1755 r4 —— Business 那一项把值本身写出来（这颗按钮构建出来会拨 / 会发的那个，多门店跟着下面选的那一家）；空的说清楚是空的。
+    const businessName = isPhone ? 'Business phone' : 'Business email';
+    const known = contactText(type, business ? ref : null, live);
+    // 指路只在它为真时出：Settings → Business info 那一格 Phone 只管第一家（§withBusinessInfo 写 `locations[0]`），邮箱整站一份。
+    const fixable = !!env && !readOnly && business && (!isPhone || at === 0);
     cell = (
       <div style={ROW}>
         <label style={LABEL}>{isPhone ? 'Phone number' : 'Email address'}</label>
         <select {...{ [`data-editor-button-${attr}-mode`]: '' }} aria-label={isPhone ? 'Phone number' : 'Email address'} value={business ? 'business' : 'other'} disabled={readOnly}
           onChange={(e) => onChange(e.target.value === 'business' ? hrefFor(type, { business: true }) : prefix)} style={{ ...INPUT, marginBottom: 6 }}>
-          <option value="business">{isPhone ? 'Business phone' : 'Business email'}</option>
+          <option value="business">{`${businessName} · ${known || 'not set yet'}`}</option>
           <option value="other">{other}</option>
         </select>
         {business && locations.length > 1 && (
@@ -137,6 +167,14 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale }: {
             onChange={(e) => onChange(hrefFor(type, { business: true, location: Number(e.target.value) }))}>
             {locations.map((l, i) => <option key={i} value={String(i)}>{l.label || l.address || `Location ${i + 1}`}</option>)}
           </select>
+        )}
+        {fixable && (
+          <p data-editor-button-business-hint="" style={HINT}>
+            {known ? '' : `No ${isPhone ? 'phone number' : 'email address'} yet. `}
+            <button type="button" data-editor-button-business-settings="" style={HINT_LINK} onClick={() => env!.openBusinessInfo()}>
+              {known ? 'Change it in Settings → Business info' : 'Add it in Settings → Business info'}
+            </button>
+          </p>
         )}
         {!business && (
           <input {...{ [`data-editor-button-${attr}`]: '' }} type={isPhone ? 'tel' : 'email'} aria-label={other}
