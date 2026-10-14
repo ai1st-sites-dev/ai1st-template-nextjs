@@ -44,7 +44,8 @@
 //    名字是它上面的一行字（日期框不显示占位符）。选项的文字在 `labels['<字段id>.<选项id>']`（§optionLabelKey）。
 //    答案照 #1769 进 `meta.answers`，`value` 一律是字符串：下拉 / 单选 = 选中那项**此刻**的文字；多选 = 选中的几项按表单上的顺序
 //    用「, 」连起来；日期 = 原样 `YYYY-MM-DD`（不按站的语言格式化：老板在 dashboard 看到的不该随网站语言变，也没有 03/04 的歧义）。
-//    必填：多选不能用浏览器的 `required`（它要求每一个框都勾上），交由 §handleSubmit 判「一项都没选」；单选组每个 radio 带 `required`
+//    必填：多选不能一直带浏览器的 `required`（它要求每一个框都勾上）—— #1782 起只在一项都没勾时每个框带上（勾了就全去掉），
+//    §handleSubmit 仍判「一项都没选」兜底；单选组每个 radio 带 `required`
 //    （浏览器按组判）；被拦下时标红的是那一组的每个框。
 // 🔴 #1665 —— 这里不再 import `@/lib/config`：站点内容是服务端每次请求读的，浏览器端拿不到。往哪儿提交（`leadApi`）、
 //    哪个站（`siteId`）、表单库（`forms`）由渲染它的块从站点数据里取好递进来（`config.ts` §leadFormSite）。
@@ -253,6 +254,9 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
       }
       if (f.type === 'radio' || f.type === 'checkbox') {
         const radio = f.type === 'radio';
+        // #1782 —— 必填的多选一项都没勾时每个框都带 `required`：浏览器逐个判，这时正好让它跟别的格子一起拦下、一起标红；
+        //    勾了任一项就全去掉（不然就成了「每个都要勾」），取消勾回到一项都没有时再加回来。
+        const none = !radio && required(f) && !(picked[f.id] || []).length;
         return (
           <fieldset id={id} data-field={f.id} data-field-type={f.type} {...(required(f) ? { 'aria-required': true } : {})} {...badAttr}>
             <legend className={size === 'sm' ? 'form-label small mb-1' : 'form-label mb-1'}>{hint(f)}</legend>
@@ -262,7 +266,7 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
                 <div key={o} className="form-check">
                   {radio
                     ? <input id={oid} className={`form-check-input${bad}`} type="radio" name={id} value={o} checked={values[k] === o} onChange={set(k, f.id)} data-field={f.id} {...(required(f) ? { required: true } : {})} />
-                    : <input id={oid} className={`form-check-input${bad}`} type="checkbox" value={o} checked={(picked[f.id] || []).includes(o)} onChange={toggle(f, o)} data-field={f.id} />}
+                    : <input id={oid} className={`form-check-input${bad}`} type="checkbox" value={o} checked={(picked[f.id] || []).includes(o)} onChange={toggle(f, o)} data-field={f.id} {...(none ? { required: true } : {})} />}
                   <label className="form-check-label" htmlFor={oid}>{optText(f, o)}</label>
                 </div>
               );

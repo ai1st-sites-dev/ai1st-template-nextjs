@@ -261,8 +261,11 @@ const loadForm = () => { delete require.cache[FORM]; return require(FORM).defaul
   const box = (full.match(/<fieldset[^>]*id="ct-days"[\s\S]*?<\/fieldset>/) || [''])[0];
   const boxIn = Array.from(box.matchAll(/<input[^>]*>/g)).map((m) => m[0]);
   check(/data-field-type="checkbox"/.test(box) && /<legend[^>]*>Which days work\? \*<\/legend>/.test(box) && boxIn.length === 2
-    && boxIn.every((x) => /type="checkbox"/.test(x) && /form-check-input/.test(x) && !/\brequired/.test(x)) && />Monday<\/label>/.test(box) && /aria-required="true"/.test(box),
-  '多选：一组 form-check 复选框，名字是组标题（带 *）；框上不带 required（浏览器会要求每个都勾），组上 aria-required', box);
+    && boxIn.every((x) => /type="checkbox"/.test(x) && /form-check-input/.test(x) && /\brequired=""/.test(x)) && />Monday<\/label>/.test(box) && /aria-required="true"/.test(box),
+  '多选：一组 form-check 复选框，名字是组标题（带 *）；必填且一项没勾 ⟹ 每个框带 required（#1782：浏览器第一次就跟别的格子一起拦），组上 aria-required', box);
+  const boxOpt = renderToStaticMarkup(React.createElement(F, { mode: 'full', forms: [{ ...clone(FORM_EN), required: ['car'] }], locale: 'en', siteId: 's', leadApi: 'x', idPrefix: 'ct' }));
+  const boxOptIn = Array.from(((boxOpt.match(/<fieldset[^>]*id="ct-days"[\s\S]*?<\/fieldset>/) || [''])[0]).matchAll(/<input[^>]*>/g)).map((m) => m[0]);
+  check(boxOptIn.length === 2 && boxOptIn.every((x) => !/\brequired/.test(x)), '对照：多选设成选填 ⟹ 框上不带 required（#1782 AC4）', boxOptIn.join(' '));
   const rad = (full.match(/<fieldset[^>]*id="ct-when"[\s\S]*?<\/fieldset>/) || [''])[0];
   const radIn = Array.from(rad.matchAll(/<input[^>]*>/g)).map((m) => m[0]);
   check(radIn.length === 2 && radIn.every((x) => /type="radio"/.test(x) && /name="ct-when"/.test(x) && !/\brequired/.test(x)) && /<legend[^>]*>Morning or afternoon\?<\/legend>/.test(rad),
@@ -315,7 +318,9 @@ console.log('\n── 提交（happy-dom）');
         await act(async () => { el.dispatchEvent(new win.Event('input', { bubbles: true })); el.dispatchEvent(new win.Event('change', { bubbles: true })); });
       };
       const click = async (sel) => { const el = host.querySelector(sel); if (!el) throw new Error(`页面上没有 ${sel}`); await act(async () => { el.click(); }); };
-      await act1({ setVal, click });
+      // #1782 —— 交之前那一刻多选那一组哪几个框带 required。
+      const reqOf = () => Array.from(host.querySelectorAll('#ct-days input')).map((x) => x.hasAttribute('required'));
+      await act1({ setVal, click, reqOf });
       await act(async () => { host.querySelector('form').dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true })); });
       await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
       const cls = (sel) => (host.querySelector(sel) ? host.querySelector(sel).className : '');
@@ -357,6 +362,16 @@ console.log('\n── 提交（happy-dom）');
     const untick = await run(async (u) => { await phone(u); await u.setVal('#ct-car', 'o-toy'); await u.click('#ct-days--o-mon'); await u.click('#ct-days--o-sat'); await u.click('#ct-days--o-mon'); });
     const b2 = untick.calls[0] ? JSON.parse(untick.calls[0].init.body) : {};
     check(JSON.stringify((b2.meta.answers || []).map((a) => a.value)) === '["Toyota","Saturday"]', '勾了再取消的那一项不进答案；选填的几格没填 ⟹ 不带', JSON.stringify(b2.meta));
+    // #1782 —— 必填多选的 required 跟着「勾了没有」走：一项没勾 ⟹ 每个框都带；勾了任一项 ⟹ 全去掉（不然浏览器要每个都勾）；取消回到一项没有 ⟹ 加回来。
+    const seen = [];
+    const flip = await run(async (u) => {
+      await phone(u); await u.setVal('#ct-car', 'o-toy');
+      seen.push(u.reqOf()); await u.click('#ct-days--o-mon');
+      seen.push(u.reqOf()); await u.click('#ct-days--o-mon');
+      seen.push(u.reqOf());
+    });
+    check(JSON.stringify(seen) === '[[true,true],[false,false],[true,true]]', '必填多选：没勾 ⟹ 两个框都带 required；勾 1 项 ⟹ 全去掉；再取消 ⟹ 全加回来（#1782 AC2 / AC3）', JSON.stringify(seen));
+    check(flip.calls.length === 0 && /is-invalid/.test(flip.cls('#ct-days--o-mon')), '勾了又取消 ⟹ 提交仍被拦、那一组仍标红（不是一次性的）', `calls=${flip.calls.length}`);
   } catch (e) {
     bad(`提交那一段抛了：${e.stack || e.message}`);
   }
