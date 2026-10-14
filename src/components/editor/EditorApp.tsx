@@ -1210,7 +1210,7 @@ const EditorUiContext = createContext<EditorUi | null>(null);
 
 /**
  * #1771 —— 「编辑器里有对话框开着」的唯一判据（Chris 2026-10-13：有对话框出现时浮动条都消失，同 Durable）。
- * §BlockBars / §RegionBars / §ItemBars 都只读 `ui.dialogOpen`，它由这里算；以后加新的对话框只改这一处。
+ * §BlockBars / §RegionBars / §ItemBars 都只读 `ui.dialogOpen`，图上那层按钮（InlineEdit §imageBar，#1773）经 `InlineApi.dialogOpen` 读同一个值；它由这里算，以后加新的对话框只改这一处。
  *   · Design 弹层（Layout · Customize · Content · AI）和按钮弹窗（#1755）：`design` 有值（两个都是 §DesignPopover 画的）
  *   · Edit form 对话框（#1634，§FormCopyDialog）：`formEditing` 有值 —— 右栏的 Form 字段也开它，不一定经过 Design 弹层
  *   · 换图弹窗：画在 dashboard 那一侧，编辑器这边只知道在等它回话（§pickImage 的 `picking`）
@@ -4045,7 +4045,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const noteItem: InlineApi['noteItem'] = (n) => { aiNotesRef.current = recordItemNote(aiNotesRef.current, n); };
   // #1755 —— 画布上点了一颗按钮：开按钮弹窗（§DesignPopover 的 `button` 那一支）。
   const openButton: InlineApi['openButton'] = (id, slot, index) => openDesign(id, 'button', `${slot}.${index}`);
-  const inlineApi: InlineApi = { locked, regenerating, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, noteItem, pickImage, regenerateImage, saveNow, openButton };
+  const inlineApi: InlineApi = { locked, regenerating, dialogOpen: ui.dialogOpen, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, noteItem, pickImage, regenerateImage, saveNow, openButton };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };

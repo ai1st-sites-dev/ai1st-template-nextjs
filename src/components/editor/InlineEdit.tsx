@@ -70,6 +70,8 @@ export type InlineApi = {
   locked: boolean;
   /** #1713 —— 锁是画布图上的 Regenerate 上的（那张图上转圈；别的图不出按钮）。 */
   regenerating: boolean;
+  /** #1773 —— 编辑器里有对话框开着（EditorApp §anyDialogOpen，判据只在那一处）：图上那层按钮不画。 */
+  dialogOpen: boolean;
   locale: string;
   page: string;
   /** 这一页的站点数据（#1665 起编辑器不再 import 编译期常量，跟画布同一份，由 EditorApp 递下来）。 */
@@ -674,7 +676,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
   useEffect(() => () => imgBarCleanupRef.current?.(), []);
 
   // 按钮层画在哪张图上：在等生成的那张优先；锁着（AI 聊天在改 / 别的图在生成）时别的图不出按钮。
-  const imgShown: ImgAt | null = regen || (hover && !api?.locked ? hover : null);
+  // #1773 —— 有对话框开着 ⟹ 哪张都不画，在等生成的那张也不画（同 #1771 的三类条）；关掉之后鼠标停在哪张就出哪张（hover 照常在记）。
+  const imgShown: ImgAt | null = api?.dialogOpen ? null : regen || (hover && !api?.locked ? hover : null);
   // 按钮层贴在图正中，跟着滚动 / 块重画走（同工具条 §tick）；图没了就收起。
   useEffect(() => {
     if (!imgShown) { setImgPos(null); return; }
