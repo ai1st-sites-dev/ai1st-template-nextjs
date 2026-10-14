@@ -17,13 +17,22 @@
 // 🔴 #1769 —— `fields` 里除了词表那五个字符串，还可以有老板自己加的字段 `{ id, type: 'text' }`（这张票只有「一行字」一种）。
 //    它是结构，各语言一致；它的名字是给访客看的字，住 `labels[id]`（跟内置字段的名字同一个地方，各语言各自翻）。
 //    `required`（字段 id 的数组，内置和自定义都能列）同样是结构。「电话和邮箱至少填一个」那条照旧，跟 `required` 无关。
+// 🔴 #1770 —— 类型补齐到六种（§CUSTOM_FIELD_TYPES）。带选项的三种（§OPTION_FIELD_TYPES）多一个 `options`：**选项 id** 的数组
+//    （项数和顺序是结构，各语言一致 —— 它在 `fields` 里，§skeleton 现成就比它）；每项的文字是翻译，住 `labels['<字段id>.<选项id>']`
+//    （只写这个语言）。`.` 不在 §CUSTOM_ID_RE 的字符集里 ⟹ 跟字段名的键撞不上。为什么不直接存文字：那就是把翻译放进了结构；
+//    按下标做键的话，在一个语言里拖动排序会把别的语言的文字串位。不带选项的三种不许有 `options`。
 
 /** 字段词表 —— 每个字段对应客户记录（Customers）的一列（对照表见 BlockLeadForm.tsx 头注释）。本票不扩。 */
 const FORM_FIELDS = ['name', 'phone', 'email', 'message', 'service'];
 /** #1637 —— `labels`（老板写的字段名）每条的上限。 */
 const LABEL_CAP = 40;
-/** #1769 —— 自定义字段能取的类型（T10r-2 往里加多行 / 下拉 / 多选 / 单选 / 日期）。 */
-const CUSTOM_FIELD_TYPES = ['text'];
+/** #1769 —— 自定义字段能取的类型；#1770 补齐：一行字 · 多行字 · 下拉 · 多选 · 单选 · 日期。 */
+const CUSTOM_FIELD_TYPES = ['text', 'textarea', 'select', 'checkbox', 'radio', 'date'];
+/** #1770 —— 其中带选项列表的三种（只有它们有 `options`，也只有它们必须有）。 */
+const OPTION_FIELD_TYPES = ['select', 'checkbox', 'radio'];
+/** #1770 —— 一个字段的选项个数（少于 2 项就不是「选」了）。每项文字的上限同字段名（§LABEL_CAP）。 */
+const MIN_OPTIONS = 2;
+const MAX_OPTIONS = 10;
 /** #1769 —— 一张表单最多几个自定义字段（manager 那边按同一个数收答案：`leads.go` §leadMaxAnswers）。 */
 const MAX_CUSTOM_FIELDS = 10;
 /** #1769 —— 自定义字段 id 的形状：字母开头，字母数字 `_` `-`，≤ 40 个字符（manager 收答案时按同一条判）。 */
@@ -62,12 +71,24 @@ const isCustomField = (f) => isObj(f);
 const fieldId = (f) => (isCustomField(f) ? f.id : f);
 /** #1769 —— 一张表单里的自定义字段（按 `fields` 的顺序）。 */
 const customFieldsOf = (form) => (isObj(form) && Array.isArray(form.fields) ? form.fields.filter(isCustomField) : []);
+/** #1770 —— 这种类型带不带选项列表。 */
+const hasOptions = (type) => OPTION_FIELD_TYPES.includes(type);
+/** #1770 —— 一个选项的文字在 `labels` 里的键。 */
+const optionLabelKey = (fieldIdV, optionId) => `${fieldIdV}.${optionId}`;
+/** #1770 —— 一个自定义字段的选项 id（不带选项的类型 / 形状不对 ⟹ 空数组）。 */
+const optionsOf = (f) => (isCustomField(f) && hasOptions(f.type) && Array.isArray(f.options) ? f.options.filter((o) => typeof o === 'string') : []);
+/**
+ * #1770 —— 这一列 `fields` 让 `labels` 里多出哪些合法的键（内置字段那五个之外）：每个自定义字段的 id，加上它每个选项的
+ * `<字段id>.<选项id>`。站里校验、存盘（`forms-write.js`）、编辑器（`FormCopyEditor.tsx`）都按这一份判，不各写一份。
+ */
+const customLabelKeys = (fields) => (Array.isArray(fields) ? fields : []).filter(isCustomField)
+  .flatMap((c) => [c.id, ...optionsOf(c).map((o) => optionLabelKey(c.id, o))]);
 /** #1769 —— 这一项（内置或自定义）在这张表单里是不是必填。 */
 const isRequired = (form, f) => isObj(form) && Array.isArray(form.required) && form.required.includes(fieldId(f));
 
 /**
  * #1769 —— 一个自定义字段对象的毛病（不看名字：名字在 `labels` 里，按语言查）。`me` 是报文前缀。
- * 只认 `id` / `type` 两个键；`options` 是 T10r-2 的，这张票不收。
+ * 只认 `id` / `type` 两个键；#1770 起带选项的类型再加一个 `options`（必须有），别的类型有它就报。
  */
 function customFieldProblems(f, me) {
   const out = [];
@@ -79,8 +100,21 @@ function customFieldProblems(f, me) {
   if (!CUSTOM_FIELD_TYPES.includes(f.type)) {
     out.push(`${me}: 自定义字段 "${f.id}" 的 type ${JSON.stringify(f.type)} 不认识 —— 只能是 ${CUSTOM_FIELD_TYPES.join(' / ')}`);
   }
-  const extra = Object.keys(f).filter((k) => k !== 'id' && k !== 'type');
-  if (extra.length) out.push(`${me}: 自定义字段 "${f.id}" 有不认识的键 ${JSON.stringify(extra)} —— 只能有 id / type（名字写在 labels 里）`);
+  const withOptions = hasOptions(f.type);
+  const extra = Object.keys(f).filter((k) => k !== 'id' && k !== 'type' && !(withOptions && k === 'options'));
+  if (extra.length) {
+    out.push(`${me}: 自定义字段 "${f.id}" 有不认识的键 ${JSON.stringify(extra)} —— 只能有 id / type${withOptions ? ' / options' : `（options 只有 ${OPTION_FIELD_TYPES.join(' / ')} 能有）`}（名字写在 labels 里）`);
+  }
+  // #1770 —— 选项：选项 id 的数组，§MIN_OPTIONS~§MAX_OPTIONS 项，id 形状同字段 id、不重复（文字在 labels 里，按语言查）。
+  if (withOptions) {
+    const o = f.options;
+    if (!Array.isArray(o) || o.some((x) => typeof x !== 'string' || !CUSTOM_ID_RE.test(x))) {
+      out.push(`${me}: 自定义字段 "${f.id}" 的 options 必须是选项 id 的数组（id 字母开头、只含字母数字 _ -、不超过 40 个字符）`);
+    } else {
+      if (o.length < MIN_OPTIONS || o.length > MAX_OPTIONS) out.push(`${me}: 自定义字段 "${f.id}" 有 ${o.length} 个选项 —— 要 ${MIN_OPTIONS}~${MAX_OPTIONS} 个`);
+      if (new Set(o).size !== o.length) out.push(`${me}: 自定义字段 "${f.id}" 的 options 里有重复的选项 id`);
+    }
+  }
   return out;
 }
 
@@ -120,7 +154,7 @@ function formListProblems(forms, where = 'forms.json') {
       out.push(`${me}: fields 必须是非空数组`);
     } else {
       const bad = f.fields.filter((x) => !isCustomField(x) && !FORM_FIELDS.includes(x));
-      if (bad.length) out.push(`${me}: fields 里有词表外的值 ${JSON.stringify(bad)} —— 只能是 ${FORM_FIELDS.join(' / ')}，或自定义字段 { id, type }`);
+      if (bad.length) out.push(`${me}: fields 里有词表外的值 ${JSON.stringify(bad)} —— 只能是 ${FORM_FIELDS.join(' / ')}，或自定义字段 { id, type, options? }`);
       // #1769 —— 自定义字段：形状、个数、名字（这个语言的 labels 里必须有）；整张表单里 id 不许重复。
       const custom = f.fields.filter(isCustomField);
       for (const c of custom) out.push(...customFieldProblems(c, me));
@@ -136,6 +170,12 @@ function formListProblems(forms, where = 'forms.json') {
         if (typeof c.id !== 'string') continue;
         const name = isObj(f.labels) ? f.labels[c.id] : undefined;
         if (typeof name !== 'string' || !name.trim()) out.push(`${me}: 自定义字段 "${c.id}" 没有名字 —— 这个语言的 labels.${c.id} 要写上（访客看到的就是它）`);
+        // #1770 —— 每个选项在这个语言里都要有文字（访客看到的选项就是它）。
+        for (const o of optionsOf(c)) {
+          const k = optionLabelKey(c.id, o);
+          const t = isObj(f.labels) ? f.labels[k] : undefined;
+          if (typeof t !== 'string' || !t.trim()) out.push(`${me}: 自定义字段 "${c.id}" 的选项 "${o}" 没有文字 —— 这个语言的 labels["${k}"] 要写上`);
+        }
       }
       if (!f.fields.includes(f.primary)) {
         out.push(`${me}: primary ${JSON.stringify(f.primary)} 不在 fields 里 —— teaser 只露这一个字段，它得是表单里有的那一格`);
@@ -148,13 +188,14 @@ function formListProblems(forms, where = 'forms.json') {
     }
     // #1637 —— `labels`：{ 字段: 非空字符串 ≤ LABEL_CAP }，可缺。键只能是词表里的（不要求在 fields 里：删掉的字段再加回来，名字还在）。
     // #1769 —— 或者是这张表单里某个自定义字段的 id（自定义字段删了，它的名字也该一起删 —— 它不会「再加回来」，加回来是新 id）。
+    // #1770 —— 或者是某个自定义字段的某个选项 `<字段id>.<选项id>`（§customLabelKeys；选项删了文字也一起删，同上）。
     if (f.labels !== undefined) {
       if (!isObj(f.labels)) {
         out.push(`${me}: labels 必须是对象 { 字段: 字段名 }`);
       } else {
+        const customKeys = customLabelKeys(f.fields);
         for (const [k, v] of Object.entries(f.labels)) {
-          const customIds = customFieldsOf(f).map((c) => c.id);
-          if (!FORM_FIELDS.includes(k) && !customIds.includes(k)) out.push(`${me}: labels 里有词表外的字段 ${JSON.stringify(k)}（自定义字段的名字要对应 fields 里的一个自定义字段）`);
+          if (!FORM_FIELDS.includes(k) && !customKeys.includes(k)) out.push(`${me}: labels 里有词表外的字段 ${JSON.stringify(k)}（自定义字段的名字 / 选项的文字要对应 fields 里的一个自定义字段 / 它的一个选项）`);
           else if (typeof v !== 'string' || !v.trim() || [...v].length > LABEL_CAP) out.push(`${me}: labels.${k} 必须是 1~${LABEL_CAP} 字的字符串`);
         }
       }
@@ -258,7 +299,7 @@ const COPY_CAPS = { name: 60, buttonText: 40, successMessage: 200 };
 function siteFormsFrom(copy, base, locale) {
   const given = new Map((Array.isArray(copy) ? copy : []).filter((f) => isObj(f) && typeof f.id === 'string').map((f) => [f.id, f]));
   return (Array.isArray(base) ? base : DEFAULT_SITE_FORMS).map((b) => {
-    const out = { ...b, fields: b.fields.map((x) => (isCustomField(x) ? { ...x } : x)) };
+    const out = { ...b, fields: b.fields.map((x) => (isCustomField(x) ? { ...x, ...(Array.isArray(x.options) ? { options: [...x.options] } : {}) } : x)) };
     if (locale) Object.assign(out, formWords(locale, b.id) || {});
     const c = given.get(b.id);
     if (c) {
@@ -279,4 +320,4 @@ function formIdOptions(forms) {
   return [{ label: `First form${first}`, value: '' }, ...list.map((f) => ({ label: f.name || f.id, value: f.id }))];
 }
 
-module.exports = { FORM_FIELDS, FORM_MODES, LABEL_CAP, CUSTOM_FIELD_TYPES, MAX_CUSTOM_FIELDS, CUSTOM_ID_RE, isCustomField, fieldId, customFieldsOf, isRequired, CONTACT_FIELDS, lacksContactField, primaryChoices, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };
+module.exports = { FORM_FIELDS, FORM_MODES, LABEL_CAP, CUSTOM_FIELD_TYPES, OPTION_FIELD_TYPES, MIN_OPTIONS, MAX_OPTIONS, MAX_CUSTOM_FIELDS, CUSTOM_ID_RE, isCustomField, fieldId, customFieldsOf, hasOptions, optionLabelKey, optionsOf, customLabelKeys, isRequired, CONTACT_FIELDS, lacksContactField, primaryChoices, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };

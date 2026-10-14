@@ -18,6 +18,8 @@
 //   `fields` 里的自定义字段（#1769）是 `{ id, type }`，它的名字走 `labels[id]`。新加的自定义字段在别的语言里还没有名字
 //   ⟹ 先用这个语言的名字（不然那个语言的表单库过不了检查、整笔被拒），老板切过去再改成那个语言的说法；删掉的
 //   自定义字段，它在每个语言里的名字一起删。
+//   #1770 —— 带选项的类型（下拉 / 多选 / 单选）是 `{ id, type, options: [选项 id…] }`，每个选项的文字走 `labels['<字段id>.<选项id>']`
+//   （只写这个语言）。新加的选项、删掉的选项，规则同上面的自定义字段：别的语言先用这个语言的文字 / 每个语言一起删。
 //   `base`（#1644）：{ fields?, primary?, required? } —— 编辑器打开这张表单时手上的结构（原样），只用来比、**不写进磁盘**。
 //   带了 `fields` 或 `primary` 就必须带它：跟磁盘上这张表单（这个语言那份 + 其余每个有这张表单的语言那份）的
 //   `fields` / `primary` 原值比，任一份对不上 ⟹ 退出码 10、一个字节不写。为什么：`fields` 是整份绝对值交的，而编辑器手上
@@ -39,8 +41,8 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  COPY_CAPS, FORM_FIELDS, LABEL_CAP, MAX_CUSTOM_FIELDS, CUSTOM_FIELD_TYPES, CUSTOM_ID_RE,
-  isCustomField, fieldId, lacksContactField, primaryChoices, formsProblems,
+  COPY_CAPS, FORM_FIELDS, LABEL_CAP, MAX_CUSTOM_FIELDS, CUSTOM_FIELD_TYPES, CUSTOM_ID_RE, MIN_OPTIONS, MAX_OPTIONS,
+  isCustomField, fieldId, hasOptions, customLabelKeys, lacksContactField, primaryChoices, formsProblems,
 } = require('./site-forms.js');
 
 const REFUSED = 11;
@@ -92,13 +94,23 @@ function staleKeys(base, onDisk) {
   return STRUCTURE_KEYS.filter((k) => !sameStructureKey(base, onDisk, k));
 }
 
-/** #1769 —— `fields` 里一项自定义字段的形状对不对（不对就拒收，话是给老板看的）。 */
+/** #1769 —— `fields` 里一项自定义字段的形状对不对（不对就拒收，话是给老板看的）。
+ *  #1770 —— 带选项的类型多一个 `options`（必须有，§MIN_OPTIONS~§MAX_OPTIONS 个不重复的选项 id），别的类型带了就拒。 */
 function checkCustomField(x) {
-  const extra = Object.keys(x).filter((k) => k !== 'id' && k !== 'type');
+  const extra = Object.keys(x).filter((k) => k !== 'id' && k !== 'type' && k !== 'options');
   if (typeof x.id !== 'string' || !CUSTOM_ID_RE.test(x.id) || FORM_FIELDS.includes(x.id) || extra.length) {
-    fail(5, `forms.fields 里的自定义字段形状不对：${JSON.stringify(x)}（只能是 { id, type }，id 字母开头、≤ 40 个字符、不跟内置字段重名）`);
+    fail(5, `forms.fields 里的自定义字段形状不对：${JSON.stringify(x)}（只能是 { id, type, options? }，id 字母开头、≤ 40 个字符、不跟内置字段重名）`);
   }
   if (!CUSTOM_FIELD_TYPES.includes(x.type)) fail(REFUSED, `This form can't have a field of type ${String(x.type)}. ${NOT_SAVED}`);
+  if (!hasOptions(x.type)) {
+    if (has(x, 'options')) fail(5, `forms.fields 里的自定义字段 ${x.id} 是 ${x.type}，不能带 options`);
+    return;
+  }
+  const o = x.options;
+  if (!Array.isArray(o) || o.some((v) => typeof v !== 'string' || !CUSTOM_ID_RE.test(v)) || new Set(o).size !== o.length) {
+    fail(5, `forms.fields 里的自定义字段 ${x.id} 的 options 必须是不重复的选项 id 数组`);
+  }
+  if (o.length < MIN_OPTIONS || o.length > MAX_OPTIONS) fail(REFUSED, `A list of choices needs ${MIN_OPTIONS} to ${MAX_OPTIONS} options. ${NOT_SAVED}`);
 }
 
 /** `fields` / `primary` / `required` 改动的结果（三样都没带 ⟹ null）。只判字段组合，不碰磁盘。 */
@@ -121,7 +133,7 @@ function nextStructure(form, forms) {
     if (lacksContactField(forms.fields)) {
       fail(REFUSED, `A form needs a Phone or an Email field — visitors must leave one of them to send it. ${NOT_SAVED}`);
     }
-    fields = forms.fields.map((x) => (isCustomField(x) ? { id: x.id, type: x.type } : x));
+    fields = forms.fields.map((x) => (isCustomField(x) ? { id: x.id, type: x.type, ...(hasOptions(x.type) ? { options: [...x.options] } : {}) } : x));
   }
   let primary = form.primary;
   if (has(forms, 'primary')) {
@@ -153,9 +165,10 @@ function applyStructure(f, structure) {
   return out;
 }
 
-/** #1769 —— 结构改了之后这一语言的 `labels`：删掉已经不在的自定义字段的名字；新出现的自定义字段没有名字 ⟹ 用 `fallback` 里的。 */
+/** #1769 —— 结构改了之后这一语言的 `labels`：删掉已经不在的自定义字段的名字；新出现的自定义字段没有名字 ⟹ 用 `fallback` 里的。
+ *  #1770 —— 选项的文字（`<字段id>.<选项id>`）同一条规则：键表取 site-forms.js §customLabelKeys。 */
 function labelsForStructure(labels, structure, fallback) {
-  const custom = structure.fields.filter(isCustomField).map((c) => c.id);
+  const custom = customLabelKeys(structure.fields);
   const out = {};
   for (const [k, v] of Object.entries(isObj(labels) ? labels : {})) {
     if (FORM_FIELDS.includes(k) || custom.includes(k)) out[k] = v;
@@ -225,7 +238,8 @@ function planFormsWrite({ target, forms }) {
   }
   // #1769 —— 结构先算：`labels` 能写哪些键取决于改后的 `fields`（新加的自定义字段跟它的名字在同一笔里交）。
   const structure = nextStructure(form, forms);
-  const customIds = (structure ? structure.fields : (Array.isArray(form.fields) ? form.fields : [])).filter(isCustomField).map((c) => c.id);
+  // #1770 —— 能写的键：自定义字段的名字 + 它们每个选项的文字（§customLabelKeys）。
+  const customIds = customLabelKeys(structure ? structure.fields : form.fields);
   if (has(forms, 'labels')) {
     const labels = isObj(form.labels) ? { ...form.labels } : {};
     for (const [k, raw] of Object.entries(forms.labels)) {

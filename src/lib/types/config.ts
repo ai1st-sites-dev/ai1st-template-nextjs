@@ -168,10 +168,14 @@ export interface ServiceProduct {
 /** #1471 —— 站级表单库里的一张（`site/<locale>/forms.json`；字段词表与校验在 `scripts/lib/site-forms.js`）。 */
 /** 表单的内置字段（`site-forms.js` §FORM_FIELDS）。 */
 export type BuiltinFormField = 'name' | 'phone' | 'email' | 'message' | 'service';
-/** #1769 —— 老板自己加的字段（这张票只有 `text` 一种）。名字不在这里，在 `labels[id]`（各语言各自翻）。 */
+/** #1769 —— 老板自己加的字段。名字不在这里，在 `labels[id]`（各语言各自翻）。
+ *  #1770 —— 六种类型；带选项的三种（select / checkbox / radio）有 `options` = 选项 id 的数组（结构，各语言一致），
+ *  每项的文字在 `labels['<id>.<选项id>']`（`site-forms.js` §optionLabelKey）。 */
+export type CustomFieldType = 'text' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'date';
 export interface CustomFormField {
   id: string;
-  type: 'text';
+  type: CustomFieldType;
+  options?: string[];
 }
 export interface SiteFormConfig {
   id: string;

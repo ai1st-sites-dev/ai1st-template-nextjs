@@ -39,12 +39,19 @@
 //    记表单名的道理：老板以后改名，旧线索留着当时问的是什么），没填的不带。`manager/leads.go` §sanitizeLeadAnswers 收它。
 //    `required`（站级表单库里那张的结构）里的字段：输入框带 `required`、占位符后面加「 *」；提交时空着（只有空白也算空）
 //    ⟹ 不发请求，那一格标红（`is-invalid`）、出一句「请填必填项」、光标落到第一格。短版（teaser）只露 `primary`，不变。
+// 🔴 #1770 —— 另外五种类型（`site-forms.js` §CUSTOM_FIELD_TYPES）：多行字 = `textarea`（≤500 字，`text` 那一种的 200 不动）；
+//    下拉 = `form-select`，第一项是名字（同 service 那个下拉）；单选 / 多选 = 一组 `form-check`，名字是组的标题；日期 = `<input type="date">`，
+//    名字是它上面的一行字（日期框不显示占位符）。选项的文字在 `labels['<字段id>.<选项id>']`（§optionLabelKey）。
+//    答案照 #1769 进 `meta.answers`，`value` 一律是字符串：下拉 / 单选 = 选中那项**此刻**的文字；多选 = 选中的几项按表单上的顺序
+//    用「, 」连起来；日期 = 原样 `YYYY-MM-DD`（不按站的语言格式化：老板在 dashboard 看到的不该随网站语言变，也没有 03/04 的歧义）。
+//    必填：多选不能用浏览器的 `required`（它要求每一个框都勾上），交由 §handleSubmit 判「一项都没选」；单选组每个 radio 带 `required`
+//    （浏览器按组判）；被拦下时标红的是那一组的每个框。
 // 🔴 #1665 —— 这里不再 import `@/lib/config`：站点内容是服务端每次请求读的，浏览器端拿不到。往哪儿提交（`leadApi`）、
 //    哪个站（`siteId`）、表单库（`forms`）由渲染它的块从站点数据里取好递进来（`config.ts` §leadFormSite）。
 
 import { useState } from 'react';
 import type { CustomFormField, SiteFormConfig } from '@/lib/types/config';
-import { CUSTOM_FIELD_TYPES, FORM_FIELDS, isCustomField, isRequired, pickForm } from '../../scripts/lib/site-forms.js';
+import { CUSTOM_FIELD_TYPES, FORM_FIELDS, isCustomField, isRequired, optionLabelKey, optionsOf, pickForm } from '../../scripts/lib/site-forms.js';
 import { getLabels } from '@/lib/component-labels';
 
 export type LeadField = 'name' | 'phone' | 'email' | 'message' | 'service';
@@ -118,6 +125,8 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
   const place = align === 'right' ? ' ms-auto' : (center || align === 'center') ? ' mx-auto' : '';
 
   const [values, setValues] = useState<Record<string, string>>({});
+  // #1770 —— 多选字段勾了哪几项（字段 id → 选项 id）。
+  const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [hp, setHp] = useState('');
   const [state, setState] = useState<SubmitState>('idle');
   const [error, setError] = useState('');
@@ -126,7 +135,25 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
     setValues((v) => ({ ...v, [k]: e.target.value }));
     if (invalid.includes(id)) setInvalid((xs) => xs.filter((x) => x !== id));
   };
-  const valueOf = (f: FormItem) => (typeof f === 'string' ? values[f] : values[answerKey(f.id)]) || '';
+  // #1770 —— 一个选项此刻的文字（这个语言的 labels；校验保证有，缺了退回选项 id）。
+  const optText = (f: CustomFormField, o: string) => {
+    const own = form?.labels?.[optionLabelKey(f.id, o)];
+    return (typeof own === 'string' && own.trim()) || o;
+  };
+  const opts = (f: CustomFormField): string[] => optionsOf(f);
+  const toggle = (f: CustomFormField, o: string) => (e: { target: { checked: boolean } }) => {
+    const on = e.target.checked;
+    setPicked((p) => { const cur = (p[f.id] || []).filter((x) => x !== o); return { ...p, [f.id]: on ? [...cur, o] : cur }; });
+    if (invalid.includes(f.id)) setInvalid((xs) => xs.filter((x) => x !== f.id));
+  };
+  // 这一格的答案（字符串）：下拉 / 单选存的是选项 id ⟹ 换成它的文字；多选按表单上的顺序连起来（#1770）。
+  const valueOf = (f: FormItem) => {
+    if (typeof f === 'string') return values[f] || '';
+    if (f.type === 'checkbox') return opts(f).filter((o) => (picked[f.id] || []).includes(o)).map((o) => optText(f, o)).join(', ');
+    const v = values[answerKey(f.id)] || '';
+    if (f.type === 'select' || f.type === 'radio') return opts(f).includes(v) ? optText(f, v) : '';
+    return v;
+  };
   const endpoint = leadApi.replace(/\/$/, '') + '/api/leads';
 
   // #1769 —— 真浏览器里，必填格空着时浏览器自己的 `required` 先拦（不触发 submit），handleSubmit 根本不跑 ⟹ 那一格的标红和
@@ -135,7 +162,8 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
   const handleInvalid = (e: React.FormEvent) => {
     const el = e.target as HTMLInputElement;
     if (!el.validity || !el.validity.valueMissing || !el.id.startsWith(`${idPrefix}-`)) return;
-    const id = el.id.slice(idPrefix.length + 1);
+    // #1770 —— 单选组里每个框的 id 带着选项，字段 id 读 `data-field`。
+    const id = (el.dataset && el.dataset.field) || el.id.slice(idPrefix.length + 1);
     setInvalid((xs) => (xs.includes(id) ? xs : [...xs, id]));
     setError(L.formRequired);
   };
@@ -148,7 +176,11 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
     setInvalid(missing);
     if (missing.length) {
       setError(L.formRequired);
-      if (typeof document !== 'undefined') document.getElementById(`${idPrefix}-${missing[0]}`)?.focus();
+      if (typeof document !== 'undefined') {
+        // #1770 —— 单选 / 多选那一格是个 fieldset（拿不到焦点）⟹ 落到它的第一个框。
+        const el = document.getElementById(`${idPrefix}-${missing[0]}`);
+        (el && el.tagName === 'FIELDSET' ? el.querySelector<HTMLElement>('input') : el)?.focus();
+      }
       return;
     }
     const email = (values.email || '').trim();
@@ -198,6 +230,46 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
     const bad = invalid.includes(idOf(f)) ? ' is-invalid' : '';
     const badAttr = bad ? { 'aria-invalid': true } : {};
     if (typeof f !== 'string') {
+      const k = answerKey(f.id);
+      // #1770 —— 另外五种（文件头）。`text` 那一行一个字节没动。
+      if (f.type === 'textarea') {
+        return <textarea id={id} className={`${sz.control}${bad}`} rows={3} placeholder={hint(f)} aria-label={label(f)} value={values[k] || ''} onChange={set(k, f.id)} maxLength={500} data-field={f.id} {...req} {...badAttr} />;
+      }
+      if (f.type === 'select') {
+        return (
+          <select id={id} className={`${sz.select}${bad}`} aria-label={label(f)} value={values[k] || ''} onChange={set(k, f.id)} data-field={f.id} {...req} {...badAttr}>
+            <option value="">{hint(f)}</option>
+            {opts(f).map((o) => <option key={o} value={o}>{optText(f, o)}</option>)}
+          </select>
+        );
+      }
+      if (f.type === 'date') {
+        return (
+          <>
+            <label htmlFor={id} className={size === 'sm' ? 'form-label small mb-1' : 'form-label mb-1'}>{hint(f)}</label>
+            <input id={id} className={`${sz.control}${bad}`} type="date" aria-label={label(f)} value={values[k] || ''} onChange={set(k, f.id)} data-field={f.id} {...req} {...badAttr} />
+          </>
+        );
+      }
+      if (f.type === 'radio' || f.type === 'checkbox') {
+        const radio = f.type === 'radio';
+        return (
+          <fieldset id={id} data-field={f.id} data-field-type={f.type} {...(required(f) ? { 'aria-required': true } : {})} {...badAttr}>
+            <legend className={size === 'sm' ? 'form-label small mb-1' : 'form-label mb-1'}>{hint(f)}</legend>
+            {opts(f).map((o) => {
+              const oid = `${id}--${o}`;
+              return (
+                <div key={o} className="form-check">
+                  {radio
+                    ? <input id={oid} className={`form-check-input${bad}`} type="radio" name={id} value={o} checked={values[k] === o} onChange={set(k, f.id)} data-field={f.id} {...(required(f) ? { required: true } : {})} />
+                    : <input id={oid} className={`form-check-input${bad}`} type="checkbox" value={o} checked={(picked[f.id] || []).includes(o)} onChange={toggle(f, o)} data-field={f.id} />}
+                  <label className="form-check-label" htmlFor={oid}>{optText(f, o)}</label>
+                </div>
+              );
+            })}
+          </fieldset>
+        );
+      }
       return <input id={id} className={`${sz.control}${bad}`} type="text" placeholder={hint(f)} aria-label={label(f)} value={values[answerKey(f.id)] || ''} onChange={set(answerKey(f.id), f.id)} maxLength={200} data-field={f.id} {...req} {...badAttr} />;
     }
     if (f === 'service') {

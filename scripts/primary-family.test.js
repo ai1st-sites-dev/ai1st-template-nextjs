@@ -131,6 +131,11 @@ const pill = (idx) => painted(bytes(idx.get(famKey(LIGHT, '--x-primary-rgb'))), 
       .map((k) => [`.btn-primary|--x-btn-${k}`, BRIDGED]),
     ...['hover-bg', 'hover-border-color', 'active-bg', 'active-border-color']
       .map((k) => [`.btn-outline-primary|--x-btn-${k}`, BRIDGED]),
+    // #1770 —— 表单的「多选」字段（BlockLeadForm.tsx）让 `form-check-input` 进了 site.css，Bootstrap 那条 `:indeterminate` 复选框
+    //    写死了主色。它画不出来：indeterminate 只能由 JS 设（HTML 里没有这个属性），BlockLeadForm 从不设 ⟹ 访客页上没有任何一个框
+    //    处在这个状态，预览盖不盖它看不出差别。（勾上时那条 `:checked` 走的是变量，本来就跟着主色，不在这份 diff 里。）
+    ...['background-color', 'border-color']
+      .map((k) => ['.form-check-input[type=checkbox]:indeterminate|' + k, 'indeterminate 只能由 JS 设，BlockLeadForm 从不设 ⟹ 页面上画不出来（#1770）']),
   ]);
   const fam = new Set(F.RULES.map(([sel, prop]) => famKey(sel, prop)));
   const list = (css) => { const out = []; postcss.parse(css).walkDecls((d) => out.push([d.parent.selector || d.parent.params, d.prop, d.value])); return out; };

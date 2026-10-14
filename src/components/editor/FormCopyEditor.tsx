@@ -21,9 +21,14 @@
 //    Save 回到 Form fields；自定义字段那一行的 Edit 打开同一页。内置字段的那一页多一个 Required 开关。自定义字段是
 //    `fields` 里的 `{ id, type: 'text' }`，名字在 `labels[id]`（只写这个语言），必填是 `required`（字段 id 的数组）——
 //    形状和规则在 `site-forms.js`，存盘在 `forms-write.js`。id 在 Add 时生成一次，之后改名字不变。
+// #1770 —— Type 六选一（照 Durable）。带选项的三种（Dropdown / Checkboxes / Radio buttons）在 Add field 页多一个选项列表：加、删、
+//    拖把手排序、改文字；2~10 项（§MIN_OPTIONS / §MAX_OPTIONS），每项 ≤ §LABEL_CAP。选项在 `fields` 里是选项 id（`o-` + 6 位，
+//    Add 时生成一次），文字在 `labels['<字段id>.<选项id>']`（只写这个语言）。改类型：五种之间随便换 —— 换成带选项的、手上还没有选项
+//    ⟹ 先放两项 `Option 1` / `Option 2`；换成不带选项的 ⟹ Save 时选项连同文字一起去掉（存盘那一侧再把每个语言的文字删掉）；
+//    已经收到的答案不受影响（答案存的是当时的文字）。
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { COPY_CAPS, CUSTOM_FIELD_TYPES, CUSTOM_ID_RE, FORM_FIELDS, LABEL_CAP, MAX_CUSTOM_FIELDS, formIdOptions, isCustomField, lacksContactField, primaryChoices } from '../../../scripts/lib/site-forms.js';
+import { COPY_CAPS, CUSTOM_FIELD_TYPES, CUSTOM_ID_RE, FORM_FIELDS, LABEL_CAP, MAX_CUSTOM_FIELDS, MAX_OPTIONS, MIN_OPTIONS, customLabelKeys, formIdOptions, hasOptions, isCustomField, lacksContactField, optionLabelKey, optionsOf, primaryChoices } from '../../../scripts/lib/site-forms.js';
 import type { CustomFormField } from '@/lib/types/config';
 
 export type FormField = 'name' | 'phone' | 'email' | 'message' | 'service';
@@ -35,17 +40,28 @@ const idOf = (f: EditorField): string => (typeof f === 'string' ? f : f.id);
 const isCustom = (f: EditorField): f is CustomFormField => isCustomField(f);
 const sameFields = (a: readonly EditorField[], b: readonly EditorField[]) => a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]));
 const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
-/** #1769 —— Type 下拉的选项（这张票只有一种；T10r-2 往这里加）。 */
+/** #1769 —— Type 下拉的选项；#1770 补齐六种（顺序、叫法照 Durable 的 Add field）。 */
 const CUSTOM_TYPES: { value: CustomFormField['type']; label: string; help: string }[] = [
   { value: 'text', label: 'One line', help: 'A short text answer.' },
+  { value: 'textarea', label: 'Multiple lines', help: 'A longer text answer.' },
+  { value: 'select', label: 'Dropdown', help: 'One choice from a dropdown list.' },
+  { value: 'checkbox', label: 'Checkboxes', help: 'One or more choices from a list.' },
+  { value: 'radio', label: 'Radio buttons', help: 'One choice from a list of buttons.' },
+  { value: 'date', label: 'Date', help: 'A date picked from a calendar.' },
 ];
-/** #1769 —— 新自定义字段的 id：`f-` + 6 位，跟这张表单里已有的不撞（形状合 site-forms.js §CUSTOM_ID_RE）。 */
-function newCustomId(taken: readonly string[]): string {
+/** #1769 —— 新自定义字段的 id：`f-` + 6 位，跟这张表单里已有的不撞（形状合 site-forms.js §CUSTOM_ID_RE）。#1770 —— 选项同理，前缀 `o-`。 */
+function newCustomId(taken: readonly string[], prefix = 'f'): string {
   for (;;) {
-    const id = `f-${Math.random().toString(36).slice(2, 8).padEnd(6, '0')}`;
+    const id = `${prefix}-${Math.random().toString(36).slice(2, 8).padEnd(6, '0')}`;
     if (!taken.includes(id) && CUSTOM_ID_RE.test(id)) return id;
   }
 }
+/** #1770 —— Add field 页手上的一项选项。 */
+type DraftOption = { id: string; label: string };
+const seedOptions = (): DraftOption[] => {
+  const a = newCustomId([], 'o');
+  return [{ id: a, label: 'Option 1' }, { id: newCustomId([a], 'o'), label: 'Option 2' }];
+};
 
 /** 站级表单库里一张的摘要：下拉要 id / name，面板要三句文字、字段、字段名的现值。 */
 export interface EditorFormChoice {
@@ -182,8 +198,10 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   const [required, setRequired] = useState<string[]>(startRequired);
   const setReq = (id: string, on: boolean) => setRequired((r) => (on ? (r.includes(id) ? r : [...r, id]) : r.filter((x) => x !== id)));
   /** #1769 —— Add field 页手上那一份（Save 才写进上面三样；← 回去 = 不要了）。 */
-  const [draft, setDraft] = useState<{ label: string; type: CustomFormField['type']; required: boolean }>({ label: '', type: 'text', required: false });
+  // #1770 —— `options`：带选项的类型才用；换成不带选项的类型时留在手上（换回来还在），Save 时才按类型取舍。
+  const [draft, setDraft] = useState<{ label: string; type: CustomFormField['type']; required: boolean; options: DraftOption[] }>({ label: '', type: 'text', required: false, options: [] });
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOpt, setDragOpt] = useState<number | null>(null);
   const [page, setPage] = useState<Page>('main');
   const [adding, setAdding] = useState(false);
   // Esc 收在 document 上，不挂在对话框元素上：点它的标题字 / 遮罩、或点掉一颗随即消失的「+ Add」按钮后，焦点在 <body>，
@@ -261,16 +279,39 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   /** #1769 —— 打开 Add field 页：`id` 空 = 新加一个；否则改那一个（带上它现在的名字 / 必填）。 */
   const openCustom = (id: string) => {
     const f = fields.find((x) => isCustom(x) && x.id === id) as CustomFormField | undefined;
-    setDraft(f ? { label: labels[f.id] || '', type: f.type, required: required.includes(f.id) } : { label: '', type: 'text', required: false });
+    setDraft(f
+      ? { label: labels[f.id] || '', type: f.type, required: required.includes(f.id), options: (optionsOf(f) as string[]).map((o) => ({ id: o, label: labels[optionLabelKey(f.id, o)] || '' })) }
+      : { label: '', type: 'text', required: false, options: [] });
     setPage(`custom:${id}`);
   };
+  /** #1770 —— 换类型：换成带选项的、手上一项都没有 ⟹ 先放两项。 */
+  const setDraftType = (type: CustomFormField['type']) => setDraft((d) => ({ ...d, type, options: hasOptions(type) && !d.options.length ? seedOptions() : d.options }));
+  const optLen = (o: DraftOption) => Array.from(o.label.trim()).length;
+  /** #1770 —— 选项列表能不能存：2~10 项、每项 1~LABEL_CAP 字（不带选项的类型不看）。 */
+  const optionsOk = (d: typeof draft) => !hasOptions(d.type)
+    || (d.options.length >= MIN_OPTIONS && d.options.length <= MAX_OPTIONS && d.options.every((o) => optLen(o) > 0 && optLen(o) <= LABEL_CAP));
+  const moveOpt = (from: number, to: number) => setDraft((d) => {
+    if (from === to || from < 0 || to < 0 || from >= d.options.length || to >= d.options.length) return d;
+    const next = [...d.options]; const [x] = next.splice(from, 1); next.splice(to, 0, x);
+    return { ...d, options: next };
+  });
   const saveCustom = (id: string) => {
     const label = draft.label.trim();
-    if (!label || Array.from(label).length > LABEL_CAP) return;
+    if (!label || Array.from(label).length > LABEL_CAP || !optionsOk(draft)) return;
     const fid = id || newCustomId(fields.map(idOf));
-    if (id) setFields((list) => list.map((x) => (isCustom(x) && x.id === id ? { id, type: draft.type } : x)));
-    else setFields((list) => [...list, { id: fid, type: draft.type }]);
-    setLabels((l) => ({ ...l, [fid]: label }));
+    // #1770 —— 带选项的类型连同选项 id 一起进结构；不带的不留 `options`。
+    const withOpts = hasOptions(draft.type);
+    const field: CustomFormField = withOpts ? { id: fid, type: draft.type, options: draft.options.map((o) => o.id) } : { id: fid, type: draft.type };
+    if (id) setFields((list) => list.map((x) => (isCustom(x) && x.id === id ? field : x)));
+    else setFields((list) => [...list, field]);
+    setLabels((l) => {
+      // 这个字段原来那几项选项的文字先清掉，再按手上这一份写（删掉的选项、换成不带选项的类型 ⟹ 文字跟着没）。
+      const next: Labels = {};
+      for (const [k, v] of Object.entries(l)) if (!k.startsWith(`${fid}.`)) next[k] = v;
+      next[fid] = label;
+      if (withOpts) for (const o of draft.options) next[optionLabelKey(fid, o.id)] = o.label.trim();
+      return next;
+    });
     setReq(fid, draft.required);
     setPage('fields');
   };
@@ -299,12 +340,13 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     // #1769 —— 自定义字段的名字也在这里（键 = 它的 id）；已经删掉的自定义字段不交（存盘那一侧会连它在每个语言里的名字一起删，
     //    这里再交一句反而因为「表单上没有这个字段」被整笔拒收）。
     const changed: Labels = {};
-    const customIds = fields.filter(isCustom).map((f) => f.id);
+    // #1770 —— 选项的文字（`<字段id>.<选项id>`）也在这里，键表同存盘那一侧（site-forms.js §customLabelKeys）。
+    const customIds = customLabelKeys(fields) as string[];
     for (const k of [...VOCAB, ...customIds] as string[]) {
       const next = (labels[k] || '').trim();
       // #1644 —— 超限、而这个字段已经删掉了：这串字是这次刚打的、从没存过，面板上也没有它那一行（Done 的闸只看还在的
       //    字段，老板看不见也改不了）⟹ 不交。交上去会被整笔拒收，连删字段那一步也存不上。
-      if (!fields.some((f) => idOf(f) === k) && Array.from(next).length > LABEL_CAP) continue;
+      if (!fields.some((f) => idOf(f) === k) && !customIds.includes(k) && Array.from(next).length > LABEL_CAP) continue;
       if (next !== ((form.labels && form.labels[k]) || '').trim()) changed[k] = next;
     }
     if (Object.keys(changed).length) edit.labels = changed;
@@ -433,7 +475,8 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     const id = page.slice('custom:'.length);
     const n = Array.from(draft.label.trim()).length;
     const type = CUSTOM_TYPES.find((t) => t.value === draft.type) || CUSTOM_TYPES[0];
-    const canSave = n > 0 && n <= LABEL_CAP;
+    const canSave = n > 0 && n <= LABEL_CAP && optionsOk(draft);
+    const withOpts = hasOptions(draft.type);
     title = <>{back('fields')}{id ? 'Edit field' : 'Add field'}</>;
     body = (
       <div data-editor-form-custom={id || 'new'}>
@@ -449,12 +492,47 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
         <label style={{ display: 'block', marginBottom: 14 }}>
           <span style={FIELD_LABEL}><span>Type</span></span>
           <select data-editor-form-custom-type="" value={draft.type}
-            onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as CustomFormField['type'] }))}
+            onChange={(e) => setDraftType(e.target.value as CustomFormField['type'])}
             style={{ width: '100%', padding: 8, border: '1px solid #d0d5dd', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, background: '#fff' }}>
             {CUSTOM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
           <span style={HELP}>{type.help}</span>
         </label>
+        {/* #1770 —— 选项列表（只有 Dropdown / Checkboxes / Radio buttons）：把手拖动排序（同字段列表）、改文字、删、加。 */}
+        {withOpts && (
+          <div data-editor-form-options="" style={{ marginBottom: 14 }}>
+            <span style={FIELD_LABEL}><span>Options</span></span>
+            {draft.options.map((o, i) => {
+              const len = optLen(o);
+              return (
+                <div key={o.id} data-editor-form-option={o.id}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                  onDrop={(e) => { e.preventDefault(); if (dragOpt !== null) moveOpt(dragOpt, i); setDragOpt(null); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, opacity: dragOpt === i ? 0.5 : 1 }}>
+                  <span data-editor-form-option-handle={o.id} draggable aria-hidden="true" title="Drag to reorder"
+                    onDragStart={(e) => { setDragOpt(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', o.id); }}
+                    onDragEnd={() => setDragOpt(null)}
+                    style={{ cursor: 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none' }}>⋮⋮</span>
+                  <input type="text" data-editor-form-option-input={o.id} value={o.label} aria-label={`Option ${i + 1}`}
+                    onChange={(e) => { const v = e.target.value; setDraft((d) => ({ ...d, options: d.options.map((x) => (x.id === o.id ? { ...x, label: v } : x)) })); }}
+                    style={{ ...inputStyle(len === 0 || len > LABEL_CAP), flex: 1 }} />
+                  <button type="button" data-editor-form-option-remove={o.id} disabled={draft.options.length <= MIN_OPTIONS}
+                    title={draft.options.length <= MIN_OPTIONS ? `A list needs at least ${MIN_OPTIONS} options.` : 'Remove this option'} aria-label={`Remove option ${i + 1}`}
+                    onClick={() => setDraft((d) => ({ ...d, options: d.options.filter((x) => x.id !== o.id) }))}
+                    style={{ ...small, cursor: draft.options.length <= MIN_OPTIONS ? 'not-allowed' : 'pointer', color: draft.options.length <= MIN_OPTIONS ? '#d0d5dd' : '#344054' }}>🗑</button>
+                </div>
+              );
+            })}
+            {draft.options.some((o) => optLen(o) === 0 || optLen(o) > LABEL_CAP) && (
+              <span data-editor-form-option-why="" style={{ ...HELP, color: '#d92d20' }}>{`Each option needs 1 to ${LABEL_CAP} characters.`}</span>
+            )}
+            {draft.options.length < MAX_OPTIONS
+              ? <button type="button" data-editor-form-option-add=""
+                onClick={() => setDraft((d) => ({ ...d, options: [...d.options, { id: newCustomId(d.options.map((x) => x.id), 'o'), label: `Option ${d.options.length + 1}` }] }))}
+                style={{ ...small, marginTop: 2 }}>+ Add option</button>
+              : <span data-editor-form-option-max="" style={HELP}>{`A list can have at most ${MAX_OPTIONS} options.`}</span>}
+          </div>
+        )}
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14 }}>
           <input type="checkbox" role="switch" data-editor-form-custom-required="" checked={draft.required}
             onChange={(e) => setDraft((d) => ({ ...d, required: e.target.checked }))} />
@@ -568,7 +646,8 @@ export function applyFormCopyEdit(forms: EditorFormChoice[], edit: FormCopyEdit)
       for (const [k, v] of Object.entries(edit.labels || {})) {
         if (v) labels[k] = v; else delete labels[k];
       }
-      if (edit.fields) for (const k of Object.keys(labels)) if (!VOCAB.includes(k as FormField) && !edit.fields.some((x) => idOf(x) === k)) delete labels[k];
+      // #1770 —— 键表同存盘那一侧（§customLabelKeys：自定义字段的名字 + 它们每个选项的文字）。
+      if (edit.fields) { const keep = customLabelKeys(edit.fields) as string[]; for (const k of Object.keys(labels)) if (!VOCAB.includes(k as FormField) && !keep.includes(k)) delete labels[k]; }
       if (Object.keys(labels).length) next.labels = labels; else delete next.labels;
     }
     return next;

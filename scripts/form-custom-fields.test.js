@@ -6,7 +6,7 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 管哪几条：
- *   AC1  表单校验（`site-forms.js`）：一条 text 自定义字段过；type 是 select / 别的 ⟹ 拒；两个语言自定义字段 id 不一致 ⟹ 拒；
+ *   AC1  表单校验（`site-forms.js`）：一条 text 自定义字段过；type 是词表外的 ⟹ 拒（#1770 起另外五种合法，那几格在 form-custom-field-types.test.js）；两个语言自定义字段 id 不一致 ⟹ 拒；
  *        内置 + 自定义混排、带 required ⟹ 过。外加形状边角（没名字 / options / 重复 id / 超个数 / required 指空）。
  *   存盘（`forms-write.js`）：加一个自定义字段 + 名字 + 必填，结构写进每个语言、名字只写这个语言（别的语言先借这一句）；
  *        删掉它 ⟹ 每个语言的名字一起删、required 跟着去掉；type select ⟹ 拒；只改名字 ⟹ 别的语言一个字节不动。
@@ -98,7 +98,8 @@ console.log('── AC1 表单校验（site-forms.js）');
   const one = (f) => sf.formListProblems([f]);
   const only = { ...clone(FORM_EN), fields: ['phone', CAR], required: undefined, labels: { car: 'What car do you drive?' } };
   check(one(only).length === 0, '一条 text 自定义字段 ⟹ 过', one(only).join(' | '));
-  for (const type of ['select', 'textarea', 'date', 42, undefined]) {
+  // #1770 —— select / textarea / date 从这一列挪走了（它们现在合法，form-custom-field-types.test.js 量）；留下词表外的。
+  for (const type of ['file', 'email', 42, undefined]) {
     const f = clone(only); f.fields[1].type = type;
     const got = one(f);
     check(got.length === 1 && /type/.test(got[0]) && /car/.test(got[0]), `type = ${JSON.stringify(type)} ⟹ 拒（报一条）`, got.join(' | '));
@@ -120,7 +121,7 @@ console.log('── AC1 表单校验（site-forms.js）');
     check(p.length >= 1 && p.some((x) => re.test(x)), name, p.join(' | ') || '（0 条）');
   };
   edge('自定义字段没有名字（这个语言 labels 里没有它）⟹ 拒', (f) => { delete f.labels.car; }, /"car" 没有名字/);
-  edge('自定义字段带 options（T10r-2 的）⟹ 拒', (f) => { f.fields[1].options = ['A']; }, /不认识的键/);
+  edge('text 字段带 options ⟹ 拒（#1770 起按类型拒）', (f) => { f.fields[1].options = ['A']; }, /不认识的键/);
   edge('自定义字段 id 跟内置重名 ⟹ 拒', (f) => { f.fields[1] = { id: 'email', type: 'text' }; f.required = ['name']; f.labels = { 'f-note': 'x', email: 'x' }; }, /重名|不止一次/);
   edge('两个自定义字段同 id ⟹ 拒', (f) => { f.fields.push({ id: 'car', type: 'text' }); }, /不止一次/);
   edge('id 形状不对（空格开头）⟹ 拒', (f) => { f.fields[1] = { id: ' car', type: 'text' }; f.required = ['name']; }, /id/);
@@ -188,10 +189,11 @@ console.log('\n── 存盘（forms-write.js §planFormsWrite）');
     const same = fs.readFileSync(s2.file('en'), 'utf-8') === before[0] && fs.readFileSync(s2.file('zh'), 'utf-8') === before[1];
     check(e && (e.code === fw.REFUSED || e.code === 5) && re.test(e.message) && same, name, e ? `${e.code} ${e.message}` : '没拒');
   };
-  refused({ fields: ['phone', { id: 'car', type: 'select' }], labels: { car: 'Car' } }, /type select/, 'type select ⟹ 拒收，一个字节不写');
+  // #1770 —— 原来这格用 select（那时不认识）；select 现在合法，换成一个词表外的类型量同一件事。
+  refused({ fields: ['phone', { id: 'car', type: 'file' }], labels: { car: 'Car' } }, /type file/, '词表外的 type（file）⟹ 拒收，一个字节不写');
   refused({ fields: ['phone', CAR], required: ['service'] }, /Only a field that is on this form/, 'required 指向表单上没有的字段 ⟹ 拒收');
   refused({ labels: { ghost: 'Ghost' } }, /no field called ghost/, '给一个不存在的自定义字段写名字 ⟹ 拒收');
-  refused({ fields: ['phone', { id: 'car', type: 'text', options: ['A'] }], labels: { car: 'Car' } }, /形状不对/, '自定义字段带 options（T10r-2 的）⟹ 拒收');
+  refused({ fields: ['phone', { id: 'car', type: 'text', options: ['A'] }], labels: { car: 'Car' } }, /不能带 options/, 'text 字段带 options ⟹ 拒收（#1770 起按类型拒）');
 
   // 结构的底稿带上 required 一起比（#1644 那道检查）
   {
@@ -348,8 +350,8 @@ console.log('\n── 提交（happy-dom）');
     await d.click('[data-editor-form-add-custom]');
     const opts = [...d.host.querySelectorAll('[data-editor-form-custom-type] option')].map((o) => o.textContent);
     check(d.page() === 'custom:' && d.q('[data-editor-form-title]').textContent.includes('Add field')
-      && JSON.stringify(opts) === '["One line"]' && /A short text answer\./.test(d.host.textContent) && !!d.q('[data-editor-form-custom-required]'),
-    `Add field 页：Label 一格 · Type 下拉只有 One line（说明「A short text answer.」）· Required 开关（${JSON.stringify(opts)}）`);
+      && opts[0] === 'One line' && opts.length === sf.CUSTOM_FIELD_TYPES.length && /A short text answer\./.test(d.host.textContent) && !!d.q('[data-editor-form-custom-required]'),
+    `Add field 页：Label 一格 · Type 下拉默认 One line（说明「A short text answer.」，#1770 起六种）· Required 开关（${JSON.stringify(opts)}）`);
     check(d.q('[data-editor-form-custom-save]').disabled, 'Label 空着 ⟹ Save 灰着');
     await d.type('[data-editor-form-custom-label]', 'What car do you drive?');
     await d.click('[data-editor-form-custom-required]');
