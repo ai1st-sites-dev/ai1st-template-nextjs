@@ -109,7 +109,8 @@ import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/l
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import { customizeKnobNames, effectiveRegionKnobs, regionKnobChange, regionPresetName, regionPresetPick } from '../../../scripts/lib/region-options.js';
 import BgPicker from '../BgPicker';
-import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
+import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type BusinessContact, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
+import { placeholdersFor } from '@/components/BlockLeadForm';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
@@ -921,12 +922,33 @@ function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'l
   };
 }
 
+/** #1768 —— 表单库里弹窗能改的那几个键（`FormCopyEditor.tsx` §applyFormCopyEdit 换的就是这几个）。 */
+const FORM_VIEW_KEYS = ['name', 'buttonText', 'successMessage', 'fields', 'primary', 'labels'] as const;
+/**
+ * #1768 —— 画布上的表单按编辑器手上那份表单库画（含 Done 了、还在交的那一笔，§canvasForms）：构建时那份站点数据只在重建后才变，
+ *   而弹窗 Done 之后画布要当场看得见（按钮字、字段顺序、占位字）。只换弹窗管的那几个键；那一张里没有的键 = 删掉（回默认那句）。
+ */
+function withForms(site: SiteData, locale: string, forms: EditorFormChoice[]): SiteData {
+  const key = locale || site.defaultLocale;
+  const orig = site.formsByLocale?.[key] ?? site.formsByLocale?.[site.defaultLocale];
+  if (!orig || !orig.length || !forms.length) return site;
+  const next = orig.map((f) => {
+    const c = forms.find((x) => x.id === f.id);
+    if (!c) return f;
+    const o = { ...f } as Record<string, unknown>;
+    for (const k of FORM_VIEW_KEYS) { if (c[k] === undefined) delete o[k]; else o[k] = c[k]; }
+    return o as unknown as typeof f;
+  });
+  return { ...site, formsByLocale: { ...site.formsByLocale, [key]: next } };
+}
+
 /** root 的画法：外壳 + 把面板里的 Business info 交给画布上的块（§LiveSiteContext）。 */
 function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: ShellOverride; children?: ReactNode }) {
   const { brandName, phone, email, address, logoUrl, headerCta, headerCtaSecondary, navMenu } = props;
+  const { canvasForms } = useContext(FormsContext);
   const live = useMemo(
-    () => withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address }), locale, { logoUrl, headerCta, headerCtaSecondary, navMenu }),
-    [site, locale, brandName, phone, email, address, logoUrl, headerCta, headerCtaSecondary, navMenu],
+    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address }), locale, { logoUrl, headerCta, headerCtaSecondary, navMenu }), locale, canvasForms),
+    [site, locale, brandName, phone, email, address, logoUrl, headerCta, headerCtaSecondary, navMenu, canvasForms],
   );
   return (
     <LiveSiteContext.Provider value={live}>
@@ -1572,6 +1594,27 @@ function useBlockBarPos(doc: Document, id: string, avoid = false): BarPos | null
   return pos;
 }
 
+/**
+ * #1768 —— 画布上这一块里真画出来的那张表单是哪一张（`BlockLeadForm` 挂的 `data-form-id`，已按「空 = 第一张」解析过）；
+ *   没画表单（旋钮 none / 这个形态不画 / 站没有表单库）⟹ null。按画出来的判，不按旋钮值猜。每帧量，同 §useBlockBarPos。
+ */
+function useCanvasFormId(doc: Document, id: string): string | null {
+  const [formId, setFormId] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    const win = doc.defaultView;
+    if (!win) return;
+    const measure = () => {
+      const comp = doc.querySelector(`[data-puck-component="${CSS.escape(id)}"]`);
+      const next = comp?.querySelector('form[data-form-id]')?.getAttribute('data-form-id') || null;
+      setFormId((p) => (p === next ? p : next));
+    };
+    measure();
+    let raf = win.requestAnimationFrame(function tick() { measure(); raf = win.requestAnimationFrame(tick); });
+    return () => win.cancelAnimationFrame(raf);
+  }, [doc, id]);
+  return formId;
+}
+
 function BlockBars({ doc }: { doc: Document }) {
   const selectedId = usePuck((s) => (s.selectedItem ? String((s.selectedItem.props as ItemProps).id) : null));
   const hovered = useCanvasHover(doc);
@@ -1597,7 +1640,9 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
   const count = usePuck((s) => s.appState.data.content.length);
   const inline = useContext(InlineApiContext);
   const ui = useContext(EditorUiContext);
+  const formsCtx = useContext(FormsContext);
   const pos = useBlockBarPos(doc, id, true);
+  const formId = useCanvasFormId(doc, id);
   const props = (item?.props || {}) as ItemProps;
   const sel = item ? getSelectorForId(id) : undefined;
   if (!item || !sel || props._src?.locked || !pos) return null;
@@ -1638,6 +1683,14 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
     select();
     ui.openDesign(id);
   };
+  // #1768 —— 块里画出了表单（§useCanvasFormId）⟹ Edit form：开那张表单的弹窗（同 Content 页「Edit this form」）。注意力移出弹层 ⟹ 先 Cancel 它。
+  const editable = !!formId && formsCtx.forms.some((f) => f.id === formId);
+  const editForm = () => {
+    if (!formId) return;
+    if (ui?.design) ui.cancelDesign();
+    select();
+    formsCtx.editForm(formId);
+  };
   // #1757 —— AI Edit 打开面板的 AI 页（不再开左栏聊天，左栏开着就照旧开着），光标放进那一页的输入框；其余同 Edit content。
   //   上了锁（AI 正在改）这颗灰掉，同 Design（PM 裁定：§openDesign 上锁时直接 return，不灰就是一颗点了没反应的按钮）。
   //   没有预设的块（今天没有）开不了面板 ⟹ 照旧开左栏聊天。
@@ -1670,6 +1723,12 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
             {BLOCKBAR_ICON.edit}
             <span style={BLOCKBAR_TEXT}>Edit content</span>
           </ActionBar.Action>
+          {editable && (
+            <ActionBar.Action label="Edit form" onClick={editForm} disabled={formsCtx.locked} data-editor-block-action="form">
+              {BLOCKBAR_ICON.edit}
+              <span style={BLOCKBAR_TEXT}>Edit form</span>
+            </ActionBar.Action>
+          )}
           <ActionBar.Action label="AI Edit" onClick={aiEdit} disabled={!ui || ui.locked} data-editor-block-action="ai">
             {BLOCKBAR_ICON.ai}
             <span style={BLOCKBAR_TEXT}>AI Edit</span>
@@ -2994,6 +3053,9 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const [formList, setFormList] = useState<EditorFormChoice[]>(forms);
   const [formEditing, setFormEditing] = useState<string | null>(null);
   const pendingFormRef = useRef<FormCopyEdit | null>(null);
+  // #1768 —— 同 pendingFormRef（Done 了、还没存上的那一笔），画布要据它重画 ⟹ 另存一份 state（§canvasForms）。
+  const [formDraft, setFormDraft] = useState<FormCopyEdit | null>(null);
+  const canvasForms = useMemo(() => (formDraft ? applyFormCopyEdit(formList, formDraft) : formList), [formList, formDraft]);
   const [canvas, setCanvas] = useState<{ key: number; data: PuckLikeData }>({ key: 0, data: initialData });
   const dispatchRef = useRef<PuckDispatch | null>(null);
   const getPuckRef = useRef<GetPuck | null>(null);
@@ -3163,7 +3225,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
           answerLeave(pl.id, false, 'Your changes could not be saved, so the editor stayed on this page.');
         }
         // #1634 —— 没存上的那笔表单文案不留着重发（被拒的话再发一百次也是同一句）：丢掉，原因已经在状态栏，老板重新打开面板再改。
-        if (d.ok !== true && sendingRef.current?.forms && pendingFormRef.current === sendingRef.current.forms) pendingFormRef.current = null;
+        if (d.ok !== true && sendingRef.current?.forms && pendingFormRef.current === sendingRef.current.forms) { pendingFormRef.current = null; setFormDraft(null); }
         if (d.ok !== true) { sendingRef.current = null; reportPending(undefined); }
         return;
       }
@@ -3269,7 +3331,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         if (sent?.forms) {
           const edit = sent.forms;
           setFormList((list) => applyFormCopyEdit(list, edit));
-          if (pendingFormRef.current === edit) pendingFormRef.current = null;
+          if (pendingFormRef.current === edit) { pendingFormRef.current = null; setFormDraft(null); }
         }
         // #1676 —— 这一笔进了文件：它的记录说过的那几条 AI 说明、那几次拖动用掉了。
         if (sent?.aiUsed) aiNotesRef.current = settleAiNotes(aiNotesRef.current, sent.aiUsed);
@@ -4048,7 +4110,25 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const inlineApi: InlineApi = { locked, regenerating, dialogOpen: ui.dialogOpen, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, noteItem, pickImage, regenerateImage, saveNow, openButton };
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
-  const formsCtx = { forms: formList, editForm: (id: string) => setFormEditing(id), locked };
+  const formsCtx = { forms: formList, canvasForms, editForm: (id: string) => setFormEditing(id), locked };
+  // #1768 —— 弹窗的「Business contact information」页：读写的是 Puck root 的 phone / email / address —— Page 面板 Business info（#1681）
+  //   那三格，存盘照旧经 §puckRootChanges（整站一份、记录写 `Business info · Phone`），画布经 §RootShell 当场换。不另写一份。
+  const businessNow = (): BusinessContact => {
+    const g = puckForDesign();
+    const p = g ? rootPropsOf(g) : {};
+    const str = (v: unknown) => (typeof v === 'string' ? v : '');
+    return { phone: str(p.phone), email: str(p.email), address: str(p.address) };
+  };
+  const applyBusinessContact = (contact: Partial<BusinessContact>) => {
+    const g = puckForDesign();
+    if (!g) return;
+    const root = (g.appState.data.root || {}) as Record<string, unknown>;
+    const d = designRef.current;
+    // Design 弹层开着时（从 Content 页的「Edit this form」进来）：它记撤销只记打开 → Done 那一步，中间不记 ⟹ 这一下也不记；
+    //   顶栏 / 页脚的弹层 Cancel 会整份退回 root ⟹ 把这几格并进它打开时那份，Cancel 不会把这里 Done 过的退掉（两件事各自的 Done）。
+    if (d && regionOfDesign(d.id)) d.before = { ...d.before, ...contact };
+    (g.dispatch as unknown as (a: unknown) => void)({ type: 'replaceRoot', root: { ...root, props: { ...rootPropsOf(g), ...contact } }, recordHistory: !d });
+  };
   const editingForm = formEditing ? formList.find((f) => f.id === formEditing) : undefined;
 
   return (
@@ -4077,11 +4157,14 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       {editingForm && (
         <FormCopyDialog
           form={editingForm}
+          business={businessNow()}
+          fieldNames={placeholdersFor(locale)}
           onCancel={() => setFormEditing(null)}
-          onDone={(edit) => {
+          onDone={(edit, contact) => {
             setFormEditing(null);
-            if (!edit) return;
-            pendingFormRef.current = edit;
+            if (contact) applyBusinessContact(contact);
+            if (edit) { pendingFormRef.current = edit; setFormDraft(edit); }
+            if (!edit && !contact) return;
             reportPending(undefined);
             flushAutosave();
           }}

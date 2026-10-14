@@ -14,8 +14,11 @@
 //    第一个联系字段（r4；存盘那一侧 `forms-write.js` 用同一个函数落、同一个函数拒）。
 // 🔴 清空一格 = 交一个空串 = 站里删掉这个键、回到默认那句（`BlockLeadForm` 自己的默认 / 语言默认）。
 // 🔴 站里只有一张表单时不画下拉（选不了别的），只留按钮。
+// #1768 —— 弹窗分页（照 Durable）：第一页三行（联系方式 · 成功提示 · 表单字段）各点进子页 + Submit button label + 表单名；
+//    字段列表每行 Edit 再进一层改字段名 / 快速表单露不露这一格（`primary`，原来那个下拉）。多了一页「联系方式」：改的是站里的资料
+//    （Page 面板 Business info 那三格，整站一份），跟表单那一笔同一个 Done / Cancel。入口多一个：块的浮动条上那颗 Edit form（EditorApp §BlockBar）。
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { COPY_CAPS, FORM_FIELDS, LABEL_CAP, formIdOptions, lacksContactField, primaryChoices } from '../../../scripts/lib/site-forms.js';
 
 export type FormField = 'name' | 'phone' | 'email' | 'message' | 'service';
@@ -53,8 +56,9 @@ const WHY_LAST = 'A form needs at least one field.';
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** EditorApp 递下来的：这个语言的表单库（存成功之后会换成新的）、打开面板、画布是不是锁着。 */
-export const FormsContext = createContext<{ forms: EditorFormChoice[]; editForm: (id: string) => void; locked: boolean }>({
-  forms: [], editForm: () => {}, locked: false,
+// #1768 —— `canvasForms`：画布按它画表单（= `forms` 再套上 Done 了、还在交的那一笔）。
+export const FormsContext = createContext<{ forms: EditorFormChoice[]; canvasForms: EditorFormChoice[]; editForm: (id: string) => void; locked: boolean }>({
+  forms: [], canvasForms: [], editForm: () => {}, locked: false,
 });
 
 /** 选哪张表单的下拉（不止一张时才有）+「Edit this form」。值是 `form.id`，空 = 第一张。 */
@@ -94,18 +98,60 @@ export function FormIdField({ value, onChange, readOnly }: { value: unknown; onC
   );
 }
 
-/** 「Edit this form」弹出的面板。Done ⟹ 回改过的那几格（一格没改 ⟹ null）；Cancel ⟹ 什么都不回。 */
-export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormChoice; onCancel: () => void; onDone: (edit: FormCopyEdit | null) => void }) {
+/** #1768 —— 站里的联系方式（Page 面板「Business info」那三格，Puck root 的 `phone` / `email` / `address`，整站一份）。 */
+export type BusinessContact = { phone: string; email: string; address: string };
+type ContactKey = keyof BusinessContact;
+const CONTACT_KEYS: ContactKey[] = ['phone', 'email', 'address'];
+const CONTACT_LABEL: Record<ContactKey, string> = { phone: 'Phone', email: 'Email', address: 'Address' };
+
+/** #1768 —— 弹窗分页：第一页 + 三个子页（联系方式 / 成功提示 / 字段列表），字段列表再往下一层是某一个字段。 */
+type Page = 'main' | 'contact' | 'success' | 'fields' | `field:${FormField}`;
+const PAGE_TITLE: Record<'contact' | 'success' | 'fields', string> = {
+  contact: 'Business contact information', success: 'Success message', fields: 'Form fields',
+};
+
+/** 照 #1755 按钮弹窗（EditorApp §POPOVER / §POPOVER_BTN）：同宽、同圆角、同字号。 */
+const BOX = { width: 'min(520px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: '#fff', border: '1px solid #d0d5dd', borderRadius: 12, boxShadow: '0 12px 32px rgba(16, 24, 40, 0.18)', fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#344054', lineHeight: 1.3 } as const;
+const BTN = { padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' } as const;
+const FIELD_LABEL = { display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 500, color: '#344054', marginBottom: 4 } as const;
+const HELP = { display: 'block', fontSize: 12, color: '#667085', marginTop: 4 } as const;
+const svg = (d: string) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+);
+// lucide contact / circle-check / list
+const ICON = {
+  contact: svg('M16 2v2M8 2v2M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 14a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM7 20a5 5 0 0 1 10 0'),
+  success: svg('M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14.01l-3-3'),
+  fields: svg('M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'),
+};
+
+/**
+ * 「Edit form」弹窗（#1768 起分页，照 Durable 的 Contact form）。入口两个：块的浮动条上那颗 Edit form、Content 页里「Edit this form」。
+ *   第一页：标题 = 表单名；三行（联系方式 / 成功提示 / 表单字段）各点进子页；Submit button label 一格；最下面表单名一格。
+ *   子页左上角 ← 回上一层。Cancel / Done 每一页都有：Done 把所有页改过的一起交，Cancel 什么都不交（包括子页里改过的）。
+ * Done ⟹ `onDone(表单那一笔 | null, 联系方式改过的那几格 | null)`；两样都没改 ⟹ 两个 null。
+ * 🔴 两样存储不同：表单文案 / 字段名按语言（`forms.json`），联系方式整站一份（`brand.json`）—— 联系方式子页顶上那句说的就是这个。
+ *    在这里只管「改了什么」，怎么交由 EditorApp 管（表单那一笔照旧经存盘的 `forms` 键，联系方式写进 Puck root，同 Page 面板）。
+ * `business` 不传 ⟹ 没有联系方式那一行。`fieldNames` = 访客看到的语言默认字段名（老板没改名时那一行显示它）；不传 ⟹ 字段种类名。
+ */
+export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }: {
+  form: EditorFormChoice;
+  business?: BusinessContact;
+  fieldNames?: Partial<Record<FormField, string>>;
+  onCancel: () => void;
+  onDone: (edit: FormCopyEdit | null, contact?: Partial<BusinessContact> | null) => void;
+}) {
   const [vals, setVals] = useState<Record<CopyKey, string>>({
     name: form.name || '', buttonText: form.buttonText || '', successMessage: form.successMessage || '',
   });
+  const [contact, setContact] = useState<BusinessContact>({ phone: business?.phone || '', email: business?.email || '', address: business?.address || '' });
   const startFields = (form.fields || []).filter((f) => VOCAB.includes(f));
   const [fields, setFields] = useState<FormField[]>(startFields);
   const [primary, setPrimary] = useState<FormField | undefined>(form.primary);
   const [labels, setLabels] = useState<Labels>({ ...(form.labels || {}) });
   const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const first = useRef<HTMLInputElement | null>(null);
-  useEffect(() => { first.current?.focus(); }, []);
+  const [page, setPage] = useState<Page>('main');
+  const [adding, setAdding] = useState(false);
   // Esc 收在 document 上，不挂在对话框元素上：点它的标题字 / 遮罩、或点掉一颗随即消失的「+ Add」按钮后，焦点在 <body>，
   // 元素上的 onKeyDown 收不到 ⟹ 对话框关不掉（#1735 r3）。
   const cancelRef = useRef(onCancel);
@@ -137,6 +183,13 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
       root.removeEventListener('focusout', later);
     };
   }, []);
+  // 换一页 ⟹ 光标进这一页的第一格（没有输入格的页 ⟹ 对话框根元素，焦点照旧留在对话框里）。
+  useEffect(() => {
+    const root = rootRef.current;
+    const first = root?.querySelector<HTMLElement>('input[type="text"], textarea');
+    (first || root)?.focus();
+    setAdding(false);
+  }, [page]);
   const over = KEYS.filter((k) => Array.from(vals[k].trim()).length > CAPS[k]);
   const labelLen = (f: FormField) => Array.from((labels[f] || '').trim()).length;
   const labelsOver = fields.filter((f) => labelLen(f) > LABEL_CAP);
@@ -159,12 +212,20 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
   };
   const add = (f: FormField) => {
     setFields((list) => (list.includes(f) ? list : [...list, f]));
+    setAdding(false);
   };
   const move = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= fields.length || to >= fields.length) return;
     setFields((list) => { const next = [...list]; const [x] = next.splice(from, 1); next.splice(to, 0, x); return next; });
   };
   const why = fields.map(whyKeep).find((w) => w === WHY_CONTACT) || (fields.length === 1 ? WHY_LAST : null);
+  /** 这一行显示的字段名：老板改过的名字；没改过 ⟹ 访客看到的语言默认那句。 */
+  const nameOf = (f: FormField) => (labels[f] || '').trim() || fieldNames?.[f] || KIND[f];
+  /** 超限的都在哪一页（Done 灰着时第一页底下说清楚是哪一格）。 */
+  const blockedWhy = [
+    ...over.map((k) => `${k === 'buttonText' ? 'Submit button label' : LABEL[k]} is too long.`),
+    ...(labelsOver.length ? [`A field name can be at most ${LABEL_CAP} characters.`] : []),
+  ];
   const done = () => {
     if (blocked) return;
     const edit: FormCopyEdit = { id: form.id };
@@ -188,13 +249,168 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
       if (next !== ((form.labels && form.labels[f]) || '').trim()) changed[f] = next;
     }
     if (Object.keys(changed).length) edit.labels = changed;
-    onDone(Object.keys(edit).length > 1 ? edit : null);
+    // 联系方式：只交改过的那几格（空串 = 清掉，同 Page 面板）。
+    const touched: Partial<BusinessContact> = {};
+    if (business) for (const k of CONTACT_KEYS) if (contact[k].trim() !== business[k].trim()) touched[k] = contact[k].trim();
+    onDone(Object.keys(edit).length > 1 ? edit : null, Object.keys(touched).length ? touched : null);
   };
-  const row = { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 } as const;
-  const small = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } as const;
+  const inputStyle = (bad: boolean) => ({ width: '100%', boxSizing: 'border-box', padding: 8, border: `1px solid ${bad ? '#d92d20' : '#d0d5dd'}`, borderRadius: 8, fontFamily: 'inherit', fontSize: 13 } as const);
+  const small = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' } as const;
+  /** 第一页 / 成功提示页那几格文字（带字数）。 */
+  const copyInput = (k: CopyKey, label: string) => {
+    const n = Array.from(vals[k].trim()).length;
+    const common = {
+      'data-editor-form-input': k,
+      value: vals[k],
+      onChange: (e: { target: { value: string } }) => setVals((v) => ({ ...v, [k]: e.target.value })),
+      style: inputStyle(n > CAPS[k]),
+    };
+    return (
+      <label key={k} style={{ display: 'block', marginBottom: 14 }}>
+        <span style={FIELD_LABEL}>
+          <span>{label}</span>
+          <span style={{ fontWeight: 400, color: n > CAPS[k] ? '#d92d20' : '#98a2b3' }}>{`${n} / ${CAPS[k]}`}</span>
+        </span>
+        {k === 'successMessage'
+          ? <textarea {...common} rows={3} style={{ ...common.style, resize: 'vertical' }} />
+          : <input {...common} type="text" />}
+        <span style={HELP}>{HINT[k]}</span>
+      </label>
+    );
+  };
+  const back = (to: Page) => (
+    <button type="button" data-editor-form-back="" aria-label="Back" onClick={() => setPage(to)}
+      style={{ border: 0, background: 'none', padding: '0 6px 0 0', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: '#344054', fontFamily: 'inherit' }}>←</button>
+  );
+  let title: ReactNode;
+  let body: ReactNode;
+  if (page === 'main') {
+    title = vals.name.trim() || form.name || 'Form';
+    const rows: ('contact' | 'success' | 'fields')[] = [...(business ? ['contact' as const] : []), 'success', 'fields'];
+    body = (
+      <>
+        <div style={{ fontSize: 13, color: '#667085', marginBottom: 12 }}>Changes apply everywhere this form is used on the website.</div>
+        <div style={{ border: '1px solid #eaecf0', borderRadius: 8, marginBottom: 16 }}>
+          {rows.map((r, i) => (
+            <div key={r} data-editor-form-section={r} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i ? '1px solid #eaecf0' : 0 }}>
+              <span style={{ color: '#667085', display: 'inline-flex' }}>{ICON[r]}</span>
+              <span style={{ flex: 1, fontWeight: 500, color: '#101828' }}>{PAGE_TITLE[r]}</span>
+              <button type="button" data-editor-form-page={r} onClick={() => setPage(r)} style={small}>Edit</button>
+            </div>
+          ))}
+        </div>
+        {copyInput('buttonText', 'Submit button label')}
+        {copyInput('name', LABEL.name)}
+      </>
+    );
+  } else if (page === 'contact') {
+    title = <>{back('main')}{PAGE_TITLE.contact}</>;
+    body = (
+      <>
+        <div data-editor-form-contact-note="" style={{ fontSize: 13, color: '#667085', marginBottom: 12 }}>Shown on your whole website</div>
+        {CONTACT_KEYS.map((k) => (
+          <label key={k} style={{ display: 'block', marginBottom: 14 }}>
+            <span style={FIELD_LABEL}><span>{CONTACT_LABEL[k]}</span></span>
+            <input type="text" data-editor-form-contact={k} value={contact[k]} onChange={(e) => setContact((c) => ({ ...c, [k]: e.target.value }))} style={inputStyle(false)} />
+          </label>
+        ))}
+      </>
+    );
+  } else if (page === 'success') {
+    title = <>{back('main')}{PAGE_TITLE.success}</>;
+    body = copyInput('successMessage', LABEL.successMessage);
+  } else if (page === 'fields') {
+    title = <>{back('main')}{PAGE_TITLE.fields}</>;
+    const unused = VOCAB.filter((f) => !fields.includes(f));
+    body = (
+      <div data-editor-form-fields="">
+        <div style={{ fontSize: 12, color: '#667085', marginBottom: 8 }}>Drag to reorder. The name is what visitors see in the empty box.</div>
+        {fields.map((f, i) => {
+          const keep = whyKeep(f);
+          return (
+            <div
+              key={f}
+              data-editor-form-row={f}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+              onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) move(dragFrom, i); setDragFrom(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', marginBottom: 6, border: '1px solid #eaecf0', borderRadius: 8, opacity: dragFrom === i ? 0.5 : 1 }}
+            >
+              {/* 只有把手可拖（同 #1637）。 */}
+              <span data-editor-form-handle draggable aria-hidden="true" title="Drag to reorder"
+                onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f); }}
+                onDragEnd={() => setDragFrom(null)}
+                style={{ cursor: 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none' }}>⋮⋮</span>
+              <span data-editor-form-row-name={f} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: labelLen(f) > LABEL_CAP ? '#d92d20' : '#101828' }}>{nameOf(f)}</span>
+              {shownPrimary === f && <span data-editor-form-primary-tag={f} title="Shown in the short form" style={{ fontSize: 11, color: '#175cd3', background: '#eff8ff', borderRadius: 999, padding: '1px 8px' }}>Short form</span>}
+              <button type="button" data-editor-form-field-edit={f} onClick={() => setPage(`field:${f}`)} style={small}>Edit</button>
+              <button type="button" data-editor-form-remove={f} disabled={!!keep} title={keep || `Remove ${KIND[f]}`} aria-label={`Remove ${KIND[f]}`}
+                onClick={() => remove(f)} style={{ ...small, cursor: keep ? 'not-allowed' : 'pointer', color: keep ? '#d0d5dd' : '#344054' }}>🗑</button>
+            </div>
+          );
+        })}
+        {why && <div data-editor-form-remove-why style={{ fontSize: 12, color: '#93370d', marginBottom: 8 }}>{why}</div>}
+        {unused.length > 0 && (
+          <div>
+            <button type="button" data-editor-form-add-open="" aria-expanded={adding} onClick={() => setAdding((a) => !a)} style={small}>+ Add field</button>
+            {adding && (
+              <div data-editor-form-add-menu="" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {unused.map((f) => (
+                  <button key={f} type="button" data-editor-form-add={f} onClick={() => add(f)} style={small}>{fieldNames?.[f] || KIND[f]}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  } else {
+    const f = page.slice('field:'.length) as FormField;
+    const n = labelLen(f);
+    const isContact = (primaryChoices([f]) as FormField[]).length > 0;
+    const on = shownPrimary === f;
+    // 只剩它一个联系字段 ⟹ 关不掉（快速表单必须露一个联系字段）。
+    const only = on && choices.length <= 1;
+    title = <>{back('fields')}{KIND[f]}</>;
+    body = (
+      <>
+        <label style={{ display: 'block', marginBottom: 14 }}>
+          <span style={FIELD_LABEL}>
+            <span>Field name</span>
+            <span style={{ fontWeight: 400, color: n > LABEL_CAP ? '#d92d20' : '#98a2b3' }}>{`${n} / ${LABEL_CAP}`}</span>
+          </span>
+          <input
+            data-editor-form-label={f}
+            type="text"
+            value={labels[f] || ''}
+            // 空 = 访客看到语言默认那句（`BlockLeadForm`，#1631 那一层）—— 占位字就是那句。
+            placeholder={fieldNames?.[f] || 'Default'}
+            aria-label={`${KIND[f]} field name`}
+            onChange={(e) => setLabels((l) => ({ ...l, [f]: e.target.value }))}
+            style={inputStyle(n > LABEL_CAP)}
+          />
+          <span style={HELP}>What visitors see in the empty box. Leave it empty to use the default.</span>
+          {n > LABEL_CAP && <span style={{ ...HELP, color: '#d92d20' }}>{`A field name can be at most ${LABEL_CAP} characters.`}</span>}
+        </label>
+        {isContact && (
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <input type="checkbox" data-editor-form-primary={f} checked={on} disabled={only}
+              onChange={(e) => {
+                if (e.target.checked) setPrimary(f);
+                else { const other = choices.find((x) => x !== f); if (other) setPrimary(other); }
+              }} />
+            <span>
+              <span style={{ display: 'block', fontWeight: 500, color: '#101828' }}>Show this one in the short form</span>
+              <span style={HELP}>The short version of this form shows only one box — Phone or Email, so visitors can always send it.</span>
+            </span>
+          </label>
+        )}
+      </>
+    );
+  }
   return (
     <div
       data-editor-form-dialog={form.id}
+      data-editor-form-page-on={page}
       ref={rootRef}
       tabIndex={-1}
       role="dialog"
@@ -202,94 +418,15 @@ export function FormCopyDialog({ form, onCancel, onDone }: { form: EditorFormCho
       aria-label="Edit form"
       style={{ outline: 'none', position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(16,24,40,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
-      <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 'min(440px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 12px 32px rgba(16,24,40,.24)' }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Edit form</div>
-        <div style={{ fontSize: 13, color: '#667085', marginBottom: 16 }}>Changes apply everywhere this form is used on the website.</div>
-        {startFields.length > 0 && (
-          <div data-editor-form-fields style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Fields</div>
-            <div style={{ fontSize: 12, color: '#667085', marginBottom: 6 }}>Drag to reorder. The name is what visitors see in the empty box — leave it empty to use the default.</div>
-            {fields.map((f, i) => {
-              const keep = whyKeep(f);
-              const n = labelLen(f);
-              return (
-                <div
-                  key={f}
-                  data-editor-form-row={f}
-                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-                  onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) move(dragFrom, i); setDragFrom(null); }}
-                  style={{ ...row, opacity: dragFrom === i ? 0.5 : 1 }}
-                >
-                  {/* 只有把手可拖：整行可拖的话，名字那一格里没法用鼠标选字。 */}
-                  <span data-editor-form-handle draggable aria-hidden="true" title="Drag to reorder"
-                    onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f); }}
-                    onDragEnd={() => setDragFrom(null)}
-                    style={{ cursor: 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none' }}>⋮⋮</span>
-                  <span style={{ width: 64, flex: 'none', fontSize: 12, color: '#667085' }}>{KIND[f]}</span>
-                  <input
-                    data-editor-form-label={f}
-                    type="text"
-                    value={labels[f] || ''}
-                    // 空 = 访客看到语言默认那句（`BlockLeadForm`，#1631 那一层）—— 这里不抄那句，免得两处各写一份。
-                    placeholder="Default"
-                    aria-label={`${KIND[f]} field name`}
-                    onChange={(e) => setLabels((l) => ({ ...l, [f]: e.target.value }))}
-                    style={{ flex: 1, minWidth: 0, padding: 6, border: `1px solid ${n > LABEL_CAP ? '#d92d20' : '#d0d5dd'}`, borderRadius: 6, fontSize: 14 }}
-                  />
-                  <button type="button" data-editor-form-remove={f} disabled={!!keep} title={keep || `Remove ${KIND[f]}`} aria-label={`Remove ${KIND[f]}`}
-                    onClick={() => remove(f)} style={{ ...small, cursor: keep ? 'not-allowed' : 'pointer', color: keep ? '#d0d5dd' : '#344054' }}>✕</button>
-                </div>
-              );
-            })}
-            {labelsOver.length > 0 && (
-              <div style={{ fontSize: 12, color: '#d92d20', marginBottom: 6 }}>{`A field name can be at most ${LABEL_CAP} characters.`}</div>
-            )}
-            {why && <div data-editor-form-remove-why style={{ fontSize: 12, color: '#93370d', marginBottom: 6 }}>{why}</div>}
-            {VOCAB.some((f) => !fields.includes(f)) && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                {VOCAB.filter((f) => !fields.includes(f)).map((f) => (
-                  <button key={f} type="button" data-editor-form-add={f} onClick={() => add(f)} style={small}>{`+ Add ${KIND[f]}`}</button>
-                ))}
-              </div>
-            )}
-            <label style={{ display: 'block' }}>
-              <span style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Quick form field</span>
-              <select data-editor-form-primary value={shownPrimary}
-                onChange={(e) => setPrimary(e.target.value as FormField)}
-                style={{ width: '100%', padding: 6, border: '1px solid #d0d5dd', borderRadius: 6 }}>
-                {choices.map((f) => <option key={f} value={f}>{(labels[f] || '').trim() || KIND[f]}</option>)}
-              </select>
-              <span style={{ display: 'block', fontSize: 12, color: '#667085', marginTop: 4 }}>The short version of this form shows only this one box — Phone or Email, so visitors can always send it.</span>
-            </label>
-          </div>
-        )}
-        {KEYS.map((k, i) => {
-          const n = Array.from(vals[k].trim()).length;
-          const big = k === 'successMessage';
-          const common = {
-            'data-editor-form-input': k,
-            value: vals[k],
-            onChange: (e: { target: { value: string } }) => setVals((v) => ({ ...v, [k]: e.target.value })),
-            style: { width: '100%', padding: 8, border: `1px solid ${n > CAPS[k] ? '#d92d20' : '#d0d5dd'}`, borderRadius: 6, fontFamily: 'inherit', fontSize: 14 },
-          };
-          return (
-            <label key={k} style={{ display: 'block', marginBottom: 14 }}>
-              <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                <span>{LABEL[k]}</span>
-                <span style={{ fontWeight: 400, color: n > CAPS[k] ? '#d92d20' : '#98a2b3' }}>{`${n} / ${CAPS[k]}`}</span>
-              </span>
-              {big
-                ? <textarea {...common} rows={3} style={{ ...common.style, resize: 'vertical' }} />
-                : <input {...common} ref={i === 0 ? first : undefined} type="text" />}
-              <span style={{ display: 'block', fontSize: 12, color: '#667085', marginTop: 4 }}>{HINT[k]}</span>
-            </label>
-          );
-        })}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+      <div style={BOX}>
+        <div data-editor-form-title="" style={{ display: 'flex', alignItems: 'center', padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>{title}</div>
+        <div style={{ padding: '12px 16px', overflowY: 'auto' }}>{body}</div>
+        {blocked && <div data-editor-form-blocked="" style={{ padding: '0 16px 8px', fontSize: 12, color: '#d92d20' }}>{blockedWhy.join(' ')}</div>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
           <button type="button" data-editor-form-cancel onClick={onCancel}
-            style={{ padding: '6px 14px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Cancel</button>
+            style={{ ...BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
           <button type="button" data-editor-form-done onClick={done} disabled={blocked}
-            style={{ padding: '6px 14px', border: 0, borderRadius: 6, background: blocked ? '#98a2b3' : '#1570ef', color: '#fff', cursor: blocked ? 'not-allowed' : 'pointer' }}>Done</button>
+            style={{ ...BTN, border: 0, background: blocked ? '#98a2b3' : '#1d4ed8', color: '#fff', cursor: blocked ? 'not-allowed' : 'pointer' }}>Done</button>
         </div>
       </div>
     </div>
