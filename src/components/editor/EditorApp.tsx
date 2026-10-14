@@ -1181,6 +1181,8 @@ type EditorUi = {
   dismissFillNote: () => void;
   /** #1700 —— Design 弹层开着的那一块（Puck id；null = 没开）和它的四个动作（§openDesign 那段注释是规矩的全文）。 */
   design: string | null;
+  /** #1771 —— 编辑器里有对话框开着（§anyDialogOpen）：画布上的浮动条（块的、顶栏 / 页脚的、条目条）一个都不画。 */
+  dialogOpen: boolean;
   /** #1735 —— `tab` 打开停在哪一页（不给 = Layout）；`focus` = 停在 Content 页时光标放进哪个字段。这一块已经开着 ⟹ 只切页。 */
   openDesign: (id: string, tab?: DesignTab, focus?: string) => void;
   /** #1735 —— 最近一次 §openDesign 要停的那一页（`n` 每次加一：同一块开着时再要一次也认得出来）。 */
@@ -1205,6 +1207,18 @@ type EditorUi = {
   regionDesign: EditorSchema['root']['regions'];
 };
 const EditorUiContext = createContext<EditorUi | null>(null);
+
+/**
+ * #1771 —— 「编辑器里有对话框开着」的唯一判据（Chris 2026-10-13：有对话框出现时浮动条都消失，同 Durable）。
+ * §BlockBars / §RegionBars / §ItemBars 都只读 `ui.dialogOpen`，它由这里算；以后加新的对话框只改这一处。
+ *   · Design 弹层（Layout · Customize · Content · AI）和按钮弹窗（#1755）：`design` 有值（两个都是 §DesignPopover 画的）
+ *   · Edit form 对话框（#1634，§FormCopyDialog）：`formEditing` 有值 —— 右栏的 Form 字段也开它，不一定经过 Design 弹层
+ *   · 换图弹窗：画在 dashboard 那一侧，编辑器这边只知道在等它回话（§pickImage 的 `picking`）
+ * 不算：Revert 的确认框（`data-editor-chat-revert-confirm`）—— 画在左边聊天里或弹层自己里面，不盖画布（#1771 PM 裁定 2）。
+ */
+function anyDialogOpen(s: { design: string | null; formEditing: string | null; picking: boolean }): boolean {
+  return !!s.design || !!s.formEditing || s.picking;
+}
 
 function EditorHeaderActions() {
   const ui = useContext(EditorUiContext);
@@ -1510,8 +1524,6 @@ type BarPos = { bottom: number; left: number; scale: number };
  * 条在画布可视区里的位置：底边 = min(块下沿, 可视区下沿) − 边距，横向在块内居中；块整个不在可视区里 ⟹ null（不出条）。
  * 「可视区」= 画布 iframe 自己的 `innerHeight`（同 §DesignPopover 的 `win.innerHeight`）。每帧量一次（滚动、块变高、挪了位置都跟着走），
  * 没变不重画。
- * #1725 —— Design 弹层开着时「可视区下沿」换成弹层顶边 − POPOVER_BAR_GAP：条不钻到弹层底下，Design 按钮永远点得到。
- *   弹层的顶边从 DOM 读（`data-editor-popover`，还没画出来那一帧是 visibility: hidden，不算）。
  * #1748 —— `avoid`（块的条传，顶栏 / 页脚的条不传）：条盖住这一块里某个小目标（`[data-item]`、图片格 `img[data-slot]`）的
  *   【中心点】时在块里往上挪 —— 底边挪到被盖住中心点的那几项里最上面那个的上沿 − 边距，还盖着就接着挪；挪出块上沿 / 可视区顶部
  *   就退回原位（那时靠 §itemKeyAt 按坐标认底下那一项兜底）。块比可视区高时条贴的是可视区下沿，正好压在滚进来的按钮上（azure-29 的 hero）。
@@ -1528,13 +1540,11 @@ function useBlockBarPos(doc: Document, id: string, avoid = false): BarPos | null
       const el = designTargetEl(doc, id); // #1738 —— 顶栏 / 页脚的条也用这一份（§REGION_DESIGN_ID）
       const r = el ? el.getBoundingClientRect() : null;
       const vh = win.innerHeight;
-      const pop = doc.querySelector<HTMLElement>('[data-editor-popover]');
-      const floor = pop && pop.style.visibility !== 'hidden' ? pop.getBoundingClientRect().top - POPOVER_BAR_GAP : vh;
       let next: BarPos | null = null;
       if (r && r.height > 0 && r.bottom > 0 && r.top < vh) {
         const frame = win.frameElement as HTMLElement | null;
         const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
-        next = { bottom: vh - (Math.min(r.bottom, floor) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
+        next = { bottom: vh - (Math.min(r.bottom, vh) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
         const b = avoid && el ? doc.querySelector(`[data-editor-blockbar-for="${CSS.escape(id)}"]`)?.getBoundingClientRect() : null;
         if (el && b && b.height) {
           const targets = Array.from(el.querySelectorAll('[data-item], img[data-slot]')).map((e) => e.getBoundingClientRect()).filter((t) => t.width > 0 && t.height > 0);
@@ -1567,6 +1577,9 @@ function BlockBars({ doc }: { doc: Document }) {
   const hovered = useCanvasHover(doc);
   const inlineOpen = useInlineOpen();
   const typing = useInlineTyping();
+  const ui = useContext(EditorUiContext);
+  // #1771 —— 有对话框开着（§anyDialogOpen）⟹ 一个条都不画；关掉之后按下面的规矩照常出。
+  if (ui && ui.dialogOpen) return null;
   // 字的工具条开着 ⟹ 选中那块不出条（#1658 的互斥；#1754 起只有一句提示的那种不算 —— InlineEdit 不为它置这一位）；
   // 正在打字 ⟹ 悬停也不出条。Enter 结束打字后工具条还在，悬停照常出条。
   const ids = [inlineOpen ? null : selectedId, typing || hovered === selectedId ? null : hovered].filter((x): x is string => !!x);
@@ -1600,10 +1613,9 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
     dispatch({ type: 'setUi', ui: { itemSelector: { index: to, zone } }, recordHistory: true } as never);
   };
   const remove = () => { select(); dispatch({ type: 'remove', index, zone }); };
-  // #1700 —— 有预设的块才有 Design（15 种页面块今天都有）。再点一下 = Cancel（弹层开着时它是唯一不算「点到外面」的地方，§DesignPopover）。
+  // #1700 —— 有预设的块才有 Design（15 种页面块今天都有）。#1771 起弹层开着时条不画（§anyDialogOpen），「再点一下 = Cancel」那一支（#1725）随之撤掉。
   //   别的块的弹层开着时点这一块的 Design：先 Cancel 那一个再开这一个（§openDesign 的规矩：注意力移出弹层一律先 Cancel）。
   const hasPresets = !!inline?.components.get(item.type)?.fields.some((f) => f.control === 'options' && (f.presets || []).length);
-  const designOpen = !!ui && ui.design === id;
   // #1735 —— Edit content 打开 Design 面板的 Content 页（不再开右栏），光标放进「这一块的第一个文字字段」：按谓词现算
   //   （schema 里 `kind: 'text'` 的第一个；hero 是 headline）—— PM 2026-10-11 裁定，不写块名单。这一块的面板已经开着 ⟹ 只切到
   //   Content 页，那一次打开里改过的不动；别的块的开着 ⟹ 先 Cancel 那一个（同 Design）。
@@ -1622,7 +1634,6 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
   };
   const design = () => {
     if (!ui) return;
-    if (designOpen) { ui.cancelDesign(); return; }
     if (ui.design) ui.cancelDesign();
     select();
     ui.openDesign(id);
@@ -1650,7 +1661,7 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
       <ActionBar>
         <ActionBar.Group>
           {hasPresets && (
-            <ActionBar.Action label="Design" onClick={design} disabled={!ui || ui.locked} data-editor-block-action="design" active={designOpen} aria-expanded={designOpen}>
+            <ActionBar.Action label="Design" onClick={design} disabled={!ui || ui.locked} data-editor-block-action="design">
               {BLOCKBAR_ICON.design}
               <span style={BLOCKBAR_TEXT}>Design</span>
             </ActionBar.Action>
@@ -1684,7 +1695,7 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
 /**
  * #1738 —— 顶栏 / 页脚的条：画布上鼠标停在它们上面、或点中了它们，出跟块同一种条，按钮只有 Design · AI Edit（外壳不能挪也不能删；
  * Edit content 归 B 票 —— #1759 给顶栏加上了：Design · Edit content · AI Edit，页脚照旧两颗）。它们不是 Puck 的块 ⟹ 不经过 Puck 的选中：「点中」是这里自己记的（画布里按下鼠标落在它上面 = 点中，
- * 落在别处 = 放开），面板开着的那一个也一直出条（它的 Design 是「再点一下 = Cancel」那颗按钮，同块）。
+ * 落在别处 = 放开）。有对话框开着时一个都不出（#1771，§anyDialogOpen —— 面板开着的那一个也不出，推翻 #1738 的「一直出条」）。
  * 正在打字（同 #1710）时悬停不出条（顶栏 / 页脚里的字今天不能直接点着改，没有字工具条那一层互斥）。
  */
 function regionKeyAt(el: Element): string | null {
@@ -1708,8 +1719,8 @@ function RegionBars({ doc }: { doc: Document }) {
     doc.addEventListener('pointerdown', onDown, true);
     return () => doc.removeEventListener('pointerdown', onDown, true);
   }, [doc]);
-  const open = regionOfDesign(ui ? ui.design : null);
-  const shown = (['header', 'footer'] as const).filter((r) => r === open || r === picked || (!typing && r === hovered));
+  if (ui && ui.dialogOpen) return null;
+  const shown = (['header', 'footer'] as const).filter((r) => r === picked || (!typing && r === hovered));
   return <>{shown.map((r) => <RegionBar key={r} doc={doc} region={r} />)}</>;
 }
 
@@ -1719,9 +1730,7 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
   const id = REGION_DESIGN_ID[region];
   const pos = useBlockBarPos(doc, id);
   if (!pos || !ui) return null;
-  const designOpen = ui.design === id;
   const design = () => {
-    if (designOpen) { ui.cancelDesign(); return; }
     if (ui.design) ui.cancelDesign();
     ui.openDesign(id);
   };
@@ -1741,7 +1750,7 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
       {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
         <ActionBar.Group>
-          <ActionBar.Action label="Design" onClick={design} disabled={ui.locked} data-editor-block-action="design" active={designOpen} aria-expanded={designOpen}>
+          <ActionBar.Action label="Design" onClick={design} disabled={ui.locked} data-editor-block-action="design">
             {BLOCKBAR_ICON.design}
             <span style={BLOCKBAR_TEXT}>Design</span>
           </ActionBar.Action>
@@ -1765,7 +1774,7 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
 /**
  * #1723 —— 条目条：画布里的一项（块的 Section.tsx 挂的 `data-item="stats.2"`）鼠标移上去，它右上角出 ↑ · ↓ · 🗑。
  * 悬停的稳法同块的条（§useCanvasHoverOf，换项稳 100 ms）；停在条目条上 = 停在那一项上，也算停在那一块上（块的条不收，§blockKeyAt）。
- * 不出：正在打字（同 #1710）· Design 弹层开着（弹层里试看的那一份不是存下去的数据）· 锁住的块（`_src.locked`）·
+ * 不出：正在打字（同 #1710）· 有对话框开着（§anyDialogOpen；Design 弹层里试看的那一份也不是存下去的数据）· 锁住的块（`_src.locked`）·
  *   这一项对不上 schema 里的一列（§itemListsOf）· 那一列不是数组（引用写法 `{source}`，面板上那一栏也是只读）。
  * 三颗按钮动的是 Puck 那个数组字段（同右栏，经 Puck 的 `replace`）⟹ 右栏当场同步、Ctrl+Z 照旧；🗑 到 schema 的 `min` 灰掉，
  * 跟右栏同一个数。每按一下另记一条侧记（§recordItemNote）：记录摘要比的是前后两份 JSON，分不出「挪了一项」和「删一项加一项」。
@@ -1779,7 +1788,7 @@ function ItemBars({ doc }: { doc: Document }) {
   // #1760 —— 条上那张图在等生成：那一项的条一直留着（鼠标移开也留着，同原来图上那层）；生成没成那一句，鼠标换了一项就收起。
   const img = useItemImageState();
   useEffect(() => { if (img.note && img.note.item !== hovered) clearItemImageNote(); }, [hovered, img.note]);
-  if (typing || (ui && ui.design)) return null;
+  if (typing || (ui && ui.dialogOpen)) return null;
   const keys = [hovered, img.regen].filter((k, i, all): k is string => !!k && all.indexOf(k) === i);
   return <>{keys.map((k) => {
     const cut = k.lastIndexOf(' ');
@@ -2062,7 +2071,8 @@ const ITEMBAR_NOTE: CSSProperties = { maxWidth: 320, padding: '4px 8px', backgro
  *    id 也换成 `<块 id>~design-<n>`（画布上的 `data-block-id` 不跟真块撞）。
  *
  * 出口（PM 2026-10-11 裁定 1：一律先 Cancel 再做它自己）在这里截的几样：
- *   · 画布里按下鼠标、不在弹层上也不在 Design 那颗按钮上（点别的块 / 空白处 / 点字 / 浮动条上别的按钮）。
+ *   · 画布里按下鼠标、不在弹层上（点别的块 / 空白处 / 点字）。#1771 起弹层开着时画布上没有浮动条（§anyDialogOpen），
+ *     #1725 那条「Design / Edit content 两颗按钮不算点到外面」随之撤掉。
  *     🔴 弹层当场收起，但退回要等这一下点击走完（松开之后）：按下就退回的话，块从试看的样子换回原样、整块重排，
  *        松开时那一下点击落到挪了位的别的东西上 —— 点标题却开不出字的工具条（e2e ⑧ 量到的）。点到的是哪一段字、
  *        哪一块，按老板按下时看到的那一份算；退回之后 InlineEdit 按块 id + slot 自己跟到新位置（§relocate）。
@@ -2098,8 +2108,6 @@ const POPOVER_MIN_H = 300;
 const POPOVER_MAX_VH = 0.5;
 // #1725 —— 弹层底边离画布可视区下沿多远（弹层自己的 px）。
 const POPOVER_EDGE = 16;
-// #1725 —— 弹层开着时，浮动条的底边最低到弹层顶边上面这么远（画布 px，同 BLOCKBAR_GAP 的口径）。
-const POPOVER_BAR_GAP = 8;
 const POPOVER: CSSProperties = {
   position: 'fixed', zIndex: 2147483000, width: POPOVER_W, boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
   background: '#fff', border: `${POPOVER_BORDER}px solid #d0d5dd`, borderRadius: 12, boxShadow: '0 12px 32px rgba(16, 24, 40, 0.18)',
@@ -2499,7 +2507,7 @@ function DesignPopover({ doc }: { doc: Document }) {
     if (!id) return;
     const cancel = () => uiRef.current?.cancelDesign();
     const inside = (t: EventTarget | null) => !!t && typeof (t as Element).closest === 'function'
-      && !!(t as Element).closest('[data-editor-popover], [data-editor-block-action="design"], [data-editor-block-action="edit"]');
+      && !!(t as Element).closest('[data-editor-popover]');
     const win = doc.defaultView;
     let leaving = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -3029,6 +3037,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const rewritesRef = useRef(new Map<string, (r: RewriteResult) => void>());
   // #1693 —— 正在等的那一次选图（同一时刻只有一次）。
   const pickRef = useRef<{ id: string; done: (r: PickImageResult) => void } | null>(null);
+  // #1771 —— 同 pickRef 非空（在等换图弹窗回话），给 §anyDialogOpen 用：ref 变了不重画。
+  const [picking, setPicking] = useState(false);
   // #1713 —— 正在等的那一次 Regenerate（同一时刻只有一次：等的时候画布锁着）。
   const regenRef = useRef<{ id: string; done: (r: RegenerateResult) => void } | null>(null);
   // #1711 —— dashboard 在底稿里带来的行业（选图弹窗 Generate 的默认提示词要它）；没送来 = ''，那一句里就省掉它。
@@ -3202,6 +3212,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         const p = pickRef.current;
         if (!p || r.id !== p.id) return;
         pickRef.current = null;
+        setPicking(false);
         if (d.ok === true && typeof r.url === 'string' && r.url.trim()) p.done({ ok: true, url: r.url.trim(), ...(r.generated === true ? { generated: true } : {}) });
         else if (r.cancelled === true) p.done({ ok: false, cancelled: true });
         else p.done({ ok: false, message: typeof r.message === 'string' && r.message ? r.message : 'The image could not be chosen. Please try again.' });
@@ -3647,6 +3658,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     const id = `pi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return new Promise((resolve) => {
       pickRef.current = { id, done: resolve };
+      setPicking(true);
       const gen = imagePromptFor(current, at);
       postChat({ type: 'ai1st:pick-image', id, current, ...(gen ? gen : {}), ...(opts?.title ? { title: opts.title } : {}), ...(opts?.fresh ? { fresh: opts.fresh } : {}) });
     });
@@ -4022,7 +4034,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       postChat({ type: 'ai1st:chat-revert', messageId });
     },
     fillNote, dismissFillNote: () => setFillNote(null),
-    design, designStart, designTab, setDesignTab, designNotice, openDesign, pickDesign, changeDesign, changeHeader, designError, cancelDesign, doneDesign,
+    design, dialogOpen: anyDialogOpen({ design, formEditing, picking }), designStart, designTab, setDesignTab, designNotice, openDesign, pickDesign, changeDesign, changeHeader, designError, cancelDesign, doneDesign,
     reportHistory,
     regionDesign: schema.root.regions,
   };
@@ -4048,7 +4060,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     <FillingContext.Provider value={filling}>
     <IconTablesContext.Provider value={iconTables || NO_ICON_TABLES}>
     {/* #1740 —— 编辑器页这一侧固定浅色（§EDITOR_LIGHT：挂这一层，不挂 <html>）。 */}
-    <div data-editor-root {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, height: '100vh' }}>
+    <div data-editor-root data-editor-dialog-open={ui.dialogOpen ? '' : undefined} {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, height: '100vh' }}>
       <Puck
         key={canvas.key}
         config={config}
