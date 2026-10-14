@@ -32,13 +32,15 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import path from 'path';
 import EditorApp from '@/components/editor/EditorApp';
-import { getPage, getForms, getBrandName } from '@/lib/config';
+import { getPage, getForms, getBrandName, getNavigation } from '@/lib/config';
 import { isPreviewRender } from '@/lib/render-mode';
 import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
 import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
 import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
 import { editorPages } from '../../../../scripts/lib/editor-pages.js';
+import { navMenuOf } from '../../../../scripts/lib/editor-nav.js';
+import { navMenuToPanel } from '../../../../scripts/lib/nav-editor.js';
 import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
 import { itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import type { IconTable } from '@/components/InlineIcon';
@@ -69,6 +71,13 @@ function trustedOrigin(leadApi: string): string {
   } catch {
     return '';
   }
+}
+
+/** #1759 —— 构建这一份里的顶栏两颗按钮 + 菜单（面板那一份的形状，`nav-editor.js` §navMenuToPanel）。 */
+function headerContent(nav: { header?: { cta?: { label?: string; href?: string }; ctaSecondary?: { label?: string; href?: string } } }, pages: unknown[], locale: string) {
+  const btn = (b?: { label?: string; href?: string }) => ({ label: typeof b?.label === 'string' ? b.label : '', href: typeof b?.href === 'string' ? b.href : '' });
+  const navMenu = navMenuToPanel(navMenuOf(pages), locale);
+  return { headerCta: btn(nav.header?.cta), headerCtaSecondary: btn(nav.header?.ctaSecondary), ...(navMenu ? { navMenu } : {}) };
 }
 
 export default async function EditorPage({ params }: { params: Promise<{ target: string[] }> }) {
@@ -131,6 +140,9 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
         phone: site.brand.locations?.[0]?.phone ?? '',
         email: site.brand.email ?? '',
         address: site.brand.locations?.[0]?.address ?? '',
+        // #1759 —— 顶栏 Content 页：logo、两颗按钮（这种语言的 navigation.json）、菜单（这种语言的页，判据同构建 —— `editor-nav.js`）。
+        logoUrl: site.brand.logoUrl ?? '',
+        ...headerContent(getNavigation(site, locale), pagesByLocale[locale] || [], locale),
       }),
     },
   };

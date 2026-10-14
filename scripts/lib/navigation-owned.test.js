@@ -37,6 +37,15 @@ const TEMPLATE_ROOT = path.join(__dirname, '..', '..');
 // #1666 —— 重写 navigation.json 的那段跟着派生一起搬进了 derive-site.js（sync-config.js 现在只是先跑它、再拼 config-data.ts）。
 //    写回磁盘那一句也换了形状：先记进 §pending（`writeOut(navPath, …)`），全部校验过完才一次写盘 —— 下面认的「写回」两种都算。
 const SYNC_CONFIG = path.join(TEMPLATE_ROOT, 'scripts', 'derive-site.js');
+// #1759 —— 菜单那条规则（`p.navLabel` 才进、顶栏去掉 `p.slug !== ctaSlug` 那一页）从 derive-site.js 原样搬进了
+//    `lib/nav-menu.js`（编辑器预览要同一份）。⑨ / ⑭ 钉的是「这句话描述的耦合在构建代码里还在」⟹ 构建代码 = derive-site.js
+//    + 它为这条规则调用的 nav-menu.js。🔴 只有 derive-site.js 里真的调了 `navMenu.menuLinks(` 才把 nav-menu.js 算进来 ——
+//    不调的话那份文件里的过滤不是构建的规则，算进来就成了恒绿。
+const NAV_MENU = path.join(TEMPLATE_ROOT, 'scripts', 'lib', 'nav-menu.js');
+function buildRuleSource() {
+  const derive = fs.readFileSync(SYNC_CONFIG, 'utf-8');
+  return derive.includes('navMenu.menuLinks(') ? `${derive}\n${fs.readFileSync(NAV_MENU, 'utf-8')}` : derive;
+}
 // ⑩ 的判据源头：渲染那一侧是按这个 interface 写的（#1665 之前 tsc 还会经 src/lib/config.ts 的 cast 拿它去量构建生成的那份数据）。
 const TYPES_FILE = path.join(TEMPLATE_ROOT, 'src', 'lib', 'types', 'config.ts');
 
@@ -389,7 +398,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
 
 // ── ⑨ 那句话不许悄悄变成假话：它描述的耦合必须在 sync-config.js 里真的还在 ──────────────────
 {
-  const src = fs.readFileSync(SYNC_CONFIG, 'utf-8');
+  const src = buildRuleSource();
   const problems = [];
   for (const e of SIDE_EFFECTS) {
     for (const needle of e.coupling) {
@@ -1234,7 +1243,7 @@ function flattenShape(shape, at = '', out = []) {
 // 被正确地拒绝了，却拿到一个照做也长不出栏目的补救办法。跟本票要治的病同一个方向：说的话跟真实
 // 发生的事对不上。
 {
-  const src = fs.readFileSync(SYNC_CONFIG, 'utf-8');
+  const src = buildRuleSource();
   const problems = [];
 
   // ① 每一处那句话靠的是 sync-config.js 里哪几句 —— 逐句必须还在（同 ⑨ 的做法）

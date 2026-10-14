@@ -1086,9 +1086,9 @@ The site is defined by JSON configuration files:
   label and href; it is the button at the top of every page and in the mobile menu), the footer
   copyright, the footer description, the footer column titles, and the topbar. You MAY also add, change or
   remove two optional ones: a second header button (header.ctaSecondary — {"label", "href"}) and the footer
-  legal links (footer.legal — a list of {"label", "href"}, e.g. Privacy policy / Terms). This is the only
-  place in the product where the header buttons and the footer legal links can be changed, so when the
-  owner asks for them, change them here.
+  legal links (footer.legal — a list of {"label", "href"}, e.g. Privacy policy / Terms). The owner can also
+  change the two header buttons in the page editor (the header's Content tab); the footer legal links
+  can only be changed by you. When the owner asks you for any of these, change them here.
   You MAY NOT change the header menu links or the first footer column's links, and you may not add or
   remove footer columns: those are rebuilt on every build and anything you write there is overwritten.
   The menu links and the first footer column's links come from each page's navLabel / navOrder — to

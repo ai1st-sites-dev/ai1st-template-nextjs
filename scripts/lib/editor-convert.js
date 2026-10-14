@@ -681,6 +681,14 @@ function rootToPuck(values) {
   // #1738 —— 顶栏 / 页脚的底色 + 旋钮（一个对象；老站仓里的底稿不带 ⟹ 不放键，编辑器那头留构建时那份）。
   for (const k of ['headerOptions', 'footerOptions']) if (isPlainObject(values[k])) out[k] = { ...values[k] };
   for (const k of ['brandName', 'phone', 'email', 'address']) if (typeof values[k] === 'string') out[k] = values[k];
+  // #1759 —— 顶栏 Content 页：logo、两颗按钮（`{label, href}`，次按钮没有 = 两格空串）、菜单（`nav-editor.js` 那一份面板数据）。
+  //    `navMenu` 不是分派表里的字段（菜单是从各页推出来的）：存盘时由 `nav-editor.js` §navMenuChanges 单独比，不经 §puckRootChanges。
+  if (typeof values.logoUrl === 'string') out.logoUrl = values.logoUrl;
+  for (const k of ['headerCta', 'headerCtaSecondary']) {
+    const b = values[k];
+    if (isPlainObject(b)) out[k] = { label: typeof b.label === 'string' ? b.label : '', href: typeof b.href === 'string' ? b.href : '' };
+  }
+  if (isPlainObject(values.navMenu)) out.navMenu = clone(values.navMenu);
   return out;
 }
 
@@ -1099,7 +1107,7 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
         continue;
       }
       // #1681 —— Business info 四样是文字框：跟块文字同一个规矩（手改写新值），清空 = `(empty)`。
-      if (typeof v !== 'string') parts.push(name);
+      if (typeof v !== 'string' || ROOT_NAME_ONLY.has(field)) parts.push(name);
       else parts.push(ROOT_CHOICE_FIELDS.has(field) ? `${name} → ${v || '(default)'}` : `${name} · ${quoteText(v)}`);
     }
   }
@@ -1108,6 +1116,8 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
 
 /** 外壳四样里是「选一项」的那几个：记录里带上选了哪一项（`Page layout (whole website) → standard`）。 */
 const ROOT_CHOICE_FIELDS = new Set(['layout', 'headerShape', 'footerShape']);
+/** #1759 —— 值是一个地址的那几格：记录里只说改了哪一格（`Header · Logo`），不把地址念出来。 */
+const ROOT_NAME_ONLY = new Set(['logoUrl']);
 
 /** #1738 —— 顶栏 / 页脚的底色 + 旋钮那两个字段 → 同一区的预设字段（选预设时两个一起变，见 §regionOptionSegments）。 */
 const REGION_OPTION_SHAPE = { headerOptions: 'headerShape', footerOptions: 'footerShape' };

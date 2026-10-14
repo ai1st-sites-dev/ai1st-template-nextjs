@@ -8,8 +8,10 @@
 // 用法：
 //   node scripts/write-editor-save.js '{"page":"<页面 slug>","locale":"<语言，可空>","baseHash":"<sha256，带页面时必填>"}'
 //   stdin：{ "page": <整份页面 JSON，可缺>, "root": { <改过的 root 字段> }, "shared": { <共用块的改动>，#1406 },
-//           "forms": { <一张表单的改动：文案 #1634 / 字段 #1637> } }
-//   （四样都可缺，但不能一样都没有；`shared` 的形状与判据见 `lib/shared-blocks-write.js` 文件头，`forms` 见 `lib/forms-write.js`）
+//           "forms": { <一张表单的改动：文案 #1634 / 字段 #1637> },
+//           "nav": { "<别的页的 slug>": { "navLabel"?: string | null, "navOrder"?: number } } }（#1759，顶栏 Content 页的菜单）
+//   （五样都可缺，但不能一样都没有；`shared` 的形状与判据见 `lib/shared-blocks-write.js` 文件头，`forms` 见 `lib/forms-write.js`，
+//    `nav` 见 `lib/editor-nav.js` —— 它不许点名这一笔的那一页：那一页的 navLabel / navOrder 跟页面 JSON 一起交）
 //
 // 成功时 stdout 打**一行** JSON：{"ok":true,"files":["site/en/pages/home.json","site/theme.json",…],"hash":"<sha256>"}
 //   （`files` 是这次真写了的文件，worker 拿它 `git add`；一个都没写 ⟹ 空数组）
@@ -59,6 +61,7 @@ let pageWrite;
 let editorRoot;
 let sharedWrite;
 let formsWrite;
+let editorNav;
 try {
   blocks = require(path.join(ROOT, 'scripts', 'blocks.js'));
   pageFiles = require(path.join(ROOT, 'scripts', 'lib', 'page-files.js'));
@@ -67,6 +70,7 @@ try {
   editorRoot = require(path.join(ROOT, 'scripts', 'lib', 'editor-root.js'));
   sharedWrite = require(path.join(ROOT, 'scripts', 'lib', 'shared-blocks-write.js'));
   formsWrite = require(path.join(ROOT, 'scripts', 'lib', 'forms-write.js'));
+  editorNav = require(path.join(ROOT, 'scripts', 'lib', 'editor-nav.js'));
   geocode = require(path.join(ROOT, 'scripts', 'lib', 'geocode.js'));
 } catch (e) {
   die(5, `读不到构建脚本：${e.message}`);
@@ -89,14 +93,16 @@ try {
 } catch (e) {
   die(5, `stdin 不是合法 JSON：${e.message}`);
 }
-if (!input || typeof input !== 'object' || Array.isArray(input)) die(5, 'stdin 必须是一个对象 { page?, root?, shared?, forms? }');
+if (!input || typeof input !== 'object' || Array.isArray(input)) die(5, 'stdin 必须是一个对象 { page?, root?, shared?, forms?, nav? }');
 const hasPage = Object.prototype.hasOwnProperty.call(input, 'page') && input.page !== null;
 const root = Object.prototype.hasOwnProperty.call(input, 'root') ? input.root : {};
 const shared = Object.prototype.hasOwnProperty.call(input, 'shared') && input.shared !== null ? input.shared : null;
 // #1634 —— 表单文案（一张表单的 name / buttonText / successMessage）。只改表单的那一笔不带页面、不带 baseHash。
 const forms = Object.prototype.hasOwnProperty.call(input, 'forms') && input.forms !== null ? input.forms : null;
+// #1759 —— 别的页的 navLabel / navOrder（顶栏菜单）。
+const nav = Object.prototype.hasOwnProperty.call(input, 'nav') && input.nav !== null ? input.nav : null;
 const hasRoot = !!root && typeof root === 'object' && Object.keys(root).length > 0;
-if (!hasPage && !hasRoot && !shared && !forms) die(5, '这次存盘既没有页面、也没有 root 字段、也没有共用块、也没有表单');
+if (!hasPage && !hasRoot && !shared && !forms && !nav) die(5, '这次存盘既没有页面、也没有 root 字段、也没有共用块、也没有表单、也没有菜单');
 
 /**
  * #1681 —— 写下去的 brand.json 里地址变了 ⟹ 重查坐标。`before` = 这一笔写之前那份字节（文件原来不在 ⟹ null）。
@@ -133,6 +139,8 @@ async function refreshGeo(brandWrite, before) {
   // #1634 —— 表单那一半同样只判、算字节，跟别的几半一起交给 commitWrites（被拒 ⟹ 页面 / 外壳 / 共用块一个字节都不写）。
   // #1637 —— 改了字段时每个语言那份 forms.json 都要写 ⟹ 回的是一组。
   if (forms) writes.push(...formsWrite.planFormsWrite({ target, forms }));
+  // #1759 —— 菜单那一半：别的页的 navLabel / navOrder，同样只判、算字节（一页写不进去 ⟹ 整笔一个字节都不写，验收 10）。
+  if (nav) writes.push(...editorNav.planNavWrite({ pageFiles, target, slug, nav }));
   writes.push(...editorRoot.planRootWrite({
     siteDir: path.join(ROOT, 'site'),
     localeDir: target.localeDir,
@@ -154,6 +162,7 @@ async function refreshGeo(brandWrite, before) {
     || (e instanceof pageWrite.PageWriteError && e.code === pageWrite.REFUSED)
     || (e instanceof sharedWrite.SharedWriteError && e.code === sharedWrite.REFUSED)
     || (e instanceof formsWrite.FormsWriteError && e.code === formsWrite.REFUSED)
+    || (e instanceof editorNav.NavWriteError && e.code === editorNav.REFUSED)
     // #1644 —— 表单结构底稿过时的那种 10 也带话（它是给老板的英文）。🔴 只开这一种：页面 baseHash 那种 10 的
     //    message 是中文开发原话，worker 的 refusalSentence 不挑语言，放宽了就会推到老板的状态栏上。
     || (e instanceof formsWrite.FormsWriteError && e.code === formsWrite.STALE)) {
@@ -162,6 +171,6 @@ async function refreshGeo(brandWrite, before) {
     die(e.code, e.detail ? `${e.message}\n${e.detail}` : e.message);
   }
   if (e instanceof pageWrite.PageWriteError || e instanceof editorRoot.RootWriteError || e instanceof sharedWrite.SharedWriteError
-    || e instanceof formsWrite.FormsWriteError) die(e.code, e.message);
+    || e instanceof formsWrite.FormsWriteError || e instanceof editorNav.NavWriteError) die(e.code, e.message);
   throw e;
 } })();

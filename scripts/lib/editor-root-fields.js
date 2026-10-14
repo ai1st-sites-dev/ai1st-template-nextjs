@@ -17,6 +17,10 @@
 //   电话 / 地址只管第一家门店（`locations[0]`）：建站只生成一家（#1681 不做）。
 //   #1738 —— headerOptions / footerOptions 也是 `site` 档：顶栏 / 页脚的底色 + 旋钮，值是一个对象（形状与校验在
 //   `region-options.js`），整份换。空对象 = 删掉那个键（回到主题 / 预设的默认）。预设本身仍是 headerShape / footerShape 那两行。
+//   #1759 —— 顶栏 Content 页三样：logoUrl（`brand.json`，整站一份，空串 = 删掉，顶栏画名字）· headerCta / headerCtaSecondary
+//   （这种语言的 `navigation.json` 的 `header.cta` / `header.ctaSecondary`，值是 `{label, href}`；次按钮两格都空 = 删掉那个键）。
+//   🔴 navigation.json 只许钉这两个键：`navigation-owned.js` 那道门守的是 AI 聊天那条路，编辑器这条路不经过它 ——
+//      别的键（菜单、页脚）在这张表里一行都不许有（菜单是从页面推出来的，`lib/editor-nav.js`）。
 
 const ROOT_FIELDS = [
   { field: 'layout', scope: 'site', file: 'page-layout.json', key: ['layoutId'] },
@@ -28,6 +32,9 @@ const ROOT_FIELDS = [
   { field: 'phone', scope: 'site', file: 'brand.json', key: ['locations', 0, 'phone'] },
   { field: 'email', scope: 'site', file: 'brand.json', key: ['email'] },
   { field: 'address', scope: 'site', file: 'brand.json', key: ['locations', 0, 'address'] },
+  { field: 'logoUrl', scope: 'site', file: 'brand.json', key: ['logoUrl'] },
+  { field: 'headerCta', scope: 'locale', file: 'navigation.json', key: ['header', 'cta'] },
+  { field: 'headerCtaSecondary', scope: 'locale', file: 'navigation.json', key: ['header', 'ctaSecondary'] },
 ];
 
 module.exports = { ROOT_FIELDS };

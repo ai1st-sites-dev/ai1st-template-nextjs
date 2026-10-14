@@ -21,6 +21,9 @@
 //   phone / address            → site/brand.json 的 locations[0].phone / .address（只管第一家门店）
 //   headerOptions / footerOptions → site/theme.json 的 regionOptions.header / .footer（#1738：底色 + 旋钮，一个对象；
 //                                空对象 = 删掉那个键）
+//   logoUrl                    → site/brand.json 的 logoUrl（#1759；空串 = 删掉，顶栏画名字）
+//   headerCta / headerCtaSecondary → <语言>/navigation.json 的 header.cta / header.ctaSecondary（#1759，`{label, href}`；
+//                                主按钮两格都不许空，次按钮两格都空 = 删掉那个键、只填一格 = 拒收）
 // 🔴 那张表是唯一的一份：读、写、往返守卫都照它走。少一行 ⟹ 那个字段改了不落盘，守卫点名它
 //    （`scripts/editor-root.test.js` ①）。
 //
@@ -57,6 +60,7 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const LOCALE_SLOT = '{locale}';
 const BRAND_FIELDS = ['brandName', 'email', 'phone', 'address'];
 const REGION_OPTION_FIELDS = ['headerOptions', 'footerOptions'];
+const BUTTON_FIELDS = ['headerCta', 'headerCtaSecondary'];
 
 /**
  * 这个站的默认语言：判据同构建（`sync-config.js` 那段）—— 没有 `site_meta.json` 是扁平老站，默认语言 `en`；
@@ -104,7 +108,29 @@ function readRootValues({ siteDir, localeDir, locale, layoutsDir }) {
     headerOptions: regions.header.options || {},
     footerOptions: regions.footer.options || {},
     ...readBrandValues(siteDir, locale),
+    ...readHeaderButtons(localeDir),
   };
+}
+
+/** #1759 —— `{label, href}`，两样都按字符串取（不是字符串 = ''）。按钮链接只收字符串（`navigation-owned.js` 的 NAV_LINK）。 */
+function buttonOf(v) {
+  const o = isObj(v) ? v : {};
+  return { label: typeof o.label === 'string' ? o.label : '', href: typeof o.href === 'string' ? o.href : '' };
+}
+
+/**
+ * #1759 —— 顶栏右边两颗按钮的现值（这种语言的 `navigation.json`）。次按钮没有 ⟹ 两格都是空串（编辑器那头就是「没有」）。
+ * navigation.json 不在 / 读不出 ⟹ 一个都不回（同 §readBrandValues：不回空值去盖构建时那份）。
+ */
+function readHeaderButtons(localeDir) {
+  let nav;
+  try {
+    nav = JSON.parse(fs.readFileSync(path.join(localeDir, 'navigation.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+  const h = isObj(nav) && isObj(nav.header) ? nav.header : {};
+  return { headerCta: buttonOf(h.cta), headerCtaSecondary: buttonOf(h.ctaSecondary) };
 }
 
 /**
@@ -129,7 +155,8 @@ function readBrandValues(siteDir, locale) {
     brandName = str(n[locale || def] ?? n[def] ?? Object.values(n)[0]);
   }
   const loc = Array.isArray(brand.locations) && isObj(brand.locations[0]) ? brand.locations[0] : {};
-  return { brandName, email: str(brand.email), phone: str(loc.phone), address: str(loc.address) };
+  // #1759 —— logo 也住在 brand.json（顶栏读的就是它，`shell-data.js`）。
+  return { brandName, email: str(brand.email), phone: str(loc.phone), address: str(loc.address), logoUrl: str(brand.logoUrl) };
 }
 
 /** 形状检查：这一份 root 里只许有分派表里的字段，每个的类型对。 */
@@ -159,6 +186,25 @@ function checkShape(root, layouts) {
     if (field in root && typeof root[field] !== 'string') bad(`${field} 必须是字符串：${JSON.stringify(root[field])}`);
   }
   if ('brandName' in root && !root.brandName.trim()) refuse('The website name can\'t be empty. Nothing was changed.');
+  // #1759 —— logo：一个地址（空串 = 删掉）。顶栏两颗按钮：`{label, href}` 两样都是字符串（链接能不能用由 §commitWrites 那道
+  //    链接判据说，同页面块的按钮）。
+  if ('logoUrl' in root && typeof root.logoUrl !== 'string') bad(`logoUrl 必须是字符串：${JSON.stringify(root.logoUrl)}`);
+  for (const field of BUTTON_FIELDS) {
+    if (!(field in root)) continue;
+    const v = root[field];
+    if (!isObj(v) || Object.keys(v).some((k) => k !== 'label' && k !== 'href') || typeof v.label !== 'string' || typeof v.href !== 'string') {
+      bad(`${field} 必须是 {label: string, href: string}：${JSON.stringify(v)}`);
+    }
+  }
+  if ('headerCta' in root && (!root.headerCta.label.trim() || !root.headerCta.href.trim())) {
+    refuse('The main button in the header needs both a name and a link. Nothing was changed.');
+  }
+  if ('headerCtaSecondary' in root) {
+    const { label, href } = root.headerCtaSecondary;
+    if (!label.trim() !== !href.trim()) {
+      refuse('The second button in the header needs both a name and a link. To remove it, clear both. Nothing was changed.');
+    }
+  }
 }
 
 /**
@@ -247,6 +293,14 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       if (empty && isObj(entry.doc[key[0]]) && !Object.keys(entry.doc[key[0]]).length) delete entry.doc[key[0]];
       continue;
     }
+    if (BUTTON_FIELDS.includes(f.field)) {
+      // #1759 —— 次按钮两格都空 = 删掉 `header.ctaSecondary` 那个键（主按钮两格空已在 §checkShape 拒了）。
+      const label = v.label.trim();
+      const href = v.href.trim();
+      setAt(entry.doc, key, label || href ? { label, href } : null);
+      continue;
+    }
+    if (f.field === 'logoUrl') { setAt(entry.doc, key, v.trim() ? v.trim() : null); continue; }
     setAt(entry.doc, key, BRAND_FIELDS.includes(f.field) && f.field !== 'brandName' && !v.trim() ? null : v);
   }
 

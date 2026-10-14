@@ -459,16 +459,9 @@ const navigationByLocale = {};
 const pagesByLocale = {};
 const blogPostsByLocale = {};
 
-// TICKET-133: defensive fallback for the home page navLabel. AI translation
-// and translatePageWithClaude both already translate page.navLabel, so the
-// happy path is `homePage.navLabel` — this map is only used when navLabel is
-// missing (old sites pre-122a / partial translation failure / etc).
-const HOME_LABELS = {
-  en: 'Home', zh: '首页', fr: 'Accueil', es: 'Inicio',
-  ja: 'ホーム', ko: '홈', de: 'Startseite', it: 'Home',
-  pt: 'Início', ru: 'Главная', vi: 'Trang chủ',
-  ar: 'الرئيسية', hi: 'होम', th: 'หน้าแรก',
-};
+// TICKET-133 的首页叫法兜底表 + 顶栏 / 页脚第一列怎么从页面推出来：#1759 起住在 `lib/nav-menu.js`
+// （编辑器顶栏 Content 页的画布预览用同一份，不许两边各写一份）。
+const navMenu = require('./lib/nav-menu.js');
 
 // 「slug → 文件」住在 scripts/lib/page-files.js（#1409 搬过去，编辑器页存盘时要同一份答案）。
 const { readPagesRecursive } = require('./lib/page-files.js');
@@ -715,21 +708,12 @@ for (const locale of locales) {
   // 'Home' here, overwriting AI-translated navigation.json on every prebuild.
   // Use the home page's own navLabel (already translated by AI / 122b
   // translatePageWithClaude); fall back to a native-language map if missing.
-  const homeLabel = homePage.navLabel || HOME_LABELS[locale] || 'Home';
+  // #1759 —— 规则逐字搬进 `lib/nav-menu.js`（编辑器预览同一份）。`ctaSlug` 这一句照旧在这里对 `header.cta.href` 调 `.replace`
+  //    （不是字符串就当场抛，同搬之前）；别改成把 `existingNav.header.cta.href` 直接当参数传 —— `navigation-owned.test.js` ③
+  //    按构造把「existingNav 的一条链流进函数」判成看不见的改动，整份跑不起来。
+  const homeLabel = navMenu.homeLabelOf(homePage.navLabel, locale);
   const ctaSlug = existingNav.header.cta.href.replace(/^\//, '');
-  const headerLinks = [
-    { label: homeLabel, href: '/' },
-    ...regularPages
-      .filter(p => p.navLabel && p.slug !== ctaSlug)
-      .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
-  ];
-
-  const footerLinks = [
-    { label: homeLabel, href: '/' },
-    ...regularPages
-      .filter(p => p.navLabel)
-      .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
-  ];
+  const { header: headerLinks, footer: footerLinks } = navMenu.menuLinks({ homeLabel, regular: regularPages, ctaSlug });
 
   existingNav.header.links = headerLinks;
   if (existingNav.footer.columns.length > 0) {

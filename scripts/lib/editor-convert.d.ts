@@ -65,6 +65,11 @@ export interface RootValues {
   /** #1738 —— 顶栏 / 页脚的底色 + 旋钮（`theme.json` 的 `regionOptions`，形状在 region-options.js） */
   headerOptions?: Record<string, unknown>;
   footerOptions?: Record<string, unknown>;
+  /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、两颗按钮（这种语言的 `navigation.json`）、菜单（面板那一份，nav-editor.js） */
+  logoUrl?: string;
+  headerCta?: { label: string; href: string };
+  headerCtaSecondary?: { label: string; href: string };
+  navMenu?: import('./nav-editor').NavPanel;
 }
 export function rootToPuck(values: RootValues): Record<string, unknown>;
 export function puckRootChanges(args: {

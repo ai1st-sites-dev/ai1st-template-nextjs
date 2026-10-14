@@ -32,23 +32,14 @@
 //    `topbar.message`（§topbarMessage），老站一个字节不改就能重新看见它 —— 只在带 topbar 的两个预设上画。
 
 const { hrefAllowed } = require('./href-allowed');
+const { localizeHref } = require('./nav-menu');
 const { isKeywordPage } = require('./keyword-service');
 const { keywordFooterColumns, serviceIdOfKeywordPath } = require('./keyword-pages');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 
-/**
- * 站内链接按语言加前缀（TICKET-129：默认语言走根路径，其余语言 `/<locale>/…`）。旧库的 header / footer 渲染时各自
- * 调一份 `localizeHref`；新库的块是纯 props、不知道自己在哪种语言下 ⟹ 这一步挪到派生这里做（#1425 QA2 r1 F2：
- * 漏了它，`/zh/*` 上顶栏页脚的每个链接都指回英文页）。判法逐字照旧那份：只动 `/` 开头、不是 `//` 的。
- */
-function localizeHref(href, locale, defaultLocale) {
-  if (!href.startsWith('/') || href.startsWith('//')) return href;
-  if (!locale || locale === defaultLocale) return href;
-  if (href === '/') return `/${locale}`;
-  return `/${locale}${href}`;
-}
+// 站内链接按语言加前缀（TICKET-129）：#1759 起住在 `nav-menu.js`（编辑器顶栏 Content 页的画布预览用同一份），这里照旧导出它。
 
 /** `[{label, href}]` 里两样都是非空字符串的那几项，只留这两个键；href 按语言加前缀。 */
 function links(list, loc) {
