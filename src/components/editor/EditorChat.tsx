@@ -49,10 +49,11 @@ export interface AuditCard {
 
 export interface ChatScope { page: string; locale?: string; blockId?: string; blockIndex?: number }
 
-type Src = { at?: number; entry?: { id?: unknown; ref?: unknown } | null; shared?: string | null; locked?: boolean } | undefined;
+export type Src = { at?: number; entry?: { id?: unknown; ref?: unknown } | null; shared?: string | null; locked?: boolean } | undefined;
 
-/** 选中的块 → 这条消息的范围。认不出这一块在文件里是哪一条（新加的、还没存过）就回 null：发整页范围会误伤。 */
-function scopeOf(src: Src, page: string, locale: string, rawKey: 'blocks' | 'sections'): ChatScope | null {
+/** 选中的块 → 这条消息的范围。认不出这一块在文件里是哪一条（新加的、还没存过）就回 null：发整页范围会误伤。
+ *  #1757 —— 底部面板的 AI 页发消息带的也是它（同一个结果）。 */
+export function scopeOf(src: Src, page: string, locale: string, rawKey: 'blocks' | 'sections'): ChatScope | null {
   if (!src) return null;
   const base = { page, ...(locale ? { locale } : {}) };
   if (src.shared) return { ...base, blockId: src.shared };
@@ -163,7 +164,6 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
           const manual = m.role === 'manual';
           // #1456 —— theme 行跟手改那一行是同一种撤销（回到这一笔之前，后面的一起撤掉），同 dashboard 的聊天。
           const ownChange = manual || m.role === 'theme';
-          const later = ownChange && confirming === m.messageId ? laterChangesAfter(chat.messages, m.messageId as number) : [];
           return (
           <div key={m.key} data-editor-chat-msg={m.role} data-message-id={m.messageId} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
             {manual && <div style={{ fontSize: 11, color: C.faint, marginBottom: 2 }}>You saved</div>}
@@ -179,30 +179,7 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
             </div>
             {m.canRevert && m.messageId != null && (
               confirming === m.messageId ? (
-                <div data-editor-chat-revert-confirm style={{ marginTop: 6, padding: 8, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
-                  {ownChange ? (
-                    <>
-                      {manual ? 'Your website goes back to the way it was before this save.' : 'Your website goes back to the way it looked before this change.'}
-                      {later.length > 0 && (
-                        <>
-                          <div style={{ marginTop: 6 }}>{`This also undoes the ${later.length} change${later.length === 1 ? '' : 's'} made after it:`}</div>
-                          <ul data-editor-chat-revert-also style={{ margin: '4px 0 0', paddingLeft: 18 }}>
-                            {later.map((t, i) => <li key={i}>{t}</li>)}
-                          </ul>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      This undoes the whole AI change for this message and everything after it — on every page it touched,
-                      including shared sections. It can&apos;t be undone step by step.
-                    </>
-                  )}
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button type="button" data-editor-chat-revert-yes onClick={() => { setConfirming(null); onRevert(m.messageId as number); }} style={btn(true)}>Undo it</button>
-                    <button type="button" onClick={() => setConfirming(null)} style={btn(false)}>Cancel</button>
-                  </div>
-                </div>
+                <RevertConfirm m={m} messages={chat.messages} onYes={() => { setConfirming(null); onRevert(m.messageId as number); }} onNo={() => setConfirming(null)} />
               ) : (
                 <div style={{ textAlign: 'right', marginTop: 4 }}>
                   <button
@@ -270,6 +247,46 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
         </div>
       </div>
     </aside>
+  );
+}
+
+/**
+ * 撤销一行之前的确认（「Undo it」/「Cancel」）。#1757 —— 底部面板 AI 页的 ↺ 出的是同一份（正文做什么 4b：跟这里一样的内容）。
+ */
+export function RevertConfirm({ m, messages, onYes, onNo }: {
+  m: EditorChatState['messages'][number];
+  messages: EditorChatState['messages'];
+  onYes: () => void;
+  onNo: () => void;
+}) {
+  const manual = m.role === 'manual';
+  const ownChange = manual || m.role === 'theme';
+  const later = ownChange ? laterChangesAfter(messages, m.messageId as number) : [];
+  return (
+    <div data-editor-chat-revert-confirm style={{ marginTop: 6, padding: 8, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
+      {ownChange ? (
+        <>
+          {manual ? 'Your website goes back to the way it was before this save.' : 'Your website goes back to the way it looked before this change.'}
+          {later.length > 0 && (
+            <>
+              <div style={{ marginTop: 6 }}>{`This also undoes the ${later.length} change${later.length === 1 ? '' : 's'} made after it:`}</div>
+              <ul data-editor-chat-revert-also style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                {later.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          This undoes the whole AI change for this message and everything after it — on every page it touched,
+          including shared sections. It can&apos;t be undone step by step.
+        </>
+      )}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button type="button" data-editor-chat-revert-yes onClick={onYes} style={btn(true)}>Undo it</button>
+        <button type="button" onClick={onNo} style={btn(false)}>Cancel</button>
+      </div>
+    </div>
   );
 }
 

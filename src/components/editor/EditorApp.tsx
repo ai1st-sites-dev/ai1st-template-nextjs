@@ -94,7 +94,7 @@ import { Puck, ActionBar, AutoField, FieldLabel, createUsePuck, useGetPuck, type
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
 import SiteShell, { ShellRegion, type ShellOverride } from '@/components/SiteShell';
-import EditorChat, { type ChatScope, type EditorChatState } from './EditorChat';
+import EditorChat, { RevertConfirm, scopeOf, type ChatScope, type EditorChatState, type Src as ChatSrc } from './EditorChat';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
 import type { AiNote, AiNotes, PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
@@ -113,6 +113,7 @@ import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type Edit
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
+import { designAiRounds, designAiWater } from '../../../scripts/lib/design-ai-rounds.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
 import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
@@ -1122,8 +1123,9 @@ type EditorUi = {
   page: string;
   locale: string;
   rawKey: 'blocks' | 'sections';
-  sendChat: (text: string, scope: ChatScope | null) => void;
-  revertChat: (messageId: number) => void;
+  /** `fromPanel` = 从底部面板的 AI 页发 / 撤（#1757）：面板停在 AI 页时不关（§sendChat）。左边聊天不传。 */
+  sendChat: (text: string, scope: ChatScope | null, fromPanel?: boolean) => void;
+  revertChat: (messageId: number, fromPanel?: boolean) => void;
   /** #1660 —— 新块的 AI 文案没写成，画布上方细条里那一句（null = 不说话；#1741 之前住在 Puck 头部）。 */
   fillNote: string | null;
   dismissFillNote: () => void;
@@ -1133,6 +1135,11 @@ type EditorUi = {
   openDesign: (id: string, tab?: DesignTab, focus?: string) => void;
   /** #1735 —— 最近一次 §openDesign 要停的那一页（`n` 每次加一：同一块开着时再要一次也认得出来）。 */
   designStart: { tab: DesignTab; focus?: string; n: number };
+  /** #1757 —— 面板此刻停在哪一页（住在这里不住在面板里：AI 改这一页时那几处「关不关面板」要据它判，§designOnAi）。 */
+  designTab: DesignTab;
+  setDesignTab: (tab: DesignTab) => void;
+  /** #1757 —— 从 AI 页发出去的那一句没发成 / 正在先存：面板里那一句话（同左边聊天的 notice，只管从面板发的）。 */
+  designNotice: { kind: 'info' | 'error'; text: string } | null;
   pickDesign: (preset: string) => void;
   /** #1708 —— Customize 页改了这一块的一个字段（旋钮 / 开关整份 `options`、背景 `bg`）。undefined = 删掉这个键。 */
   changeDesign: (slot: string, value: unknown) => void;
@@ -1566,7 +1573,17 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
     select();
     ui.openDesign(id);
   };
+  // #1757 —— AI Edit 打开面板的 AI 页（不再开左栏聊天，左栏开着就照旧开着），光标放进那一页的输入框；其余同 Edit content。
+  //   上了锁（AI 正在改）这颗灰掉，同 Design（PM 裁定：§openDesign 上锁时直接 return，不灰就是一颗点了没反应的按钮）。
+  //   没有预设的块（今天没有）开不了面板 ⟹ 照旧开左栏聊天。
   const aiEdit = () => {
+    if (ui && hasPresets) {
+      if (ui.locked) return;
+      if (ui.design && ui.design !== id) ui.cancelDesign();
+      select();
+      ui.openDesign(id, 'ai');
+      return;
+    }
     select();
     dispatch({ type: 'setUi', ui: { leftSideBarVisible: true, plugin: { current: AI_PLUGIN_NAME } } } as never);
     whenFound(() => Array.from(document.querySelectorAll<HTMLTextAreaElement>('[data-editor-chat-input]:not(:disabled)')).find((el) => el.getClientRects().length > 0), (el) => el.focus());
@@ -1588,7 +1605,7 @@ function BlockBar({ doc, id, selected }: { doc: Document; id: string; selected: 
             {BLOCKBAR_ICON.edit}
             <span style={BLOCKBAR_TEXT}>Edit content</span>
           </ActionBar.Action>
-          <ActionBar.Action label="AI Edit" onClick={aiEdit} data-editor-block-action="ai">
+          <ActionBar.Action label="AI Edit" onClick={aiEdit} disabled={!ui || ui.locked} data-editor-block-action="ai">
             {BLOCKBAR_ICON.ai}
             <span style={BLOCKBAR_TEXT}>AI Edit</span>
           </ActionBar.Action>
@@ -1942,8 +1959,11 @@ const popoverTab = (on: boolean): CSSProperties => ({
   color: on ? '#1d4ed8' : '#475467', fontSize: 13, fontWeight: 600, cursor: on ? 'default' : 'pointer', fontFamily: 'inherit',
 });
 // #1755 —— `button` 不是一页：画布上点按钮开的按钮弹窗（§DesignPopover 的 `button` 那一支），借 Design 面板的事务和出口。
-type DesignTab = 'layout' | 'customize' | 'content' | 'button';
-const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content', button: 'Button' };
+// #1757 —— 第四页 AI：输入一句话改这一块（§DesignAi）。只给页面块，顶栏 / 页脚的面板没有它。
+type DesignTab = 'layout' | 'customize' | 'content' | 'ai' | 'button';
+// 「先存再发」那一笔没存上时，左边聊天说的那句（#1757 起面板的 AI 页也说它，正文做什么 6）。
+const SEND_SAVE_FAILED = 'Your message was not sent, because your changes could not be saved first. See the message at the top of the editor.';
+const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content', ai: 'AI', button: 'Button' };
 
 /**
  * #1738 —— Design 面板也给顶栏 / 页脚开。它们不是 Puck 的块（外壳区，`blocks/header/Section.tsx` 文件头），面板认它们用这两个 id
@@ -2038,10 +2058,117 @@ export function DesignContent({ component, item, ui, readOnly }: { component: Ed
   );
 }
 
+// #1757 —— AI 页显示哪几轮（判据在那份文件头里：水位线 + 按发出顺序比字）。
+type ChatRow = EditorChatState['messages'][number];
+
+const AI_C = { border: '#e4e7ec', text: '#101828', sub: '#475467', faint: '#667085', user: '#4f46e5', bot: '#f2f4f7', err: '#fef3f2', errText: '#b42318' };
+
+/**
+ * #1757 —— 面板第四页 AI：一句标题、这一次打开以来的那几轮、输入框（左下角是这一块的名字，右下角发送）。没有 Cancel / Done。
+ *   发出去的就是左边聊天那条路（§sendChat，`fromPanel`），带这一块的范围（同一个 `scopeOf`）。记录照旧在左边聊天里。
+ *   🔴 Enter 发送挂在 textarea 自己的原生 keydown 上：面板的 keydown 在面板那一层就被截住（§DesignPopover 的 stop），
+ *      React 的 onKeyDown 挂在 portal 容器上，永远收不到（#1712 同一条）。
+ */
+function DesignAi({ ui, item, rounds, sentAny, onSent }: {
+  ui: EditorUi;
+  item: { type: string; props: ItemProps };
+  rounds: { user: ChatRow; replies: ChatRow[] }[];
+  /** 这一次打开以来从这一页发过没有：没发过的话 AI 在改的是别处发的那一句，这一页不说「AI is working…」。 */
+  sentAny: boolean;
+  onSent: (text: string) => void;
+}) {
+  const config = usePuck((s) => s.config);
+  const [text, setText] = useState('');
+  const [confirming, setConfirming] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const label = config.components[item.type]?.label || item.type;
+  const chat = ui.chat;
+  const working = (ui.chatPending || !!chat?.busy) && sentAny;
+  const busy = ui.chatPending || !!chat?.busy || !!chat?.reverting;
+  const canSend = !!chat?.enabled && !busy && text.trim().length > 0;
+  const send = () => {
+    if (!canSend) return;
+    const t = text.trim();
+    onSent(t);
+    ui.sendChat(t, scopeOf((item.props as { _src?: ChatSrc })._src, ui.page, ui.locale, ui.rawKey), true);
+    setText('');
+  };
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendRef.current(); } };
+    el.addEventListener('keydown', onKey);
+    return () => el.removeEventListener('keydown', onKey);
+  }, []);
+  const lastReply = rounds.length ? rounds[rounds.length - 1].replies.length : 0;
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight });
+  }, [rounds.length, lastReply, working, chat?.reverting, ui.designNotice]);
+  const bubble = (m: ChatRow): CSSProperties => ({
+    padding: '8px 12px', borderRadius: 10, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+    background: m.role === 'user' ? AI_C.user : m.role === 'error' ? AI_C.err : AI_C.bot,
+    color: m.role === 'user' ? '#fff' : m.role === 'error' ? AI_C.errText : AI_C.text,
+  });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0, flex: 1 }}>
+      <div data-editor-design-ai-title="" style={{ fontSize: 14, fontWeight: 600, color: AI_C.text }}>What would you like to change about this section?</div>
+      <div ref={listRef} data-editor-design-ai-rounds="" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {rounds.map(({ user: m, replies }) => (
+          <div key={m.key} data-editor-design-ai-round={m.messageId ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div data-editor-design-ai-msg="user" style={{ alignSelf: 'flex-end', maxWidth: '88%' }}>
+              <div style={bubble(m)}>{m.text}</div>
+              {m.canRevert && m.messageId != null && (
+                confirming === m.messageId ? (
+                  <RevertConfirm m={m} messages={chat ? chat.messages : []} onYes={() => { setConfirming(null); ui.revertChat(m.messageId as number, true); }} onNo={() => setConfirming(null)} />
+                ) : (
+                  <div style={{ textAlign: 'right', marginTop: 4 }}>
+                    <button type="button" data-editor-design-ai-revert={m.messageId} disabled={busy} onClick={() => setConfirming(m.messageId as number)}
+                      title="Revert to here" aria-label="Revert to here"
+                      style={{ border: `1px solid ${AI_C.border}`, background: '#fff', borderRadius: 6, padding: '2px 8px', fontSize: 13, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>↺</button>
+                  </div>
+                )
+              )}
+            </div>
+            {replies.map((a) => (
+              <div key={a.key} data-editor-design-ai-msg={a.role} style={{ alignSelf: 'flex-start', maxWidth: '88%' }}>
+                <div style={bubble(a)}>{a.text}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+        {working && <p data-editor-design-ai-working="" style={{ margin: 0, fontSize: 13, color: AI_C.faint, fontStyle: 'italic' }}>AI is working…</p>}
+        {chat?.reverting && <p data-editor-design-ai-reverting="" style={{ margin: 0, fontSize: 13, color: AI_C.sub }}>Undoing that change…</p>}
+        {ui.designNotice && (
+          <p data-editor-design-ai-notice={ui.designNotice.kind} style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: ui.designNotice.kind === 'error' ? AI_C.errText : AI_C.sub }}>
+            {ui.designNotice.text}
+          </p>
+        )}
+      </div>
+      <div style={{ border: `1px solid ${AI_C.border}`, borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <textarea ref={inputRef} data-editor-design-ai-input="" value={text} disabled={!chat?.enabled} rows={3}
+          onChange={(e) => setText(e.target.value)} placeholder={`Ask AI to change the ${label} section…`}
+          style={{ width: '100%', boxSizing: 'border-box', resize: 'none', border: 0, outline: 'none', fontSize: 14, fontFamily: 'inherit', color: AI_C.text, background: 'transparent' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span data-editor-design-ai-scope="" style={{ fontSize: 12, color: AI_C.sub, background: AI_C.bot, borderRadius: 6, padding: '2px 8px' }}>{label}</span>
+          <button type="button" data-editor-design-ai-send="" disabled={!canSend} onClick={send}
+            style={{ ...POPOVER_BTN, border: 0, background: '#1d4ed8', color: '#fff', opacity: canSend ? 1 : 0.5, cursor: canSend ? 'pointer' : 'default' }}>Send</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DesignPopover({ doc }: { doc: Document }) {
   const ui = useContext(EditorUiContext);
   const api = useContext(InlineApiContext);
   const id = ui ? ui.design : null;
+  // 监听里要的是最新的那一份（它们只在弹层开 / 关时挂一次）。
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
   // #1738 —— 开的是顶栏 / 页脚：没有 Puck 条目，改的是 root 上那两个字段（§REGION_ROOT）。
   const region = regionOfDesign(id);
   const item = usePuck((s) => (id && !region ? (s.appState.data.content.find((c) => String((c.props as ItemProps).id) === id) || null) : null));
@@ -2053,11 +2180,14 @@ function DesignPopover({ doc }: { doc: Document }) {
   const [bodyH, setBodyH] = useState<Record<string, number>>({});
   // 画布里点到了外面：弹层已经收起、等那一下点击走完再退回（见文件头那段 🔴）。换了一块 / 关掉之后复位。
   const [leaving, setLeaving] = useState(false);
-  // #1708 —— Layout / Customize / Content（#1735）三页；切页不算改动。打开停在哪一页由 §openDesign 定（Design = Layout，Edit content = Content）。
-  const [tab, setTab] = useState<DesignTab>('layout');
+  // #1708 —— Layout / Customize / Content（#1735）/ AI（#1757）四页；切页不算改动。打开停在哪一页由 §openDesign 定（Design = Layout，
+  //   Edit content = Content，AI Edit = AI）。#1757 起这一位住在 EditorApp（§designOnAi 要据它判关不关面板）。
+  const tab: DesignTab = ui ? ui.designTab : 'layout';
+  const setTab = (t: DesignTab) => ui?.setDesignTab(t);
   const start = ui ? ui.designStart : null;
-  useEffect(() => { setLeaving(false); }, [id]);
-  useEffect(() => { if (id && start) setTab(start.tab); }, [id, start?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // #1757 —— AI 页这一次打开以来的那几轮（§designAiRounds）：打开那一刻记水位线（最大的 messageId），关掉就没了。住在这里不住在 §DesignAi：切到别的页它会卸载。
+  const [aiSession, setAiSession] = useState<{ water: { id: number; keys: string[] }; sent: string[] }>({ water: { id: 0, keys: [] }, sent: [] });
+  useEffect(() => { setLeaving(false); setAiSession({ water: designAiWater(uiRef.current?.chat?.messages ?? []), sent: [] }); }, [id]);
   // #1735 —— Edit content：停在 Content 页之后，光标放进那个字段的第一个输入框（面板画出来、那一页挂上之后），页内滚到它。
   useEffect(() => {
     if (!id || !start || start.tab !== 'content') return;
@@ -2073,9 +2203,15 @@ function DesignPopover({ doc }: { doc: Document }) {
       field.querySelector<HTMLElement>('input:not([type=hidden]):not(:disabled), textarea:not(:disabled), select:not(:disabled)')?.focus({ preventScroll: true });
     });
   }, [id, start?.n]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 监听里要的是最新的那一份（它们只在弹层开 / 关时挂一次）。
-  const uiRef = useRef(ui);
-  uiRef.current = ui;
+  // #1757 —— AI Edit：停在 AI 页之后光标放进那一页的输入框。
+  useEffect(() => {
+    if (!id || !start || start.tab !== 'ai') return;
+    whenFound(() => {
+      const box = boxRef.current;
+      if (!box || box.style.visibility !== 'visible') return null;
+      return box.querySelector<HTMLTextAreaElement>('[data-editor-design-ai-input]:not(:disabled)');
+    }, (el) => el.focus({ preventScroll: true }));
+  }, [id, start?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 选中的块换了 / 这一块没了（被撤销、删掉、换了底稿）⟹ Cancel。
   //    顶栏 / 页脚不是 Puck 的块、选中它们不经过 Puck ⟹ 不看这一条（点画布别处由下面的出口收）。
@@ -2275,7 +2411,8 @@ function DesignPopover({ doc }: { doc: Document }) {
   let thumb: (p: NonNullable<EditorField['presets']>[number], i: number) => ReactNode;
   let customize: ReactNode;
   let content: ReactNode = null;
-  let tabs: DesignTab[] = ['layout', 'customize', 'content'];
+  let ai: ReactNode = null;
+  let tabs: DesignTab[] = ['layout', 'customize', 'content', 'ai'];
   if (region && rootProps) {
     // #1738 —— 顶栏 / 页脚。缩略图 = 「选这个预设之后它会长成的样子」：同一个 §ShellRegion（外壳那条 data 路径），形态 + 旋钮按
     //   `region-options.js` §regionPresetPick 算（同 §pickDesign）。Customize 页的旋钮只出 §customizeKnobNames（页脚的 layout 就是预设，
@@ -2343,6 +2480,11 @@ function DesignPopover({ doc }: { doc: Document }) {
     );
     // #1735 —— 这一块的内容字段（右栏那一份，去掉另两页已有的）。
     content = <DesignContent component={component} item={item as { type: string; props: ItemProps }} ui={ui} readOnly={locks} />;
+    ai = (
+      <DesignAi ui={ui} item={item as { type: string; props: ItemProps }}
+        rounds={designAiRounds(ui.chat ? ui.chat.messages : [], aiSession.water, aiSession.sent)} sentAny={aiSession.sent.length > 0}
+        onSent={(t) => setAiSession((x) => ({ ...x, sent: [...x.sent, t] }))} />
+    );
   }
   // #1722 —— 两列各自往下堆：第 1、3、5 个在左列，第 2、4 个在右列，每格紧接着同一列的上一格。DOM 顺序仍是预设顺序
   //    （= Tab 顺序，键盘走的是阅读顺序），位置按算术摆。上限是画布 document 的 px，格子画在按 1/zoom 放大过的弹层里 ⟹ 除回去。
@@ -2366,6 +2508,8 @@ function DesignPopover({ doc }: { doc: Document }) {
   });
   const layoutH = Math.max(0, Math.max(...colH) - THUMB_GAP);
   const shownTab = tabs.includes(tab) ? tab : 'layout';
+  // #1757 —— AI 在改这一页 / 撤回进行中：前三页灰掉（那期间画布换成别处的一份，前三页的试看没有落脚处，正文做什么 6b）。
+  const tabsLocked = ui.locked || !!ui.chat?.reverting;
 
   return createPortal(
     <div ref={boxRef} data-editor-popover="" data-editor-popover-for={id} role="dialog" aria-label="Design"
@@ -2373,12 +2517,17 @@ function DesignPopover({ doc }: { doc: Document }) {
       {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
       <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 12px 0', borderBottom: '1px solid #eaecf0' }}>
         {tabs.map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={shownTab === t} data-editor-design-tab={t} onClick={() => setTab(t)} style={popoverTab(shownTab === t)}>
+          <button key={t} type="button" role="tab" aria-selected={shownTab === t} data-editor-design-tab={t} onClick={() => setTab(t)}
+            disabled={t !== 'ai' && t !== shownTab && tabsLocked} style={{ ...popoverTab(shownTab === t), ...(t !== 'ai' && t !== shownTab && tabsLocked ? { opacity: 0.4, cursor: 'default' } : {}) }}>
             {DESIGN_TAB_LABEL[t]}
           </button>
         ))}
       </div>
-      {shownTab === 'content' ? (
+      {shownTab === 'ai' ? (
+        <div data-editor-design-ai="" style={{ padding: POPOVER_PAD, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+          {ai}
+        </div>
+      ) : shownTab === 'content' ? (
         // #1735 —— 超高在页内滚（面板封顶高见 §tick）。
         <div data-editor-design-content="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
           {content}
@@ -2418,12 +2567,12 @@ function DesignPopover({ doc }: { doc: Document }) {
         </div>
       </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
+      {shownTab !== 'ai' && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
         <button type="button" data-editor-design-cancel="" onClick={() => ui.cancelDesign()}
           style={{ ...POPOVER_BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
         <button type="button" data-editor-design-done="" onClick={() => ui.doneDesign()}
           style={{ ...POPOVER_BTN, border: 0, background: '#1d4ed8', color: '#fff' }}>Done</button>
-      </div>
+      </div>}
     </div>,
     doc.body,
   );
@@ -2484,7 +2633,8 @@ function inContentInput(t: EventTarget | null): boolean {
   if (!t || typeof (t as Element).closest !== 'function') return false;
   const el = t as HTMLElement;
   // #1755 —— 按钮弹窗里的 Button label / 网址 / 号码同一条（票正文做什么 7：Ctrl+Z 只撤框里的字，不关弹窗）。
-  if (!el.closest('[data-editor-design-content], [data-editor-button-dialog]')) return false;
+  // #1757 —— AI 页的输入框同一条（正文做什么 8）。
+  if (!el.closest('[data-editor-design-content], [data-editor-button-dialog], [data-editor-design-ai]')) return false;
   return el.tagName === 'TEXTAREA' || el.isContentEditable
     || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image', 'hidden'].includes((el as HTMLInputElement).type));
 }
@@ -2612,6 +2762,13 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const [design, setDesign] = useState<string | null>(null);
   // #1735 —— 打开时停哪一页（Design 按钮 = Layout，Edit content = Content）。
   const [designStart, setDesignStart] = useState<{ tab: DesignTab; focus?: string; n: number }>({ tab: 'layout', n: 0 });
+  // #1757 —— 面板此刻停在哪一页（ref 给 message 监听 / effect 读）；从 AI 页发出去的那一句的那句话（§noteSend）。
+  const [designTab, setDesignTabState] = useState<DesignTab>('layout');
+  const designTabRef = useRef<DesignTab>('layout');
+  const setDesignTab = (t: DesignTab) => { designTabRef.current = t; setDesignTabState(t); };
+  const [designNotice, setDesignNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
+  // 手上这一次发送是不是从面板的 AI 页发的（它的「没发成」也要在面板里说一遍）。
+  const chatFromPanelRef = useRef(false);
 
   // #1453 —— autosave。画布每变一次（§Autosave）就重新数 AUTOSAVE_IDLE_MS；数到了存一笔（§flushAutosave）。
   // 停着的时候（AI 在改 · 浮条在问他要哪一版）不数；停的原因一解除就重新数一次（下面那个 effect）——
@@ -2650,7 +2807,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   // 身份不变：它经 context 递给 §Autosave，换身份只会多一次无用的重订阅。
   const onCanvasChange = useMemo(() => (d: Data) => onCanvasChangeRef.current(d), []);
   useEffect(() => {
-    if (locked) cancelDesign(); // #1700 —— AI 开始改这一页：弹层里试看的那一下退回（规矩同别的出口）
+    // #1700 —— AI 开始改这一页：弹层里试看的那一下退回（规矩同别的出口）。#1757 —— 面板停在 AI 页（那一句就是从那儿发的）⟹ 不关（§designOnAi）。
+    if (locked && !designOnAi()) cancelDesign();
     reportPending(undefined); // 浮条出来 / 收起、上锁 / 解锁 ⟹ `paused` 变了
     if (locked || kept) { cancelAutosave(); return; }
     scheduleAutosave();
@@ -2701,7 +2859,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         if (d.ok !== true && pc && pc.sending === sendingRef.current) {
           pendingChatRef.current = null;
           setChatPending(false);
-          setChatNotice({ kind: 'error', text: `Your message was not sent. ${text || 'Your changes could not be saved first.'}` });
+          noteSend({ kind: 'error', text: `Your message was not sent. ${text || 'Your changes could not be saved first.'}` }, true);
         }
         // #1448 —— 换页在等的那一笔没存上 ⟹ 不换页，把原因交回去（dashboard 在面板条上说）。同上，只认它等的那一笔。
         const pl = pendingLeaveRef.current;
@@ -2777,7 +2935,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       }
       if (d.type === 'ai1st:chat-sent') {
         setChatPending(false);
-        setChatNotice(d.ok === true ? null : { kind: 'error', text: typeof d.message === 'string' && d.message ? d.message : 'Your message was not sent.' });
+        noteSend(d.ok === true ? null : { kind: 'error', text: typeof d.message === 'string' && d.message ? d.message : 'Your message was not sent.' });
         return;
       }
       if (d.type !== 'ai1st:editor-baseline') return;
@@ -2836,7 +2994,11 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       if (d.reason !== 'open' && d.reason !== 'external' && d.reason !== 'ai') return;
       if (!d.raw || typeof d.raw !== 'object' || !Array.isArray(d.blocks) || !Array.isArray(d.located)) return;
       // #1700 —— 画布要被别处的一份换掉：弹层里试看的那一下先退回，下面「画布上有没有没存的改动」问的才是老板真改过的。
-      cancelDesign();
+      // #1757 —— 面板停在 AI 页（正文做什么 6b）：AI 改完 / 撤回落地（`ai` / `external`）不关，换完画布这一笔的底换成新一版里
+      //   这一块（§rebaseDesign；新一版里没有这一块就关）。§designOnAi 只在前三页没有试看着的改动时放行 ⟹ 上面那条顾虑不成立。
+      //   `open`（重开 / 换页回来）照旧关。
+      const holdDesign = d.reason !== 'open' && designOnAi();
+      if (!holdDesign) cancelDesign();
       const nextRaw = d.raw as Record<string, unknown>;
       const nextLib = isObj(d.siteBlocks) ? d.siteBlocks : {};
       let next: PuckLikeData;
@@ -2910,6 +3072,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
           swapShared(step.histories as unknown as PuckHistory[]);
           dispatchRef.current({ type: 'setData', data: step.current as unknown as Data, recordHistory: false });
         }
+        if (holdDesign) rebaseDesign();
         return;
       }
       // 「画布要不要换」：`open` 问的是「构建之后有没有人改过」，跟打开时那份比。
@@ -2936,6 +3099,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
           swapShared(hs as unknown as PuckHistory[]);
         }
         dispatchRef.current({ type: 'setData', data: next as unknown as Data, recordHistory: false });
+        if (holdDesign) rebaseDesign();
       } else {
         // open：换一个新的 Puck —— 撤销历史跟着清零（历史里那几步是对着烤进去的那份做的）。
         setCanvas((c) => ({ key: c.key + 1, data: next }));
@@ -3064,21 +3228,26 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     window.parent.postMessage(msg, trustedOrigin);
   }
 
-  function sendChat(text: string, scope: ChatScope | null) {
+  function sendChat(text: string, scope: ChatScope | null, fromPanel = false) {
+    chatFromPanelRef.current = fromPanel;
     if (!trustedOrigin || window.parent === window) {
-      setChatNotice({ kind: 'error', text: 'Open this editor from your dashboard to use the AI chat.' });
+      noteSend({ kind: 'error', text: 'Open this editor from your dashboard to use the AI chat.' });
       return;
     }
-    cancelDesign(); // #1700 —— 先退回弹层里试看的那一下，「先存再发」存的才不会带上它
+    // #1700 —— 先退回弹层里试看的那一下，「先存再发」存的才不会带上它。
+    // #1757 —— 从面板的 AI 页发（正文做什么 6 / 6b）：前三页试看着的那一下不退，照 Done 记下来、面板不关（§settleDesign），
+    //   下面「先存再发」把它连同画布上别的没存的一起存掉 ⟹ AI 拿到的就是老板眼前这一版。
+    if (fromPanel && designRef.current && designTabRef.current === 'ai') settleDesign();
+    else cancelDesign();
     const g = getPuckRef.current ? getPuckRef.current() : null;
     if (!g) return;
-    setChatNotice(null);
+    noteSend(null);
     setChatPending(true);
     // 上一笔存盘还在路上（按了 Save 马上发）：先等它落定。这期间画布锁着（chatPending），等到的时候画布
     // 就是点发送那一刻的样子。
     if (sendingRef.current) {
       pendingChatRef.current = { text, scope, sending: sendingRef.current, resave: true };
-      setChatNotice({ kind: 'info', text: 'Saving your changes first, then sending…' });
+      noteSend({ kind: 'info', text: 'Saving your changes first, then sending…' });
       return;
     }
     releaseChat(text, scope, true);
@@ -3091,7 +3260,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     if (resave && keptRef.current) {
       pendingChatRef.current = null;
       setChatPending(false);
-      setChatNotice({ kind: 'error', text: keptBlocksText(keptRef.current, 'message') });
+      noteSend({ kind: 'error', text: keptBlocksText(keptRef.current, 'message') });
       return;
     }
     const g = getPuckRef.current ? getPuckRef.current() : null;
@@ -3104,11 +3273,21 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     if (r === 'error' || r === 'busy' || !sendingRef.current) {
       pendingChatRef.current = null;
       setChatPending(false);
-      setChatNotice({ kind: 'error', text: 'Your message was not sent, because your changes could not be saved first. See the message at the top of the editor.' });
+      noteSend({ kind: 'error', text: SEND_SAVE_FAILED }, true);
       return;
     }
     pendingChatRef.current = { text, scope, sending: sendingRef.current, resave: false };
-    setChatNotice({ kind: 'info', text: 'Saving your changes first, then sending…' });
+    noteSend({ kind: 'info', text: 'Saving your changes first, then sending…' });
+  }
+
+  /**
+   * #1757 —— 发消息那一路的那句话：左边聊天照旧（`chatNotice`）；这一次是从面板的 AI 页发的 ⟹ 面板里也说。
+   *   `saveFailed`：没发成是因为「先存」那一笔没存上 —— 面板里说正文做什么 6 点名的那一句（左边聊天碰到同样情况时的那句），
+   *   原因在编辑器顶上的存盘状态里（两条失败路：交不出去 / 交出去被拒，左边聊天第二条路带着 dashboard 的原因）。
+   */
+  function noteSend(n: { kind: 'info' | 'error'; text: string } | null, saveFailed = false) {
+    setChatNotice(n);
+    if (chatFromPanelRef.current) setDesignNotice(n && saveFailed ? { kind: 'error', text: SEND_SAVE_FAILED } : n);
   }
 
   // #1657 —— 画布工具条上的 AI 按钮：交给 dashboard（它带凭证打 manager），回话在 §onMessage 的 `ai1st:ai-rewrite-result`。
@@ -3302,7 +3481,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     if (lockedRef.current) return;
     // #1735 —— 这一块已经开着（Edit content 点在开着的面板上）：只切页，这一次打开里改过的照旧算在里面。
     if (designRef.current) {
-      if (designRef.current.id === id) setDesignStart((p) => ({ tab, focus, n: p.n + 1 }));
+      if (designRef.current.id === id) { setDesignTab(tab); setDesignStart((p) => ({ tab, focus, n: p.n + 1 })); }
       return;
     }
     const g = puckForDesign();
@@ -3316,6 +3495,9 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       before = found.item.props;
     }
     designRef.current = { id, before };
+    setDesignTab(tab);
+    setDesignNotice(null);
+    chatFromPanelRef.current = false;
     setDesignStart((p) => ({ tab, focus, n: p.n + 1 }));
     setDesign(id);
     cancelAutosave();
@@ -3375,17 +3557,14 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     if (!d) return;
     designRef.current = null;
     setDesign(null);
+    setDesignNotice(null);
     const g = puckForDesign();
     const region = regionOfDesign(d.id);
     const found = region ? null : fillItem(g, d.id);
     const now = g && region ? rootPropsOf(g) : found ? found.item.props : null;
     if (g && now && !deepEqual(now, d.before)) {
       if (commit) {
-        // 同 AI 那一步（§onMessage 的 `reason: ai`）：自己拼进历史，不走 `setData({recordHistory: true})` 的 250ms 防抖。
-        // 当前那一条还是打开之前的画布（弹层里每一下都没记），在它后面接一条「现在」⟹ 一次 Ctrl+Z 回到打开之前。
-        const at = g.history.index;
-        const { indexes: _stale, ...cur } = g.appState as unknown as Record<string, unknown>; // eslint-disable-line @typescript-eslint/no-unused-vars
-        g.history.setHistories([...g.history.histories.slice(0, at + 1).map(noIndexes), { id: `design-${Date.now()}`, state: cur as PuckHistory['state'] }]);
+        recordDesignStep(g);
       } else if (region) {
         setRootProps(g, d.before);
       } else if (found) {
@@ -3398,6 +3577,50 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   }
   function cancelDesign() { closeDesign(false); }
   function doneDesign() { closeDesign(true); }
+  /** Done 那一步：同 AI 那一步（§onMessage 的 `reason: ai`）自己拼进历史，不走 `setData({recordHistory: true})` 的 250ms 防抖。
+   *  当前那一条还是打开之前的画布（弹层里每一下都没记），在它后面接一条「现在」⟹ 一次 Ctrl+Z 回到打开之前。 */
+  function recordDesignStep(g: DesignPuck) {
+    const at = g.history.index;
+    const { indexes: _stale, ...cur } = g.appState as unknown as Record<string, unknown>; // eslint-disable-line @typescript-eslint/no-unused-vars
+    g.history.setHistories([...g.history.histories.slice(0, at + 1).map(noIndexes), { id: `design-${Date.now()}`, state: cur as PuckHistory['state'] }]);
+  }
+
+  /**
+   * #1757 —— 面板停在 AI 页时，AI 改这一页的整个过程中面板不关（正文做什么 6b）。三个动作：
+   *   §designOnAi    「这一下可以不关面板吗」：开着、停在 AI 页、是页面块、前三页没有试看着的改动（有的话 #1700 那条顾虑还在 ⟹ 照旧关）。
+   *   §settleDesign  从 AI 页发送：照 Done 记下前三页那一笔，但不关，底换成现在这份（之后的 Cancel 只退这之后的）。
+   *   §rebaseDesign  画布换成 AI 改完 / 撤回之后的那一版：底换成新一版里这一块（Cancel 不会把 AI 的改动撤掉，做什么 7）；没了 ⟹ 关。
+   *   §resetDesign   从 AI 页点 ↺：试看着的那一下退回（同 #1700「画布被换掉之前先退回」），面板不关。
+   */
+  function designOnAi(): boolean {
+    const d = designRef.current;
+    if (!d || designTabRef.current !== 'ai' || regionOfDesign(d.id)) return false;
+    const found = fillItem(puckForDesign(), d.id);
+    return !!found && deepEqual(found.item.props, d.before);
+  }
+  function settleDesign() {
+    const d = designRef.current;
+    const g = puckForDesign();
+    if (!d || !g || regionOfDesign(d.id)) return;
+    const found = fillItem(g, d.id);
+    if (!found || deepEqual(found.item.props, d.before)) return;
+    recordDesignStep(g);
+    designRef.current = { id: d.id, before: found.item.props };
+  }
+  function rebaseDesign() {
+    const d = designRef.current;
+    if (!d) return;
+    const found = fillItem(puckForDesign(), d.id);
+    if (!found) { cancelDesign(); return; }
+    designRef.current = { id: d.id, before: found.item.props };
+  }
+  function resetDesign() {
+    const d = designRef.current;
+    const g = puckForDesign();
+    const found = d && !regionOfDesign(d.id) ? fillItem(g, d.id) : null;
+    if (!d || !g || !found || deepEqual(found.item.props, d.before)) return;
+    g.dispatch({ type: 'replace', destinationIndex: found.sel.index, destinationZone: found.sel.zone, data: { ...found.item, props: d.before }, recordHistory: false });
+  }
 
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
   function onAction(action: PuckAction, next: { ui?: { rightSideBarVisible?: boolean } }, prev: { data?: { content?: { props?: { id?: unknown } }[] }; ui?: { rightSideBarVisible?: boolean } }) {
@@ -3469,9 +3692,14 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     retrySave: () => flushAutosave(),
     chat, chatNotice, chatPending, page, locale,
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
-    sendChat, revertChat: (messageId) => { cancelDesign(); postChat({ type: 'ai1st:chat-revert', messageId }); },
+    sendChat,
+    // #1757 —— 从面板的 AI 页点 ↺：面板不关，试看着的那一下退回（§resetDesign）；左边聊天点 Undo 照旧先 Cancel 面板（#1700）。
+    revertChat: (messageId, fromPanel) => {
+      if (fromPanel && designRef.current && designTabRef.current === 'ai') resetDesign(); else cancelDesign();
+      postChat({ type: 'ai1st:chat-revert', messageId });
+    },
     fillNote, dismissFillNote: () => setFillNote(null),
-    design, designStart, openDesign, pickDesign, changeDesign, cancelDesign, doneDesign,
+    design, designStart, designTab, setDesignTab, designNotice, openDesign, pickDesign, changeDesign, cancelDesign, doneDesign,
     reportHistory,
     regionDesign: schema.root.regions,
   };
