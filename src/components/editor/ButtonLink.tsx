@@ -5,6 +5,7 @@
 //   · 画布上点按钮开的弹窗（EditorApp §DesignPopover 的 `button` 那一支，Done / Cancel 跟 Design 面板同一个事务）；
 //   · Content 页 / 右栏里按钮列表（`ctas` / `introCtas`，schema 的 `button: true`）展开的那一项（§buttonHrefField 顶替原来的 Link 格，
 //     Button label 是紧跟着的那一格文字）。
+//   #1779 —— 顶栏的两颗按钮（Design 面板 Content 页 + 画布上点它开的弹窗）也用它，只列四类（§REGION_LINK_TYPES）。
 // 选中哪一类不另存：由 `href` 推（`scripts/lib/button-link.js` 文件头那张表）。刚点了一类、那一格还空着（`href` 是空串）时按刚点的那一类显示。
 
 import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
@@ -91,9 +92,18 @@ function Choice({ attr, value, options, empty, onChange, readOnly, label }: {
   );
 }
 
-/** Link Type 那一排 + 所选那一类的一格。`value` 是这颗按钮的 `href`（字符串或 `{source}` 引用），`onChange` 交回新的 `href`。 */
-export function ButtonLinkFields({ value, onChange, readOnly, site, locale }: {
-  value: unknown; onChange: (v: unknown) => void; readOnly?: boolean; site: SiteData; locale: string;
+/**
+ * #1779 —— 顶栏的两颗按钮只给这四类：顶栏画在每一页上，Page section 存的是「这一页的某一块」，到了别的页就指空
+ * （同 #1781 菜单那条；而且 `#…` 也过不了 navigation.json 那道链接判据）。
+ */
+export const REGION_LINK_TYPES: readonly LinkType[] = ['page', 'external', 'email', 'phone'];
+
+/**
+ * Link Type 那一排 + 所选那一类的一格。`value` 是这颗按钮的 `href`（字符串或 `{source}` 引用），`onChange` 交回新的 `href`。
+ * `types`：列哪几类（默认五类全列）。存着的 `href` 推出来的那一类不在里面时（手写过 `#…`）照样亮着它，不悄悄改值。
+ */
+export function ButtonLinkFields({ value, onChange, readOnly, site, locale, types = LINK_TYPES }: {
+  value: unknown; onChange: (v: unknown) => void; readOnly?: boolean; site: SiteData; locale: string; types?: readonly LinkType[];
 }) {
   const sections = useSections();
   const env = useContext(ButtonLinkEnvContext);
@@ -193,7 +203,7 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale }: {
       <div style={ROW}>
         <span style={LABEL}>Link Type</span>
         <div role="radiogroup" aria-label="Link Type" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {LINK_TYPES.map((t) => (
+          {LINK_TYPES.filter((t) => types.includes(t) || t === type).map((t) => (
             <button key={t} type="button" role="radio" aria-checked={t === type} data-editor-link-type={t} disabled={readOnly}
               onClick={() => pick(t)} style={chip(t === type, !!readOnly)}>{TYPE_LABEL[t]}</button>
           ))}
@@ -205,12 +215,12 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale }: {
 }
 
 /** 一颗按钮整份：Link Type + 那一格 + Button label。弹窗用它；`item` 是 `{label, href, …}`，`onChange` 交回换了 `label` / `href` 的整项（别的键原样）。 */
-export function ButtonEditor({ item, onChange, readOnly, site, locale }: {
-  item: Record<string, unknown>; onChange: (next: Record<string, unknown>) => void; readOnly?: boolean; site: SiteData; locale: string;
+export function ButtonEditor({ item, onChange, readOnly, site, locale, types }: {
+  item: Record<string, unknown>; onChange: (next: Record<string, unknown>) => void; readOnly?: boolean; site: SiteData; locale: string; types?: readonly LinkType[];
 }) {
   return (
     <div data-editor-button-editor="">
-      <ButtonLinkFields value={item.href} onChange={(href) => onChange(withButton(item, { href }))} readOnly={readOnly} site={site} locale={locale} />
+      <ButtonLinkFields value={item.href} onChange={(href) => onChange(withButton(item, { href }))} readOnly={readOnly} site={site} locale={locale} types={types} />
       <div style={ROW}>
         <label style={LABEL}>Button label</label>
         <input data-editor-button-label="" type="text" aria-label="Button label" value={typeof item.label === 'string' ? item.label : ''} readOnly={readOnly}

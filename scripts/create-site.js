@@ -1592,7 +1592,9 @@ async function main() {
         forms: siteFormsFrom(content.ai && content.ai.forms, undefined, defaultLocale),
         additionalContext,
         sitePrimaryKeyword: (targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }) || {}).keyword || '',
-        ctaHref: (content.navigation && content.navigation.header && content.navigation.header.cta && content.navigation.header.cta.href) || '',
+        // #1779 —— 按钮的 href 可以是电话 / 邮箱引用（不是一页）⟹ 关键词页的 CTA 没有一页可指，当没有。
+        ctaHref: (content.navigation && content.navigation.header && content.navigation.header.cta
+          && typeof content.navigation.header.cta.href === 'string' && content.navigation.header.cta.href) || '',
       });
       for (const r of results) {
         if (r.ok) kwOk.push(r);

@@ -9,7 +9,7 @@
 // #1506 —— 按钮 / 页头顶条 / 页脚里的联系方式引用（`{source: "phone"}` …）也在同一个 `resolveItemSources` 里展开，
 //    站点数据多带一份 `brand`（电话 / 邮箱 / 地址 / 社交链接都住在 brand.json）。
 
-import type { BlockConfig, BrandConfig, DynamicPageConfig, ServiceConfig, SiteData } from '@/lib/types/config';
+import type { BlockConfig, BrandConfig, ContactRef, DynamicPageConfig, ServiceConfig, SiteData } from '@/lib/types/config';
 import { getServices, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 import * as impl from '../../../scripts/lib/item-sources.js';
@@ -36,6 +36,8 @@ export const isSourceRef = impl.isSourceRef as (v: unknown) => v is { source: st
 export const blocksUseSource = impl.blocksUseSource as (blocks: BlockConfig[] | undefined, source: string) => boolean;
 export const describeRef = impl.describeRef as (ref: unknown) => string;
 export const BUTTON_SOURCES = impl.BUTTON_SOURCES as string[];
+// #1779 —— 按钮的 href 是不是一个合法的电话 / 邮箱引用（顶栏两颗按钮在编辑器里读写都问它）。
+export const isButtonRef = impl.isButtonRef as (v: unknown) => v is ContactRef;
 
 /** 把一页里写成引用的列表槽展开成条目（别的块原样返回）。 */
 export function resolveItemSources(blocks: BlockConfig[], ctx: ItemSourceContext): BlockConfig[] {

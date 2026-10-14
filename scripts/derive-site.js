@@ -711,8 +711,11 @@ for (const locale of locales) {
   // #1759 —— 规则逐字搬进 `lib/nav-menu.js`（编辑器预览同一份）。`ctaSlug` 这一句照旧在这里对 `header.cta.href` 调 `.replace`
   //    （不是字符串就当场抛，同搬之前）；别改成把 `existingNav.header.cta.href` 直接当参数传 —— `navigation-owned.test.js` ③
   //    按构造把「existingNav 的一条链流进函数」判成看不见的改动，整份跑不起来。
+  // #1779 —— 主按钮的 href 可以是联系方式引用（`{source: "phone"}`）：它不指向任何一页 ⟹ `ctaSlug` 为空，菜单不扣掉哪一页。
+  //    别的形状照旧当场抛（`.replace` 不存在）—— 引用合不合法由写盘那道门（`navigation-owned.js` §NAV_SHAPE）先挡。
+  //    🔴 判法写成读 `.source`、不写成 `isButtonRef(…)` / `typeof …`：③ 认不出这两种用法（传参 / typeof 都归不了类），整份跑不起来。
   const homeLabel = navMenu.homeLabelOf(homePage.navLabel, locale);
-  const ctaSlug = existingNav.header.cta.href.replace(/^\//, '');
+  const ctaSlug = existingNav.header.cta.href.source ? '' : existingNav.header.cta.href.replace(/^\//, '');
   const { header: headerLinks, footer: footerLinks } = navMenu.menuLinks({ homeLabel, regular: regularPages, ctaSlug });
 
   existingNav.header.links = headerLinks;

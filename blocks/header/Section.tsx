@@ -216,10 +216,13 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     </ul>
   );
 
+  // #1779 —— 每颗按钮挂 `data-hdr-cta="main" | "second"`（主 / 次按钮，按数据认、不按位置）：编辑器据它认出画布上的顶栏按钮，
+  //    点它开按钮弹窗（`InlineEdit.tsx` §scan 的顶栏那一遍）。站上多一个属性，画出来一个像素不变。
+  const ctaWhich = (c: Cta) => (c === data.ctaPrimary ? 'main' : 'second');
   const ctaButtons = (key: string) => (
     <div className="d-flex align-items-center gap-2" key={key}>
       {ctas.map((c, i) => (
-        <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
+        <SiteLink key={i} href={c.href} data-hdr-cta={ctaWhich(c)} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
       ))}
     </div>
   );
@@ -397,7 +400,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
           </ul>
           <div className="d-grid gap-2" data-hdr-part="drawer-cta">
             {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
-              <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
+              <SiteLink key={i} href={c.href} data-hdr-cta={ctaWhich(c)} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
             ))}
           </div>
           {drawerContact}

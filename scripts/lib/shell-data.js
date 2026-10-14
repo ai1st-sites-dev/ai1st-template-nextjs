@@ -35,6 +35,7 @@ const { hrefAllowed } = require('./href-allowed');
 const { localizeHref } = require('./nav-menu');
 const { isKeywordPage } = require('./keyword-service');
 const { keywordFooterColumns, serviceIdOfKeywordPath } = require('./keyword-pages');
+const { isButtonRef } = require('./item-sources');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
@@ -54,6 +55,19 @@ function links(list, loc) {
  *    本票开始画它而上页面 ⟹ 不过白名单的那一项当没写。
  */
 const usableLink = (l) => isObj(l) && !!str(l.label) && !!str(l.href) && hrefAllowed(l.href);
+
+/**
+ * #1779 —— 顶栏两颗按钮（`header.cta` / `header.ctaSecondary`）→ 外壳 data 的那一颗；画不出 ⟹ null。
+ * href 是联系方式引用（`{source: "phone"}` …，§isButtonRef）⟹ 原样交下去：`SiteShell` 渲染前 `resolveItemSources`
+ * 把按钮的引用展开成 `tel:` / `mailto:`（§resolveButtons，跟页面块同一条路）。是字符串 ⟹ 照旧：非空、按语言加前缀；
+ * `allowed`（次按钮）再过一道白名单（同 §usableLink，#1529）。
+ */
+function headerButton(b, style, loc, allowed) {
+  if (!isObj(b) || !str(b.label)) return null;
+  if (isButtonRef(b.href)) return { label: str(b.label), href: { ...b.href }, style };
+  if (!str(b.href) || (allowed && !hrefAllowed(b.href))) return null;
+  return { label: str(b.label), href: loc(str(b.href)), style };
+}
 
 /**
  * navigation.json 的 `topbar`（老公告条的形状：`{message: string, link?: {label, href}}`）→ header 的
@@ -101,12 +115,10 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   if (logo) header.logo = logo;
   if (name) header.brandName = name;
   header.nav = links(h.links, loc);
-  if (isObj(h.cta) && str(h.cta.label) && str(h.cta.href)) {
-    header.ctaPrimary = { label: str(h.cta.label), href: loc(str(h.cta.href)), style: 'solid' };
-  }
-  if (usableLink(h.ctaSecondary)) {
-    header.ctaSecondary = { label: str(h.ctaSecondary.label), href: loc(str(h.ctaSecondary.href)), style: 'outline' };
-  }
+  const primary = headerButton(h.cta, 'solid', loc, false);
+  if (primary) header.ctaPrimary = primary;
+  const secondary = headerButton(h.ctaSecondary, 'outline', loc, true);
+  if (secondary) header.ctaSecondary = secondary;
   // 只有带 topbar 的预设才画这一条；值不存在的那一项展开时自己去掉（item-sources.js §ITEM_SLOTS）。
   header.topbar = { contact: [{ source: 'phone' }, { source: 'email' }] };
   const message = topbarMessage(n.topbar, loc);

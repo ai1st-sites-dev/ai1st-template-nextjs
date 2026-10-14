@@ -67,8 +67,9 @@ export interface RootValues {
   footerOptions?: Record<string, unknown>;
   /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、两颗按钮（这种语言的 `navigation.json`）、菜单（面板那一份，nav-editor.js） */
   logoUrl?: string;
-  headerCta?: { label: string; href: string };
-  headerCtaSecondary?: { label: string; href: string };
+  /** #1779 —— href 可以是电话 / 邮箱引用（同 `src/lib/types/config.ts` 的 ContactRef） */
+  headerCta?: { label: string; href: string | { source: 'phone' | 'email'; location?: number } };
+  headerCtaSecondary?: { label: string; href: string | { source: 'phone' | 'email'; location?: number } };
   navMenu?: import('./nav-editor').NavPanel;
 }
 export function rootToPuck(values: RootValues): Record<string, unknown>;

@@ -1114,6 +1114,9 @@ The site is defined by JSON configuration files:
   legal links (footer.legal — a list of {"label", "href"}, e.g. Privacy policy / Terms). The owner can also
   change the two header buttons in the page editor (the header's Content tab); the footer legal links
   can only be changed by you. When the owner asks you for any of these, change them here.
+  A header button's href may be {"source": "phone"} or {"source": "email"} instead of an address — the
+  button then calls / emails the business, filled in from brand.json. Keep it exactly as it is unless the
+  owner asks to change where that button goes; to make a button call the business, write it that way.
   You MAY NOT change the header menu links or the first footer column's links, and you may not add or
   remove footer columns: those are rebuilt on every build and anything you write there is overwritten.
   The menu links and the first footer column's links come from each page's navLabel / navOrder — to

@@ -559,8 +559,22 @@ console.log('⑩ 顶栏按钮 / logo（#1759）');
   check(r.code === editorRoot.REFUSED && changedFiles(before, snapshot(site)).length === 0, '次按钮只填链接 ⟹ 拒', r.message);
   r = tryWrite({ headerCta: { label: 'Go', href: '/x', style: 'solid' } }, 'en');
   check(r.code === 5, '按钮对象带了别的键 ⟹ 形状不对（5）', JSON.stringify(r));
-  r = tryWrite({ headerCta: { label: 'Go', href: { source: 'phone' } } }, 'en');
-  check(r.code === 5, '按钮链接写成引用对象 ⟹ 形状不对（5）：构建对 header.cta.href 调 .replace，是对象整站建不出来', JSON.stringify(r));
+  // #1779 —— 按钮链接可以是电话 / 邮箱引用（按钮弹窗选 Phone / Email 存的那种）；源不认识、多余的键 ⟹ 形状不对。
+  //    （#1759 时这一格判的是「引用对象一律拒」—— 那时构建对 header.cta.href 调 .replace；#1779 把构建、写盘那道门一起放开了。）
+  r = tryWrite({ headerCta: { label: 'Go', href: { source: 'address' } } }, 'en');
+  check(r.code === 5, '按钮链接引用了按钮不收的源（address）⟹ 形状不对（5）', JSON.stringify(r));
+  r = tryWrite({ headerCta: { label: 'Go', href: { source: 'phone', extra: 1 } } }, 'en');
+  check(r.code === 5, '按钮链接引用带了多余的键 ⟹ 形状不对（5）', JSON.stringify(r));
+  check(changedFiles(before, snapshot(site)).length === 0, '上面几次拒收：什么都没写');
+  r = tryWrite({ headerCta: { label: 'Call us', href: { source: 'phone' } } }, 'en');
+  const navRef = navOf();
+  check(!r.code && JSON.stringify(navRef.header.cta) === JSON.stringify({ label: 'Call us', href: { source: 'phone' } }),
+    '主按钮链接写成 {source: "phone"} ⟹ navigation.json 原样存下引用', `${JSON.stringify(r)} ${JSON.stringify(navRef.header)}`);
+  check(JSON.stringify(readRoot('en').headerCta) === JSON.stringify({ label: 'Call us', href: { source: 'phone' } }), '读回来还是那个引用（编辑器打开时按钮弹窗认它）');
+  r = tryWrite({ headerCtaSecondary: { label: '', href: { source: 'email' } } }, 'en');
+  check(r.code === editorRoot.REFUSED && /second button/.test(r.message), '次按钮只有引用、没有文字 ⟹ 拒（引用不算空）', r.message);
+  r = tryWrite({ headerCta: nav0.header.cta }, 'en');
+  check(!r.code && JSON.stringify(navOf()) === JSON.stringify(nav0), '主按钮改回原来的地址 ⟹ 文件回到原样', JSON.stringify(navOf().header));
 
   // 加一颗次按钮：只多了 header.ctaSecondary，navigation.json 别的键一个字节不动。
   r = tryWrite({ headerCtaSecondary: { label: ' Our work ', href: '/about' } }, 'en');

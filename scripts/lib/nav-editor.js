@@ -19,6 +19,7 @@
 
 const { menuLinks, homeLabelOf, ctaSlugOf, localizeHref } = require('./nav-menu');
 const { hrefAllowed } = require('./href-allowed');
+const { isButtonRef } = require('./item-sources');
 
 /** 跟写盘那一侧（`lib/editor-nav.js` §NAV_LABEL_MAX）同一个数。 */
 const NAV_LABEL_MAX = 40;
@@ -143,9 +144,13 @@ function applyPageNav(json, change) {
   return out;
 }
 
-/** `{label, href}` 两样都是非空字符串（去首尾空格）⟹ 那颗按钮；否则 null。 */
+/**
+ * `{label, href}` 两样都是非空字符串（去首尾空格）⟹ 那颗按钮；否则 null。
+ * #1779 —— href 是电话 / 邮箱引用 ⟹ 原样交下去（画布那头 `SiteShell` 跟构建同一条 `resolveItemSources` 展开，同 `shell-data.js` §headerButton）。
+ */
 function buttonFrom(v, style, loc, allowed) {
   const label = isObj(v) ? str(v.label).trim() : '';
+  if (label && isButtonRef(v.href)) return { label, href: { ...v.href }, style };
   const href = isObj(v) ? str(v.href).trim() : '';
   if (!label || !href || (allowed && !hrefAllowed(href))) return null;
   return { label, href: loc(href), style };

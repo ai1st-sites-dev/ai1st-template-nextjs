@@ -289,6 +289,14 @@ function setPath(obj, dotted, value) {
   return { ...obj, [head]: rest.length ? setPath(isObj(obj[head]) ? obj[head] : {}, rest.join('.'), value) : value };
 }
 
+/**
+ * #1779 —— 按钮的 `href` 是不是一个**合法**的联系方式引用（`BUTTON_SOURCES` 之一、参数对）。顶栏两颗按钮住在 navigation.json，
+ * 不走 §contactRefProblems 那条页面块的校验 ⟹ 读写它们的各处（`shell-data.js` / `navigation-owned.js` / 编辑器）都问这一句。
+ */
+function isButtonRef(v) {
+  return isObj(v) && refProblemsAt('href', BUTTON_SOURCES, v).length === 0;
+}
+
 /** 按钮的形状：有 `label`（字符串）又有 `href` 这个键的对象（#1506 做什么 1，不按块名登记）。 */
 function isButton(v) {
   return isObj(v) && typeof v.label === 'string' && 'href' in v;
@@ -459,5 +467,5 @@ function describeRef(ref) {
 module.exports = {
   SOURCES, BLOCK_SLOTS, ITEM_SLOTS, BUTTON_SOURCES, SOURCED_KEY, SERVICE_ICON_ALIASES,
   BUTTON_REF_PROMPT, REGION_REF_PROMPTS,
-  isSourceRef, sourcesFor, refProblems, contactRefProblems, expandRef, resolveItemSources, blocksUseSource, promptAlternatives, describeRef,
+  isSourceRef, isButtonRef, sourcesFor, refProblems, refProblemsAt, contactRefProblems, expandRef, resolveItemSources, blocksUseSource, promptAlternatives, describeRef,
 };

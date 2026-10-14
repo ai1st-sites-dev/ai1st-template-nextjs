@@ -239,5 +239,26 @@ console.log('── ⑧ #1632：关键词页栏从当前页面现算（columns.k
   check(!('keywordGroups' in d.footer.columns), `没有关键词页 ⟹ columns 里没有 keywordGroups 这个键（${Object.keys(d.footer.columns).join(',')}）`);
 }
 
+console.log('── ③d 顶栏按钮的 href 写成电话 / 邮箱引用（#1779）：原样交下去，外壳渲染前展开成 tel: / mailto:');
+{
+  const { resolveItemSources } = require('./item-sources');
+  const der = (edit) => {
+    const nav = JSON.parse(JSON.stringify(NAV)); edit(nav);
+    return shellDataFor({ nav, brand: BRAND, brandName: 'x', services: [], pages: [], year: 2026, locale: 'fr', defaultLocale: 'en' });
+  };
+  const x = der((n) => { n.header.cta = { label: 'Call us', href: { source: 'phone' } }; n.header.ctaSecondary = { label: 'Email us', href: { source: 'email' } }; });
+  check(JSON.stringify(x.header.ctaPrimary) === JSON.stringify({ label: 'Call us', href: { source: 'phone' }, style: 'solid' })
+    && JSON.stringify(x.header.ctaSecondary) === JSON.stringify({ label: 'Email us', href: { source: 'email' }, style: 'outline' }),
+  `两颗按钮的引用原样进 data（不加语言前缀、不被吞掉）：${JSON.stringify([x.header.ctaPrimary, x.header.ctaSecondary])}`);
+  // 外壳那一步（SiteShell §shellBlockData）跟页面块同一个 resolveItemSources：展开成 brand.json 里那个号码 / 邮箱。
+  const [b] = resolveItemSources([{ type: 'header', data: x.header }], { brand: BRAND, log: () => {} });
+  check(b.data.ctaPrimary.href === 'tel:4165550000', `主按钮展开成 brand.json 第一家的电话 tel:4165550000（读到 ${b.data.ctaPrimary.href}）`);
+  check(b.data.ctaSecondary.href === 'mailto:hi@example.com', `次按钮展开成 mailto:hi@example.com（读到 ${b.data.ctaSecondary.href}）`);
+  for (const [name, v] of [['源不认识（address）', { source: 'address' }], ['多一个键', { source: 'phone', x: 1 }], ['空对象', {}]]) {
+    const y = der((n) => { n.header.cta = { label: 'Call', href: v }; n.header.ctaSecondary = { label: 'Call', href: v }; });
+    check(!('ctaPrimary' in y.header) && !('ctaSecondary' in y.header), `按钮 href ${name} ⟹ 两颗都不进 data`);
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

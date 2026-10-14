@@ -75,6 +75,21 @@ export interface NavLink {
   href: string;
 }
 
+/**
+ * #1779 —— 按钮的 href 写成电话 / 邮箱引用（同页面块的按钮）：渲染前展开成 `tel:` / `mailto:`（`scripts/lib/item-sources.js`
+ * §resolveButtons）。`location` = 第几家门店（0 = 第一家，可省）。
+ */
+export interface ContactRef {
+  source: 'phone' | 'email';
+  location?: number;
+}
+
+/** #1779 —— 顶栏两颗按钮：href 是地址，或电话 / 邮箱引用。写盘那道门（`navigation-owned.js` §NAV_SHAPE）按同一个形状判。 */
+export interface HeaderButton {
+  label: string;
+  href: string | ContactRef;
+}
+
 export interface FooterColumn {
   title: string;
   links: NavLink[];
@@ -83,9 +98,9 @@ export interface FooterColumn {
 export interface NavigationConfig {
   header: {
     links: NavLink[];
-    cta: NavLink;
+    cta: HeaderButton;
     // #1529 —— 这一格和下面 footer 的 `legal` 都是可选的：写了才派生进外壳 data（`scripts/lib/shell-data.js`），没写的站一个字节不变。
-    ctaSecondary?: NavLink;
+    ctaSecondary?: HeaderButton;
   };
   footer: {
     description: string;

@@ -652,6 +652,8 @@ function navWritesInSyncConfig(file) {
       ['删掉一个字段',        (s) => s.replace('    description: string;\n', ''), 'differs'],
       ['可选改成必需',        (s) => s.replace('  topbar?: {', '  topbar: {'), 'differs'],
       ['跨类型引用里改可选',  (s) => s.replace('export interface NavLink {\n  label: string;\n  href: string;', 'export interface NavLink {\n  label: string;\n  href?: string;'), 'differs'],
+      // #1779 —— 顶栏按钮的 href 退回只收字符串：门这一头还放行引用 ⟹ 必须报不同。
+      ['按钮 href 退回成 string', (s) => s.replace('export interface HeaderButton {\n  label: string;\n  href: string | ContactRef;', 'export interface HeaderButton {\n  label: string;\n  href: string;'), 'differs'],
       ['换成认不出的类型',    (s) => s.replace('export interface FooterColumn {\n  title: string;', 'export interface FooterColumn {\n  title: number;'), 'cantTell'],
       // 🔴 #1104 r4（QA1 的 ⑩）：`extends` 是「往那个 interface 里加一个必需字段」的一种很普通的写法，
       //    而继承来的成员【不在】 `decl.members` 里。这两格之前都是**静默绿** —— 解析到的处数改前改后
@@ -689,7 +691,7 @@ function navWritesInSyncConfig(file) {
       }
     }
     if (problems.length === 0) {
-      ok(`⑩ 阳性对照：${SHAPES.length} 种漂（加字段 · 必需↔可选两向 · 删字段 · 跨类型引用 · 换成认不出的类型 · extends 两处 · 声明合并）`
+      ok(`⑩ 阳性对照：${SHAPES.length} 种漂（加字段 · 必需↔可选两向 · 删字段 · 跨类型引用 · 按钮 href 退回 string · 换成认不出的类型 · extends 两处 · 声明合并）`
         + '每一种这把尺子都有反应 —— 认得出的报不同，认不出的说不出来（所以上面那格的绿是活的）');
     } else {
       problems.forEach((m) => bad(`⑩ 阳性对照失败：${m} —— 上面那格的绿不作数`));
@@ -1061,6 +1063,14 @@ function navShapeFromTypes(file) {
       return fromMembers(members, at, seen.concat(name));
     }
     if (node.kind === ts.SyntaxKind.StringKeyword) return { kind: 'string' };
+    // #1779 —— 顶栏按钮的 href：`string | ContactRef` 就是 NAV_SHAPE 的 `buttonHref`（字符串或按钮那几个源的引用）。
+    //    只认这一种并集，别的并集照旧说不出来；`ContactRef` 里面的形状由 `item-sources.js` §refProblemsAt 判，不在这把尺子上。
+    if (ts.isUnionTypeNode(node) && node.types.length === 2
+        && node.types[0].kind === ts.SyntaxKind.StringKeyword
+        && ts.isTypeReferenceNode(node.types[1]) && ts.isIdentifier(node.types[1].typeName)
+        && node.types[1].typeName.text === 'ContactRef' && ifaces.has('ContactRef')) {
+      return { kind: 'buttonHref' };
+    }
     problems.push(`${at}: 这里的类型这把尺子认不出来 —— \`${node.getText()}\``);
     return null;
   };
@@ -1632,6 +1642,69 @@ function flattenShape(shape, at = '', out = []) {
 // 📌 #1425（T3）—— 这里原来是 `navReadsByVariant`（⑫ 那把 TypeScript 解析器：按别名 / 回调参数追旧 Header.tsx / Footer.tsx
 //    读了 navigation.json 的哪几处，再按 `data-region-layout` 拆分支）。旧组件随旧库删了，新组件不读 navigation.json，
 //    ⑫ 改成真渲染，它没有调用方了。
+
+// ── ⑲ 顶栏按钮的 href 是电话 / 邮箱引用（#1779 验收 6）：AI 改无关导航时门照常放行、引用原样留着；改掉它时那句话是人话 ──
+//
+// 老板在编辑器里把主按钮设成 Phone 之后，navigation.json 里那一格是 `{"source": "phone"}`。这道门原来要它是非空字符串 ⟹
+// 此后 AI 每次改 navigation.json 都被拒，而模型最自然的过门动作是把它改回字符串 —— 老板选的 Phone 被悄悄冲掉，哪儿都不红。
+{
+  const problems = [];
+  const phoneSite = clone(BASE);
+  phoneSite.header.cta.href = { source: 'phone' };
+  phoneSite.header.ctaSecondary = { label: 'Email us', href: { source: 'email', location: 1 } };
+  const notesFor = (next, current) => writeNotes('en/navigation.json', {
+    content: JSON.stringify(next),
+    readCurrent: () => JSON.stringify(current),
+  });
+
+  // ① 改一处跟按钮无关的：放行，引用原样（模型照读到的写回去就过门，不用动它）。
+  const unrelated = clone(phoneSite);
+  unrelated.footer.description = 'Family-run since 2014.';
+  const r1 = tryWrite('en/navigation.json', unrelated, phoneSite);
+  if (r1 !== null) problems.push(`主按钮是 Phone 的站上改页脚简介被拒了（这正是要修的那件事）：${r1}`);
+  // （页脚简介自己那句「这个站看不看得到」照旧可能有 —— 那是 ⑬ 的事；这里只管按钮那句不许冒出来。）
+  const n1 = notesFor(unrelated, phoneSite);
+  if (n1.some((t) => /header button|\[object Object\]/.test(t))) problems.push(`改页脚简介、按钮没动 ⟹ 不该说按钮的事：${n1.join(' | ')}`);
+
+  // ② 把主按钮从 Phone 改成 /contact：放行；那句「菜单也会跟着变」里原来那一边是人话，不是 [object Object]。
+  const toPage = clone(phoneSite);
+  toPage.header.cta.href = '/contact';
+  const r2 = tryWrite('en/navigation.json', toPage, phoneSite);
+  if (r2 !== null) problems.push(`Phone → /contact 被拒了：${r2}`);
+  const n2 = notesFor(toPage, phoneSite);
+  if (n2.length !== 1) problems.push(`Phone → /contact 应当带 1 句附带说明，实际 ${n2.length} 句`);
+  else {
+    if (/\[object Object\]/.test(n2[0])) problems.push(`那句话里印出了 [object Object]：${n2[0]}`);
+    if (!n2[0].includes('Phone (the business phone number)')) problems.push(`那句话里原来那一边没说成 Phone：${n2[0]}`);
+    if (!n2[0].includes('"/contact" will drop out of the top menu')) problems.push(`那句话没说 /contact 会从菜单里消失：${n2[0]}`);
+    if (/will appear in it/.test(n2[0])) problems.push(`原来那一边不是一页，不该说有一页会出现在菜单里：${n2[0]}`);
+  }
+
+  // ③ 反过来 /contact → Phone：放行；说的是 /contact 会出现在菜单里（不说有哪一页消失）。
+  const n3 = notesFor(phoneSite, BASE);
+  if (tryWrite('en/navigation.json', phoneSite, BASE) !== null) problems.push('/contact → Phone 被拒了');
+  if (n3.length !== 1 || !n3[0].includes('"/contact" will appear in the top menu') || /drop out/.test(n3[0])) {
+    problems.push(`/contact → Phone 那句话不对：${n3.join(' | ')}`);
+  }
+
+  // ④ 两头都是引用（Phone → Email）：菜单不变 ⟹ 不说。
+  const toEmail = clone(phoneSite);
+  toEmail.header.cta.href = { source: 'email' };
+  const n4 = notesFor(toEmail, phoneSite);
+  if (n4.length !== 0) problems.push(`Phone → Email 菜单不变，不该有附带说明：${n4.join(' | ')}`);
+
+  // ⑤ 门照样有牙：按钮不收的源、多余的键、空字符串都拒，并且说清是哪一格。
+  for (const [name, href] of [['源不认识（address）', { source: 'address' }], ['多一个键', { source: 'phone', x: 1 }], ['空字符串', '  ']]) {
+    const bad1 = clone(phoneSite);
+    bad1.header.cta.href = href;
+    const why = tryWrite('en/navigation.json', bad1, phoneSite);
+    if (!why || !why.includes('header.cta.href')) problems.push(`主按钮 href ${name} 应当被拒并点名 header.cta.href，实际：${why}`);
+  }
+
+  if (problems.length === 0) {
+    ok('⑲ 主按钮是 {source: "phone"}：AI 改无关导航照常放行、引用原样留着；Phone ↔ /contact 两向的附带说明都是人话（无 [object Object]）、只说真会变的那一页；Phone → Email 不说；坏引用照拒');
+  } else problems.forEach((m) => bad(`⑲ ${m}`));
+}
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

@@ -43,7 +43,7 @@ import { navMenuOf } from '../../../../scripts/lib/editor-nav.js';
 import { navMenuToPanel } from '../../../../scripts/lib/nav-editor.js';
 import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
 import { seedProps } from '../../../../scripts/lib/block-placeholders.js';
-import { itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
+import { isButtonRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import type { IconTable } from '@/components/InlineIcon';
 
 
@@ -75,8 +75,12 @@ function trustedOrigin(leadApi: string): string {
 }
 
 /** #1759 —— 构建这一份里的顶栏两颗按钮 + 菜单（面板那一份的形状，`nav-editor.js` §navMenuToPanel）。 */
-function headerContent(nav: { header?: { cta?: { label?: string; href?: string }; ctaSecondary?: { label?: string; href?: string } } }, pages: unknown[], locale: string) {
-  const btn = (b?: { label?: string; href?: string }) => ({ label: typeof b?.label === 'string' ? b.label : '', href: typeof b?.href === 'string' ? b.href : '' });
+// #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`）：原样带进编辑器（按钮弹窗认它），别的形状当空。
+function headerContent(nav: { header?: { cta?: { label?: string; href?: unknown }; ctaSecondary?: { label?: string; href?: unknown } } }, pages: unknown[], locale: string) {
+  const btn = (b?: { label?: string; href?: unknown }) => ({
+    label: typeof b?.label === 'string' ? b.label : '',
+    href: typeof b?.href === 'string' ? b.href : isButtonRef(b?.href) ? { ...b.href } : '',
+  });
   const navMenu = navMenuToPanel(navMenuOf(pages), locale);
   return { headerCta: btn(nav.header?.cta), headerCtaSecondary: btn(nav.header?.ctaSecondary), ...(navMenu ? { navMenu } : {}) };
 }

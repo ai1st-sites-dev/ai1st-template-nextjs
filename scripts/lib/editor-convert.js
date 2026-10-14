@@ -29,7 +29,7 @@
 
 const ITEM_ORIG = '__orig';
 // #1505 —— 列表槽的引用写法（`items: {source: "services"}`）。判据跟构建、校验同一个函数（item-sources.js §isSourceRef）。
-const { isSourceRef } = require('./item-sources');
+const { isSourceRef, isButtonRef } = require('./item-sources');
 // #1676 —— 记录里「换成了哪个预设」跟面板上亮哪个预设用同一个判法（§panelPreset）。
 const { presetFor, knobDefault } = require('./block-knobs');
 const { effectiveRegionKnobs } = require('./region-options');
@@ -686,7 +686,8 @@ function rootToPuck(values) {
   if (typeof values.logoUrl === 'string') out.logoUrl = values.logoUrl;
   for (const k of ['headerCta', 'headerCtaSecondary']) {
     const b = values[k];
-    if (isPlainObject(b)) out[k] = { label: typeof b.label === 'string' ? b.label : '', href: typeof b.href === 'string' ? b.href : '' };
+    // #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`，原样带过去）。
+    if (isPlainObject(b)) out[k] = { label: typeof b.label === 'string' ? b.label : '', href: typeof b.href === 'string' ? b.href : isButtonRef(b.href) ? { ...b.href } : '' };
   }
   if (isPlainObject(values.navMenu)) out.navMenu = clone(values.navMenu);
   return out;

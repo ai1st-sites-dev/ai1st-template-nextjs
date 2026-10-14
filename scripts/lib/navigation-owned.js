@@ -128,16 +128,37 @@ const OWNED = [
  * 判据不许写死成散文：`coupling` 是 `sync-config.js` 里那两句的原文，测试拿它跟真代码比 ——
  * 哪天那个过滤被拿掉了，这段话就成了假话，那一格当场红。
  */
+/**
+ * #1779 —— 按钮链接给老板看的说法：地址原样加引号；电话 / 邮箱引用（`{source: "phone"}` …）说成人话 ——
+ * 原来这里是字符串内插，引用进来会印成 `[object Object]`。
+ */
+function buttonLinkWords(v) {
+  if (typeof v === 'string') return `"${v}"`;
+  const where = isObj(v) && Number.isInteger(v.location) && v.location > 0 ? ` of location ${v.location + 1}` : '';
+  if (isObj(v) && v.source === 'phone') return `Phone (the business phone number${where})`;
+  if (isObj(v) && v.source === 'email') return `Email (the business email address${where})`;
+  return 'a link that is not a page';
+}
+
 const SIDE_EFFECTS = [
   {
     key: 'header.cta.href',
     read: (nav) => (isObj(nav) && isObj(nav.header) && isObj(nav.header.cta) ? nav.header.cta.href : undefined),
     coupling: ['const ctaSlug =', 'p.slug !== ctaSlug'],
-    note: (from, to) => 'One more thing to tell the owner: the top menu is rebuilt from the site\'s pages every '
-      + 'time, and the page the header button points at is deliberately left out of that menu. Because this edit '
-      + `changed the button's link from "${from}" to "${to}", the next build will also change the menu itself — `
-      + `the page at "${to}" will drop out of the top menu, and the page at "${from}" will appear in it. `
-      + 'Nothing else was changed. Say this out loud instead of only reporting that the button was updated.',
+    // #1779 —— 只有「是一页」的那一头会动菜单：引用（电话 / 邮箱）不指向任何一页（构建里 `ctaSlug` 为空）。
+    //    两头都不是页 ⟹ 菜单不变，不说（返回 null）。
+    note: (from, to) => {
+      const changes = [];
+      if (typeof to === 'string') changes.push(`the page at "${to}" will drop out of the top menu`);
+      if (typeof from === 'string') changes.push(`the page at "${from}" will appear in it`);
+      if (!changes.length) return null;
+      if (typeof to !== 'string') changes[0] = changes[0].replace(' in it', ' in the top menu');
+      return 'One more thing to tell the owner: the top menu is rebuilt from the site\'s pages every '
+        + 'time, and the page the header button points at is deliberately left out of that menu. Because this edit '
+        + `changed the button's link from ${buttonLinkWords(from)} to ${buttonLinkWords(to)}, the next build will also change the menu itself — `
+        + `${changes.join(', and ')}. `
+        + 'Nothing else was changed. Say this out loud instead of only reporting that the button was updated.';
+    },
   },
 ];
 
@@ -180,6 +201,7 @@ const SIDE_EFFECTS = [
 //    两向核对，不是抄来的。
 const { shapesOf, REGION_BLOCK } = require('../region-layout');
 const { REQUIRED_KINDS } = require('./page-layout');
+const { BUTTON_SOURCES, refProblemsAt } = require('./item-sources');
 
 /** 每一类区一共有哪些形态。唯一出处是**块的形态目录**（`blocks/<块>/<形态>/`）。现取，不在加载时固化。 */
 const VARIANTS_BY_REGION = new Proxy({}, {
@@ -494,7 +516,8 @@ function navigationEditSideEffects(next, current, rendered) {
     const from = e.read(current);
     const to = e.read(next);
     if (from === undefined || to === undefined) continue;   // 形状不齐那一路由 shapeProblems 管
-    if (!sameValue(from, to)) out.push(e.note(from, to));
+    const note = sameValue(from, to) ? null : e.note(from, to);
+    if (note) out.push(note);
   }
 
   // 🔴 `undefined` 在这里【不能】跳过（跟上面那半相反）：`topbar` 是可选的，「这个站原来没有
@@ -564,6 +587,11 @@ function buildOwnedChanges(next, current) {
  *    说实话」的通道。别把这一段读成「多出来的键这个模块一个字都不说」—— 那是 #1128 之前的样子。
  */
 const NAV_LINK = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'string' } } };
+// #1779 —— 顶栏两颗按钮：`href` 是字符串，**或**电话 / 邮箱引用（`{source: "phone" | "email", location?}`，同页面块的按钮，
+//    构建时由 `item-sources.js` §resolveButtons 展开）。类型那头是 `HeaderButton.href: string | ContactRef`（⑩ 认这一种并集）。
+//    不放开的后果：老板在编辑器里把主按钮设成 Phone 之后，AI 每次改 navigation.json 都被这道门拒，
+//    而模型最自然的过门动作是把它改回字符串 —— 老板选的 Phone 被悄悄冲掉。菜单 / 页脚链接仍只收字符串。
+const HEADER_BUTTON = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'buttonHref' } } };
 const FOOTER_COLUMN = {
   kind: 'object',
   fields: { title: { kind: 'string' }, links: { kind: 'array', of: NAV_LINK } },
@@ -576,8 +604,8 @@ const NAV_SHAPE = {
       kind: 'object',
       fields: {
         links: { kind: 'array', of: NAV_LINK },
-        cta: NAV_LINK,
-        ctaSecondary: { kind: 'object', optional: true, fields: NAV_LINK.fields },
+        cta: HEADER_BUTTON,
+        ctaSecondary: { kind: 'object', optional: true, fields: HEADER_BUTTON.fields },
       },
     },
     footer: {
@@ -612,7 +640,7 @@ const NON_EMPTY = new Set(['header.cta.label', 'header.cta.href']);
 const HINTS = {
   'header.cta': 'the button at the top of every page',
   'header.cta.label': "the button's text",
-  'header.cta.href': 'where the button links to, like "/contact"',
+  'header.cta.href': 'where the button links to, like "/contact", or {"source": "phone"} / {"source": "email"} for the business phone number / email',
   'footer.copyright': 'the copyright line at the bottom of every page',
   'footer.description': 'the short blurb in the footer',
 };
@@ -633,6 +661,12 @@ function checkShape(value, shape, at, out) {
     }
     return;
   }
+  if (shape.kind === 'buttonHref') {
+    // #1779 —— 对象 ⟹ 只能是按钮那几个源的引用（报错原样用 `item-sources.js` 那几句）；否则按字符串那条判。
+    if (isObj(value)) { out.push(...refProblemsAt(at, BUTTON_SOURCES, value)); return; }
+    checkShape(value, { kind: 'string' }, at, out);
+    return;
+  }
   if (shape.kind === 'array') {
     if (!Array.isArray(value)) { out.push(`${withHint(at)} must be an array.`); return; }
     value.forEach((item, i) => checkShape(item, shape.of, `${at}[${i}]`, out));
@@ -647,6 +681,7 @@ function checkShape(value, shape, at, out) {
 /** 「它该是什么」的一句话，只用在缺字段那条消息里。 */
 function describeShape(shape, at) {
   if (shape.kind === 'string') return NON_EMPTY.has(at) ? 'it must be a non-empty string' : 'it must be a string';
+  if (shape.kind === 'buttonHref') return `it must be ${NON_EMPTY.has(at) ? 'a non-empty string' : 'a string'} or {"source": "phone"} / {"source": "email"}`;
   if (shape.kind === 'array') return 'it must be an array';
   return 'it must be an object';
 }
