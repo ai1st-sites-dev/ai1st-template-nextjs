@@ -664,6 +664,23 @@ const FillingContext = createContext<ReadonlySet<string>>(new Set());
 const NO_ICON_TABLES: Record<string, IconTable> = {};
 const IconTablesContext = createContext<Record<string, IconTable>>(NO_ICON_TABLES);
 
+/**
+ * #1777 —— 等 AI 写字时整块边上那圈流动的彩色光（Siri 那种）。块画在 Puck 的 iframe 里，父页面的样式表管不到 ⟹ 跟光一起渲染。
+ * 光画在块的方框以内（画布满宽，往外溢会被裁掉）、不接鼠标、压在那枚标（z-index 5）下面。
+ * 动画落在 span 自己身上（转 `--ai-glow-a`，两个伪元素继承它）：一圈 3px 的描边 + 向内 16px 渐隐的柔光。
+ * 淡入走 `transition` + `@starting-style`，不是第二条 animation —— reduce 时 `animation-name` 才是干净的 none。
+ */
+const AI_GLOW_CSS = `
+@property --ai-glow-a { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
+@keyframes ai-glow-spin { to { --ai-glow-a: 360deg; } }
+[data-editor-ai-glow] { position: absolute; inset: 0; pointer-events: none; z-index: 4; opacity: 1; transition: opacity 200ms ease-out; animation: ai-glow-spin 3s linear infinite; }
+@starting-style { [data-editor-ai-glow] { opacity: 0; } }
+[data-editor-ai-glow]::before, [data-editor-ai-glow]::after { content: ''; position: absolute; inset: 0; background: conic-gradient(from var(--ai-glow-a), #3b82f6, #a855f7, #ec4899, #f97316, #3b82f6); }
+[data-editor-ai-glow]::before { padding: 3px; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+[data-editor-ai-glow]::after { opacity: .85; -webkit-mask: linear-gradient(to right, #000, rgba(0,0,0,.4) 6px, transparent 16px, transparent calc(100% - 16px), rgba(0,0,0,.4) calc(100% - 6px), #000), linear-gradient(to bottom, #000, rgba(0,0,0,.4) 6px, transparent 16px, transparent calc(100% - 16px), rgba(0,0,0,.4) calc(100% - 6px), #000); mask: linear-gradient(to right, #000, rgba(0,0,0,.4) 6px, transparent 16px, transparent calc(100% - 16px), rgba(0,0,0,.4) calc(100% - 6px), #000) add, linear-gradient(to bottom, #000, rgba(0,0,0,.4) 6px, transparent 16px, transparent calc(100% - 16px), rgba(0,0,0,.4) calc(100% - 6px), #000); }
+@media (prefers-reduced-motion: reduce) { [data-editor-ai-glow] { animation: none; transition: none; } }
+`;
+
 function CanvasBlock(args: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string; site: SiteData }) {
   const filling = useContext(FillingContext).has(String(args.props.id));
   // #1660 —— 新块落下、AI 在按这家生意写：块上一枚标（不接鼠标，点它等于点这一块；块照样能选、能改）。
@@ -671,6 +688,7 @@ function CanvasBlock(args: { component: EditorComponent; props: ItemProps; local
   //    元素类型一换 React 就把整块卸了重挂，老板正在打字的那一格连同焦点一起没了，回话之后打的字全部落空（QA3 R5）。
   return (
     <div style={{ position: 'relative' }}>
+      {filling && <><span data-editor-ai-glow /><style>{AI_GLOW_CSS}</style></>}
       {filling && (
         <span data-editor-ai-filling style={{ position: 'absolute', top: 8, right: 8, zIndex: 5, pointerEvents: 'none', padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: '#7a5af8', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
           AI is writing…
