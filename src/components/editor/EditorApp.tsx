@@ -116,6 +116,7 @@ import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-
 import { designAiRounds, designAiWater } from '../../../scripts/lib/design-ai-rounds.js';
 import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
 import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
+import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField } from './ImageField';
 import { ButtonEditor, buttonHrefField } from './ButtonLink';
@@ -1950,9 +1951,11 @@ const POPOVER_W = 520;
 const POPOVER_PAD = 12;
 const POPOVER_BORDER = 1;
 const THUMB_W = 236;
-// #1738 r3 —— 顶栏 / 页脚的缩略图先按这么宽排版再缩（画布更窄就按画布宽）：它们又宽又矮，按画布宽（常见 1500）排版再缩到 236
+// #1738 r3 —— 顶栏 / 页脚的缩略图先按这么宽排版再缩：它们又宽又矮，按画布宽（常见 1500）排版再缩到 236
 //    只剩一条线（Chris 2026-10-13 打回）。1024 > 顶栏唯一的断点 992（`blocks/header/block.css`）⟹ 缩略图里仍是桌面那一版。
 //    这两区的格子一行一张、占满内容区宽（§DesignPopover 现算）。页面块不受影响：照旧按画布宽排版、236 宽、两列。
+// #1764 —— 画布再窄也按这么宽：媒体查询按画布视口宽求值、不看这一层多宽，所以光排版宽 1024 不够 —— 画布窄于 992 时缩略图里还是
+//    窄屏顶栏（窗口 1366 就是）。§DesignThumbBody 挂 THUMB_WIDE_MARK，`scripts/lib/thumb-media.js` 让那一层里的媒体查询按这个宽求值。
 const REGION_THUMB_LAYOUT_W = 1024;
 // #1722 —— 格子高 = 那个预设缩完之后的实际高（§DesignThumbBody 量），不再是固定高的框。这个数只在还没量到的那一帧顶一下。
 const THUMB_H = 148;
@@ -2014,15 +2017,17 @@ const asOptions = (v: unknown): Record<string, unknown> => (v && typeof v === 'o
 
 /**
  * #1722 —— 缩略图里缩放过的那一层：报出块渲染出来的高（未缩放的 px）。缩略图里的图片 / 字体晚到会改块高 ⟹ 一直盯着。
- * 量的是 offsetHeight（布局高，不受 transform 影响），而这一层的宽固定是排版宽（页面块 = 画布宽；顶栏 / 页脚封顶 1024，#1738 r3）⟹ 格子高变了它也不变，不会来回推。
+ * 量的是 offsetHeight（布局高，不受 transform 影响），而这一层的宽固定是排版宽（页面块 = 画布宽；顶栏 / 页脚 1024，#1738 r3 / #1764）⟹ 格子高变了它也不变，不会来回推。
  */
-function DesignThumbBody({ vw, thumbW, onHeight, children }: { vw: number; thumbW: number; onHeight: (h: number) => void; children: ReactNode }) {
+function DesignThumbBody({ vw, thumbW, wide, onHeight, children }: { vw: number; thumbW: number; wide?: boolean; onHeight: (h: number) => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const report = useRef(onHeight);
   report.current = onHeight;
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // #1764 —— 先把画布 document 的样式表改好（幂等，第一张缩略图做完后面的都是空转），再量第一次高。
+    if (wide) applyThumbMedia(el.ownerDocument, vw);
     report.current(el.offsetHeight);
     const RO = (el.ownerDocument.defaultView as (Window & typeof globalThis) | null)?.ResizeObserver;
     if (!RO) return;
@@ -2031,7 +2036,7 @@ function DesignThumbBody({ vw, thumbW, onHeight, children }: { vw: number; thumb
     return () => ro.disconnect();
   }, []);
   return (
-    <div ref={ref} style={{ width: vw, transform: `scale(${thumbW / vw})`, transformOrigin: 'top left', pointerEvents: 'none' }} aria-hidden="true">
+    <div ref={ref} {...(wide ? { [THUMB_WIDE_MARK]: '' } : null)} style={{ width: vw, transform: `scale(${thumbW / vw})`, transformOrigin: 'top left', pointerEvents: 'none' }} aria-hidden="true">
       {children}
     </div>
   );
@@ -2513,10 +2518,10 @@ function DesignPopover({ doc }: { doc: Document }) {
   const cap = Math.floor((THUMB_MAX_VH * (doc.defaultView ? doc.defaultView.innerHeight : 800)) / (pos ? pos.scale : 1));
   // #1727 —— 弹层窄到放不下两列（画布 Small 那一档）就退成一列，格子照样各自往下堆。
   const innerW = (pos ? pos.w : POPOVER_W) - 2 * (POPOVER_PAD + POPOVER_BORDER);
-  // #1738 r3 —— 顶栏 / 页脚：一行一张、占满内容区，排版宽封顶 REGION_THUMB_LAYOUT_W（见那个常量）。
+  // #1738 r3 —— 顶栏 / 页脚：一行一张、占满内容区，排版宽 REGION_THUMB_LAYOUT_W（见那个常量；#1764 起画布再窄也是它）。
   //   r4：内容区宽用量到的那个（§layInnerW，扣掉了滚动条）；还没量到的那一帧先按弹层宽推。
   const thumbW = region ? Math.max(1, layInnerW || innerW) : THUMB_W;
-  const layW = region ? Math.min(vw, REGION_THUMB_LAYOUT_W) : vw;
+  const layW = region ? REGION_THUMB_LAYOUT_W : vw;
   const cols = region ? 1 : innerW >= 2 * THUMB_W + THUMB_GAP ? 2 : 1;
   const colH = cols === 2 ? [0, 0] : [0];
   const cells = presets.map((p, i) => {
@@ -2573,7 +2578,7 @@ function DesignPopover({ doc }: { doc: Document }) {
                 style={{ position: 'absolute', top, left, width: thumbW, display: 'flex', flexDirection: 'column', gap: 6, cursor: readOnly ? 'default' : 'pointer', outlineOffset: 2 }}>
                 <div data-editor-design-thumb="" style={{ width: thumbW, height: h, overflow: 'hidden', borderRadius: 8, position: 'relative', background: '#fff',
                   boxShadow: on ? '0 0 0 2px #1d4ed8' : '0 0 0 1px #d0d5dd' }}>
-                  <DesignThumbBody vw={layW} thumbW={thumbW} onHeight={(v) => setBodyH((m) => (m[key] === v ? m : { ...m, [key]: v }))}>
+                  <DesignThumbBody vw={layW} thumbW={thumbW} wide={!!region} onHeight={(v) => setBodyH((m) => (m[key] === v ? m : { ...m, [key]: v }))}>
                     {thumb(p, i)}
                   </DesignThumbBody>
                   {clipped ? (
