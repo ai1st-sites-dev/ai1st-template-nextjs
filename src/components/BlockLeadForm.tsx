@@ -76,10 +76,11 @@ const DEFAULT_SUCCESS = (locale: string) => getLabels(locale).formThanks;
 /**
  * #1631 —— 输入框占位符按站的语言（`component-labels.ts` 的 `getLabels`，跟 not-found 页 / 博客页取界面字同一张表）。
  * 那张表 14 种、没有 zh-tw ⟹ 繁体站这里回英文，跟改之前一样（已知，票面「做什么」3）。逐键回退英文。
+ * #1768 r5 —— `service` 取它自己那一句 `formService`（原来跟 `message` 共用 `formNeed`，编辑器里两格同名）。
  */
 export function placeholdersFor(locale: string): Record<LeadField, string> {
   const l = getLabels(locale);
-  return { name: l.formName, phone: l.formPhone, email: l.formEmail, message: l.formNeed, service: l.formNeed };
+  return { name: l.formName, phone: l.formPhone, email: l.formEmail, message: l.formNeed, service: l.formService };
 }
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';

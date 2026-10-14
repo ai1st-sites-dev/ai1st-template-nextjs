@@ -23,7 +23,10 @@ const LABELS = path.join(NEXT, 'src', 'lib', 'component-labels.ts');
 const FORM = path.join(NEXT, 'src', 'components', 'BlockLeadForm.tsx');
 // #1769 加了第七个 `formRequired`（必填项没填）。它不是从 BlockLeadForm 里搬出来的，没有「改之前的原文」；
 //    ORIGINAL 里那一行就是 en 那一行，③ ④ 照样成立（④ 管的是它没被写死回组件里）。
-const KEYS = ['formSubmit', 'formThanks', 'formNeedEmail', 'formNeedPhone', 'formFailed', 'formSending', 'formRequired'];
+// #1768 r5 加了第八个 `formService`（表单「选一项服务」那一格的默认访客名，原来跟 message 共用 formNeed）。同 formRequired：不是从
+//    BlockLeadForm 里搬出来的，ORIGINAL 里那一行就是 en 那一行。键这一维是手抄的单子（语言那一维是算出来的）⟹ 往字表里加键必须加到这里，
+//    不然 13 种语言漏了 / 空了这把尺一个字都不说。
+const KEYS = ['formSubmit', 'formThanks', 'formNeedEmail', 'formNeedPhone', 'formFailed', 'formSending', 'formRequired', 'formService'];
 /** 改之前 BlockLeadForm.tsx 写死的原文（#1641 正文「做什么」1 那张表）。 */
 const ORIGINAL = {
   formSubmit: 'Get a free quote',
@@ -33,6 +36,7 @@ const ORIGINAL = {
   formFailed: 'Something went wrong. Please try again or call us.',
   formSending: 'Sending…',
   formRequired: 'Please fill in the required fields.',
+  formService: 'Which service?',
 };
 
 let pass = 0;

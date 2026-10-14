@@ -26,6 +26,12 @@
 //    Add 时生成一次），文字在 `labels['<字段id>.<选项id>']`（只写这个语言）。改类型：五种之间随便换 —— 换成带选项的、手上还没有选项
 //    ⟹ 先放两项 `Option 1` / `Option 2`；换成不带选项的 ⟹ Save 时选项连同文字一起去掉（存盘那一侧再把每个语言的文字删掉）；
 //    已经收到的答案不受影响（答案存的是当时的文字）。
+// #1768 r5 —— Chris 2026-10-14 在 appdev 上打回的两处：
+//    ①「+ Add field」直接进 Add field 页（原来先展开一排小按钮：还没加的自带字段各一颗 + Add custom，而 message / service
+//      默认访客名同一句，冒出第二个「What do you need?」）。自带字段并进 Type 下拉，写成人话（§BUILTIN_TYPES），只列表单里
+//      还没有的；选它 ⟹ Label 预填它的默认访客名、只有 Required（没有 Options）。service 的默认访客名换成自己那一句（formService）。
+//    ② Add field / Edit field 页底部只有 Cancel（回列表，这次不要）+ 一个主按钮（新加叫 Add field、改的叫 Save；落到表单上并回列表），
+//      页中间那颗 Save 去掉、这一页不出 Done —— 原来子页上那颗 Done 交的是「已经落到表单上的」，这一页刚填的还没落上去，点了就丢。
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { COPY_CAPS, CUSTOM_FIELD_TYPES, CUSTOM_ID_RE, FORM_FIELDS, LABEL_CAP, MAX_CUSTOM_FIELDS, MAX_OPTIONS, MIN_OPTIONS, customLabelKeys, formIdOptions, hasOptions, isCustomField, lacksContactField, optionLabelKey, optionsOf, primaryChoices } from '../../../scripts/lib/site-forms.js';
@@ -56,6 +62,17 @@ function newCustomId(taken: readonly string[], prefix = 'f'): string {
     if (!taken.includes(id) && CUSTOM_ID_RE.test(id)) return id;
   }
 }
+/**
+ * #1768 r5 —— Add field 页 Type 下拉里的自带字段（只列表单里还没有的）：叫法照 Chris 2026-10-14 的打回留言。
+ * 下拉里的值写成 `field:<名>`，跟六种自定义类型分开。
+ */
+const BUILTIN_TYPES: Record<FormField, { label: string; help: string }> = {
+  name: { label: 'Name', help: 'The visitor’s name.' },
+  phone: { label: 'Phone', help: 'The visitor’s phone number.' },
+  email: { label: 'Email', help: 'The visitor’s email address.' },
+  message: { label: 'Message (long text)', help: 'A longer message from the visitor.' },
+  service: { label: 'Service list (pick one of your services)', help: 'Visitors pick one of the services on your website.' },
+};
 /** #1770 —— Add field 页手上的一项选项。 */
 type DraftOption = { id: string; label: string };
 const seedOptions = (): DraftOption[] => {
@@ -171,7 +188,9 @@ const ICON = {
 /**
  * 「Edit form」弹窗（#1768 起分页，照 Durable 的 Contact form）。入口两个：块的浮动条上那颗 Edit form、Content 页里「Edit this form」。
  *   第一页：标题 = 表单名；三行（联系方式 / 成功提示 / 表单字段）各点进子页；Submit button label 一格；最下面表单名一格。
- *   子页左上角 ← 回上一层。Cancel / Done 每一页都有：Done 把所有页改过的一起交，Cancel 什么都不交（包括子页里改过的）。
+ *   子页左上角 ← 回上一层。Cancel / Done 在第一页、Form fields 列表、联系方式 / 成功提示、自带字段那一页：Done 把所有页改过的一起交，
+ *   Cancel 什么都不交（包括子页里改过的）。#1768 r5 —— Add field / Edit field 页（`custom:`）例外：那一页手上是一份还没落到表单上的草稿，
+ *   底部只有 Cancel（回 Form fields、这次不要）+ 一个主按钮（Add field / Save：落到表单上并回 Form fields），没有 Done。
  * Done ⟹ `onDone(表单那一笔 | null, 联系方式改过的那几格 | null)`；两样都没改 ⟹ 两个 null。
  * 🔴 两样存储不同：表单文案 / 字段名按语言（`forms.json`），联系方式整站一份（`brand.json`）—— 联系方式子页顶上那句说的就是这个。
  *    在这里只管「改了什么」，怎么交由 EditorApp 管（表单那一笔照旧经存盘的 `forms` 键，联系方式写进 Puck root，同 Page 面板）。
@@ -199,11 +218,11 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   const setReq = (id: string, on: boolean) => setRequired((r) => (on ? (r.includes(id) ? r : [...r, id]) : r.filter((x) => x !== id)));
   /** #1769 —— Add field 页手上那一份（Save 才写进上面三样；← 回去 = 不要了）。 */
   // #1770 —— `options`：带选项的类型才用；换成不带选项的类型时留在手上（换回来还在），Save 时才按类型取舍。
-  const [draft, setDraft] = useState<{ label: string; type: CustomFormField['type']; required: boolean; options: DraftOption[] }>({ label: '', type: 'text', required: false, options: [] });
+  // #1768 r5 —— `builtin`：Type 选的是一个自带字段（只在新加时可选）；这时 `type` / `options` 不用。
+  const [draft, setDraft] = useState<{ label: string; type: CustomFormField['type']; required: boolean; options: DraftOption[]; builtin: FormField | null }>({ label: '', type: 'text', required: false, options: [], builtin: null });
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOpt, setDragOpt] = useState<number | null>(null);
   const [page, setPage] = useState<Page>('main');
-  const [adding, setAdding] = useState(false);
   // Esc 收在 document 上，不挂在对话框元素上：点它的标题字 / 遮罩、或点掉一颗随即消失的「+ Add」按钮后，焦点在 <body>，
   // 元素上的 onKeyDown 收不到 ⟹ 对话框关不掉（#1735 r3）。
   const cancelRef = useRef(onCancel);
@@ -240,7 +259,6 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     const root = rootRef.current;
     const first = root?.querySelector<HTMLElement>('input[type="text"], textarea');
     (first || root)?.focus();
-    setAdding(false);
   }, [page]);
   const over = KEYS.filter((k) => Array.from(vals[k].trim()).length > CAPS[k]);
   const labelLen = (f: EditorField) => Array.from((labels[idOf(f)] || '').trim()).length;
@@ -263,10 +281,6 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     const left = primaryChoices(rest.filter((x): x is FormField => !isCustom(x))) as FormField[];
     if (!primary || !left.includes(primary)) setPrimary(left[0]);
   };
-  const add = (f: FormField) => {
-    setFields((list) => (list.includes(f) ? list : [...list, f]));
-    setAdding(false);
-  };
   const move = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= fields.length || to >= fields.length) return;
     setFields((list) => { const next = [...list]; const [x] = next.splice(from, 1); next.splice(to, 0, x); return next; });
@@ -276,16 +290,36 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   const nameOf = (f: EditorField) => (labels[idOf(f)] || '').trim() || (isCustom(f) ? f.id : fieldNames?.[f] || KIND[f]);
   const kindOf = (f: EditorField) => (isCustom(f) ? (CUSTOM_TYPES.find((t) => t.value === f.type) || CUSTOM_TYPES[0]).label : KIND[f]);
   const customCount = fields.filter(isCustom).length;
+  const canAddCustom = customCount < MAX_CUSTOM_FIELDS;
+  /** #1768 r5 —— 表单里还没有的自带字段（Add field 页 Type 下拉里列它们）。 */
+  const unused = VOCAB.filter((f) => !fields.includes(f));
+  /** #1768 r5 —— 自带字段的默认访客名（访客看到的语言默认那句）：选它时 Label 预填这一句。 */
+  const defaultName = (f: FormField) => fieldNames?.[f] || KIND[f];
   /** #1769 —— 打开 Add field 页：`id` 空 = 新加一个；否则改那一个（带上它现在的名字 / 必填）。 */
   const openCustom = (id: string) => {
     const f = fields.find((x) => isCustom(x) && x.id === id) as CustomFormField | undefined;
+    // #1768 r5 —— 新加、自定义字段已经到上限 ⟹ 只剩自带字段可选，停在第一个。
+    const first = !f && !canAddCustom ? unused[0] : undefined;
     setDraft(f
-      ? { label: labels[f.id] || '', type: f.type, required: required.includes(f.id), options: (optionsOf(f) as string[]).map((o) => ({ id: o, label: labels[optionLabelKey(f.id, o)] || '' })) }
-      : { label: '', type: 'text', required: false, options: [] });
+      ? { label: labels[f.id] || '', type: f.type, required: required.includes(f.id), options: (optionsOf(f) as string[]).map((o) => ({ id: o, label: labels[optionLabelKey(f.id, o)] || '' })), builtin: null }
+      : first
+        ? { label: defaultName(first), type: 'text', required: false, options: [], builtin: first }
+        : { label: '', type: 'text', required: false, options: [], builtin: null });
     setPage(`custom:${id}`);
   };
-  /** #1770 —— 换类型：换成带选项的、手上一项都没有 ⟹ 先放两项。 */
-  const setDraftType = (type: CustomFormField['type']) => setDraft((d) => ({ ...d, type, options: hasOptions(type) && !d.options.length ? seedOptions() : d.options }));
+  /**
+   * #1768 r5 —— Type 下拉换一项。自带字段 ⟹ Label 预填它的默认访客名（手上那格是空的、或还是上一个自带字段的默认那句时才换，
+   * 老板自己打的字不盖）；换回自定义类型时那格要是还是默认那句就清掉。
+   */
+  const pickType = (v: string) => setDraft((d) => {
+    const wasDefault = !d.label.trim() || (d.builtin !== null && d.label === defaultName(d.builtin));
+    if (v.startsWith('field:')) {
+      const b = v.slice('field:'.length) as FormField;
+      return { ...d, builtin: b, label: wasDefault ? defaultName(b) : d.label };
+    }
+    const type = v as CustomFormField['type'];
+    return { ...d, builtin: null, type, label: d.builtin !== null && wasDefault ? '' : d.label, options: hasOptions(type) && !d.options.length ? seedOptions() : d.options };
+  });
   const optLen = (o: DraftOption) => Array.from(o.label.trim()).length;
   /** #1770 —— 选项列表能不能存：2~10 项、每项 1~LABEL_CAP 字（不带选项的类型不看）。 */
   const optionsOk = (d: typeof draft) => !hasOptions(d.type)
@@ -297,6 +331,16 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   });
   const saveCustom = (id: string) => {
     const label = draft.label.trim();
+    // #1768 r5 —— 自带字段：加到表单末尾；名字跟默认那句一样（或空）⟹ 不存名字（访客看到语言默认那句，换语言也对）。
+    if (draft.builtin) {
+      const b = draft.builtin;
+      if (fields.includes(b) || Array.from(label).length > LABEL_CAP) return;
+      setFields((list) => [...list, b]);
+      setLabels((l) => { const next = { ...l }; if (label && label !== defaultName(b)) next[b] = label; else delete next[b]; return next; });
+      setReq(b, draft.required);
+      setPage('fields');
+      return;
+    }
     if (!label || Array.from(label).length > LABEL_CAP || !optionsOk(draft)) return;
     const fid = id || newCustomId(fields.map(idOf));
     // #1770 —— 带选项的类型连同选项 id 一起进结构；不带的不留 `options`。
@@ -385,6 +429,7 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   );
   let title: ReactNode;
   let body: ReactNode;
+  let footer: ReactNode = null;
   if (page === 'main') {
     title = vals.name.trim() || form.name || 'Form';
     const rows: ('contact' | 'success' | 'fields')[] = [...(business ? ['contact' as const] : []), 'success', 'fields'];
@@ -422,8 +467,6 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     body = copyInput('successMessage', LABEL.successMessage);
   } else if (page === 'fields') {
     title = <>{back('main')}{PAGE_TITLE.fields}</>;
-    const unused = VOCAB.filter((f) => !fields.includes(f));
-    const canAddCustom = customCount < MAX_CUSTOM_FIELDS;
     body = (
       <div data-editor-form-fields="">
         <div style={{ fontSize: 12, color: '#667085', marginBottom: 8 }}>Drag to reorder. The name is what visitors see in the empty box.</div>
@@ -453,19 +496,9 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
           );
         })}
         {why && <div data-editor-form-remove-why style={{ fontSize: 12, color: '#93370d', marginBottom: 8 }}>{why}</div>}
+        {/* #1768 r5 —— 直接进 Add field 页（自带字段在那一页的 Type 里选）。 */}
         {(unused.length > 0 || canAddCustom) && (
-          <div>
-            <button type="button" data-editor-form-add-open="" aria-expanded={adding} onClick={() => setAdding((a) => !a)} style={small}>+ Add field</button>
-            {adding && (
-              <div data-editor-form-add-menu="" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {unused.map((f) => (
-                  <button key={f} type="button" data-editor-form-add={f} onClick={() => add(f)} style={small}>{fieldNames?.[f] || KIND[f]}</button>
-                ))}
-                {/* #1769 —— 老板自己的问题（Durable 的「Field selector」字段库不做，直接进 Add field 页）。 */}
-                {canAddCustom && <button type="button" data-editor-form-add-custom="" onClick={() => openCustom('')} style={small}>Add custom</button>}
-              </div>
-            )}
-          </div>
+          <button type="button" data-editor-form-add-open="" onClick={() => openCustom('')} style={small}>+ Add field</button>
         )}
         {!canAddCustom && <div data-editor-form-custom-max="" style={{ fontSize: 12, color: '#667085', marginTop: 8 }}>{`A form can have at most ${MAX_CUSTOM_FIELDS} fields of your own.`}</div>}
       </div>
@@ -475,8 +508,13 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     const id = page.slice('custom:'.length);
     const n = Array.from(draft.label.trim()).length;
     const type = CUSTOM_TYPES.find((t) => t.value === draft.type) || CUSTOM_TYPES[0];
-    const canSave = n > 0 && n <= LABEL_CAP && optionsOk(draft);
-    const withOpts = hasOptions(draft.type);
+    const b = draft.builtin;
+    // 自带字段：名字可以空（= 用默认那句）；自定义字段：要有名字、选项合格。
+    const canSave = b ? n <= LABEL_CAP : n > 0 && n <= LABEL_CAP && optionsOk(draft);
+    const withOpts = !b && hasOptions(draft.type);
+    // Type 下拉：改一个自定义字段 ⟹ 只有六种（自定义字段不能变成自带字段）；新加 ⟹ 六种（没到上限时）+ 表单里还没有的自带字段。
+    const customChoices = id || canAddCustom ? CUSTOM_TYPES : [];
+    const builtinChoices = id ? [] : unused;
     title = <>{back('fields')}{id ? 'Edit field' : 'Add field'}</>;
     body = (
       <div data-editor-form-custom={id || 'new'}>
@@ -491,12 +529,13 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
         </label>
         <label style={{ display: 'block', marginBottom: 14 }}>
           <span style={FIELD_LABEL}><span>Type</span></span>
-          <select data-editor-form-custom-type="" value={draft.type}
-            onChange={(e) => setDraftType(e.target.value as CustomFormField['type'])}
+          <select data-editor-form-custom-type="" value={b ? `field:${b}` : draft.type}
+            onChange={(e) => pickType(e.target.value)}
             style={{ width: '100%', padding: 8, border: '1px solid #d0d5dd', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, background: '#fff' }}>
-            {CUSTOM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            {customChoices.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            {builtinChoices.map((f) => <option key={f} value={`field:${f}`}>{BUILTIN_TYPES[f].label}</option>)}
           </select>
-          <span style={HELP}>{type.help}</span>
+          <span style={HELP}>{b ? BUILTIN_TYPES[b].help : type.help}</span>
         </label>
         {/* #1770 —— 选项列表（只有 Dropdown / Checkboxes / Radio buttons）：把手拖动排序（同字段列表）、改文字、删、加。 */}
         {withOpts && (
@@ -541,11 +580,16 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
             <span style={HELP}>Visitors can’t send the form without answering it.</span>
           </span>
         </label>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="button" data-editor-form-custom-save="" disabled={!canSave} onClick={() => saveCustom(id)}
-            style={{ ...BTN, border: 0, background: canSave ? '#1d4ed8' : '#98a2b3', color: '#fff', cursor: canSave ? 'pointer' : 'not-allowed' }}>Save</button>
-        </div>
       </div>
+    );
+    // #1768 r5 —— 这一页的底栏：Cancel（回列表、这次不要）+ 主按钮（落到表单上、回列表）。没有 Done。
+    footer = (
+      <>
+        <button type="button" data-editor-form-custom-cancel="" onClick={() => setPage('fields')}
+          style={{ ...BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
+        <button type="button" data-editor-form-custom-save="" disabled={!canSave} onClick={() => saveCustom(id)}
+          style={{ ...BTN, border: 0, background: canSave ? '#1d4ed8' : '#98a2b3', color: '#fff', cursor: canSave ? 'pointer' : 'not-allowed' }}>{id ? 'Save' : 'Add field'}</button>
+      </>
     );
   } else {
     const f = page.slice('field:'.length) as FormField;
@@ -615,10 +659,14 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
         <div style={{ padding: '12px 16px', overflowY: 'auto' }}>{body}</div>
         {blocked && <div data-editor-form-blocked="" style={{ padding: '0 16px 8px', fontSize: 12, color: '#d92d20' }}>{blockedWhy.join(' ')}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
-          <button type="button" data-editor-form-cancel onClick={onCancel}
-            style={{ ...BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
-          <button type="button" data-editor-form-done onClick={done} disabled={blocked}
-            style={{ ...BTN, border: 0, background: blocked ? '#98a2b3' : '#1d4ed8', color: '#fff', cursor: blocked ? 'not-allowed' : 'pointer' }}>Done</button>
+          {footer || (
+            <>
+              <button type="button" data-editor-form-cancel onClick={onCancel}
+                style={{ ...BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
+              <button type="button" data-editor-form-done onClick={done} disabled={blocked}
+                style={{ ...BTN, border: 0, background: blocked ? '#98a2b3' : '#1d4ed8', color: '#fff', cursor: blocked ? 'not-allowed' : 'pointer' }}>Done</button>
+            </>
+          )}
         </div>
       </div>
     </div>

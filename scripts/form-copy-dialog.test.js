@@ -115,7 +115,14 @@ async function mount(form, extra = {}) {
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, val);
     await act(async () => { el.dispatchEvent(new win.Event('input', { bubbles: true })); });
   };
-  return { got, q, click, type, options, primaryValue, unmount, go, on };
+  /** #1768 r5 —— 下拉选一项（React 的 select 收 change）。 */
+  const pick = async (sel, val) => {
+    const el = q(sel);
+    if (!el) throw new Error(`页面上没有 ${sel}`);
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, val);
+    await act(async () => { el.dispatchEvent(new win.Event('change', { bubbles: true })); });
+  };
+  return { got, q, click, type, pick, options, primaryValue, unmount, go, on };
 }
 
 (async () => {
@@ -160,7 +167,8 @@ async function mount(form, extra = {}) {
       const p = await mount({ id: 'contact', name: 'Contact us', fields: ['name', 'email', 'message'], primary: 'name' });
       check(JSON.stringify((await p.options())) === JSON.stringify(['email']) && (await p.primaryValue()) === 'email',
         `primary 是 name 的旧表单打开 ⟹ 快速表单开关只有 email 且显示 email（读到 ${JSON.stringify((await p.options()))} / ${(await p.primaryValue())}）`);
-      await p.go('fields'); await p.click('[data-editor-form-add-open]'); await p.click('[data-editor-form-add="phone"]');
+      // #1768 r5 —— 加自带字段走 Add field 页：Type 里选 Phone → Add field。
+      await p.go('fields'); await p.click('[data-editor-form-add-open]'); await p.pick('[data-editor-form-custom-type]', 'field:phone'); await p.click('[data-editor-form-custom-save]');
       check(JSON.stringify((await p.options())) === JSON.stringify(['email', 'phone']), `加 phone ⟹ 快速表单开关 email / phone（按字段顺序；读到 ${JSON.stringify((await p.options()))}）`);
       check((await p.primaryValue()) === 'email', `加 phone 之后快速表单开关仍显示 email（读到 ${(await p.primaryValue())}）`);
       await p.click('[data-editor-form-done]');

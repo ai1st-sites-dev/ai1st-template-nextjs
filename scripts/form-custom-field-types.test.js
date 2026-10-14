@@ -410,11 +410,11 @@ console.log('\n── 提交（happy-dom）');
     const DEF = clone(sf.DEFAULT_SITE_FORMS[0]);
     const d = await mount(clone(DEF));
     await d.click('[data-editor-form-page="fields"]');
+    // #1768 r5 —— 「+ Add field」直接进 Add field 页；Type 里六种之后跟着表单还没有的自带字段（这张缺 service）。
     await d.click('[data-editor-form-add-open]');
-    await d.click('[data-editor-form-add-custom]');
     const types = d.qa('[data-editor-form-custom-type] option').map((o) => `${o.value}=${o.textContent}`);
-    check(JSON.stringify(types) === JSON.stringify(['text=One line', 'textarea=Multiple lines', 'select=Dropdown', 'checkbox=Checkboxes', 'radio=Radio buttons', 'date=Date']),
-      `Type 下拉六选一，顺序叫法照 Durable（${types.join(' / ')}）`);
+    check(JSON.stringify(types) === JSON.stringify(['text=One line', 'textarea=Multiple lines', 'select=Dropdown', 'checkbox=Checkboxes', 'radio=Radio buttons', 'date=Date', 'field:service=Service list (pick one of your services)']),
+      `Type 下拉六种，顺序叫法照 Durable，后面跟着还没加的自带字段（${types.join(' / ')}）`);
     check(!d.q('[data-editor-form-options]'), 'One line ⟹ 没有选项列表');
     await d.setVal('[data-editor-form-custom-type]', 'select', 'change');
     check(/One choice from a dropdown list\./.test(d.host.textContent) && d.opts().length === 2 && JSON.stringify(d.optText()) === '["Option 1","Option 2"]'

@@ -335,23 +335,27 @@ console.log('\n── 提交（happy-dom）');
         Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, val);
         await act(async () => { el.dispatchEvent(new win.Event('input', { bubbles: true })); });
       };
+      const pick = async (sel, val) => {
+        const el = q(sel); if (!el) throw new Error(`页面上没有 ${sel}`);
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, val);
+        await act(async () => { el.dispatchEvent(new win.Event('change', { bubbles: true })); });
+      };
       const rows = () => [...host.querySelectorAll('[data-editor-form-row]')].map((r) => r.getAttribute('data-editor-form-row'));
       const page = () => q('[data-editor-form-dialog]').getAttribute('data-editor-form-page-on');
       const unmount = async () => { await act(async () => { root.unmount(); }); };
-      return { got, q, click, type, rows, page, unmount, apply: mod.applyFormCopyEdit, host };
+      return { got, q, click, type, pick, rows, page, unmount, apply: mod.applyFormCopyEdit, host };
     };
     const DEF = clone(sf.DEFAULT_SITE_FORMS[0]); // name / phone / email / message，primary phone，没有 required
 
     // ① Add custom → Add field 页 → Save → 字段列表多一行 → Done 交出去的那一笔
     const d = await mount(clone(DEF));
     await d.click('[data-editor-form-page="fields"]');
+    // #1768 r5 —— 「+ Add field」直接进 Add field 页（不再先展开一排小按钮）；Type 里多出表单还没有的自带字段（这张缺 service）。
     await d.click('[data-editor-form-add-open]');
-    check(!!d.q('[data-editor-form-add-custom]'), '「+ Add field」菜单里有 Add custom（内置字段都在用时也有）');
-    await d.click('[data-editor-form-add-custom]');
     const opts = [...d.host.querySelectorAll('[data-editor-form-custom-type] option')].map((o) => o.textContent);
     check(d.page() === 'custom:' && d.q('[data-editor-form-title]').textContent.includes('Add field')
-      && opts[0] === 'One line' && opts.length === sf.CUSTOM_FIELD_TYPES.length && /A short text answer\./.test(d.host.textContent) && !!d.q('[data-editor-form-custom-required]'),
-    `Add field 页：Label 一格 · Type 下拉默认 One line（说明「A short text answer.」，#1770 起六种）· Required 开关（${JSON.stringify(opts)}）`);
+      && opts[0] === 'One line' && opts.length === sf.CUSTOM_FIELD_TYPES.length + 1 && /A short text answer\./.test(d.host.textContent) && !!d.q('[data-editor-form-custom-required]'),
+    `「+ Add field」⟹ 直接是 Add field 页：Label 一格 · Type 下拉默认 One line（说明「A short text answer.」，#1770 起六种 + 还没加的 service）· Required 开关（${JSON.stringify(opts)}）`);
     check(d.q('[data-editor-form-custom-save]').disabled, 'Label 空着 ⟹ Save 灰着');
     await d.type('[data-editor-form-custom-label]', 'What car do you drive?');
     await d.click('[data-editor-form-custom-required]');
@@ -391,7 +395,6 @@ console.log('\n── 提交（happy-dom）');
     const b = await mount(clone(DEF));
     await b.click('[data-editor-form-page="fields"]');
     await b.click('[data-editor-form-add-open]');
-    await b.click('[data-editor-form-add-custom]');
     await b.type('[data-editor-form-custom-label]', 'Never saved');
     await b.click('[data-editor-form-back]');
     check(b.page() === 'fields' && b.rows().length === 4, '在 Add field 页点 ← ⟹ 回到列表，什么都没加');
@@ -426,6 +429,56 @@ console.log('\n── 提交（happy-dom）');
       && JSON.stringify(e4.base) === JSON.stringify({ fields: withCar.fields, primary: 'phone', required: ['car'] }),
     '开 name 的 Required、删 car ⟹ required = [name]、fields 不含 car、不交 car 的名字；base 带着打开时的 required', JSON.stringify(e4));
     await r.unmount();
+
+    // ⑥ #1768 r5（Chris 2026-10-14 打回）：Add field 页上没有 Done、只有 Cancel + 一个主按钮；自带字段在 Type 里、写成人话；
+    //    service 的默认访客名是自己那一句（不再跟 message 同名）；Cancel 回列表不加，主按钮回列表多一行。
+    {
+      const s = await mount(clone(DEF));
+      await s.click('[data-editor-form-page="fields"]');
+      check(!s.host.textContent.includes('Add custom'), '⑥ Form fields 页上找不到「Add custom」这个词');
+      await s.click('[data-editor-form-add-open]');
+      const btns = [...s.host.querySelectorAll('button')].map((x) => (x.textContent || '').trim());
+      const blue = [...s.host.querySelectorAll('button')].filter((x) => /#1d4ed8|rgb\(29, 78, 216\)|#98a2b3/.test(x.getAttribute('style') || '')).map((x) => x.textContent.trim());
+      check(!s.q('[data-editor-form-done]') && !btns.includes('Done') && JSON.stringify(blue) === '["Add field"]' && btns.includes('Cancel'),
+        `⑥ Add field 页：没有 Done，主按钮只有一颗、叫 Add field，旁边是 Cancel（按钮：${JSON.stringify(btns)} · 主按钮：${JSON.stringify(blue)}）`);
+      const types = [...s.host.querySelectorAll('[data-editor-form-custom-type] option')].map((o) => `${o.value}=${o.textContent}`);
+      check(types.includes('field:service=Service list (pick one of your services)') && !types.some((t) => /^field:(name|phone|email|message)=/.test(t)),
+        `⑥ Type 里只多出表单还没有的自带字段，写成人话（${JSON.stringify(types.filter((t) => t.startsWith('field:')))}）`);
+      // Cancel ⟹ 回列表、行数不变
+      await s.type('[data-editor-form-custom-label]', 'Thrown away');
+      await s.click('[data-editor-form-custom-cancel]');
+      check(s.page() === 'fields' && s.rows().length === 4, `⑥ 填了点 Cancel ⟹ 回 Form fields、行数不变（${JSON.stringify(s.rows())}）`);
+      await s.unmount();
+
+      // 选 Service list：Label 预填默认访客名、没有选项列表、有 Required；Add field ⟹ 回列表多一行，那一行显示 Which service?
+      const v = await mount(clone(DEF));
+      await v.click('[data-editor-form-page="fields"]');
+      await v.click('[data-editor-form-add-open]');
+      await v.pick('[data-editor-form-custom-type]', 'field:service');
+      // 这里没递 fieldNames（访客默认那几句由 EditorApp 递进来，e2e 量它）⟹ 预填的是字段种类名。
+      check(v.q('[data-editor-form-custom-label]').value === 'Service',
+        `⑥ 选 Service list ⟹ Label 预填它的默认名（读到 ${JSON.stringify(v.q('[data-editor-form-custom-label]').value)}）`);
+      check(!v.q('[data-editor-form-options]') && !!v.q('[data-editor-form-custom-required]'), '⑥ 自带字段：没有 Options、有 Required');
+      await v.click('[data-editor-form-custom-save]');
+      check(v.page() === 'fields' && JSON.stringify(v.rows()) === JSON.stringify([...DEF.fields, 'service']), `⑥ Add field ⟹ 回列表、多一行 service（${JSON.stringify(v.rows())}）`);
+      await v.click('[data-editor-form-done]');
+      const ev = v.got.done || {};
+      check(JSON.stringify(ev.fields) === JSON.stringify([...DEF.fields, 'service']) && !(ev.labels && 'service' in ev.labels),
+        '⑥ Done ⟹ fields 多 service；名字没改（= 默认那句）⟹ 不交 labels.service（换语言也对）', JSON.stringify(ev));
+      await v.unmount();
+
+      // Edit field（改一个自定义字段）：主按钮叫 Save，也没有 Done
+      const withCar2 = { ...clone(DEF), fields: [...DEF.fields, { id: 'car', type: 'text' }], labels: { car: 'What car?' } };
+      const w = await mount(withCar2);
+      await w.click('[data-editor-form-page="fields"]');
+      await w.click('[data-editor-form-field-edit="car"]');
+      const wb = [...w.host.querySelectorAll('button')].map((x) => (x.textContent || '').trim());
+      check(!w.q('[data-editor-form-done]') && w.q('[data-editor-form-custom-save]').textContent === 'Save' && !wb.includes('Add field'),
+        `⑥ Edit field 页：主按钮叫 Save、没有 Done（按钮：${JSON.stringify(wb)}）`);
+      const wtypes = [...w.host.querySelectorAll('[data-editor-form-custom-type] option')].map((o) => o.value);
+      check(!wtypes.some((t) => t.startsWith('field:')), '⑥ 改一个自定义字段时 Type 里没有自带字段（自定义字段不能变成自带字段）');
+      await w.unmount();
+    }
   } catch (e) {
     bad(`编辑器弹窗那一段抛了：${e.stack || e.message}`);
   }
