@@ -201,6 +201,7 @@
     "lines": [
       "@data",
       "items: only logo images the business uploaded (brands it installs or services, certifications it holds, platforms it is rated on) — never invent a partner; alt is the brand name; with no logo images, leave this block out",
+      "for a review platform the business is rated on, imageUrl is our built-in logo file: /images/platforms/google.svg (Google) · /images/platforms/google-maps.svg (Google Maps) · /images/platforms/yelp.svg (Yelp) · /images/platforms/facebook.svg (Facebook); never write any other web address for a logo",
       "introCta is an optional text link under the head (e.g. \"See the brands we install\")",
       "bg is the background colour, top-level in data (not inside options)"
     ]

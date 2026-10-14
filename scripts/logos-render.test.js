@@ -181,8 +181,11 @@ console.log('\n── AC4 / AC5 / AC6 row · grid · logoColor 规则');
   const imgs = (r = render('strip', clone(DEMO))) => (r.match(/<img [^>]*>/g) || []);
   check(imgs().length === DEMO.items.length && DEMO.items.every((it) => render('strip', clone(DEMO)).includes(`alt="${esc(it.alt)}"`)),
     `每个 logo 一张 <img>，alt 是品牌名（${imgs().length}）`);
+  // #1766 —— 原来是「没有 imageUrl 的那一项不画」；本票起画 #1734 的占位图（alt 照写名字，挂 data-placeholder，点它能换图）。
   const noImg = withOpts({}, { items: [...clone(DEMO.items), { alt: 'No picture' }] });
-  check(imgs(render('strip', noImg)).length === DEMO.items.length && !render('strip', noImg).includes('No picture'), '没有 imageUrl 的那一项不画（没有纯文字兜底）');
+  const ph = imgs(render('strip', noImg));
+  check(ph.length === DEMO.items.length + 1 && /src="\/images\/grid-pattern\.svg" alt="No picture"[^>]*data-slot="items\.6\.imageUrl" data-placeholder=""/.test(ph[ph.length - 1])
+    && ph.slice(0, -1).every((x) => !x.includes('data-placeholder')), '没有 imageUrl 的那一项画占位图（alt = 名字、data-placeholder），别的照旧');
 }
 
 // ══ AC7：链接 ═════════════════════════════════════════════════════════════════════════════════════
@@ -235,10 +238,12 @@ console.log('\n── AC9 validateSite');
     const r = v({ items: Array.from({ length: n }, (_, i) => logo(i)) });
     check(r.length === 0, `items ${n} 个 ⟹ 放行`, JSON.stringify(r));
   }
+  // #1766 —— 缺 imageUrl 不再拦（正文做什么 5：logos 的一项可以没有 imageUrl，画占位图）；缺名字（alt）照拦。
   for (const key of ['imageUrl', 'alt']) {
     const items = [logo(1), logo(2), logo(3)]; delete items[1][key];
     const r = v({ items });
-    check(r.length === 1 && r[0].includes(`"items" 第 2 项没有 ${key}`), `某项缺 ${key} ⟹ 报一条（点名第几项、缺哪个）`, JSON.stringify(r));
+    if (key === 'alt') check(r.length === 1 && r[0].includes(`"items" 第 2 项没有 ${key}`), `某项缺 ${key} ⟹ 报一条（点名第几项、缺哪个）`, JSON.stringify(r));
+    else check(r.length === 0, `某项缺 ${key} ⟹ 放行（#1766：画占位图）`, JSON.stringify(r));
   }
   const blank = [logo(1), logo(2), { imageUrl: 'https://example.com/x.svg', alt: '  ' }];
   check(v({ items: blank }).length === 1, 'alt 只有空白 ⟹ 也算缺');
@@ -248,7 +253,10 @@ console.log('\n── AC9 validateSite');
     for (const [label, bad] of [['123', 123], ['true', true], ['{}', {}], ['[]', []], ['null', null], ['undefined', undefined], ["'  '", '  ']]) {
       const items = [logo(1), logo(2), { ...logo(3), [key]: bad }];
       const r = v({ items });
-      check(r.length === 1 && r[0].includes(`"items" 第 3 项没有 ${key}`), `${key} 是 ${label} ⟹ 报一条、点名该路径`, JSON.stringify(r));
+      // #1766 —— imageUrl 的 null / undefined / 空白串算「没有图」⟹ 放行（画占位图）；非字符串照旧报。alt 一种都不放。
+      const empty = key === 'imageUrl' && (bad === null || bad === undefined || typeof bad === 'string');
+      if (empty) check(r.length === 0, `${key} 是 ${label} ⟹ 算没有图、放行（#1766）`, JSON.stringify(r));
+      else check(r.length === 1 && r[0].includes(`"items" 第 3 项没有 ${key}`), `${key} 是 ${label} ⟹ 报一条、点名该路径`, JSON.stringify(r));
     }
     const good = v({ items: [logo(1), logo(2), { ...logo(3), [key]: key === 'imageUrl' ? 'https://example.com/ok.svg' : 'OK Brand' }] });
     check(good.length === 0, `反向对照：${key} 是正常串 ⟹ 0 条`, JSON.stringify(good));

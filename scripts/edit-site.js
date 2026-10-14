@@ -60,6 +60,7 @@ const { CTA_PAGE } = require('./lib/site-recipe');
 // #1489 —— 改了地址就重查一次坐标（contact 的地图），理由整段在那个文件头。
 const { refreshGeoAfterEdit } = require('./lib/geocode');
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
+const { scrubRowImageUrls, scrubSiteBlocks } = require('./lib/row-image-urls');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -482,6 +483,30 @@ function scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote) {
     if (n && rewriteOnBehalfOfAi(full, `${JSON.stringify(doc, null, 2)}\n`, aiWrote)) {
       files++;
       debug(`[contact] ${path.relative(siteDir, full)}: dropped ${n} copied value(s) from items`);
+    }
+  }
+  return files;
+}
+
+/**
+ * #1766 —— 这一轮写过的页面 / 站级块里，成排小图（logo、头像、平台 logo）的外链地址删掉（`lib/row-image-urls.js` 文件头是全文；
+ * 建站写盘那一刻是同一个函数）：只留站内路径和我们图片库（host = 载荷的 `uploadsDomain`）的地址，这一项照留。
+ * 载荷里没有 `uploadsDomain` ⟹ 一个都不删、喊一行。写回走 §rewriteOnBehalfOfAi（同 §scrubContactPagesAfterEdit 的理由）。回改了几个文件。
+ */
+function scrubRowImagesAfterEdit(siteDir, writeSnapshots, aiWrote, uploadsDomain) {
+  let files = 0;
+  let warned = false;
+  const log = (line) => { if (!warned) { warned = true; debug(line); } };
+  for (const full of writeSnapshots.keys()) {
+    const isPage = /\.json$/.test(full) && path.basename(path.dirname(full)) === 'pages';
+    const isSiteBlocks = path.basename(full) === 'site-blocks.json';
+    if (!isPage && !isSiteBlocks) continue;
+    let doc;
+    try { doc = JSON.parse(fs.readFileSync(full, 'utf-8')); } catch (e) { continue; }
+    const { removed } = isPage ? scrubRowImageUrls(doc, { uploadsDomain, log }) : scrubSiteBlocks(doc, { uploadsDomain, log });
+    if (removed && rewriteOnBehalfOfAi(full, `${JSON.stringify(doc, null, 2)}\n`, aiWrote)) {
+      files++;
+      debug(`[row-images] ${path.relative(siteDir, full)}: dropped ${removed} image address(es) not from this site or its image library`);
     }
   }
   return files;
@@ -1573,6 +1598,7 @@ async function main() {
           debug(`Geocode after edit: ${geo}`);
         }
         scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote);
+        scrubRowImagesAfterEdit(siteDir, writeSnapshots, aiWrote, input.uploadsDomain);
         emit('progress', { message: 'Syncing changes to preview...' });
         try {
           execSync('node scripts/sync-config.js', {

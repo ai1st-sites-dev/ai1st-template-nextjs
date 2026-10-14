@@ -103,8 +103,11 @@ function verifyTranscription(text, aiValue) {
 }
 
 /**
- * payload 抓到的平台评分 → `{ ratingValue, reviewCount }`；没有真实数据 ⟹ null。优先 google，其余按出现顺序取第一个
+ * payload 抓到的平台评分 → `{ ratingValue, reviewCount, source }`；没有真实数据 ⟹ null。优先 google，其余按出现顺序取第一个
  * 分数在 (0, 5]、评价条数是正整数的那一家。
+ * #1766 —— `source` = 这两个数是哪个平台的（`platformRatings` 里那个键，原样）。拖下 reviews 块时 Google 那一项只在它认得出是
+ *    Google 时才用真数（`block-placeholders.js` §seedProps）：Google 没有合格的数时这里会取下一家，没有 `source` 就会把
+ *    Yelp 的分写成「Google 4.4」。JSON-LD 只读那两个数，多一个键不影响它。老站写盘时没有这个键 ⟹ 拖块那边落到示例分。
  */
 function ratingFrom(onlinePresence) {
   const pr = onlinePresence && typeof onlinePresence === 'object' ? onlinePresence.platformRatings : null;
@@ -116,7 +119,7 @@ function ratingFrom(onlinePresence) {
     const ratingValue = Number(info.rating);
     const reviewCount = Number(info.reviewCount);
     if (Number.isFinite(ratingValue) && ratingValue > 0 && ratingValue <= 5 && Number.isInteger(reviewCount) && reviewCount > 0) {
-      return { ratingValue, reviewCount };
+      return { ratingValue, reviewCount, source: name };
     }
   }
   return null;

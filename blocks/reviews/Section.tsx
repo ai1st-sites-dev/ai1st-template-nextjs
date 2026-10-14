@@ -11,11 +11,11 @@
 // 🔴 **总分不是槽，这里算**：按各平台 `count` 加权平均 = Σ(rating × count) ÷ Σcount，一位小数；条数 = Σcount。
 //    AI 不写这个数（它写不错）。显示与否由 `total` 旋钮管；`total=none` ⟹ 没有这个节点。
 //
-// 🔴 **平台 logo 三档**（`scripts/lib/review-platforms.js`）：上传的 `logoUrl` → Google / Yelp / Facebook 内置品牌图标（品牌色）
-//    → 粗体平台名。每一格的 DOM 里都有文字平台名（图标 / 图片那两档带一段 `visually-hidden`）。
+// 🔴 **平台 logo 三档**（`scripts/lib/review-platforms.js`）：上传的 `logoUrl` → 模板自带的全彩平台 logo 文件（Google / Google Maps /
+//    Yelp / Facebook，#1766）→ 粗体平台名。每一格的 DOM 里都有文字平台名（图片那两档带一段 `visually-hidden`）。
 //
-// 🔴 **图标是内联 SVG**：星（`star-fill`）和三个品牌图标登记在 `scripts/lib/icons.js` 的 `BLOCK_ICONS['reviews']`；
-//    `iconTable` 由服务端查好传进来，这里用 `InlineIcon` 画。是哪个图标看 `<svg data-icon="google">`（仓里图标的统一读数）——
+// 🔴 **图标是内联 SVG**：星（`star-fill`）登记在 `scripts/lib/icons.js` 的 `BLOCK_ICONS['reviews']`；
+//    `iconTable` 由服务端查好传进来，这里用 `InlineIcon` 画。是哪个图标看 `<svg data-icon="star-fill">`（仓里图标的统一读数）——
 //    不另挂 `bi bi-google` 这种类：没有样式规则的类会被 theme-css 守卫（#992「unstyled class」）点名。
 //
 // 🔴 **藏东西一律是不渲染**：眉标、标题、正文没数据就没节点；块头三样文字都空、总分又不显示 ⟹ 块头那一列整个不渲染。
@@ -105,18 +105,11 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
   const logo = (p: Platform, i: number) => {
     const l = platformLogo(p.source, p.logoUrl);
     const hidden = <span className="visually-hidden" data-slot={`platforms.${i}.source`}>{p.source}</span>;
-    if (l.kind === 'image') {
+    // 上传的图（`image`）和模板自带的平台 logo（`platform`，#1766）都是一张 <img>；只有上传的那张挂 `data-slot`（数据里有那一格）。
+    if (l.kind === 'image' || l.kind === 'platform') {
       return (
-        <span className="rv-logo rv-logo-img" data-part="logo" data-logo="image">
-          <img src={l.logoUrl} alt={p.source} loading="lazy" data-slot={`platforms.${i}.logoUrl`} />
-          {hidden}
-        </span>
-      );
-    }
-    if (l.kind === 'icon') {
-      return (
-        <span className="rv-logo rv-icon" data-part="logo" data-logo="icon" style={{ ['--rv-brand' as string]: l.color }}>
-          <InlineIcon name={l.icon} icons={iconTable} />
+        <span className="rv-logo rv-logo-img" data-part="logo" data-logo={l.kind}>
+          <img src={l.logoUrl} alt={p.source} loading="lazy" {...(l.kind === 'image' ? { 'data-slot': `platforms.${i}.logoUrl` } : {})} />
           {hidden}
         </span>
       );

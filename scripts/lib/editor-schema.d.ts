@@ -77,7 +77,7 @@ export interface EditorComponent {
   fields: EditorField[];
   inline: EditorInlineSlot[];
   /** #1660 —— 新块拖下去那一刻播几条列表项、条目里填哪几格（`seedListsOf`）；不播的块是 []。 */
-  seed: { slot: string; count: number; keys: string[] }[];
+  seed: SeedList[];
   carried: string[];
   shapes: { name: string; needs: string[] }[];
   defaultShape: string | null;
@@ -116,6 +116,8 @@ export function inlineSlotsOf(manifest: unknown): EditorInlineSlot[];
 /** #1693 —— 形状恰好是 `{imageUrl, alt}`（一个位置一张图）。 */
 export function isOneImage(shape: unknown): boolean;
 export function isFactSlot(spec: unknown, sub: string | null, label: string): boolean;
-export function seedListsOf(manifest: unknown): { slot: string; count: number; keys: string[] }[];
+/** #1766 —— `fill: false` = 播了但不交给 AI 填字（`keys` 只填占位）；`items` = manifest 的示例条目（照它播）。 */
+export interface SeedList { slot: string; count: number; keys: string[]; fill?: false; items?: Record<string, unknown>[] }
+export function seedListsOf(manifest: unknown): SeedList[];
 export const SEED_ITEMS: number;
 export const LINK_HREF: string;

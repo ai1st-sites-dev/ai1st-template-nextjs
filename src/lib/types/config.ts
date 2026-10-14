@@ -149,8 +149,9 @@ export interface SeoConfig {
      *  没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出 `openingHoursSpecification`，contact 那一行不画）。
      *  可以是**多段**（一组）；老站是单个对象，读的地方一律经 §hoursSegments 规范化。 */
     openingHours?: OpeningHoursSegment | OpeningHoursSegment[];
-    /** #1551 —— 抓到的真实平台评分（`onlinePresence.platformRatings`，§ratingFrom）。没有就没有这一项，不编。 */
-    aggregateRating?: { ratingValue: number; reviewCount: number };
+    /** #1551 —— 抓到的真实平台评分（`onlinePresence.platformRatings`，§ratingFrom）。没有就没有这一项，不编。
+     *  #1766 —— `source`：这两个数是哪个平台的（`platformRatings` 的键）；#1766 之前建的站没有它。 */
+    aggregateRating?: { ratingValue: number; reviewCount: number; source?: string };
     /** #1596 —— 代码拼的站级计划不写价位（老板没给过，不编）⟹ 没有这一项，JSON-LD 不出 `priceRange`。 */
     priceRange?: string;
     offerCatalogName: string;

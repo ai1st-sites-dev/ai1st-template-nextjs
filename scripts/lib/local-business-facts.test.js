@@ -96,8 +96,8 @@ console.log('\n── ② 多段结构：规范化 + contact 那一行');
 
 console.log('\n── ③ 评分：只在抓到真实数据时出');
 {
-  check(J(F.ratingFrom({ platformRatings: { yelp: { rating: 4.1, reviewCount: 9 }, google: { rating: 4.8, reviewCount: 127 } } })) === J({ ratingValue: 4.8, reviewCount: 127 }), '有 google ⟹ 优先 google');
-  check(J(F.ratingFrom({ platformRatings: { yelp: { rating: 4.1, reviewCount: 9 } } })) === J({ ratingValue: 4.1, reviewCount: 9 }), '没有 google ⟹ 第一家完整的');
+  check(J(F.ratingFrom({ platformRatings: { yelp: { rating: 4.1, reviewCount: 9 }, google: { rating: 4.8, reviewCount: 127 } } })) === J({ ratingValue: 4.8, reviewCount: 127, source: 'google' }), '有 google ⟹ 优先 google（#1766：带上平台名）');
+  check(J(F.ratingFrom({ platformRatings: { yelp: { rating: 4.1, reviewCount: 9 } } })) === J({ ratingValue: 4.1, reviewCount: 9, source: 'yelp' }), '没有 google ⟹ 第一家完整的，平台名照实写 yelp（#1766：不许让人当成 Google 的分）');
   check(F.ratingFrom({ platformRatings: { google: { rating: 4.8 } } }) === null, '只有分数、没有条数 ⟹ 不出');
   check(F.ratingFrom({ platformRatings: { google: { rating: 7, reviewCount: 3 } } }) === null, '分数超过 5 ⟹ 不出');
   check(F.ratingFrom({}) === null && F.ratingFrom(undefined) === null, '没有 platformRatings ⟹ 不出');

@@ -492,6 +492,15 @@ function checkManifestShape(name, m) {
       const okShape = Array.isArray(s.itemRequires) && s.itemRequires.length > 0 && s.itemRequires.every((x) => isStr(x) && /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/.test(x));
       if (!okShape || s.kind !== 'list') bad(`slots.${slot}.itemRequires 只能写 ["字段" / "字段.子字段", …]，而且只给 list 槽（现在是 ${JSON.stringify(s.itemRequires)}，kind ${s.kind}）`);
     }
+    // #1766 —— `seedItems`：新块拖到画布那一刻这个列表播哪几条示例（`editor-schema.js` §seedListsOf；今天只有 reviews.platforms：
+    //    Google / Yelp / Facebook 带示例分数和条数）。形状 = 普通对象的数组，只给 list 槽，条数在 minItems / maxItems 之间 ——
+    //    写歪了的失败方向是静默的（播出来的块被 validateSite 拦、或整条被渲染丢掉），所以这里当场拒。
+    if (s.seedItems !== undefined) {
+      const n = Array.isArray(s.seedItems) ? s.seedItems.length : -1;
+      const okShape = n > 0 && s.seedItems.every((x) => x && typeof x === 'object' && !Array.isArray(x))
+        && (!Number.isInteger(s.minItems) || n >= s.minItems) && (!Number.isInteger(s.maxItems) || n <= s.maxItems);
+      if (!okShape || s.kind !== 'list') bad(`slots.${slot}.seedItems 只能写 [{…}, …]（条数在 minItems / maxItems 之间），而且只给 list 槽（现在是 ${JSON.stringify(s.seedItems)}，kind ${s.kind}）`);
+    }
     // #1594 —— `imageKnob`：管这个列表槽的项图显示不显示的旋钮名（features.items 的 `itemImage`）。建站据它不为看不见的
     //    条目图求图（§imageSlotsOf → image-slots.js collectImageSlots）。写歪了的失败方向是静默的：一个不存在的旋钮名
     //    在 options 里永远读不到 ⟹ 这个槽一张图都不再求。所以只给 list 槽、值必须是这个块 options 里真有的旋钮。
@@ -1336,11 +1345,18 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           }
           // #1495 —— 每一项都必须有值的字段（`slots.<槽>.itemRequires`，gallery 每张照片要有 image.imageUrl）。
           //    空串 / 空白 / 不是字符串的对象路径都算没有。
+          // #1766 —— 图片地址（路径最后一段是 `imageUrl`）可以**没有**：没有图的那一项画 #1734 的占位图（点它能换图），拖下去的
+          //    logos / gallery 先播 3 项空图位，AI 编的外链 logo 地址删掉后那一项也照留（`lib/row-image-urls.js`）。
+          //    「没有」= 没写 / null / 空白串；写了却不是字符串（123 / true / 对象）照旧报（#1512：渲染端会把它静默滤成占位图）。
+          //    这条声明别的用处照旧：建站的图片预算按它给 gallery 留名额（`image-slots.js` §requiredImageList），文字格（logos 的 `alt`）照拦。
           for (const req of Array.isArray(spec.itemRequires) ? spec.itemRequires : []) {
+            const mayBeEmpty = /(^|\.)imageUrl$/.test(String(req));
             const missing = [];
             v.forEach((it, i) => {
               const got = String(req).split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), it);
-              if (!(typeof got === 'string' && got.trim())) missing.push(i);
+              if (typeof got === 'string' && got.trim()) return;
+              if (mayBeEmpty && (got === undefined || got === null || typeof got === 'string')) return;
+              missing.push(i);
             });
             if (missing.length) flag(`${where}: "${slot}" 第 ${missing.map((i) => i + 1).join(' / ')} 项没有 ${req}（每一项都要有）`);
           }

@@ -44,7 +44,7 @@
    总分条跟着 introAlign 走（introLayout.follow）。 */
 
 /* ═══ 每个平台：logo · 大分数 · 星 + 条数 ═══════════════════════════════════════════════════════════
-   logo 三档（Section.tsx §logo）：上传的图 → 内置品牌图标（品牌色，--rv-brand）→ 粗体平台名。 */
+   logo 三档（Section.tsx §logo）：上传的图 → 模板自带的全彩平台 logo（#1766，同一套 .rv-logo-img 尺寸）→ 粗体平台名。 */
 [data-block="reviews"] .rv-item {
   transition: box-shadow 0.15s;
 }
@@ -52,9 +52,6 @@
   display: inline-flex;
   align-items: center;
   line-height: 1;
-}
-[data-block="reviews"] .rv-icon {
-  color: var(--rv-brand);
 }
 [data-block="reviews"] .rv-logo-img img {
   display: block;
@@ -215,9 +212,7 @@
 [data-block="reviews"][data-tone="dark"] .rv-total-score,
 [data-block="reviews"][data-tone="brand"] .rv-total-score,
 [data-block="reviews"][data-tone="dark"] .rv-name,
-[data-block="reviews"][data-tone="brand"] .rv-name,
-[data-block="reviews"][data-tone="dark"] .rv-icon,
-[data-block="reviews"][data-tone="brand"] .rv-icon {
+[data-block="reviews"][data-tone="brand"] .rv-name {
   color: #fff !important;
 }
 [data-block="reviews"][data-tone="dark"][data-item-style="card"] .rv-item,

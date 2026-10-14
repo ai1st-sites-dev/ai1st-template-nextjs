@@ -9,7 +9,7 @@
 //    `itemsColumns` 只管 grid：row 时它照样写在根上，但没有一条规则认它（不起作用，不报错）。
 //
 // 🔴 **藏东西一律是不渲染**，不靠 CSS 藏：眉标、标题、正文、链接没有数据就没有节点；三样文字都空 ⟹ 块头那一列整个不渲染。
-//    `introSize=sm` 只缩字号，正文照样画（Chris 2026-09-30）。没有 `imageUrl` 的那一项不画（没有纯文字兜底：没有 logo 图就不放这个块）。
+//    `introSize=sm` 只缩字号，正文照样画（Chris 2026-09-30）。没有 `imageUrl` 的那一项画 #1734 的占位图（#1766：拖下去先播 3 项空图位、AI 编的外链地址删掉后那一项照留，点占位图能换图）。
 //
 // 🔴 **图片的键叫 `imageUrl`**（同 hero 的 `logos.items`）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键
 //    （`scripts/lib/image-urls.js`）。某项带 `href` ⟹ 那一格整个是新窗口打开的链接（`rel="noopener"`）。
@@ -18,7 +18,7 @@
 //    这里不自己算亮度、不自己拼渐变。深底 + mono 的 logo 反白写在 `block.css`（按 `data-tone`）。
 
 import Link from 'next/link';
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
 import SiteLink from '@/components/SiteLink';
@@ -82,7 +82,7 @@ export default function LogosNewSection({ data, block }: Props) {
   const ctaStyle: BtnStyle = cta && (cta.style === 'solid' || cta.style === 'outline') ? cta.style : 'link';
   const hasIntro = !!(str(d.headline) || str(d.body) || cta || (eyebrow && eyebrowStyle !== 'none'));
   const items = (Array.isArray(d.items) ? d.items : [])
-    .filter((it): it is LogosNewItem => isObj(it) && !!str(it.imageUrl))
+    .filter((it): it is LogosNewItem => isObj(it))
     .slice(0, MAX_ITEMS);
   // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
   if (emptyListHidesBlock(d.items, items.length, sourcedOf(d, 'items'))) return null;
@@ -127,7 +127,8 @@ export default function LogosNewSection({ data, block }: Props) {
         <div className="col-12 lo-itemscol" data-part="items">
           <div className="lo-grid">
             {items.map((it, i) => {
-              const img = slotImg(it, { before: { className: 'lo-logo' }, after: { loading: 'lazy' }, slot: `items.${i}.imageUrl` });
+              // #1766 —— 没有图 ⟹ 占位图（`knobImg` 不给旋钮 = 恒画）；alt 照写这一项的名字。
+              const img = slotImg(knobImg(undefined, str(it.imageUrl) ? it : null)!, { before: { className: 'lo-logo' }, alt: str(it.alt), after: { loading: 'lazy' }, slot: `items.${i}.imageUrl` });
               return (
                 <div key={i} data-part="item" data-item={itemPath('items', d.items, it, i)}>
                   {str(it.href) ? (

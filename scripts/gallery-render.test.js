@@ -184,8 +184,11 @@ console.log('\n── AC4 图注');
     '全部没有图注时拧 itemCaption ⟹ HTML 除根属性外逐字相同（不起作用）');
   check(/alt="Fleet service day"/.test(h), '第 1 张 alt 空 ⟹ 用 title');
   check(/alt="A technician going over the inspection sheet"/.test(h), 'alt 写了就用 alt');
+  // #1766 —— 原来是「那一张不画」；本票起没有图的那一项画 #1734 的占位图（拖下去先播 3 个空图位，点占位图能换图）。
   const noUrl = clone(DEMO); noUrl.items[0].image = { alt: 'x' };
-  check(itemsOf(render('grid', noUrl)).length === DEMO.items.length - 1, '某项没有 image.imageUrl ⟹ 那一张不画（不留一个空 <img>）');
+  const nu = itemsOf(render('grid', noUrl));
+  check(nu.length === DEMO.items.length && /<img src="\/images\/grid-pattern\.svg"[^>]*data-slot="items\.0\.image" data-placeholder=""/.test(nu[0]) && !/data-placeholder/.test(nu.slice(1).join('')),
+    '某项没有 image.imageUrl ⟹ 那一张画占位图（挂 data-placeholder，编辑器据它换图），别的照旧');
   const noHead = clone(DEMO); delete noHead.headline; delete noHead.body;
   const nh = render('grid', noHead);
   check(!nh.includes('data-part="intro"') && nh.includes('data-part="items"'), 'headline + body 都清空 ⟹ 块头那一列不渲染、照片照画');
@@ -372,15 +375,21 @@ console.log('\n── AC8 validateSite（items 条数 · 每项要有 image.imag
     const r = v({ items: Array.from({ length: n }, (_, i) => item(i)) });
     check(r.length === 0, `items ${n} 张 ⟹ 放行`, JSON.stringify(r));
   }
+  // #1766 —— 「没有图」不再拦（正文做什么 5：gallery 的一项可以没有图，画占位图）；「写了却不是字符串」照旧拦（#1512）。
   const noImg = v({ items: [item(0), { title: 'No photo' }, item(2)] });
-  check(noImg.length === 1 && noImg[0].includes('items'), `某项没有 image.imageUrl ⟹ 报一条（${JSON.stringify(noImg)}）`);
+  check(noImg.length === 0, `某项没有 image.imageUrl ⟹ 放行（#1766，画占位图）（${JSON.stringify(noImg)}）`);
   const emptyUrl = v({ items: [item(0), { image: { imageUrl: '', alt: 'x' } }] });
-  check(emptyUrl.length === 1, `image.imageUrl 是空串 ⟹ 也报一条（${JSON.stringify(emptyUrl)}）`);
+  check(emptyUrl.length === 0, `image.imageUrl 是空串 ⟹ 也放行（${JSON.stringify(emptyUrl)}）`);
   // #1512 —— 「有值」只认非空白字符串：非字符串（数字 / 布尔 / 对象 / 数组）以前一律放行，渲染端 str() 再把它滤掉 ⟹ 图静默消失。
   //    逐型各一格；正常 URL 串那一格是反向对照（防「谓词改成恒报一条」也读绿）。
-  for (const [label, bad] of [['123', 123], ['true', true], ['{}', {}], ['[]', []], ['null', null], ['undefined', undefined], ["'  '", '  ']]) {
+  //    #1766 —— null / undefined / 空白串算「没有」⟹ 放行（同上）；四种非字符串照旧报。
+  for (const [label, bad] of [['123', 123], ['true', true], ['{}', {}], ['[]', []]]) {
     const r = v({ items: [item(0), { image: { imageUrl: bad, alt: 'x' } }] });
     check(r.length === 1 && r[0].includes('"items" 第 2 项没有 image.imageUrl'), `image.imageUrl 是 ${label} ⟹ 报一条、点名该路径`, JSON.stringify(r));
+  }
+  for (const [label, empty] of [['null', null], ['undefined', undefined], ["'  '", '  ']]) {
+    const r = v({ items: [item(0), { image: { imageUrl: empty, alt: 'x' } }] });
+    check(r.length === 0, `image.imageUrl 是 ${label} ⟹ 算没有图、放行（#1766）`, JSON.stringify(r));
   }
   const goodUrl = v({ items: [item(0), { image: { imageUrl: 'https://example.com/ok.jpg', alt: 'x' } }] });
   check(goodUrl.length === 0, `反向对照：image.imageUrl 是正常 URL 串 ⟹ 0 条`, JSON.stringify(goodUrl));
@@ -395,7 +404,8 @@ console.log('\n── AC8 validateSite（items 条数 · 每项要有 image.imag
     // 反向对照：同一份数据、清单里拿掉 itemRequires ⟹ 那一条不报（证明报它的是这条声明，不是别的检查碰巧拦下）。
     const blind = JSON.parse(fs.readFileSync(mf, 'utf-8')); delete blind.slots.items.itemRequires;
     fs.writeFileSync(mf, JSON.stringify(blind));
-    const noPhoto = { headline: 'H', items: [item(0), { title: 'No photo' }] };
+    // #1766 —— 「没有图」已经不报了，反向对照改用「写了却不是字符串」那一种（仍归这条声明管）。
+    const noPhoto = { headline: 'H', items: [item(0), { title: 'Bad photo', image: { imageUrl: 123, alt: 'x' } }] };
     const withDecl = own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'gallery', data: noPhoto }] }], scope: 'edit' }));
     const without = own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'gallery', data: noPhoto }] }], scope: 'edit', dir: tmpBlocks }));
     check(withDecl.length === 1 && without.length === 0, `反向对照：清单里拿掉 itemRequires ⟹ 同一份数据不再报（有 ${withDecl.length} 条 / 没有 ${without.length} 条）`);

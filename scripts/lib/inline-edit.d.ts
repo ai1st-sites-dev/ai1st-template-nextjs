@@ -3,7 +3,7 @@ import type { EditorInlineSlot } from './editor-schema';
 
 export type InlinePath = (string | number)[];
 export type InlineResolved =
-  | { ok: true; path: InlinePath; name: string; value: string; typing: boolean; ai: boolean; image: boolean }
+  | { ok: true; path: InlinePath; name: string; value: string; typing: boolean; ai: boolean; image: boolean; url?: true }
   | { ok: false; why: 'unknown' | 'sourced' | 'locked' | 'mismatch' | 'ambiguous'; slot?: string };
 
 export function resolveInlineSlot(args: {

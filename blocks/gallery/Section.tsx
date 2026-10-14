@@ -16,13 +16,13 @@
 //    浏览器不去取。
 //
 // 🔴 **藏东西一律是不渲染**：某张照片没有 `title` / `caption` ⟹ 那一张没有图注节点；块头 `headline` / `body` 都空 ⟹
-//    块头那一列整个不渲染。没有 `image.imageUrl` 的项不画（validateSite 拦着，这里只是不让一个空 <img> 出去）。
+//    块头那一列整个不渲染。没有 `image.imageUrl` 的项画 #1734 的占位图（#1766：拖下去先播 3 张空图位，点占位图能换图）。
 //
 // 🔴 **照片的键叫 `imageUrl`**（`items[].image.imageUrl`）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键
 //    （`scripts/lib/image-urls.js`）。`alt` 空时用 `title`。
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认。
-import { slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 
 import BlockSection from '@/components/BlockSection';
@@ -75,7 +75,7 @@ export default function GalleryNewSection({ data, block }: Props) {
   const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const hasIntro = !!(str(d.headline) || str(d.body));
   const items = (Array.isArray(d.items) ? d.items : [])
-    .filter((it): it is GalleryItem => isObj(it) && isObj(it.image) && !!str(it.image.imageUrl))
+    .filter((it): it is GalleryItem => isObj(it))
     .slice(0, MAX_ITEMS);
   // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
   if (emptyListHidesBlock(d.items, items.length, sourcedOf(d, 'items'))) return null;
@@ -83,6 +83,8 @@ export default function GalleryNewSection({ data, block }: Props) {
   const lbId = `${id}-lb`;
   const carId = `${id}-car`;
   const altOf = (it: GalleryItem) => str(it.image && it.image.alt) || str(it.title);
+  // #1766 —— 这一项的图；没有 ⟹ 占位图（`knobImg` 不给旋钮 = 恒画）。
+  const imageOf = (it: GalleryItem) => knobImg(undefined, isObj(it.image) && str(it.image.imageUrl) ? it.image : null)!;
 
   return (
     <BlockSection
@@ -106,7 +108,7 @@ export default function GalleryNewSection({ data, block }: Props) {
                 <div className="carousel-inner">
                   {items.map((it, i) => (
                     <div key={i} className={`carousel-item${i === 0 ? ' active' : ''}`}>
-                      {slotImg(it.image!, { between: { className: 'd-block mx-auto' }, alt: altOf(it), after: { loading: 'lazy' } })}
+                      {slotImg(imageOf(it), { between: { className: 'd-block mx-auto' }, alt: altOf(it), after: { loading: 'lazy' } })}
                       {it.title || it.caption ? (
                         <div className="gl-lb-cap">{it.title}{it.caption ? <span>{it.caption}</span> : null}</div>
                       ) : null}
@@ -154,7 +156,7 @@ export default function GalleryNewSection({ data, block }: Props) {
               <figure key={i} className="gl-item" data-part="item" data-item={itemPath('items', d.items, it, i)}>
                 <a className="gl-img d-block" href={`#${lbId}`} data-bs-toggle="modal" data-gl-index={i}
                   aria-label={`Open photo${it.title ? `: ${it.title}` : ` ${i + 1}`}`}>
-                  {slotImg(it.image!, { alt: altOf(it), slot: `items.${i}.image` })}
+                  {slotImg(imageOf(it), { alt: altOf(it), slot: `items.${i}.image` })}
                 </a>
                 {it.title || it.caption ? (
                   <figcaption className="gl-cap" data-part="caption">

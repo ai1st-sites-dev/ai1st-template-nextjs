@@ -769,7 +769,8 @@ export function buildConfig(site: SiteData, schema: EditorSchema, locale: string
     //    🔴 Puck 画布渲染时会把 defaultProps 浅合并在每个块的 props 底下（`@puckeditor/core` 0.23 dist/index.js:10767）。
     //    老块的 props 来自 §fieldProps，每个字段键都写着（没值也是 undefined 占着键）⟹ 占位漏不到老块上
     //    （`scripts/editor-placeholders.test.js` 钉着）。
-    const defaultProps: Record<string, unknown> = { ...seedProps(c, locale), _shape: THEME_DEFAULT };
+    //    #1766 —— 带上 `site`：拖下 reviews 块时 Google 那一条用站里来自 Google 的真实评分（没有就是示例分）。
+    const defaultProps: Record<string, unknown> = { ...seedProps(c, locale, site), _shape: THEME_DEFAULT };
     components[c.type] = {
       label: c.label,
       fields,

@@ -474,6 +474,7 @@ function inlineSlotsOf(manifest) {
 // 不写块名单，按一条规则现算（票正文「做什么 1」）：
 //   · manifest 里 `kind: list` 且 `required: true`；
 //   · 没写 `itemRequires`（条目非填不可的是图片这类，本票不配图 —— 播了画不出来，「写了条目但一条都不合格」整块不画）；
+//     （#1766 起写了的也播，见下面 ③）
 //   · 每条的可改文字格（§inlineSlotsOf）至少一格 `ai: true`，且条目里没有【必填】的 `ai: false` 事实格（评分 / 数字
 //     必填的不播：AI 不编数字，占位也不编；留空的条目会被块滤掉、整块消失）。可选的事实格（features 的 `number?`、
 //     testimonials 的 `rating?`）不挡 —— 只是不填。判「必填」看项形状里那一格的顶层键带不带 `?`（§itemShapeEntries）。
@@ -483,15 +484,43 @@ function inlineSlotsOf(manifest) {
 //   只写文字等于一个死按钮。这也让 pricing 交给 fill 的格数停在 8 + 3×4 = 20（= manager 的 rewriteMaxFields）。
 // 条数 SEED_ITEMS 夹在这个槽的 `minItems` / `maxItems` 之间。今天命中 faq·items、features·items、pricing·plans、
 // team·members、testimonials·items —— 那是读数，`scripts/editor-placeholders.test.js` ⑤ 断言的就是这个集合。
+//
+// #1766 —— 再加两档，都是「播了、但**不**交给 AI 填字」（`fill: false`）：
+//   ② manifest 写了 `seedItems`（示例条目）⟹ 照它播，`items` 交出去（今天只有 reviews·platforms：Google / Yelp / Facebook
+//      带示例分数和条数 —— Chris：「你就编一个就好了……最怕的是你不给他编一个的话，他不知道怎么去修改这些文字」）。
+//      条目里的事实格是示例本身带的，不受上面「必填事实格不播」那条管。
+//   ③ 写了 `itemRequires` 的列表：#1660 跳过它们，理由是「播了画不出来」—— #1734 有了可点的占位图之后不成立了。
+//      每一条「必须有」只能是两种之一才播：一张图（§imageCellOf：画占位图）或项形状顶层的纯文字键（填占位，进 `keys`）；
+//      别的（必须有个链接之类）照旧不播。今天命中 logos·items（`alt` 填「Logo 1」）、gallery·items（只有图，没有字要填）。
+//      不交给 AI：那几个字是图的名字，老板换图时一起改（正文做什么 3）。
+//   `fill: false` 的 `keys` 只填占位，不进 `block-placeholders.js` §fillFields。
 const SEED_ITEMS = 3;
 
-/** 一份 manifest → 新块落下时要播的列表：`[{ slot, count, keys }]`（顺序同 manifest 里槽位的书写顺序）。 */
+/** 一份 manifest → 新块落下时要播的列表：`[{ slot, count, keys, fill?, items? }]`（顺序同 manifest 里槽位的书写顺序）。 */
 function seedListsOf(manifest) {
   const slots = (manifest && manifest.slots) || {};
   const cells = editableSlotPaths(manifest);
   const out = [];
+  const clamp = (spec, n) => {
+    const min = Number.isInteger(spec.minItems) ? spec.minItems : 0;
+    const max = Number.isInteger(spec.maxItems) ? spec.maxItems : Infinity;
+    return Math.min(max, Math.max(min, n));
+  };
   for (const [slot, spec] of Object.entries(slots)) {
-    if (!spec || spec.kind !== 'list' || spec.required !== true || spec.itemRequires !== undefined) continue;
+    if (!spec || spec.kind !== 'list' || spec.required !== true) continue;
+    if (Array.isArray(spec.seedItems) && spec.seedItems.length) {
+      out.push({ slot, count: spec.seedItems.length, keys: [], fill: false, items: spec.seedItems });
+      continue;
+    }
+    if (spec.itemRequires !== undefined) {
+      const entries = new Map(itemShapeEntries(spec.shape).map((e) => [e.key, e]));
+      const req = Array.isArray(spec.itemRequires) ? spec.itemRequires : [];
+      const isImage = (p) => !!imageCellOf(spec, String(p).split('.')[0]);
+      const isText = (p) => !String(p).includes('.') && entries.has(p) && !/[[{]/.test(entries.get(p).value);
+      if (!req.every((p) => isImage(p) || isText(p))) continue;
+      out.push({ slot, count: clamp(spec, SEED_ITEMS), keys: req.filter((p) => !isImage(p)), fill: false });
+      continue;
+    }
     const entries = new Map(itemShapeEntries(spec.shape).map((e) => [e.key, e]));
     // #1693 —— 图片格不是字：不算「能让 AI 写的格」，也不算事实格（它没有占位可播）。
     const own = cells.filter((e) => e.slot === slot && !imageCellOf(spec, e.sub));
@@ -509,9 +538,7 @@ function seedListsOf(manifest) {
       const top = entries.get(sub);
       return !!top && !/[[{]/.test(top.value);
     });
-    const min = Number.isInteger(spec.minItems) ? spec.minItems : 0;
-    const max = Number.isInteger(spec.maxItems) ? spec.maxItems : Infinity;
-    out.push({ slot, count: Math.min(max, Math.max(min, SEED_ITEMS)), keys });
+    out.push({ slot, count: clamp(spec, SEED_ITEMS), keys });
   }
   return out;
 }

@@ -114,6 +114,7 @@ const { geocodeBrand } = require('./lib/geocode');
 const { verifyTranscription, ratingFrom } = require('./lib/local-business-facts');
 // #1489 r2 —— contact 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
+const { scrubRowImageUrls } = require('./lib/row-image-urls');
 // #1593 —— 一次调用产出全部语言（第二语言按主语言骨架拼）+ 建站的四个数（耗时 / 费用 / 修补页数 / 页数）。
 const localesLib = require('./lib/all-locales');
 const { createBuildStats } = require('./lib/build-stats');
@@ -1306,7 +1307,7 @@ async function main() {
       keywords, services, contentServices: content.services, pages: content.pages,
       keywordPagesList: [], siteType, keyword: leadKeyword,
     }));
-    writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
+    writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks, input.uploadsDomain);
     // #1620 —— 博客文章（blog 块只从站点博客读，站里没文章它整块不画）。关掉 blog 块时不写：没有块指向它们。
     if (!disabledBlocks.includes('blog')) {
       const blogDir = path.join(siteDir, defaultLocale, 'blog');
@@ -1335,7 +1336,7 @@ async function main() {
         pages: content.pages.map((pg) => (pg.seo && pg.seo.targetKeyword ? { ...pg, seo: { ...pg.seo, translated: true } } : pg)),
         tierDistribution: { 1: 0, 2: 0, 3: content.pages.length },
       };
-      writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand);
+      writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand, input.uploadsDomain);
       debug(`Demo secondary locale "${secLocale}" written (verbatim copy of primary)`);
     }
     if (input.repoUrl) {
@@ -1469,7 +1470,7 @@ async function main() {
   const stagedPreview = stagedPreviewLib.fromEnv({ rootDir, siteDir, emit, log: debug });
   const previewPhaseDone = (phase, content) => {
     if (!stagedPreview) return;
-    stagedPreview.phaseDone(phase, content ? (dir) => writePreviewSite(dir, content, { defaultLocale, disabledBlocks, industry }) : null);
+    stagedPreview.phaseDone(phase, content ? (dir) => writePreviewSite(dir, content, { defaultLocale, disabledBlocks, industry, uploadsDomain: input.uploadsDomain }) : null);
   };
 
   const content = (resume && resume.index >= 2) ? resume.state.content : await generateContent({
@@ -1684,7 +1685,7 @@ async function main() {
       if (i >= 0 && sub.pages[0] && sub.pages[0].slug === 'contact') content.pages[i] = sub.pages[0];
     }
 
-    writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
+    writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks, input.uploadsDomain);
 
     // #1472 —— 站级深浅：AI 按行业给的默认（酒吧 / 健身房 dark，牙科 / 律所 light），老板之后可改成 auto。
     // 认不得的值落回 light（判据在 lib/color-scheme.js，构建那一侧读的是同一份）。skipAI 那条路不走这里 ⟹ 不写这个键 = light。
@@ -1716,7 +1717,7 @@ async function main() {
           content: { ...secContent, brand: brandView, ai: content.ai },
           payload: secondarySeoPayload(input, secLocale), locale: secLocale, industry, location, companyName, disabledBlocks, secondary: true,
         });
-        writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand);
+        writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand, input.uploadsDomain);
         debug(`Secondary locale "${secLocale}" written (${secContent.pages.length} pages, tier dist: ${JSON.stringify(secContent.tierDistribution)})`);
         emit('secondary-locale-success', {
           locale: secLocale,
@@ -1944,7 +1945,8 @@ function localeMapForBcp47(iso) {
 // writeSiteConfig structure but: (a) merges brand.tagline into existing site/brand.json
 // (Record<locale, string>) instead of overwriting, (b) uses secondary-locale-specific
 // outputs for seo/services/navigation/pages.
-function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primaryBrand) {
+// #1766 —— `uploadsDomain`：manager 配置的图片库域名（载荷 `uploadsDomain`），成排小图的地址按它删（§scrubPageRowImages）。
+function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primaryBrand, uploadsDomain) {
   const localeDir = path.join(siteDir, secondaryLocale);
   fs.mkdirSync(localeDir, { recursive: true });
 
@@ -1978,6 +1980,7 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
   for (const page of secContent.pages) {
     const scrubbed = scrubContactCopies(page, secFacts);
     if (scrubbed) debug(`[contact] ${secondaryLocale}/${page.slug}: dropped ${scrubbed} copied value(s) from items`);
+    scrubPageRowImages(page, uploadsDomain, `${secondaryLocale}/${page.slug}`);
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
@@ -1987,6 +1990,16 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
 }
 
 // ─── Write Site Config Files ─────────────────────────────────────────────────
+
+/**
+ * #1766 —— 写页面那一刻把成排小图（logo / 头像 / 平台 logo）里 AI 编的外链地址删掉（`lib/row-image-urls.js` 文件头是全文）：
+ * 只留站内路径和我们图片库（host = `uploadsDomain`）的地址；这一项照留，没有图的 logo 画占位图。
+ * 载荷里没有 `uploadsDomain` ⟹ 一个都不删、喊一行（每页一行：没有它就是这一整次建站都没有）。
+ */
+function scrubPageRowImages(page, uploadsDomain, where) {
+  const { removed } = scrubRowImageUrls(page, { uploadsDomain, log: (line) => debug(`${line} —— ${where}`) });
+  if (removed) debug(`[row-images] ${where}: dropped ${removed} image address(es) not from this site or its image library`);
+}
 
 // #1346 —— `disabledBlocks` 传到这里，因为**这个函数自己会插块**（268b/268e 那个 Contact 页）。
 // 那一处发生在两次 `validateBlocks` **之后**，所以剔菜单、传清单进校验器这两步都管不到它。
@@ -2038,15 +2051,16 @@ function ensureContactPage(content, defaultLocale, disabledBlocks = [], words = 
 // #1599 —— 给分段预览写一版站点文件，写进快照目录 `dir`（不碰 site/ —— site/ 跟阶段提交是一回事）。真写盘之前那几步这里也补上：
 //    没有 contact 页就补一页（导航按钮多半指 /contact，不补的话 ② 时它 404）、首屏表单、站级深浅。content 先整份拷一份：
 //    writeSiteConfig / ensureContactPage 都原地改它（#1631），而传进来的是建站正在用的那份。
-function writePreviewSite(dir, content, { defaultLocale, disabledBlocks = [], industry }) {
+function writePreviewSite(dir, content, { defaultLocale, disabledBlocks = [], industry, uploadsDomain }) {
   const c = structuredClone(content);
   ensureContactPage(c, defaultLocale, disabledBlocks, defaultLocale !== 'en' && c.ai ? c.ai.contactPage : null);
   applyHeroLeadForm({ content: c, industry, disabledBlocks });
-  writeSiteConfig(dir, c, defaultLocale, disabledBlocks);
+  writeSiteConfig(dir, c, defaultLocale, disabledBlocks, uploadsDomain);
   writeThemeColorScheme(dir, normalizeColorScheme(c.ai && c.ai.colorScheme));
 }
 
-function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
+// #1766 —— `uploadsDomain` 同 §writeSecondaryLocaleConfig。
+function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = [], uploadsDomain) {
   // TICKET-122a: multi-locale schema (layout B — locale top-level subtree).
   //   brand.json:           cross-locale shared (kept at site/ root); brand.tagline wrapped to { [defaultLocale]: string } here
   //   <locale>/seo.json
@@ -2109,6 +2123,7 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   for (const page of content.pages) {
     const scrubbed = scrubContactCopies(page, facts);
     if (scrubbed) debug(`[contact] ${page.slug}: dropped ${scrubbed} copied value(s) from items`);
+    scrubPageRowImages(page, uploadsDomain, page.slug);
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');

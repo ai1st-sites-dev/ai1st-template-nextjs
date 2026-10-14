@@ -8,7 +8,7 @@
  *   ③ 不漏到老块：Puck 画布渲染时把 defaultProps 浅合并在每个块的 props 底下 —— 老块的 props（§pageToPuck）
  *      必须把 defaultProps 的每个键都占着，否则老块上会画出占位（存盘不存，画布上看得见）。
  *   ④ 交给 fill 的格：名字是数据里的路径（真实下标）、带着占位文字、没有 `ai: false` 的格。
- *   ⑤ 验收 6：遍历全部页面块 —— 播种集合恰好那五个、条数在 minItems..maxItems 内、交给 fill 的格没有 `ai: false`、
+ *   ⑤ 验收 6：遍历全部页面块 —— 播种集合恰好那八个（#1766 加了 gallery / logos / reviews，`fill: false`）、条数在 minItems..maxItems 内、交给 fill 的格没有 `ai: false`、
  *      条目里没有 `[string]` 列表 / 子对象被填、格数 ≤ manager 的 rewriteMaxFields（**从 `manager/ai_rewrite.go` 源码现读**，
  *      不在这里抄一个 20）。
  *
@@ -56,7 +56,8 @@ for (const l of have) {
   const badN = cats.filter((k) => head.includes(k) === row[k].includes('{n}'));
   check(badN.length === 0, `${l}：块头类别不带序号、条目类别都带 {n}`, badN);
   if (l !== 'en') {
-    const same = cats.filter((k) => row[k] === bp.WORDS.en[k] && !/^(Name|Label) \{n\}$/.test(row[k]));
+    // #1766 —— `Logo {n}` 同 Name / Label：这个词在 de / fr / es / it / pt / vi / 中文里就是写 Logo，不是没翻。
+    const same = cats.filter((k) => row[k] === bp.WORDS.en[k] && !/^(Name|Label|Logo) \{n\}$/.test(row[k]));
     check(same.length === 0, `${l}：没有原样抄英文的句子`, same);
   }
 }
@@ -84,12 +85,16 @@ check(/[؀-ۿ]/.test(fa.headline) && /[؀-ۿ]/.test(fa.items[0].title), '阿拉�
 const ft = bp.seedProps(features, 'zh-tw');
 check(ft.headline === '這裡寫標題' && ft.items[1].text === '用一兩句話介紹第 2 項。', '繁体站：是繁体字', { h: ft.headline, t: ft.items[1].text });
 
-console.log('② 事实格不填、要图 / 带事实格的列表不播');
+console.log('② 事实格不填；#1766 起要图的列表、reviews 的平台也播');
+// #1766 —— 这两格原来断言「reviews.platforms / gallery.items 是空数组」（#1660：带必填事实格 / 要图的列表不播）。
+//    本票正文做什么 3 / 4 推翻了这两条：gallery 播 3 张空图位（画 #1734 的占位图），reviews 播 Google / Yelp / Facebook
+//    三个平台带示例分（Chris：「你就编一个就好了」）。细节在 scripts/platform-logos.test.js。
 const reviews = bp.seedProps(byType.get('reviews'), 'en');
-check(Array.isArray(reviews.platforms) && reviews.platforms.length === 0, 'reviews.platforms 是空数组（不播，没有编出来的评分）', reviews.platforms);
+check(Array.isArray(reviews.platforms) && reviews.platforms.map((p) => p.source).join() === 'Google,Yelp,Facebook'
+  && reviews.platforms.every((p) => Number.isFinite(p.rating) && Number.isInteger(p.count)), 'reviews.platforms 播 Google / Yelp / Facebook，带示例分数和条数（#1766）', reviews.platforms);
 check(typeof reviews.headline === 'string' && reviews.headline.length > 0, 'reviews 块头有占位（块留在画布上）');
 const gallery = bp.seedProps(byType.get('gallery'), 'en');
-check(Array.isArray(gallery.items) && gallery.items.length === 0, 'gallery.items 是空数组（条目要图，本票不配图）', gallery.items);
+check(Array.isArray(gallery.items) && gallery.items.length === 3 && gallery.items.every((it) => JSON.stringify(it) === '{}'), 'gallery.items 播 3 个空图位（没有图 ⟹ 画占位图，#1766）', gallery.items);
 const hero = bp.seedProps(byType.get('hero'), 'en');
 check(Array.isArray(hero.stats) && hero.stats.length === 0, 'hero.stats（选填、含事实格 value）不播');
 const pricing = bp.seedProps(byType.get('pricing'), 'en');
@@ -179,8 +184,19 @@ for (const c of schema.components) {
   check(leaked.length === 0, `${c.type}：交给 fill 的格里没有 ai:false（数字 / 评分 AI 不编）`, leaked);
 }
 seeded.sort();
-const wantSeed = ['faq·items', 'features·items', 'pricing·plans', 'team·members', 'testimonials·items'];
+// #1766 —— 集合从五个变八个：gallery·items、logos·items（`itemRequires` 的列表，#1734 有了可点的占位图之后播 3 个空图位）、
+//    reviews·platforms（manifest 的 `seedItems`：Google / Yelp / Facebook 带示例分）。这三个都是 `fill: false`，交给 fill 的格里
+//    一格都没有它们 —— 下面那一格守着。原来那五个一个没动。
+const wantSeed = ['faq·items', 'features·items', 'gallery·items', 'logos·items', 'pricing·plans', 'reviews·platforms', 'team·members', 'testimonials·items'];
 check(JSON.stringify(seeded) === JSON.stringify(wantSeed), `播种集合恰好是 ${wantSeed.join(' / ')}`, seeded);
+// #1766 —— `fill: false` 的列表播了但不交给 AI：交给 fill 的格里没有一格落在这些列表里。
+for (const c of schema.components) {
+  const noFill = new Set(c.seed.filter((s) => s.fill === false).map((s) => s.slot));
+  if (!noFill.size) continue;
+  const names = bp.fillFields(c, bp.seedProps(c, 'en')).map((f) => f.name);
+  const leakedNoFill = names.filter((n) => noFill.has(n.split('.')[0]));
+  check(leakedNoFill.length === 0, `${c.type}：播出来的 ${[...noFill].join(' / ')} 不交给 AI 填字（#1766）`, leakedNoFill);
+}
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} 过 · ${fail} 失败`);
 process.exit(fail === 0 ? 0 : 1);

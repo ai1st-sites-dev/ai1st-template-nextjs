@@ -157,24 +157,31 @@ console.log('\n── AC4 logo 三档');
 {
   const its = itemsOf(render('cards', clone(DEMO)));
   const by = (src) => its.find((x) => x.startsWith(` data-source="${src}"`)) || '';
-  check(/data-logo="icon"[^>]*style="--rv-brand:#4285F4"/.test(by('Google')) && /<svg[^>]*data-icon="google"/.test(by('Google')),
-    'Google 那格：内置图标 google（data-icon）、品牌色 #4285F4（计算色在 e2e 里量）');
-  check(/data-icon="yelp"/.test(by('Yelp')) && /--rv-brand:#d32323/.test(by('Yelp')), 'Yelp 那格：yelp 图标、#d32323');
-  check(/data-icon="facebook"/.test(by('Facebook')) && /--rv-brand:#1877F2/.test(by('Facebook')), 'Facebook 那格：facebook 图标、#1877F2');
-  check(!/<svg/.test(by('HomeStars').split('data-part="score"')[0]) && /data-logo="name" data-slot="platforms\.2\.source">HomeStars</.test(by('HomeStars')), 'HomeStars：没有图标、写粗体平台名');
+  // #1766 —— 第 2 档从 Bootstrap Icons 字形（`data-logo="icon"` + `--rv-brand` 品牌色）换成模板自带的全彩文件
+  //    （`data-logo="platform"`，一张 <img>，地址取 review-platforms.js 那张表）。这几格原来断言的是字形和品牌色，跟着换。
+  const builtin = (src, file) => new RegExp(`data-logo="platform"[^>]*><img src="${file.replace(/[.]/g, '\\.')}" alt="${src}"`).test(by(src));
+  check(builtin('Google', '/images/platforms/google.svg'), 'Google 那格：模板自带的 /images/platforms/google.svg（不是图标字形）');
+  check(builtin('Yelp', '/images/platforms/yelp.svg'), 'Yelp 那格：/images/platforms/yelp.svg');
+  check(builtin('Facebook', '/images/platforms/facebook.svg'), 'Facebook 那格：/images/platforms/facebook.svg');
+  check(its.every((x) => !/<svg/.test(x.split('data-part="score"')[0])) && !/--rv-brand/.test(its.join('')),
+    '平台 logo 那一段里没有内联 <svg> 字形、没有 --rv-brand 品牌色（星星不在那一段）');
+  check(!/data-logo="platform"[^>]*><img[^>]*data-slot=/.test(its.join('')), '自带文件那张 <img> 不挂 data-slot（数据里没有那一格，只有上传的 logoUrl 才有）');
+  check(!/<svg/.test(by('HomeStars').split('data-part="score"')[0]) && /data-logo="name" data-slot="platforms\.2\.source">HomeStars</.test(by('HomeStars')), 'HomeStars：表里没有、写粗体平台名');
   const up = clone(DEMO); up.platforms[2].logoUrl = 'https://cdn.example.com/homestars.svg';
   const hs = itemsOf(render('cards', up))[2];
-  check(/data-logo="image"[\s\S]*<img src="https:\/\/cdn\.example\.com\/homestars\.svg" alt="HomeStars"/.test(hs), '给 HomeStars 加 logoUrl ⟹ <img alt="HomeStars">');
+  check(/data-logo="image"[\s\S]*<img src="https:\/\/cdn\.example\.com\/homestars\.svg" alt="HomeStars" loading="lazy" data-slot="platforms\.2\.logoUrl"/.test(hs), '给 HomeStars 加 logoUrl ⟹ <img alt="HomeStars">，挂 data-slot');
   const upG = clone(DEMO); upG.platforms[0].logoUrl = 'https://cdn.example.com/g.png';
-  check(/data-logo="image"/.test(itemsOf(render('cards', upG))[0]) && !/data-icon="google"/.test(itemsOf(render('cards', upG))[0]), '上传图优先于内置图标（Google 也给了 logoUrl ⟹ 用上传的）');
+  check(/data-logo="image"/.test(itemsOf(render('cards', upG))[0]) && !/google\.svg/.test(itemsOf(render('cards', upG))[0]), '上传图优先于自带文件（Google 也给了 logoUrl ⟹ 用上传的）');
   const sp = clone(DEMO); sp.platforms[0].source = ' google ';
-  check(/data-icon="google"/.test(itemsOf(render('cards', sp))[0]), 'source: " google " 也命中图标（忽略大小写和首尾空格）');
+  check(/\/images\/platforms\/google\.svg/.test(itemsOf(render('cards', sp))[0]), 'source: " google " 也命中自带文件（忽略大小写和首尾空格）');
   const names = its.map((x) => ['Google', 'Yelp', 'HomeStars', 'Facebook'].find((n) => x.replace(/<[^>]+>/g, ' ').includes(n)));
   check(names.join() === 'Google,Yelp,HomeStars,Facebook' && its.slice(0, 2).every((x) => /<span class="visually-hidden" data-slot="platforms\.[01]\.source">(Google|Yelp)<\/span>/.test(x)),
-    '每格的 DOM 里都有文字平台名（图标那两档是 visually-hidden）');
-  check(Object.values(platforms.PLATFORM_ICONS).every((p) => fs.existsSync(path.join(icons.ICON_DIR, `${p.icon}.svg`))),
-    `review-platforms.js 表里的图标文件都真的在（${Object.values(platforms.PLATFORM_ICONS).map((p) => p.icon).join(' / ')}）`);
-  check(platforms.platformLogo('Trustpilot', '').kind === 'name' && platforms.platformLogo('YELP', '').kind === 'icon', '对照：表外平台 ⟹ name；大小写不同 ⟹ 仍命中');
+    '每格的 DOM 里都有文字平台名（图片那两档是 visually-hidden）');
+  const files = Object.values(platforms.PLATFORMS).map((p) => p.logo);
+  check(files.length >= 4 && files.every((f) => /^\/images\/platforms\/[a-z-]+\.svg$/.test(f) && fs.existsSync(path.join(NEXT, 'public', f))),
+    `review-platforms.js 表里每一行的文件都真的在模板 public/ 里（${files.join(' / ')}）`);
+  check(JSON.stringify(icons.BLOCK_ICONS.reviews) === '["star-fill"]', 'BLOCK_ICONS.reviews 只剩星星（品牌图标不用了）', icons.BLOCK_ICONS.reviews);
+  check(platforms.platformLogo('Trustpilot', '').kind === 'name' && platforms.platformLogo('YELP', '').kind === 'platform', '对照：表外平台 ⟹ name；大小写不同 ⟹ 仍命中');
 }
 
 // ══ AC7：itemAlign 不跟 introAlign ═══════════════════════════════════════════════════════════════
@@ -221,8 +228,8 @@ console.log('\n── AC10 bg（计算色在 e2e 里量）');
   check(attr(at('brand'), 'data-tone') === 'brand' && attr(at(undefined), 'data-tone') === 'light' && !/\sstyle=/.test(sectionTag(at(undefined))), 'brand ⟹ brand；没写 bg ⟹ light、没有 style');
   check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && /<BlockSection[\s\S]*?\bbg=\{d\.bg\}/.test(SRC_TEXT),
     `Section.tsx 把 bg 交给 <BlockSection>（深浅 / 底色由它调 contrast.js 的 toneForBg / bgCss，#1534）；自己 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处`);
-  check(/\[data-tone="dark"\] \.rv-icon,[\s\S]*?\{\s*color: #fff !important;/.test(CSS) && /\[data-tone="dark"\]\[data-item-style="card"\] \.rv-item,[\s\S]*?\{\s*background: rgba\(255, 255, 255, 0\.08\);/.test(CSS),
-    'block.css：深底品牌图标 / 分数反白；card 底 rgba(255,255,255,.08)');
+  check(/\[data-tone="dark"\] \.rv-name,[\s\S]*?\{\s*color: #fff !important;/.test(CSS) && /\[data-tone="dark"\]\[data-item-style="card"\] \.rv-item,[\s\S]*?\{\s*background: rgba\(255, 255, 255, 0\.08\);/.test(CSS),
+    'block.css：深底平台名 / 分数反白（#1766：品牌图标那一档没了，不再有 .rv-icon）；card 底 rgba(255,255,255,.08)');
   check(!/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), '条数白 .92 走全站那条（site-css.js §ON_DEEP_MUTED），block.css 里没有自己那份');
   check(JSON.stringify(M.slots.bg) === JSON.stringify(manifestLib.loadManifests().get('footer').slots.bg), 'bg 槽对象与 footer 的 slots.bg 逐字相同');
 }
@@ -265,10 +272,11 @@ console.log('\n── AC11 validateSite');
   for (const p of M.presets) check(v({ ...clone(DEMO), options: p.knobs }).length === 0, `预设 ${p.name} 那组值（六个旋钮写全）+ 演示内容 ⟹ 放行`);
 }
 
-// ══ 图标：星 / 品牌图标真画成 <svg>（BLOCK_ICONS 那一行）· logo 不生成图 ═══════════════════════════════
+// ══ 图标：星真画成 <svg>（BLOCK_ICONS 那一行）· logo 不生成图 ═══════════════════════════════
 console.log('\n── 图标 · 不生成图');
 {
-  const want = ['star-fill', 'google', 'yelp', 'facebook'];
+  // #1766 —— 品牌图标那三个拿掉了（平台 logo 换成模板自带的全彩文件），只剩星星。
+  const want = ['star-fill'];
   check(JSON.stringify(icons.BLOCK_ICONS['reviews']) === JSON.stringify(want) && want.every((n) => TABLE[n]), `BLOCK_ICONS['reviews'] == ${want.join(' / ')}，表里都查得到`);
   const h = render('cards', clone(DEMO));
   check(itemsOf(h).every((x, i) => (x.match(/data-icon="star-fill"/g) || []).length === [5, 5, 5, 5][i]), '四格各 5 颗内联星（4.9 / 4.8 / 4.7 / 5.0 四舍五入都是 5）');

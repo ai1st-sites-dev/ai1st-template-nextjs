@@ -75,8 +75,9 @@ Module._resolveFilename = function resolve(req, ...rest) {
 const BLOCKS = {
   faq: { slot: 'items', dropped: { answer: 'No question, so the block drops it.' }, kept: { question: 'Q?', answer: 'A.' } },
   features: { slot: 'items', dropped: 'not an object', kept: { title: 'Kept' } },
-  gallery: { slot: 'items', dropped: { title: 'No picture', image: { alt: 'x' } }, kept: { image: { imageUrl: 'https://example.com/a.jpg', alt: '' } } },
-  logos: { slot: 'items', dropped: { alt: 'No logo url' }, kept: { imageUrl: 'https://example.com/a.svg', alt: 'A' } },
+  // #1766 —— gallery / logos 没有图的那一项不再丢（画 #1734 的占位图，拖下去先播 3 个空图位），它们会丢的只剩不是对象的条目。
+  gallery: { slot: 'items', dropped: 'not an object', kept: { image: { imageUrl: 'https://example.com/a.jpg', alt: '' } } },
+  logos: { slot: 'items', dropped: 'not an object', kept: { imageUrl: 'https://example.com/a.svg', alt: 'A' } },
   milestones: { slot: 'stats', dropped: 'not an object', kept: { value: '10', label: 'Years' } },
   pricing: { slot: 'plans', dropped: 'not an object', kept: { name: 'Basic', price: { monthly: '$9' } } },
   reviews: { slot: 'platforms', dropped: { source: '', rating: 4, count: 3 }, kept: { source: 'Google', rating: 4.8, count: 12 } },

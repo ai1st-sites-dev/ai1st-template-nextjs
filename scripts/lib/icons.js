@@ -83,12 +83,13 @@ const BLOCK_ICONS = {
   // #1483 —— 功能清单每行的勾号；highlights 的图标来自数据（`highlights[].icon`），由 §iconNamesIn 收。
   'pricing': ['check'],
   // #1488 —— 星级（每条 n 颗实心 + 空心补到 5 颗）和轮播的前 / 后箭头，都是组件里写死的名字。
-  //    #1500 —— 平台评分改成四舍五入到整数颗，半星不再用到（`star-half` 拿掉）；summary 的平台品牌图标从 `review-platforms.js` 那张表现取。
-  'testimonials': ['star-fill', 'star', 'chevron-left', 'chevron-right', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
+  //    #1500 —— 平台评分改成四舍五入到整数颗，半星不再用到（`star-half` 拿掉）。
+  //    #1766 —— summary 的平台 logo 不再是图标（模板自带的全彩文件，`review-platforms.js`），这一行不再列品牌图标。
+  'testimonials': ['star-fill', 'star', 'chevron-left', 'chevron-right'],
   // #1484 —— 问答的开合图标（itemToggle：chevron = chevron-down；plus = plus + dash，展开时换着显示）+ help 卡按钮的箭头。
   'faq': ['chevron-down', 'plus', 'dash', 'arrow-right'],
-  // #1504 —— 星级（按分数四舍五入的实心星）+ 常见平台的品牌图标。品牌图标那几个名字只住在 `review-platforms.js` 那张表里，这里现取。
-  'reviews': ['star-fill', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
+  // #1504 —— 星级（按分数四舍五入的实心星）。#1766 —— 常见平台的 logo 换成模板自带的全彩文件（`review-platforms.js`），不再是图标。
+  'reviews': ['star-fill'],
   // #1498 —— 同 milestones：按钮的箭头；按钮图标来自数据（`ctas[].icon`），由 §iconNamesIn 收。
   'content': ['arrow-right'],
 };

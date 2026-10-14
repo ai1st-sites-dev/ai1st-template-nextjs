@@ -159,7 +159,12 @@
         "rating": "Rating",
         "count": "Number of reviews",
         "logoUrl": "Logo"
-      }
+      },
+      "seedItems": [
+        { "source": "Google", "rating": 4.8, "count": 126 },
+        { "source": "Yelp", "rating": 4.6, "count": 58 },
+        { "source": "Facebook", "rating": 4.9, "count": 42 }
+      ]
     },
     "bg": { "ref": "bg" }
   },
@@ -177,7 +182,7 @@
     "lines": [
       "@data",
       "platforms: 1–4, each {source, rating, count, href?, logoUrl?} — source is the platform (\"Google\", \"Yelp\", \"HomeStars\"), rating 0–5 with one decimal, count the number of reviews there; write href when there is a link to the business's page on that platform",
-      "logoUrl only when the owner uploaded that platform's logo (Google / Yelp / Facebook get a built-in icon automatically)",
+      "logoUrl only when the owner uploaded that platform's logo (Google / Google Maps / Yelp / Facebook get their built-in logo automatically — leave logoUrl out for them)",
       "only real numbers the owner gave or the site states — if you cannot find them, leave this block out; never write the overall score, the block works it out from the platforms",
       "review quotes go in testimonials (its summary can show a platform rating too) — put platform ratings in only one place on a page; bg is the background colour, top-level in data (not inside options)"
     ]

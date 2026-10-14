@@ -2571,5 +2571,50 @@ console.log('\n㉓ 整站范围说到页、file_written 只在写成时发（#17
   else bad(`🔴 AC1a 块范围：tool_use ${n} 条 · ${leak ? leak[0] : '无'}`);
 }
 
+// ══ ㉔ AI 改站写进页面的成排小图地址：不是站内路径、也不是我们图片库的 ⟹ 删掉这一格，这一项照留（#1766 验收 2 改站那一格）═══
+//
+// 一页 logos 块四项：维基缩略图（正文点名那个、实测 400）· 这个环境的图片库地址 · 模板自带的平台 logo · 另一个环境的图片库地址。
+// 老板在消息里把四个地址都贴了 ⟹ #1195 那道「谁给的」闸放行（它管出处，本票管地址是不是我们的），四项都真的写上了盘。
+// 臂：A 载荷带 uploadsDomain（test 那个 .net）⟹ 维基和 .dev 那两格删掉、名字还在，另两格原样；B 载荷没带 ⟹ 一格都不删。
+// 判据读提交进仓的那一份（`git show HEAD:`），那才是上线的东西。
+{
+  const WIKI = 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/1200px-Google_2015_logo.svg.png';
+  const OURS = 'https://uploads.ai1stsite.net/owner-1766/a1b2c3d4e_badge.png';
+  const OTHER_ENV = 'https://uploads.ai1stsite.dev/owner-1766/b2c3d4e5f_badge.png';
+  const BUILTIN = '/images/platforms/google.svg';
+  function arm1766(label, stdinExtra) {
+    const c = makeRoot(`1766-${label}`);
+    const site = writeSite(c.work);
+    c.git('git add -A && git commit -q -m base && git push -q origin main');
+    const homeFile = path.join(site, 'en', 'pages', 'home.json');
+    const h = JSON.parse(fs.readFileSync(homeFile, 'utf8'));
+    h.blocks.push({ id: 'home-logos-1766', type: 'logos', role: 'optional', region: 'content', weight: 995,
+      data: { headline: 'Rated on', items: [
+        { imageUrl: WIKI, alt: 'Google' }, { imageUrl: OURS, alt: 'Badge' }, { imageUrl: BUILTIN, alt: 'Google Reviews' }, { imageUrl: OTHER_ENV, alt: 'Other env' },
+      ] } });
+    const res = runEdit(c, [reply([textBlock('Adding the logos.'), writeCall('h1', 'en/pages/home.json', JSON.stringify(h, null, 2))], 'tool_use'),
+      reply([textBlock('Changes applied.')], 'end_turn')],
+    { message: `Add a logos row with these: ${WIKI} ${OURS} ${BUILTIN} ${OTHER_ENV}`, ...stdinExtra });
+    let items = null;
+    try { items = JSON.parse(c.git('git show HEAD:site/en/pages/home.json').toString()).blocks.find((b) => b.id === 'home-logos-1766').data.items; } catch (e) { items = null; }
+    const gate = toolResultContent(res, 1, 'h1') || '';
+    return { res, items, gate, committed: res.commitsAfter > res.commitsBefore, dirty: c.git('git status --porcelain').toString().trim() };
+  }
+  console.log('\n㉔ AI 改站写进 logos 的外链地址（#1766）：只留站内路径和这个环境的图片库');
+  const A = arm1766('with-domain', { uploadsDomain: 'uploads.ai1stsite.net' });
+  console.log(`     写入回执「${A.gate.slice(0, 60)}」· commit=${A.committed} · HEAD 里的四项 ${JSON.stringify(A.items)}`);
+  if (A.committed && !A.dirty && /"success":true/.test(A.gate) && Array.isArray(A.items) && A.items.length === 4
+    && !('imageUrl' in A.items[0]) && A.items[0].alt === 'Google' && A.items[1].imageUrl === OURS && A.items[2].imageUrl === BUILTIN
+    && !('imageUrl' in A.items[3]) && A.items[3].alt === 'Other env') {
+    ok('㉔ A：维基地址和别的环境（.dev）的地址删掉、名字照留；本环境（.net）图片库地址和 /images/platforms/ 原样；提交进仓的就是删过的那份');
+  } else bad(`🔴 ㉔ A：commit=${A.committed} · 脏=${JSON.stringify(A.dirty)} · items=${JSON.stringify(A.items)} · ${A.res.stderr.slice(-300)}`);
+  const B = arm1766('no-domain', {});
+  if (B.committed && Array.isArray(B.items) && B.items.map((x) => x.imageUrl).join() === [WIKI, OURS, BUILTIN, OTHER_ENV].join()) {
+    ok('㉔ B：载荷里没有 uploadsDomain ⟹ 四个地址一个都不删（宁可放过编的，不删老板上传的）');
+  } else bad(`🔴 ㉔ B：commit=${B.committed} · items=${JSON.stringify(B.items)}`);
+  if (/\[row-images\] 载荷里没有 uploadsDomain/.test(B.res.stderr)) ok('㉔ B：日志喊了一行「载荷里没有 uploadsDomain」');
+  else bad(`🔴 ㉔ B：日志里没有那一行：${B.res.stderr.slice(-400)}`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

@@ -16,7 +16,7 @@
 //
 // 🔴 **summary 是一组平台（#1500）**，每个 `{source, rating, count, href?, logoUrl?}`，两处摆法按 `summaryStyle` 只出一处：
 //    `inline` = 块头正文下面一排小条；`cards` = 评价那一列最上面一排平台卡（Webpixels reviews-1）。
-//    logo 取哪一档（上传的 `logoUrl` → 内置品牌图标 → 平台名）不在这里写：`scripts/lib/review-platforms.js` §platformLogo，
+//    logo 取哪一档（上传的 `logoUrl` → 模板自带的全彩平台 logo 文件（#1766）→ 平台名）不在这里写：`scripts/lib/review-platforms.js` §platformLogo，
 //    reviews 用的是同一份。
 //    🔴 字段叫 `logoUrl` 而不是 `imageUrl` 是**承重的**：`block-manifest.js` §imageSlotsOf 只把 shape 里有 `imageUrl` 的
 //    list 槽当内容图槽，所以建站不会给平台编一张 logo；改名成 `imageUrl` 的那一刻建站就开始造假 logo
@@ -30,8 +30,7 @@
 //
 // 🔴 **图片的键叫 `imageUrl`**（`items[].photo`）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键（`scripts/lib/image-urls.js`）。
 //
-// 🔴 **图标是内联 SVG**：星（`star-fill` / `star`）、前后箭头（`chevron-left` / `chevron-right`）和平台品牌图标（#1500，名字住在
-//    `review-platforms.js` 那张表里）登记在 `scripts/lib/icons.js` 的 `BLOCK_ICONS['testimonials']`；`iconTable` 由服务端查好传进来，这里用
+// 🔴 **图标是内联 SVG**：星（`star-fill` / `star`）、前后箭头（`chevron-left` / `chevron-right`）登记在 `scripts/lib/icons.js` 的 `BLOCK_ICONS['testimonials']`；`iconTable` 由服务端查好传进来，这里用
 //    `InlineIcon` 画。
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
@@ -133,18 +132,11 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
     const l = platformLogo(p.source, p.logoUrl);
     const slot = `summary.${p.index}.source`;
     const hidden = <span className="visually-hidden" data-slot={slot}>{p.source}</span>;
-    if (l.kind === 'image') {
+    // 上传的图（`image`）和模板自带的平台 logo（`platform`，#1766）都是一张 <img>；只有上传的那张挂 `data-slot`（数据里有那一格）。
+    if (l.kind === 'image' || l.kind === 'platform') {
       return (
-        <span className="tn-logo tn-logo-img d-inline-flex align-items-center" data-part="logo" data-logo="image">
-          <img src={l.logoUrl} alt={p.source} loading="lazy" data-slot={`summary.${p.index}.logoUrl`} />
-          {hidden}
-        </span>
-      );
-    }
-    if (l.kind === 'icon') {
-      return (
-        <span className="tn-logo tn-logo-icon d-inline-flex align-items-center" data-part="logo" data-logo="icon" style={{ ['--tn-brand' as string]: l.color }}>
-          {icon(l.icon)}
+        <span className="tn-logo tn-logo-img d-inline-flex align-items-center" data-part="logo" data-logo={l.kind}>
+          <img src={l.logoUrl} alt={p.source} loading="lazy" {...(l.kind === 'image' ? { 'data-slot': `summary.${p.index}.logoUrl` } : {})} />
           {hidden}
         </span>
       );

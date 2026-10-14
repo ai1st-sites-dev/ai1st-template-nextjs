@@ -249,9 +249,10 @@ console.log('\n── AC7 槽位');
 // ══ 图标：星 / 箭头真画成 <svg>（BLOCK_ICONS 那一行）════════════════════════════════════════════════
 console.log('\n── 图标');
 {
-  // #1500 —— 半星不再用到（平台评分四舍五入成整数颗）；平台品牌图标从 review-platforms.js 那张表现取。
-  const want = ['star-fill', 'star', 'chevron-left', 'chevron-right', 'google', 'yelp', 'facebook'];
-  check(JSON.stringify(icons.BLOCK_ICONS['testimonials']) === JSON.stringify(want) && want.every((n) => TABLE[n]), `BLOCK_ICONS['testimonials'] == ${want.join(' / ')}，表里七个都查得到`);
+  // #1500 —— 半星不再用到（平台评分四舍五入成整数颗）。
+  // #1766 —— 平台 logo 换成模板自带的全彩文件（review-platforms.js），google / yelp / facebook 三个品牌图标不再登记。
+  const want = ['star-fill', 'star', 'chevron-left', 'chevron-right'];
+  check(JSON.stringify(icons.BLOCK_ICONS['testimonials']) === JSON.stringify(want) && want.every((n) => TABLE[n]), `BLOCK_ICONS['testimonials'] == ${want.join(' / ')}，表里四个都查得到`);
   const car = render('side-intro', clone(DEMO));
   const svgIn = (html, sel) => { const i = html.indexOf(sel); const j = html.indexOf('</button>', i); return i >= 0 && /<svg[^>]*>[\s\S]*<path/.test(html.slice(i, j)); };
   check(svgIn(car, 'aria-label="Previous"') && svgIn(car, 'aria-label="Next"'), '前 / 后按钮里各有一个非空的内联 <svg>');
@@ -427,9 +428,11 @@ console.log('\n── #1500 summary：一组平台');
   const ps = platformsOf(inl);
   check(ps.length === 4 && DEMO.summary.length === 4, `夹具 4 个平台 ⟹ 4 个 platform 节点（${ps.length}）`);
   const [g, y, h, f] = ps;
-  check(/data-logo="icon" style="--tn-brand:#4285F4"><svg[^>]*data-icon="google"/.test(g), 'Google ⟹ 内置图标 google（Bootstrap Icons 的 google.svg）、品牌色 #4285F4');
-  check(/data-logo="icon" style="--tn-brand:#d32323"><svg[^>]*data-icon="yelp"/.test(y), 'Yelp ⟹ 内置图标 yelp、品牌色 #d32323');
-  check(/data-logo="icon" style="--tn-brand:#1877F2"><svg[^>]*data-icon="facebook"/.test(f), 'Facebook ⟹ 内置图标 facebook、品牌色 #1877F2');
+  // #1766 —— 这三格原来断言 Bootstrap Icons 字形 + 品牌色（`data-logo="icon"` + `--tn-brand`）；表换成模板自带的全彩文件之后，
+  //    testimonials 评价总结那一行的平台 logo 跟 reviews 一起变成那张图（PM 第三版裁定三：表是唯一的一份，不为它劈一张）。
+  check(/data-logo="platform"><img src="\/images\/platforms\/google\.svg" alt="Google" loading="lazy"\/>/.test(g) && !/<svg/.test(g.split('tn-platform-rating')[0]), 'Google ⟹ 模板自带的 /images/platforms/google.svg（不是字形）、不挂 data-slot');
+  check(/data-logo="platform"><img src="\/images\/platforms\/yelp\.svg" alt="Yelp"/.test(y), 'Yelp ⟹ /images/platforms/yelp.svg');
+  check(/data-logo="platform"><img src="\/images\/platforms\/facebook\.svg" alt="Facebook"/.test(f), 'Facebook ⟹ /images/platforms/facebook.svg');
   check(/data-logo="name"[^>]*>HomeStars</.test(h) && !/<svg[^>]*data-icon="(google|yelp|facebook)"/.test(h) && !/<img/.test(h), 'HomeStars ⟹ 没有图标、没有图，写平台名');
   check(ps.every((x, i) => new RegExp(`data-slot="summary\\.${i}\\.source">${DEMO.summary[i].source}<`).test(x)), '每项的 DOM 里都有文字平台名（图标档是 visually-hidden 那段，名字档是名字本身），data-slot = summary.N.source');
   check(/class="visually-hidden" data-slot="summary.0.source">Google</.test(g), 'Google 那项的平台名是 visually-hidden（读屏 / 搜索 / AI 读得到）');
@@ -437,12 +440,12 @@ console.log('\n── #1500 summary：一组平台');
   const hu = platformsOf(render('cards', up))[2];
   check(/data-logo="image"><img src="https:\/\/uploads.example\/homestars.png" alt="HomeStars"/.test(hu) && !/data-logo="name"/.test(hu), '给 HomeStars 加 logoUrl ⟹ <img alt="HomeStars">、没有文字那一档');
   const sp = clone(DEMO); sp.summary[2] = { source: ' google ', rating: 4.7, count: 28 };
-  check(/data-icon="google"/.test(platformsOf(render('cards', sp))[2]), 'source " google "（大小写 / 首尾空格）⟹ 照样命中 google 图标');
+  check(/\/images\/platforms\/google\.svg/.test(platformsOf(render('cards', sp))[2]), 'source " google "（大小写 / 首尾空格）⟹ 照样命中 google 那个文件');
   const upG = clone(DEMO); upG.summary[0].logoUrl = 'https://uploads.example/g.png';
-  check(/data-logo="image"/.test(platformsOf(render('cards', upG))[0]) && !/data-icon="google"/.test(platformsOf(render('cards', upG))[0]), '对照：Google 也给了 logoUrl ⟹ 上传的图优先于内置图标');
-  check(/require\('\.\/review-platforms'\)\.PLATFORM_ICONS/.test(fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'icons.js'), 'utf-8'))
-    && /from '\.\.\/\.\.\/scripts\/lib\/review-platforms\.js'/.test(SRC_TEXT) && !/#4285F4|#d32323|#1877F2/i.test(SRC_TEXT),
-    '平台表只住 review-platforms.js 一处：Section.tsx 引它、icons.js 从它现取、Section.tsx 里没有抄一份品牌色');
+  check(/data-logo="image"/.test(platformsOf(render('cards', upG))[0]) && !/google\.svg/.test(platformsOf(render('cards', upG))[0]), '对照：Google 也给了 logoUrl ⟹ 上传的图优先于自带文件');
+  // #1766 —— icons.js 不再从这张表取东西（品牌图标没了），这一格改成：Section.tsx 引它、Section.tsx 里没有抄一份文件路径 / 品牌色。
+  check(/from '\.\.\/\.\.\/scripts\/lib\/review-platforms\.js'/.test(SRC_TEXT) && !/#4285F4|#d32323|#1877F2|images\/platforms/i.test(SRC_TEXT),
+    '平台表只住 review-platforms.js 一处：Section.tsx 引它、Section.tsx 里没有抄一份文件路径 / 品牌色');
   // AC3 / AC4（DOM 一半）：按 summaryStyle 只出一处
   const where = (html) => {
     const intro = html.slice(html.indexOf('data-part="intro"'), html.indexOf('data-part="items"'));

@@ -1,6 +1,6 @@
 // #1551 —— `local-business-facts.js` 的类型。
 export interface HoursSegment { days: string[]; opens: string; closes: string }
-export interface AggregateRating { ratingValue: number; reviewCount: number }
+export interface AggregateRating { ratingValue: number; reviewCount: number; source: string }
 export const DAYS: string[];
 export const MAX_SEGMENTS: number;
 export function canonicalDay(d: unknown): string;

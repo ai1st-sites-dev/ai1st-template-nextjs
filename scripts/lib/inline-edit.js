@@ -151,6 +151,9 @@ function resolveInlineSlot({ component, props, slot, text, sourced = [], locked 
     typing: entry.typing !== false,
     ai: entry.ai !== false,
     image: entry.image === true,
+    // #1766 —— 成排的图那一格（schema 的 `url: true`）：值本身就是地址字符串。占位图点进来时那一格是空的，换图的人没法从
+    //    「现在的值是不是字符串」看出该写字符串还是 `{imageUrl}` 对象 —— 按格子的性质说，不按现值猜。
+    ...(entry.url === true ? { url: true } : {}),
   };
 }
 

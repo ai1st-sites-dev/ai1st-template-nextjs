@@ -18,83 +18,84 @@
 
 const { fieldProps } = require('./editor-convert');
 const { setAt } = require('./inline-edit');
+const { platformKey } = require('./review-platforms');
 
-// 类别：块头用前四个；列表条目用后七个（带 `{n}` = 第几条）。
+// 类别：块头用前四个；列表条目用后八个（带 `{n}` = 第几条）。`logo`（#1766）= 拖下的 logos 块每一项的名字（「Logo 1」）。
 const WORDS = {
   en: {
     eyebrow: 'Short tagline', title: 'Write a title here', text: 'Use a sentence or two to describe this.', label: 'Label',
     itemTitle: 'Title {n}', itemText: 'Describe item {n} in a sentence or two.', itemLabel: 'Label {n}',
-    question: 'Question {n} that customers often ask?', quote: 'What customer {n} said about you goes here.', name: 'Name {n}', role: 'Role {n}',
+    question: 'Question {n} that customers often ask?', quote: 'What customer {n} said about you goes here.', name: 'Name {n}', role: 'Role {n}', logo: 'Logo {n}',
   },
   zh: {
     eyebrow: '简短标语', title: '这里写标题', text: '用一两句话介绍这里的内容。', label: '标签',
     itemTitle: '标题 {n}', itemText: '用一两句话介绍第 {n} 项。', itemLabel: '标签 {n}',
-    question: '客户常问的第 {n} 个问题？', quote: '这里写第 {n} 位客户对你们的评价。', name: '姓名 {n}', role: '职位 {n}',
+    question: '客户常问的第 {n} 个问题？', quote: '这里写第 {n} 位客户对你们的评价。', name: '姓名 {n}', role: '职位 {n}', logo: 'Logo {n}',
   },
   'zh-tw': {
     eyebrow: '簡短標語', title: '這裡寫標題', text: '用一兩句話介紹這裡的內容。', label: '標籤',
     itemTitle: '標題 {n}', itemText: '用一兩句話介紹第 {n} 項。', itemLabel: '標籤 {n}',
-    question: '客戶常問的第 {n} 個問題？', quote: '這裡寫第 {n} 位客戶對你們的評價。', name: '姓名 {n}', role: '職位 {n}',
+    question: '客戶常問的第 {n} 個問題？', quote: '這裡寫第 {n} 位客戶對你們的評價。', name: '姓名 {n}', role: '職位 {n}', logo: 'Logo {n}',
   },
   fr: {
     eyebrow: 'Courte accroche', title: 'Écrivez un titre ici', text: 'Décrivez ceci en une ou deux phrases.', label: 'Libellé',
     itemTitle: 'Titre {n}', itemText: "Décrivez l'élément {n} en une ou deux phrases.", itemLabel: 'Libellé {n}',
-    question: 'Question {n} que vos clients posent souvent ?', quote: 'Ce que le client {n} a dit de vous.', name: 'Nom {n}', role: 'Fonction {n}',
+    question: 'Question {n} que vos clients posent souvent ?', quote: 'Ce que le client {n} a dit de vous.', name: 'Nom {n}', role: 'Fonction {n}', logo: 'Logo {n}',
   },
   es: {
     eyebrow: 'Lema breve', title: 'Escribe un título aquí', text: 'Describe esto en una o dos frases.', label: 'Etiqueta',
     itemTitle: 'Título {n}', itemText: 'Describe el elemento {n} en una o dos frases.', itemLabel: 'Etiqueta {n}',
-    question: '¿Pregunta {n} que tus clientes hacen a menudo?', quote: 'Lo que el cliente {n} dijo de ti.', name: 'Nombre {n}', role: 'Cargo {n}',
+    question: '¿Pregunta {n} que tus clientes hacen a menudo?', quote: 'Lo que el cliente {n} dijo de ti.', name: 'Nombre {n}', role: 'Cargo {n}', logo: 'Logo {n}',
   },
   ja: {
     eyebrow: '短いキャッチコピー', title: 'ここに見出しを入力', text: 'ここの内容を一、二文で紹介してください。', label: 'ラベル',
     itemTitle: 'タイトル {n}', itemText: '項目 {n} を一、二文で紹介してください。', itemLabel: 'ラベル {n}',
-    question: 'お客様からよくある質問 {n}？', quote: 'お客様 {n} の声をここに入力。', name: '名前 {n}', role: '役職 {n}',
+    question: 'お客様からよくある質問 {n}？', quote: 'お客様 {n} の声をここに入力。', name: '名前 {n}', role: '役職 {n}', logo: 'ロゴ {n}',
   },
   ko: {
     eyebrow: '짧은 문구', title: '여기에 제목을 입력하세요', text: '한두 문장으로 이 내용을 소개하세요.', label: '라벨',
     itemTitle: '제목 {n}', itemText: '항목 {n}을(를) 한두 문장으로 소개하세요.', itemLabel: '라벨 {n}',
-    question: '고객이 자주 묻는 질문 {n}?', quote: '고객 {n}의 후기를 여기에 입력하세요.', name: '이름 {n}', role: '직책 {n}',
+    question: '고객이 자주 묻는 질문 {n}?', quote: '고객 {n}의 후기를 여기에 입력하세요.', name: '이름 {n}', role: '직책 {n}', logo: '로고 {n}',
   },
   de: {
     eyebrow: 'Kurzer Slogan', title: 'Hier steht die Überschrift', text: 'Beschreiben Sie dies in ein, zwei Sätzen.', label: 'Bezeichnung',
     itemTitle: 'Titel {n}', itemText: 'Beschreiben Sie Punkt {n} in ein, zwei Sätzen.', itemLabel: 'Bezeichnung {n}',
-    question: 'Frage {n}, die Kunden oft stellen?', quote: 'Was Kunde {n} über Sie sagt.', name: 'Name {n}', role: 'Funktion {n}',
+    question: 'Frage {n}, die Kunden oft stellen?', quote: 'Was Kunde {n} über Sie sagt.', name: 'Name {n}', role: 'Funktion {n}', logo: 'Logo {n}',
   },
   it: {
     eyebrow: 'Breve slogan', title: 'Scrivi qui un titolo', text: 'Descrivi questo in una o due frasi.', label: 'Etichetta',
     itemTitle: 'Titolo {n}', itemText: "Descrivi l'elemento {n} in una o due frasi.", itemLabel: 'Etichetta {n}',
-    question: 'Domanda {n} che i clienti fanno spesso?', quote: 'Cosa ha detto di voi il cliente {n}.', name: 'Nome {n}', role: 'Ruolo {n}',
+    question: 'Domanda {n} che i clienti fanno spesso?', quote: 'Cosa ha detto di voi il cliente {n}.', name: 'Nome {n}', role: 'Ruolo {n}', logo: 'Logo {n}',
   },
   pt: {
     eyebrow: 'Slogan curto', title: 'Escreva um título aqui', text: 'Descreva isto em uma ou duas frases.', label: 'Rótulo',
     itemTitle: 'Título {n}', itemText: 'Descreva o item {n} em uma ou duas frases.', itemLabel: 'Rótulo {n}',
-    question: 'Pergunta {n} que os clientes fazem com frequência?', quote: 'O que o cliente {n} disse sobre você.', name: 'Nome {n}', role: 'Cargo {n}',
+    question: 'Pergunta {n} que os clientes fazem com frequência?', quote: 'O que o cliente {n} disse sobre você.', name: 'Nome {n}', role: 'Cargo {n}', logo: 'Logo {n}',
   },
   ru: {
     eyebrow: 'Короткий слоган', title: 'Напишите здесь заголовок', text: 'Опишите это в одном-двух предложениях.', label: 'Метка',
     itemTitle: 'Заголовок {n}', itemText: 'Опишите пункт {n} в одном-двух предложениях.', itemLabel: 'Метка {n}',
-    question: 'Вопрос {n}, который часто задают клиенты?', quote: 'Что о вас сказал клиент {n}.', name: 'Имя {n}', role: 'Должность {n}',
+    question: 'Вопрос {n}, который часто задают клиенты?', quote: 'Что о вас сказал клиент {n}.', name: 'Имя {n}', role: 'Должность {n}', logo: 'Логотип {n}',
   },
   vi: {
     eyebrow: 'Khẩu hiệu ngắn', title: 'Viết tiêu đề ở đây', text: 'Mô tả nội dung này trong một hai câu.', label: 'Nhãn',
     itemTitle: 'Tiêu đề {n}', itemText: 'Mô tả mục {n} trong một hai câu.', itemLabel: 'Nhãn {n}',
-    question: 'Câu hỏi {n} khách hàng thường hỏi?', quote: 'Nhận xét của khách hàng {n} về bạn.', name: 'Tên {n}', role: 'Chức vụ {n}',
+    question: 'Câu hỏi {n} khách hàng thường hỏi?', quote: 'Nhận xét của khách hàng {n} về bạn.', name: 'Tên {n}', role: 'Chức vụ {n}', logo: 'Logo {n}',
   },
   ar: {
     eyebrow: 'شعار قصير', title: 'اكتب العنوان هنا', text: 'صف هذا القسم في جملة أو جملتين.', label: 'تسمية',
     itemTitle: 'العنوان {n}', itemText: 'صف العنصر {n} في جملة أو جملتين.', itemLabel: 'تسمية {n}',
-    question: 'السؤال {n} الذي يطرحه العملاء كثيرًا؟', quote: 'ما قاله العميل {n} عنك.', name: 'الاسم {n}', role: 'المنصب {n}',
+    question: 'السؤال {n} الذي يطرحه العملاء كثيرًا؟', quote: 'ما قاله العميل {n} عنك.', name: 'الاسم {n}', role: 'المنصب {n}', logo: 'الشعار {n}',
   },
   hi: {
     eyebrow: 'छोटी टैगलाइन', title: 'यहाँ शीर्षक लिखें', text: 'इसे एक-दो वाक्यों में बताएँ।', label: 'लेबल',
     itemTitle: 'शीर्षक {n}', itemText: 'आइटम {n} को एक-दो वाक्यों में बताएँ।', itemLabel: 'लेबल {n}',
-    question: 'ग्राहकों का अक्सर पूछा जाने वाला सवाल {n}?', quote: 'ग्राहक {n} ने आपके बारे में क्या कहा।', name: 'नाम {n}', role: 'पद {n}',
+    question: 'ग्राहकों का अक्सर पूछा जाने वाला सवाल {n}?', quote: 'ग्राहक {n} ने आपके बारे में क्या कहा।', name: 'नाम {n}', role: 'पद {n}', logo: 'लोगो {n}',
   },
   th: {
     eyebrow: 'สโลแกนสั้น ๆ', title: 'เขียนหัวข้อที่นี่', text: 'อธิบายส่วนนี้ในหนึ่งหรือสองประโยค', label: 'ป้ายกำกับ',
     itemTitle: 'หัวข้อ {n}', itemText: 'อธิบายรายการที่ {n} ในหนึ่งหรือสองประโยค', itemLabel: 'ป้ายกำกับ {n}',
-    question: 'คำถามที่ {n} ที่ลูกค้ามักถาม?', quote: 'คำพูดของลูกค้าคนที่ {n} ที่มีต่อคุณ', name: 'ชื่อ {n}', role: 'ตำแหน่ง {n}',
+    question: 'คำถามที่ {n} ที่ลูกค้ามักถาม?', quote: 'คำพูดของลูกค้าคนที่ {n} ที่มีต่อคุณ', name: 'ชื่อ {n}', role: 'ตำแหน่ง {n}', logo: 'โลโก้ {n}',
   },
 };
 
@@ -128,9 +129,9 @@ function categoryOf(path, inItem) {
   return 'itemText';
 }
 
-function placeholderFor(locale, path, n) {
+function placeholderFor(locale, path, n, category) {
   const w = placeholderWords(locale);
-  const s = w[categoryOf(path, n !== undefined)] || w.text;
+  const s = w[category || categoryOf(path, n !== undefined)] || w.text;
   return n === undefined ? s.replace(/\s*\{n\}/g, '') : s.replace(/\{n\}/g, String(n));
 }
 
@@ -140,7 +141,8 @@ function placeholderFor(locale, path, n) {
  */
 function aiCells(component, props) {
   const fields = new Map((component.fields || []).map((f) => [f.slot, f]));
-  const itemKeys = new Map((component.seed || []).map((s) => [s.slot, s.keys || []]));
+  // #1766 —— `fill: false` 的列表（logos / gallery / reviews 拖下时播的那几条）不交给 AI：它们的格不在这里。
+  const itemKeys = new Map((component.seed || []).filter((s) => s.fill !== false).map((s) => [s.slot, s.keys || []]));
   const out = [];
   for (const cell of component.inline || []) {
     if (!cell.ai) continue;
@@ -160,16 +162,62 @@ function aiCells(component, props) {
 }
 
 /**
+ * #1766 —— 站里存的真实评分（建站时抓到的，`seo.schema.aggregateRating`，`local-business-facts.js` §ratingFrom）**当且仅当**
+ * 它能证明自己来自 Google（`source` 认得出是 Google）时回 `{ rating, count }`；否则 null。
+ * 🔴 §ratingFrom 在 Google 没有合格的数时会取下一家（Yelp 4.4 / 37 条），没有 `source` 就会被写成「Google 4.4」——
+ *    替 Google 编分数（`create-site.js` 的 FACTS_ONLY_FROM_FORM_RULE 那条红线）。所以 `source` 不是 Google、或者没有
+ *    `source`（#1766 之前建的站）⟹ null，Google 那一条照样是示例分。只认 Google：别的平台用真数是另一件事（PM 第三版裁定，B 出局）。
+ * 读这个语言的 seo，没有就退主语言那份。分数夹成一位小数（reviews 的 `ranges.rating` 是 `[0, 5, 1]`）。
+ */
+function realGoogleRating(site, locale) {
+  const byLocale = site && site.seoByLocale && typeof site.seoByLocale === 'object' ? site.seoByLocale : {};
+  const seo = byLocale[locale] || byLocale[site && site.defaultLocale];
+  const r = seo && seo.schema && seo.schema.aggregateRating;
+  if (!r || platformKey(r.source) !== 'google') return null;
+  const rating = Math.round(Number(r.ratingValue) * 10) / 10;
+  const count = Number(r.reviewCount);
+  if (!(rating > 0 && rating <= 5) || !Number.isInteger(count) || count < 1) return null;
+  return { rating, count };
+}
+
+/** #1766 —— manifest 的示例条目（`seedItems`）拷一份；`source` 是 Google 的那一条、站里又有来自 Google 的真实评分 ⟹ 分数和条数换成真的。 */
+function seedItemsFor(items, site, locale) {
+  const real = realGoogleRating(site, locale);
+  return items.map((it) => {
+    const copy = JSON.parse(JSON.stringify(it));
+    if (real && platformKey(copy.source) === 'google') Object.assign(copy, real);
+    return copy;
+  });
+}
+
+/** 这一格是不是拖下的 logos 块里每一项的名字：成排的图（`imageRow`）、图那一格叫 Logo、这一格是 `alt`（同 editor-schema §imageRowSubs 的判法）。 */
+function isLogoName(component, slot, key) {
+  const f = (component.fields || []).find((x) => x.slot === slot);
+  const url = f && f.imageRow && (f.subs || []).find((x) => x.url);
+  return key === 'alt' && !!url && /\blogo\b/i.test(String(url.label || ''));
+}
+
+/**
  * 新块拖下去那一刻的 props（Puck 的 `defaultProps`，不含 `_shape`）：`fieldProps(c, {})` + 播种 + 占位。
  * 每次调用都是新的一份对象（列表、条目都不共享）。
+ * #1766 —— `site`（可选）：拖下 reviews 块时 Google 那一条看站里有没有来自 Google 的真实评分（§realGoogleRating）。
+ *    `fill: false` 的列表只填占位（logos 每一项的名字「Logo 1」），不交给 AI（§fillFields 看不到它们）。
  */
-function seedProps(component, locale) {
+function seedProps(component, locale, site) {
   let props = fieldProps(component, {});
-  for (const { slot, count } of component.seed || []) {
-    props = { ...props, [slot]: Array.from({ length: count }, () => ({})) };
+  for (const { slot, count, items } of component.seed || []) {
+    props = { ...props, [slot]: Array.isArray(items) ? seedItemsFor(items, site, locale) : Array.from({ length: count }, () => ({})) };
   }
   for (const { path, item } of aiCells(component, props)) {
     props = setAt(props, path, placeholderFor(locale, path.filter((s) => typeof s === 'string').join('.'), item));
+  }
+  for (const { slot, keys, fill } of component.seed || []) {
+    if (fill !== false) continue;
+    for (const key of keys || []) {
+      (props[slot] || []).forEach((_, i) => {
+        props = setAt(props, [slot, i, key], placeholderFor(locale, `${slot}.${key}`, i + 1, isLogoName(component, slot, key) ? 'logo' : undefined));
+      });
+    }
   }
   return props;
 }
@@ -190,4 +238,4 @@ function pathOfName(name) {
   return String(name).split('.').map((s) => (/^\d+$/.test(s) ? Number(s) : s));
 }
 
-module.exports = { WORDS, placeholderWords, categoryOf, placeholderFor, seedProps, fillFields, pathOfName };
+module.exports = { WORDS, placeholderWords, categoryOf, placeholderFor, realGoogleRating, seedProps, fillFields, pathOfName };

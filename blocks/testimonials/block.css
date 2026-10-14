@@ -34,7 +34,7 @@
    summaryStyle 只决定出哪一处（Section.tsx 两处只渲染一处）：
      inline = 块头正文下面一排小条，间距 .75rem、放不下换行，**跟 introAlign 对齐**；
      cards  = 评价那一列最上面一排平台卡（Webpixels reviews-1），离评价 2.5rem，**不跟 introAlign**（条目从不跟它）。
-   logo：上传的图 / 内置品牌图标（品牌色，`--tn-brand`）/ 平台名，三档由 Section.tsx 选（review-platforms.js）。
+   logo：上传的图 / 模板自带的全彩平台 logo（#1766，同一套 .tn-logo img 尺寸）/ 平台名，三档由 Section.tsx 选（review-platforms.js）。
    有 href 的那一项是 <a>：悬停描一圈主色。 */
 [data-block="testimonials"] .tn-platform {
   background: var(--scheme-surface-muted);
@@ -42,9 +42,6 @@
 [data-block="testimonials"] a.tn-platform:hover,
 [data-block="testimonials"] a.tn-platform:focus-visible {
   box-shadow: 0 0 0 1px var(--x-primary);
-}
-[data-block="testimonials"] .tn-logo-icon {
-  color: var(--tn-brand);
 }
 /* 图片那一档 logo（#1519：选择器原来是 `.tn-logo img`。`<img>` 只出现在挂 `tn-logo-img` 的那一档里，
    命中的元素一个不变；改写成这一档自己的钩子，它才有一条规则）。 */
@@ -56,7 +53,6 @@
 [data-block="testimonials"] .tn-summary {
   gap: 0.75rem;
 }
-[data-block="testimonials"] .tn-platform-inline .tn-logo-icon svg,
 [data-block="testimonials"] .tn-platform-inline .tn-logo img {
   width: 1.75rem;
   height: 1.75rem;
@@ -78,7 +74,6 @@
   gap: 0.5rem;
   padding: 2rem 1.5rem;
 }
-[data-block="testimonials"] .tn-platform-card .tn-logo-icon svg,
 [data-block="testimonials"] .tn-platform-card .tn-logo img {
   width: 2.25rem;
   height: 2.25rem;
@@ -115,12 +110,8 @@
   [data-block="testimonials"] .tn-pc-stars { grid-area: stars; justify-self: end; }
   [data-block="testimonials"] .tn-pc-score { grid-area: score; line-height: 1.25; }
   [data-block="testimonials"] .tn-pc-count { grid-area: count; justify-self: end; line-height: 1.25; }
-  [data-block="testimonials"] .tn-platform-card .tn-logo-icon svg,
   [data-block="testimonials"] .tn-platform-card .tn-logo img {
     height: 1.25rem;
-  }
-  [data-block="testimonials"] .tn-platform-card .tn-logo-icon svg {
-    width: 1.25rem;
   }
 }
 
@@ -312,7 +303,7 @@
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字 / 引言反白；身份 / 来源 / 总评分那行白 .92
    （`.text-muted` → 全站那条 scripts/lib/site-css.js §ON_DEEP_MUTED，这里不抄一份）；card 半透明底 + 半透明白描边；
-   summary 每个平台的底 .08、品牌图标反白（#1500）；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。
+   summary 每个平台的底 .08（#1500；#1766 起平台 logo 是全彩图片，不再反白）；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。
    🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
       §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
 
@@ -323,9 +314,7 @@
 [data-block="testimonials"][data-tone="dark"] .tn-platform-rating,
 [data-block="testimonials"][data-tone="brand"] .tn-platform-rating,
 [data-block="testimonials"][data-tone="dark"] .tn-pc-score,
-[data-block="testimonials"][data-tone="brand"] .tn-pc-score,
-[data-block="testimonials"][data-tone="dark"] .tn-logo-icon,
-[data-block="testimonials"][data-tone="brand"] .tn-logo-icon {
+[data-block="testimonials"][data-tone="brand"] .tn-pc-score {
   color: #fff !important;
 }
 [data-block="testimonials"][data-tone="dark"][data-item-style="card"] .tn-inner,

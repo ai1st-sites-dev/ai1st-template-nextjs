@@ -163,9 +163,11 @@ function imageTitle(component: EditorComponent, slot: string): string | undefine
 }
 
 /** #1713 —— 一格图的新值：`{imageUrl, alt}` 对象只换地址（别的键原样）；成排的图那一格本身就是地址。 */
-function withUrl(cur: unknown, url: string): unknown {
-  // #1734 —— 那一格还没有图（占位图点进来的，值是 undefined）⟹ 新建 `{imageUrl}`；跟 §pickFor 同一条：只有值本身是字符串才回字符串。
-  if (typeof cur === 'string') return url;
+function withUrl(cur: unknown, url: string, isUrlCell = false): unknown {
+  // #1734 —— 那一格还没有图（占位图点进来的，值是 undefined）⟹ 新建 `{imageUrl}`。
+  // #1766 —— 成排的图那一格（`isUrlCell`，§resolveInlineSlot 的 `url`）是空的时候也回字符串：logos 没有图的那一项画占位图之后
+  //    这一支才走得到，按现值是不是字符串去猜会写成 `{imageUrl}` 对象，块读不出地址、照旧画占位图（e2e 1766 验收 3 量到的）。
+  if (isUrlCell || typeof cur === 'string') return url;
   return { ...(cur && typeof cur === 'object' && !Array.isArray(cur) ? (cur as Record<string, unknown>) : {}), imageUrl: url };
 }
 function urlIn(cur: unknown): string {
@@ -495,7 +497,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         setActive({ id, slot, blockType: item.type, el, path: null, name: '', typing: false, ai: false, hint: hintFor(r.why, ref, el.tagName === 'IMG') });
         return;
       }
-      if (r.image) { setActive(null); void pickFor(id, slot, item.type, el, r.path, r.value, imageTitle(component, slot)); return; }
+      if (r.image) { setActive(null); void pickFor(id, slot, item.type, el, r.path, r.value, imageTitle(component, slot), r.url === true); return; }
       const next: Active = { id, slot, blockType: item.type, el, path: r.path, name: r.name, typing: r.typing, ai: r.ai, hint: '' };
       setActive(next);
       if (r.typing) startTyping(next, e.clientX, e.clientY);
@@ -714,7 +716,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
     if (!r.image) return;
     setActive(null);
     const title = imageTitle(component, slot);
-    if (mode === 'edit' || !target.regenerate) { void pickFor(target.id, slot, item.type, target.el, r.path, r.value, title); return; }
+    if (mode === 'edit' || !target.regenerate) { void pickFor(target.id, slot, item.type, target.el, r.path, r.value, title, r.url === true); return; }
     void regenFor(target, r.path, r.value, title);
   }
 
@@ -757,7 +759,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
 
   /** #1693 —— 画布里点到一张图：开图片库，选了就换这张图的 `imageUrl`（对象里别的键原样），记一笔撤销历史。
    *  #1694 —— 成排的图那一格的值就是地址字符串（`logos.items.2.imageUrl`、`platforms.0.logoUrl`）：直接换成新地址。 */
-  async function pickFor(id: string, slot: string, blockType: string, el: HTMLElement, path: InlinePath, before: string, title?: string) {
+  async function pickFor(id: string, slot: string, blockType: string, el: HTMLElement, path: InlinePath, before: string, title?: string, isUrlCell = false) {
     const ap = apiRef.current;
     if (!ap) return;
     const res = await ap.pickImage(before, { id, slot }, title ? { title } : undefined);
@@ -771,7 +773,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: 'This image was changed while you were choosing, so your choice was not used.' });
       return;
     }
-    if (!write(id, path, typeof cur === 'string' ? res.url : { ...cur, imageUrl: res.url }, true)) {
+    if (!write(id, path, withUrl(cur, res.url, isUrlCell), true)) {
       setActive({ id, slot, blockType, el, path: null, name: '', typing: false, ai: false, hint: 'This section is no longer on the page.' });
       return;
     }
