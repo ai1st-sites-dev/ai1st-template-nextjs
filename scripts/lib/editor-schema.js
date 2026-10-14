@@ -496,10 +496,16 @@ function inlineSlotsOf(manifest) {
 //   `fill: false` 的 `keys` 只填占位，不进 `block-placeholders.js` §fillFields。
 const SEED_ITEMS = 3;
 
-/** 一份 manifest → 新块落下时要播的列表：`[{ slot, count, keys, fill?, items? }]`（顺序同 manifest 里槽位的书写顺序）。 */
-function seedListsOf(manifest) {
+/**
+ * 一份 manifest → 新块落下时要播的列表：`[{ slot, count, keys, fill?, items? }]`（顺序同 manifest 里槽位的书写顺序）。
+ * #1767 —— 另加一种：列表里有一格是 §seedTargetsOf 要补的（图标、数字……）⟹ 这一列也播，条数照那一格路过它时定的
+ *    （`pricing.highlights` 的图标、`milestones.stats` 的数字、`testimonials.summary` 的评分照 manifest 的 `demo`）。
+ *    按钮列表（`ctas`）不在这里：它整列由 §seedProps 按按钮写。`type` 不给 ⟹ 豁免名单对不上任何一格（只给比较用）。
+ */
+function seedListsOf(manifest, type = '') {
   const slots = (manifest && manifest.slots) || {};
   const cells = editableSlotPaths(manifest);
+  const targets = seedTargetsOf(manifest, type);
   const out = [];
   const clamp = (spec, n) => {
     const min = Number.isInteger(spec.minItems) ? spec.minItems : 0;
@@ -507,12 +513,13 @@ function seedListsOf(manifest) {
     return Math.min(max, Math.max(min, n));
   };
   for (const [slot, spec] of Object.entries(slots)) {
-    if (!spec || spec.kind !== 'list' || spec.required !== true) continue;
-    if (Array.isArray(spec.seedItems) && spec.seedItems.length) {
+    if (!spec || spec.kind !== 'list') continue;
+    if (spec.required === true && Array.isArray(spec.seedItems) && spec.seedItems.length) {
       out.push({ slot, count: spec.seedItems.length, keys: [], fill: false, items: spec.seedItems });
       continue;
     }
     if (spec.itemRequires !== undefined) {
+      if (spec.required !== true) continue;
       const entries = new Map(itemShapeEntries(spec.shape).map((e) => [e.key, e]));
       const req = Array.isArray(spec.itemRequires) ? spec.itemRequires : [];
       const isImage = (p) => !!imageCellOf(spec, String(p).split('.')[0]);
@@ -521,6 +528,8 @@ function seedListsOf(manifest) {
       out.push({ slot, count: clamp(spec, SEED_ITEMS), keys: req.filter((p) => !isImage(p)), fill: false });
       continue;
     }
+    const step = (targets.find((t) => t.kind !== 'buttons' && t.steps[0].key === slot && t.steps[0].list) || { steps: [] }).steps[0];
+    if (spec.required !== true && !step) continue;
     const entries = new Map(itemShapeEntries(spec.shape).map((e) => [e.key, e]));
     // #1693 —— 图片格不是字：不算「能让 AI 写的格」，也不算事实格（它没有占位可播）。
     const own = cells.filter((e) => e.slot === slot && !imageCellOf(spec, e.sub));
@@ -533,12 +542,221 @@ function seedListsOf(manifest) {
       const top = entries.get(String(e.sub || '').split('.')[0]);
       return !top || !top.optional;
     });
-    if (!ai.length || requiredFact) continue;
+    if (!step && (!ai.length || requiredFact)) continue;
     const keys = ai.map((e) => e.sub).filter((sub) => {
       const top = entries.get(sub);
       return !!top && !/[[{]/.test(top.value);
     });
-    out.push({ slot, count: clamp(spec, SEED_ITEMS), keys });
+    out.push({ slot, count: step ? step.count : clamp(spec, SEED_ITEMS), keys });
+  }
+  return out;
+}
+
+// ── #1767 —— 拖下那一刻每一类槽位都不空：按槽位的**种类**归类（不按布局、不写块名单） ─────────────────────────
+//
+// 块画不画一个位置看的是数据空不空（cta 只画有字的按钮、features 的 `b.icon ? … : null`），所以「拖下时哪里空着」按种类判。
+// §seedCellsOf 把一块的每个槽位 —— 含对象里的子槽、列表项里的字段 —— 从 manifest 读出它是哪一类：
+//   button   按钮 / 链接：一个对象，形状里必有 `label` 和 `href`（`kind: link` 的槽、`cta: {label, href, …}`、`link?: {…}`）
+//   buttons  一列按钮：列表项形状里必有 `label` 和 `href`（`ctas` / `introCtas`）
+//   number   数字：先认已经声明了的标记 —— 槽的 `intRange`、`ranges.<键>`、形状里写成 `N–M` 的值；认不出才按字段名
+//            （§NUMBER_EXAMPLES 的键，也是那张字段名清单的唯一一份；`price: {monthly, yearly?}` 这种看上一层的名字）
+//   icon     `icon`
+//   strings  `[string]`
+//   row      成排的小图：列表项本身就是一张图（§imageRowKeyOf）
+//   image    一个位置一张的图（§isOneImage，或一项里的图片地址键）—— 照 #1734 没图垫占位图、数据不写，不归这里管
+//   text     字（照 #1660：占位 + AI fill）
+//   link     只有地址没有字的 `href`（点评平台 / 成员社交链接点出去的地方，不是按钮）
+//   setting  样式 / 开关 / 下拉：`bg` 引用、`kind: color`、旋钮槽、选表单的 `{id?}`、`choices` / `itemChoices` 里的子字段、
+//            形状写成 `bool` 或一串引号枚举的值。按钮里除了 `label` / `href` 以外的键（style / icon / arrow / size）算按钮的一部分。
+//   list / object  装别的格子的容器（它自己不是一格，但豁免名单可以整个点它）
+//   unknown  上面一样都认不出 —— `scripts/block-seed.test.js` 判红，不默默跳过（新写法的按钮槽加进来不会照样绿）
+// `steps` 是从块数据走到这一格的路：`[{ key, list }]`，`list: true` = 这一步是一个列表（往下走的是它的每一项）。
+// 前五类（`SEED_KINDS`）拖下时必须有值；故意不播的进 §SEED_EXEMPT 写理由。
+const SEED_KINDS = Object.freeze(['button', 'buttons', 'number', 'icon', 'strings', 'row']);
+
+/**
+ * 数字的示例值（拖下时填的，老板觉得不对自己改 —— Chris 2026-10-13，#1766 / #1767）。键 = 认数字用的字段名清单（只写这一处）。
+ * 同一块里几条不一样；评分不贴下界（`reviews.platforms.rating` 下界是 0，播 0 = 替老板编一条差评，PM r2 ②）。
+ * 价格只是示例，不按站点货币换算：建站生成的内容不在 #1767 射程内，那里照旧不编价格。
+ */
+const NUMBER_EXAMPLES = Object.freeze({
+  value: Object.freeze(['10+', '500+', '98%']),
+  price: Object.freeze(['$29', '$59', '$99']),
+  rating: Object.freeze([5, 4, 3]),
+  count: Object.freeze([120, 85, 64]),
+  number: Object.freeze(['01', '02', '03']),
+});
+
+/** 图标的示例名（Bootstrap Icons 里都有：`scripts/block-seed.test.js` 逐个查文件）。一块里几条各不相同。 */
+const SEED_ICONS = Object.freeze(['star', 'shield-check', 'lightning-charge', 'heart', 'clock', 'trophy']);
+
+/** 按钮列表拖下时播几颗：hero 和 cta 两颗（一颗实心、一颗描边，#1767 正文做什么 2 点名），别的块一颗。 */
+const TWO_BUTTON_BLOCKS = Object.freeze(['hero', 'cta']);
+
+/** #1766 管这三块的播种（logo 一排、照片墙、点评平台），#1767 不做。 */
+const SEED_EXCLUDED_BLOCKS = Object.freeze({ logos: '#1766', gallery: '#1766', reviews: '#1766' });
+
+/**
+ * 属于 `SEED_KINDS`、但拖下时**故意不播**的格子：`块.路径` → 理由。点一个容器（列表 / 对象）= 它下面的都不播。
+ * 🔴 两头都查（`scripts/block-seed.test.js`）：名单里的路径在 manifest 里找不到、下面没有一格属于那几类、或者其实已经播了，
+ *    都算红 —— 名单不许比现实多。
+ *    以后加一个槽，它要么被播、要么在这里写理由。
+ */
+const SEED_EXEMPT = Object.freeze({
+  'hero.stats': '首屏底下那一排数字是可选部件，默认布局（Split）只要标题、按钮和主图；播上就是首屏多一排编的数字（#1767 正文点名不播）',
+  'hero.band': '首屏底下那一排大图是可选部件（#1767 正文点名不播）；要图的位置照 #1734 垫占位图，这一排拖下时不出现',
+  'features.items.number': '步骤编号：有了它卡片就从「图标卡」变成「步骤卡」，连线开关也据它判（features/Section.tsx:115），拖下时默认是图标卡',
+  'features.items.bullets': '卡片里的小清单是可选部件：播上就是三张卡各带三行勾，默认 Grid 只要图标 + 标题 + 正文',
+  'features.items.link': '卡片底下的小链接是可选部件：三张卡各一颗「了解更多」都指向同一个地方，是死重',
+  'faq.help': '「还有问题？」那张求助卡是可选部件，整张不播：只播它的按钮会画出半张卡',
+  'team.join': '招聘卡是预设部件（Hiring 预设带它的 demo 内容，block-knobs.js §presetClickProps），默认 Photo grid 不带',
+  'team.members.links': '成员的社交链接（图标 + 地址）只有老板知道是哪几个号，编一个就是一条指向别人主页的链接',
+  'pricing.plans.price.yearly': '年付价：任何一个套餐写了它，月付 / 年付切换就会出现（pricing/Section.tsx:143），拖下时只给月付价',
+  'blog.postCount': '显示几篇是一格下拉设置，空着按形状写明的默认 3 篇画（不是页面上的数字）',
+});
+
+const isQuotedEnum = (v) => /^"[^"]*"(\s*\|\s*"[^"]*")*$/.test(v);
+const isRangeValue = (v) => /^\d+(\.\d+)?\s*[–-]\s*\d+(\.\d+)?$/.test(v);
+const isButtonEntries = (entries) => ['label', LINK_HREF].every((k) => entries.some((e) => e.key === k && !e.optional));
+const innerOf = (v) => { const m = /^\s*\{([\s\S]*)\}\s*$/.exec(v); return m ? m[1] : null; };
+
+/**
+ * 一块 manifest → 每一格的种类：`[{ id, kind, steps, optional }]`（顺序同 manifest 里槽位的书写顺序，容器在它的子格之前）。
+ * `type` = 块名（只拼进 `id`）。
+ */
+function seedCellsOf(manifest, type) {
+  const out = [];
+  const slots = (manifest && manifest.slots) || {};
+  const push = (steps, kind, optional) => out.push({ id: [type, ...steps.map((s) => s.key)].join('.'), kind, steps, optional: !!optional });
+  // 一个键的值写法 → 种类（容器往下走）。`parent` = 上一层的键名（`price.monthly` 认数字靠它）；`spec` 只在槽这一层的列表项上给（ranges / choices）。
+  const walk = (steps, key, parent, value, optional, spec) => {
+    const v = String(value || '').trim();
+    const ranges = spec && spec.ranges && typeof spec.ranges === 'object' ? spec.ranges : {};
+    const choices = spec && { ...(spec.choices || {}), ...(spec.itemChoices || {}) };
+    if (choices && Object.prototype.hasOwnProperty.call(choices, key)) return push(steps, 'setting', optional);
+    if (v === '') {
+      if (Object.prototype.hasOwnProperty.call(ranges, key)) return push(steps, 'number', optional);
+      if (key === 'icon') return push(steps, 'icon', optional);
+      if (IMAGE_FIELDS.includes(key)) return push(steps, 'image', optional);
+      if (key === LINK_HREF) return push(steps, 'link', optional);
+      if (Object.prototype.hasOwnProperty.call(NUMBER_EXAMPLES, key) || Object.prototype.hasOwnProperty.call(NUMBER_EXAMPLES, parent)) return push(steps, 'number', optional);
+      return push(steps, 'text', optional);
+    }
+    if (v === 'bool' || isQuotedEnum(v)) return push(steps, 'setting', optional);
+    if (isRangeValue(v)) return push(steps, 'number', optional);
+    if (/^\[\s*string\s*\]$/.test(v)) return push(steps, 'strings', optional);
+    if (/^\[\s*\{[\s\S]*\}\s*\]$/.test(v)) {
+      const entries = itemShapeEntries(v);
+      const at = [...steps.slice(0, -1), { ...steps[steps.length - 1], list: true }];
+      if (isButtonEntries(entries)) return push(at, 'buttons', optional);
+      if (imageRowKeyOf(v)) return push(at, 'row', optional);
+      push(at, 'list', optional);
+      for (const e of entries) walk([...at, { key: e.key, list: false }], e.key, key, e.value, e.optional, steps.length === 1 ? spec : null);
+      return undefined;
+    }
+    const inner = innerOf(v);
+    if (inner !== null) {
+      if (isOneImage(v)) return push(steps, 'image', optional);
+      const entries = objectEntries(inner);
+      if (isButtonEntries(entries)) return push(steps, 'button', optional);
+      push(steps, 'object', optional);
+      for (const e of entries) walk([...steps, { key: e.key, list: false }], e.key, key, e.value, e.optional, steps.length === 1 ? spec : null);
+      return undefined;
+    }
+    return push(steps, 'unknown', optional);
+  };
+  for (const [slot, spec] of Object.entries(slots)) {
+    if (!spec) continue;
+    const steps = [{ key: slot, list: false }];
+    const optional = spec.required !== true;
+    const shape = typeof spec.shape === 'string' ? spec.shape : '';
+    if (spec.ref !== undefined || spec.kind === 'color' || (slot === 'options' && knobsOf({ slots: { [slot]: spec } }).length)
+      || /^\{\s*id\?\s*\}$/.test(shape)) push(steps, 'setting', optional);
+    else if (Array.isArray(spec.intRange)) push(steps, 'number', optional);
+    else if (spec.kind === 'text' || spec.kind === 'richtext') push(steps, 'text', optional);
+    else if (spec.kind === 'link' || spec.kind === 'object' || spec.kind === 'list') walk(steps, slot, '', shape, optional, spec);
+    else push(steps, 'unknown', optional);
+  }
+  return out;
+}
+
+/** 这一格是不是被豁免名单点到了（它自己，或它的某个容器）。 */
+function seedExemptOf(id, exempt = SEED_EXEMPT) {
+  const segs = String(id).split('.');
+  for (let i = segs.length; i >= 2; i--) {
+    const at = segs.slice(0, i).join('.');
+    if (Object.prototype.hasOwnProperty.call(exempt, at)) return at;
+  }
+  return null;
+}
+
+/**
+ * 一块拖下时要补上的格子：`SEED_KINDS` 那几类、不在豁免名单里、块不在 §SEED_EXCLUDED_BLOCKS 里。
+ * 每条带上它路过的列表各播几条（`steps[i].count`：§SEED_ITEMS 夹在那一列的 `minItems` / `maxItems`（`max` / 对象里的 `listMax`）
+ * 之间；槽写了 `demo` 的照 demo 的条数）。`block-placeholders.js` §seedProps 照它写值。
+ */
+function seedTargetsOf(manifest, type) {
+  if (Object.prototype.hasOwnProperty.call(SEED_EXCLUDED_BLOCKS, type)) return [];
+  const slots = (manifest && manifest.slots) || {};
+  const cells = seedCellsOf(manifest, type);
+  return cells
+    .filter((c) => SEED_KINDS.includes(c.kind) && !seedExemptOf(c.id))
+    .map((c) => ({
+      id: c.id,
+      kind: c.kind,
+      ...extrasOf(c, cells, slots),
+      steps: c.steps.map((s, i) => {
+        if (!s.list) return { key: s.key, list: false };
+        const spec = slots[c.steps[0].key] || {};
+        // 槽这一层的列表读槽自己的界；对象里包着的列表（`proof.avatars`、`logos.items`）读槽的 `listMax`。
+        const bounds = i === 0 ? itemBounds(spec) : { ...(spec.listMax && Number.isInteger(spec.listMax[s.key]) ? { max: spec.listMax[s.key] } : {}) };
+        const demo = i === 0 && Array.isArray(spec.demo) && spec.demo.length ? spec.demo : null;
+        const want = c.kind === 'buttons' && i === c.steps.length - 1 ? (TWO_BUTTON_BLOCKS.includes(type) ? 2 : 1) : SEED_ITEMS;
+        const count = demo ? demo.length : Math.min(bounds.max === undefined ? Infinity : bounds.max, Math.max(bounds.min || 0, want));
+        return { key: s.key, list: true, count, ...(demo ? { demo: JSON.parse(JSON.stringify(demo)) } : {}) };
+      }),
+    }));
+}
+
+/**
+ * §seedTargetsOf 每一格多带的那几样（都从形状读）：
+ *   · number —— `key` / `parent`（查 §NUMBER_EXAMPLES 用）；`aggregate`：它是「整体评分」那一类（评分 / 条数，住在一个对象里
+ *     （hero 的 `proof`），或者跟 `count` 是同一项的兄弟（`testimonials.summary`））⟹ 站里有建站时抓到的真实评分就用真的。
+ *     一条一条的顾客评价（`testimonials.items.rating`）不是。
+ *   · row —— `named`：项形状里有 `alt`（logo 一排要一个名字，`Logo 1`，同 #1766）；头像那种只有地址的项是 `{}`。
+ */
+function extrasOf(c, cells, slots) {
+  const key = c.steps[c.steps.length - 1].key;
+  if (c.kind === 'number') {
+    const parent = c.steps.length > 1 ? c.steps[c.steps.length - 2] : null;
+    const parentId = c.id.slice(0, c.id.lastIndexOf('.'));
+    const siblingCount = cells.some((x) => x.id === `${parentId}.count`);
+    const aggregate = (key === 'rating' || key === 'count') && !!parent && (!parent.list || siblingCount);
+    return { key, parent: parent ? parent.key : '', aggregate };
+  }
+  if (c.kind === 'row') {
+    const spec = slots[c.steps[0].key] || {};
+    const shape = c.steps.length === 1 ? spec.shape : (objectListsOf(spec).find((l) => l.key === key) || {}).itemShape;
+    return { named: itemShapeEntries(shape).some((e) => e.key === 'alt') };
+  }
+  return {};
+}
+
+/**
+ * 列表项里每一项都要从站里的资料各播一行的列表（contact 的 `items`：`kind` 的词表里有 phone / email / address / hours）：
+ * `[{ slot, key, kinds }]`。值不复制进块（块按 `kind` 现读站里的资料，`contact-facts.js` §siteFactsFrom），这里只决定播哪几行。
+ */
+const FACT_KINDS = Object.freeze(['phone', 'email', 'address', 'hours']);
+function factListsOf(manifest) {
+  const out = [];
+  for (const [slot, spec] of Object.entries((manifest && manifest.slots) || {})) {
+    if (!spec || spec.kind !== 'list' || !spec.itemChoices) continue;
+    for (const [key, values] of Object.entries(spec.itemChoices)) {
+      const kinds = (Array.isArray(values) ? values : []).filter((v) => FACT_KINDS.includes(v));
+      // 每行的标题那一格：项形状里第一个必填的纯文字键（contact 的 `title`），播「电话」「邮箱」……交给 AI fill。
+      const text = itemShapeEntries(spec.shape).find((e) => !e.optional && e.value === '' && e.key !== key);
+      if (kinds.length && text) out.push({ slot, key, kinds, text: text.key });
+    }
   }
   return out;
 }
@@ -592,7 +810,10 @@ function editorSchema(opts = {}) {
       // #1657 —— 画布上的点击层据它判「点到的这段字能不能打、出不出 AI 按钮」（§inlineSlotsOf）。
       inline: inlineSlotsOf(m),
       // #1660 —— 拖下去那一刻播几条列表项（§seedListsOf）。
-      seed: seedListsOf(m),
+      seed: seedListsOf(m, type),
+      // #1767 —— 拖下时还要补上的按钮 / 数字 / 图标 / [string] 列表 / 成排的小图（§seedTargetsOf），和按站里资料播的列表（§factListsOf）。
+      seedTargets: seedTargetsOf(m, type),
+      factLists: factListsOf(m),
       carried: Object.keys(m.slots || {}).filter((s) => !fieldSlots.has(s)),
       shapes,
       defaultShape: shapeForBlock({ type, data: {} }, selection, manifestsObj, () => {}) || null,
@@ -736,4 +957,5 @@ function itemFieldCoverageProblems(schema, manifests, exempt = ITEM_FIELD_EXEMPT
   return out;
 }
 
-module.exports = { editorSchema, fieldsOf, isOneImage, imageCellOf, slotCoverageProblems, itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, itemTopKeys, itemShapeEntries, inlineSlotsOf, isFactSlot, seedListsOf, SEED_ITEMS, LINK_HREF };
+module.exports = { editorSchema, fieldsOf, isOneImage, imageCellOf, slotCoverageProblems, itemFieldCoverageProblems, ITEM_FIELD_EXEMPT, itemTopKeys, itemShapeEntries, inlineSlotsOf, isFactSlot, seedListsOf, SEED_ITEMS, LINK_HREF,
+  seedCellsOf, seedTargetsOf, seedExemptOf, factListsOf, SEED_KINDS, SEED_EXEMPT, SEED_EXCLUDED_BLOCKS, NUMBER_EXAMPLES, SEED_ICONS, TWO_BUTTON_BLOCKS, FACT_KINDS };

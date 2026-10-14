@@ -166,18 +166,20 @@ const comp = (t) => schema.components.find((c) => c.type === t);
   check(rv.map((p) => platforms.platformKey(p.source)).join() === 'google,yelp,facebook', 'reviews：Google / Yelp / Facebook 三个，都认得出（画模板自带的 logo）', rv);
   check(new Set(rv.map((p) => p.rating)).size === 3 && rv.every((p) => p.rating > 0 && p.rating <= 5 && Number.isInteger(p.count) && p.count > 0), 'reviews：三个分数不一样，分数 / 条数在范围里', rv);
   const site = (r) => ({ defaultLocale: 'en', seoByLocale: { en: { schema: r ? { aggregateRating: r } : {} } } });
-  const g = bp.seedProps(comp('reviews'), 'en', site({ ratingValue: 4.4, reviewCount: 37, source: 'google' })).platforms;
+  // #1767 —— seedProps 的第三个参数是 SeedContext（编辑器 §seedContextFor 用 §realGoogleRating 算 `rating`），不再直接收 site。
+  const ctxOf = (st, loc = 'en') => ({ rating: bp.realGoogleRating(st, loc) });
+  const g = bp.seedProps(comp('reviews'), 'en', ctxOf(site({ ratingValue: 4.4, reviewCount: 37, source: 'google' }))).platforms;
   check(g[0].rating === 4.4 && g[0].count === 37 && g[1].rating === rv[1].rating && g[2].count === rv[2].count, '站里有来自 google 的真实评分 4.4 / 37 ⟹ Google 那一项正好是它，别的照旧示例', g);
-  const y = bp.seedProps(comp('reviews'), 'en', site({ ratingValue: 4.4, reviewCount: 37, source: 'yelp' })).platforms;
+  const y = bp.seedProps(comp('reviews'), 'en', ctxOf(site({ ratingValue: 4.4, reviewCount: 37, source: 'yelp' }))).platforms;
   check(JSON.stringify(y) === JSON.stringify(rv) && y.every((p) => p.rating !== 4.4 && p.count !== 37), '反臂：同一份数只差平台名（yelp）⟹ Google 那一项是示例分，4.4 / 37 一个都不出现（Yelp 也不用 —— B 出局）', y);
   check(rv.every((p) => p.rating !== 4.4 && p.count !== 37), '对照：示例分里本来就没有 4.4 / 37（否则上面那一格分不出「用了真数」和「示例恰好相等」）', rv);
-  const old = bp.seedProps(comp('reviews'), 'en', site({ ratingValue: 4.4, reviewCount: 37 })).platforms;
+  const old = bp.seedProps(comp('reviews'), 'en', ctxOf(site({ ratingValue: 4.4, reviewCount: 37 }))).platforms;
   check(JSON.stringify(old) === JSON.stringify(rv), '老站（aggregateRating 没有 source）⟹ 示例分，不猜它是 Google', old);
   const zh = { defaultLocale: 'en', seoByLocale: { en: { schema: { aggregateRating: { ratingValue: 4.6, reviewCount: 12, source: 'Google' } } } } };
-  check(bp.seedProps(comp('reviews'), 'zh', zh).platforms[0].count === 12, '这个语言没有 seo ⟹ 退主语言那份');
+  check(bp.seedProps(comp('reviews'), 'zh', ctxOf(zh, 'zh')).platforms[0].count === 12, '这个语言没有 seo ⟹ 退主语言那份');
   const fz = require(path.join(NEXT, 'scripts', 'lib', 'local-business-facts.js'));
   const fromYelp = fz.ratingFrom({ platformRatings: { yelp: { rating: 4.4, reviewCount: 37 } } });
-  const y2 = bp.seedProps(comp('reviews'), 'en', site(fromYelp)).platforms;
+  const y2 = bp.seedProps(comp('reviews'), 'en', ctxOf(site(fromYelp))).platforms;
   check(fromYelp.source === 'yelp' && y2[0].rating === rv[0].rating, '端到端（数据一半）：§ratingFrom 只抓到 yelp ⟹ 写进站里的 source 是 yelp ⟹ Google 那一项是示例分', { fromYelp, g0: y2[0] });
 }
 

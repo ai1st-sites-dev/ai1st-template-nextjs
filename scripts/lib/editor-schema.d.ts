@@ -69,6 +69,15 @@ export interface EditorInlineSlot {
   /** #1713 —— 图片格：悬停出不出 ✨ Regenerate（成排的小图、`generateImages: false` 的槽不出，只出 ✎ Edit） */
   regenerate?: boolean;
 }
+export interface SeedTarget {
+  id: string;
+  kind: 'button' | 'buttons' | 'number' | 'icon' | 'strings' | 'row';
+  steps: { key: string; list: boolean; count?: number; demo?: unknown[] }[];
+  key?: string;
+  parent?: string;
+  aggregate?: boolean;
+  named?: boolean;
+}
 export interface EditorComponent {
   type: string;
   label: string;
@@ -78,6 +87,10 @@ export interface EditorComponent {
   inline: EditorInlineSlot[];
   /** #1660 —— 新块拖下去那一刻播几条列表项、条目里填哪几格（`seedListsOf`）；不播的块是 []。 */
   seed: SeedList[];
+  /** #1767 —— 拖下时还要补上的按钮 / 数字 / 图标 / [string] 列表 / 成排的小图（`seedTargetsOf`）。 */
+  seedTargets: SeedTarget[];
+  /** #1767 —— 按站里的资料各播一行的列表（contact 的 `items`，`factListsOf`）。 */
+  factLists: { slot: string; key: string; kinds: string[]; text: string }[];
   carried: string[];
   shapes: { name: string; needs: string[] }[];
   defaultShape: string | null;
@@ -118,6 +131,17 @@ export function isOneImage(shape: unknown): boolean;
 export function isFactSlot(spec: unknown, sub: string | null, label: string): boolean;
 /** #1766 —— `fill: false` = 播了但不交给 AI 填字（`keys` 只填占位）；`items` = manifest 的示例条目（照它播）。 */
 export interface SeedList { slot: string; count: number; keys: string[]; fill?: false; items?: Record<string, unknown>[] }
-export function seedListsOf(manifest: unknown): SeedList[];
+export function seedListsOf(manifest: unknown, type?: string): SeedList[];
+export function seedCellsOf(manifest: unknown, type: string): { id: string; kind: string; steps: { key: string; list: boolean }[]; optional: boolean }[];
+export function seedTargetsOf(manifest: unknown, type: string): SeedTarget[];
+export function seedExemptOf(id: string, exempt?: Record<string, string>): string | null;
+export function factListsOf(manifest: unknown): { slot: string; key: string; kinds: string[]; text: string }[];
+export const SEED_KINDS: readonly string[];
+export const SEED_EXEMPT: Readonly<Record<string, string>>;
+export const SEED_EXCLUDED_BLOCKS: Readonly<Record<string, string>>;
+export const NUMBER_EXAMPLES: Readonly<Record<string, readonly (string | number)[]>>;
+export const SEED_ICONS: readonly string[];
+export const TWO_BUTTON_BLOCKS: readonly string[];
+export const FACT_KINDS: readonly string[];
 export const SEED_ITEMS: number;
 export const LINK_HREF: string;

@@ -37,11 +37,27 @@ export function knobImg<T extends SlotImage>(knob: string | undefined, img: T | 
   return img || PLACEHOLDER;
 }
 
+// ④ rowImgs（#1767）：成排的小图（hero / pricing 的头像、logo 一排、hero 的 band）里**没有地址的那一项**垫占位图，名字（`alt`）照留
+//    —— 拖下新块时播的就是这种项（`{}` / `{alt: 'Logo 1'}`），不垫的话整排不画、老板不知道这里能放图。跟 ③ 一样只垫渲染、数据不写。
+//    🔴 判据只在这一处：#1766 的 logos 块「没有图的一项 ⟹ 占位图」用的也是它。
+//    占位那一项是新对象 ⟹ 调用方的 `itemPath(…, raw, it, i)` 按 indexOf 找不到它、退回序号 `i`；所以这里**不筛掉**没图的项
+//    （序号 = 数据里的下标），只丢不是对象的项（那种数据本来就不合法）。
+const ROW_PLACEHOLDERS = new WeakSet<object>();
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+export function rowImgs<T extends SlotImage>(v: unknown): T[] {
+  return (Array.isArray(v) ? v : []).filter(isObj).map((x) => {
+    if (typeof x.imageUrl === 'string' && x.imageUrl) return x as T;
+    const ph: SlotImage = { imageUrl: PLACEHOLDER_IMAGE_URL, alt: typeof x.alt === 'string' ? x.alt : '' };
+    ROW_PLACEHOLDERS.add(ph);
+    return ph as T;
+  });
+}
+
 export function slotImg(
   img: SlotImage,
   { key, before, between, alt, after, slot }: { key?: Key; before?: Attrs; between?: Attrs; alt?: string; after?: Attrs; slot?: string } = {},
 ) {
-  return <img key={key} {...before} src={img.imageUrl} {...between} alt={alt ?? (img.alt || '')} {...after} {...(slot ? { 'data-slot': slot } : {})} {...(img === PLACEHOLDER ? { 'data-placeholder': '' } : {})} />;
+  return <img key={key} {...before} src={img.imageUrl} {...between} alt={alt ?? (img.alt || '')} {...after} {...(slot ? { 'data-slot': slot } : {})} {...(img === PLACEHOLDER || ROW_PLACEHOLDERS.has(img) ? { 'data-placeholder': '' } : {})} />;
 }
 
 /**

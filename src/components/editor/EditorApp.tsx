@@ -115,7 +115,9 @@ import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from 
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
 import { designAiRounds, designAiWater } from '../../../scripts/lib/design-ai-rounds.js';
-import { seedProps, fillFields, pathOfName } from '../../../scripts/lib/block-placeholders.js';
+import { seedProps, fillFields, fillBatches, pathOfName, realGoogleRating, type SeedContext } from '../../../scripts/lib/block-placeholders.js';
+import { siteFactsFrom } from '../../../scripts/lib/contact-facts.js';
+import { localeUrl } from '@/lib/config';
 import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, itemListAt, itemImageOf, runItemImage, useItemImageState, clearItemImageNote, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
@@ -736,11 +738,32 @@ function CanvasBlockBody({ component, props: live, locale, pageSlug, site: built
 /** 块的形态下拉叫什么（#1454 存盘记录里「改了形态」也用这个字）。 */
 const SHAPE_FIELD_LABEL = 'Layout';
 
+/**
+ * #1767 —— 新块拖下时按钮链到哪儿、整体评分用不用真的、contact 播哪几行：从这个站这个语言的资料算（形状见 `block-placeholders.d.ts` §SeedContext，实现在 `block-placeholders.js` §seedProps）。
+ * 联系页 / 博客列表只在这个语言真有那一页（有文章）时才给 —— 链到一个不存在的页是死链，发布前的死链检查会拦（#1553）。
+ */
+export function seedContextFor(site: SiteData, locale: string): SeedContext {
+  const seo = site.seoByLocale ? site.seoByLocale[locale] : undefined;
+  const facts = siteFactsFrom(site.brand, seo);
+  const pages = (site.pagesByLocale && site.pagesByLocale[locale]) || [];
+  const posts = (site.blogPostsByLocale && site.blogPostsByLocale[locale]) || [];
+  return {
+    phone: !!facts.phone,
+    email: !!facts.email,
+    contactHref: localeUrl(site, pages.some((p) => p.slug === 'contact') ? 'contact' : 'home', locale),
+    ...(posts.length ? { blogHref: localeUrl(site, '', locale, 'blogIndex') } : {}),
+    // 整体评分只认来自 Google 的真实评分（同 #1766：testimonials 的 summary 那一行写着 Google，别的平台的数不能顶上去）。
+    rating: realGoogleRating(site, locale),
+    facts: { phone: facts.phone, email: facts.email, address: facts.address, hours: facts.hours },
+  };
+}
+
 // #1665 —— `site` = 这个站的内容（编辑器页在服务端用加载器读的那份，经 EditorApp 的 props 进来）。它以前是一份编译期常量
 //    （`@/lib/config`），画布上的块、外壳、链接下拉、引用展开都直接 import；现在从这里一路递下去（字段 / 画布 / 外壳）。
 //    一张编辑器页一辈子就这一份，所以跟 schema 一样是造配置时定下的，不走 context。
 export function buildConfig(site: SiteData, schema: EditorSchema, locale: string, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = [], pageSlug?: string): Config {
   const components: Record<string, Config['components'][string]> = {};
+  const seedCtx = seedContextFor(site, locale);
   for (const c of schema.components) {
     const fields: Fields = {};
     for (const f of c.fields) fields[f.slot] = puckField(f, forms, site, locale);
@@ -770,8 +793,9 @@ export function buildConfig(site: SiteData, schema: EditorSchema, locale: string
     //    🔴 Puck 画布渲染时会把 defaultProps 浅合并在每个块的 props 底下（`@puckeditor/core` 0.23 dist/index.js:10767）。
     //    老块的 props 来自 §fieldProps，每个字段键都写着（没值也是 undefined 占着键）⟹ 占位漏不到老块上
     //    （`scripts/editor-placeholders.test.js` 钉着）。
-    //    #1766 —— 带上 `site`：拖下 reviews 块时 Google 那一条用站里来自 Google 的真实评分（没有就是示例分）。
-    const defaultProps: Record<string, unknown> = { ...seedProps(c, locale, site), _shape: THEME_DEFAULT };
+    // #1767 —— 再补上按钮（链到电话 / 联系页）、示例数、图标、套餐的功能点、成排的小图，contact 按站里的资料播行（§seedContextFor）；
+    //    #1766 的 reviews 那条 Google 真实评分也经它（`seedCtx.rating`）。
+    const defaultProps: Record<string, unknown> = { ...seedProps(c, locale, seedCtx), _shape: THEME_DEFAULT };
     components[c.type] = {
       label: c.label,
       fields,
@@ -3771,38 +3795,46 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       setFillNote(`Open this editor from your dashboard so the AI can write the new ${label} section.`);
       return;
     }
-    const reqId = `fb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const stop = () => setFilling((s) => { const n = new Set(s); n.delete(id); return n; });
+    // #1767 —— 一块交的格可能超过一次请求的上限（pricing 38 格）：按条分成几批（`block-placeholders.js` §fillBatches，每批 ≤ 20，
+    //    同一张套餐卡不拆开），各发各的、各回各的；全部回来（或超时）才摘掉「AI is writing…」那枚标。失败的那句只说一次。
+    const batches = fillBatches(sent);
+    let pending = batches.length;
+    let noted = false;
+    const note = (msg: string) => { if (!noted) { noted = true; setFillNote(msg); } };
+    const stop = () => { pending -= 1; if (pending <= 0) setFilling((s) => { const n = new Set(s); n.delete(id); return n; }); };
     setFilling((s) => new Set(s).add(id));
     setFillNote(null);
-    const timer = setTimeout(() => {
-      if (!rewritesRef.current.delete(reqId)) return;
-      stop();
-      setFillNote(`The AI did not answer in time. The new ${label} section still has sample text — you can change it yourself.`);
-    }, REWRITE_WAIT_MS);
-    rewritesRef.current.set(reqId, (r) => {
-      clearTimeout(timer);
-      stop();
-      const gg = getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck) : null;
-      const found = fillItem(gg, id);
-      if (!gg || !found) return; // 块已经删了 / 换了一份底稿：没有可写的地方
-      const { item: now, sel } = found;
-      if (!r.ok) { setFillNote(`${r.message} The new ${label} section still has sample text — you can change it yourself.`); return; }
-      if (lockedRef.current) { setFillNote(`The AI chat is editing this page, so the new ${label} section kept its sample text.`); return; }
-      const before = new Map(sent.map((f) => [f.name, f.text]));
-      let props = now.props;
-      let n = 0;
-      for (const f of r.fields) {
-        const was = before.get(f.name);
-        if (was === undefined || !f.text.trim()) continue;
-        const path = pathOfName(f.name);
-        if (getAt(props, path) !== was) continue;
-        props = setAt(props, path, f.text);
-        n++;
-      }
-      if (n) gg.dispatch({ type: 'replace', destinationIndex: sel.index, destinationZone: sel.zone, data: { ...now, props }, recordHistory: true });
-    });
-    postChat({ type: 'ai1st:ai-fill-block', id: reqId, blockType: type, page, locale, fields: sent });
+    for (const part of batches) {
+      const reqId = `fb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const timer = setTimeout(() => {
+        if (!rewritesRef.current.delete(reqId)) return;
+        stop();
+        note(`The AI did not answer in time. The new ${label} section still has sample text — you can change it yourself.`);
+      }, REWRITE_WAIT_MS);
+      rewritesRef.current.set(reqId, (r) => {
+        clearTimeout(timer);
+        stop();
+        const gg = getPuckRef.current ? (getPuckRef.current() as unknown as FillPuck) : null;
+        const found = fillItem(gg, id);
+        if (!gg || !found) return; // 块已经删了 / 换了一份底稿：没有可写的地方
+        const { item: now, sel } = found;
+        if (!r.ok) { note(`${r.message} The new ${label} section still has sample text — you can change it yourself.`); return; }
+        if (lockedRef.current) { note(`The AI chat is editing this page, so the new ${label} section kept its sample text.`); return; }
+        const before = new Map(part.map((f) => [f.name, f.text]));
+        let props = now.props;
+        let n = 0;
+        for (const f of r.fields) {
+          const was = before.get(f.name);
+          if (was === undefined || !f.text.trim()) continue;
+          const path = pathOfName(f.name);
+          if (getAt(props, path) !== was) continue;
+          props = setAt(props, path, f.text);
+          n++;
+        }
+        if (n) gg.dispatch({ type: 'replace', destinationIndex: sel.index, destinationZone: sel.zone, data: { ...now, props }, recordHistory: true });
+      });
+      postChat({ type: 'ai1st:ai-fill-block', id: reqId, blockType: type, page, locale, fields: part });
+    }
   }
 
   // #1448 —— 换页（dashboard 面板条上的下拉）。🔴 画布上没存的改动不许被换页静默丢掉：有就先存，

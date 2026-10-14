@@ -19,6 +19,8 @@
  *      尺子自检：同一个字面量写在代码里 ⟹ 抓到；只写在注释里 ⟹ 不抓。
  *   ④ 编辑器点占位图（`inline-edit.js` §resolveInlineSlot）：对到数据里那一格空着的槽；列表项按 `data-item` 认真实下标；
  *      对不上（`data-item` 前缀不是这个槽 / 那一格其实有图）⟹ 不让改。反向对照：不带 `placeholder` ⟹ 判 mismatch。
+ *   ⑥ #1767：成排的小图（hero / pricing 的头像、logo）没有地址的那一项也垫占位图（`blockMedia.tsx` §rowImgs），名字照留、
+ *      data-item 是数据里的下标；反向对照：改回「没有地址就筛掉」⟹ 占位 0 个。编辑器点占位头像对到数据里那一项。
  *   ⑤ AC3：页面数据里不写占位地址 —— 编辑器换成 Photo cards（写进 options）、不换图就存（§pageToPuck → §puckToPage）⟹ 三项照旧没有 `image`。
  */
 
@@ -286,6 +288,43 @@ try {
   check(Array.isArray(blk.data.items) && blk.data.items.length === data.items.length && blk.data.items.every((x) => !('image' in x)), `${data.items.length} 项都没有 image`, JSON.stringify(blk.data.items.map((x) => Object.keys(x))));
   check(!JSON.stringify(out).includes(LITERAL), '整页 JSON 里没有占位地址');
 } catch (e) { die(`存盘往返失败: ${e.stack || e.message}`); }
+
+// ══ ⑥ #1767：成排的小图没有地址的那一项也垫占位图 ══════════════════════════════════════════════════════════
+// 拖下 hero / pricing 时 `proof.avatars` 播 3 个 `{}`、`logos.items` 播 3 个 `{alt: 'Logo n'}`（block-placeholders.js §seedProps）。
+// 判据只在 `blockMedia.tsx` §rowImgs 一处（#1766 的 logos 块也用它）。
+console.log('\n── ⑥ #1767：成排的小图（头像 / logo）没有地址 ⟹ 垫占位图，名字照留，data-item 是数据里的下标');
+{
+  const PH = new RegExp(`src="${LITERAL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`);
+  for (const b of ['hero', 'pricing']) {
+    const C = load(b);
+    const d = clone(DEMO[b] || {});
+    d.proof = { text: 'Rated by locals', rating: 4.9, avatars: [{}, { imageUrl: '/photos/a.jpg' }, {}] };
+    d.logos = { caption: 'As seen in', items: [{ alt: 'Logo 1' }, { alt: 'Logo 2' }, { imageUrl: '/photos/l.png', alt: 'Real' }] };
+    const tags = imgTags(render(C, b, d));
+    const row = (slot) => tags.filter((t) => t.includes(`data-slot="${slot}.`));
+    const av = row('proof.avatars'); const lg = row('logos.items');
+    const phAv = av.filter((t) => PH.test(t) && /data-placeholder/.test(t));
+    const phLg = lg.filter((t) => PH.test(t) && /data-placeholder/.test(t));
+    check(av.length === 3 && phAv.length === 2, `${b}：3 个头像都画了，没有地址的 2 个是占位图（带 data-placeholder）`, av);
+    check(lg.length === 3 && phLg.length === 2, `${b}：3 个 logo 都画了，没有地址的 2 个是占位图`, lg);
+    check(/data-item="proof\.avatars\.2"/.test(phAv[1] || '') && /data-slot="proof\.avatars\.2\.imageUrl"/.test(phAv[1] || ''), `${b}：占位头像的 data-item / data-slot 是数据里的下标（第 3 项 = 2）`, phAv[1]);
+    check(/alt="Logo 2"/.test(phLg[1] || ''), `${b}：占位 logo 的名字（alt）照留`, phLg[1]);
+    const real = lg.find((t) => t.includes('/photos/l.png'));
+    check(!!real && !/data-placeholder/.test(real), `${b}：有地址的那一项画真图、不带 data-placeholder`, real);
+    // 反向对照：rowImgs 改回「没有地址就筛掉」（本票之前的 imgs）⟹ 占位一个都没有。
+    const src = fs.readFileSync(MEDIA, 'utf8');
+    const PAD = 'return (Array.isArray(v) ? v : []).filter(isObj).map(';
+    if (!src.includes(PAD)) { bad(`blockMedia.tsx 里找不到「${PAD}」（反向对照的前提不成立）`); continue; }
+    const Cold = load(b, src.replace(PAD, 'return (Array.isArray(v) ? v : []).filter(isObj).filter((x) => typeof x.imageUrl === \'string\' && !!x.imageUrl).map('));
+    const old = imgTags(render(Cold, b, d)).filter((t) => /data-placeholder/.test(t) && /data-slot="(proof\.avatars|logos\.items)\./.test(t));
+    check(old.length === 0, `${b}：反向对照（没有地址的项筛掉）⟹ 占位 0 个（这一格量得到）`, old.length);
+  }
+  // 编辑器点占位头像：按 data-item 对到数据里那一项（同 ④ 的规矩，成排的图那一格值是地址字符串）。
+  const component = { inline: [{ path: 'proof.avatars.imageUrl', typing: false, ai: false, image: true, url: true }] };
+  const props = { proof: { avatars: [{}, { imageUrl: '/photos/a.jpg' }, {}] } };
+  const r = inlineEdit.resolveInlineSlot({ component, props, text: LITERAL, slot: 'proof.avatars.0.imageUrl', placeholder: true, item: 'proof.avatars.2' });
+  check(r.ok && JSON.stringify(r.path) === '["proof","avatars",2,"imageUrl"]', '点第 3 个占位头像 ⟹ 写数据里第 2 项的 imageUrl', JSON.stringify(r));
+}
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

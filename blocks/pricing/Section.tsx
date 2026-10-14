@@ -28,7 +28,7 @@
 
 import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { slotImg } from '@/lib/sections/blockMedia';
+import { rowImgs, slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
@@ -86,7 +86,8 @@ const MAX_LOGOS = manifest.slots.logos.listMax.items;
 
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
-const imgs = (v: unknown): PricingNewImage[] => (Array.isArray(v) ? v.filter((x) => isObj(x) && str((x as PricingNewImage).imageUrl)) : []);
+// #1767 —— 成排的小图（头像 / logo）：没有地址的项垫占位图（`blockMedia.tsx` §rowImgs，判据只在那一处）。
+const imgs = (v: unknown): PricingNewImage[] => rowImgs<PricingNewImage>(v);
 
 /**
  * `featuredColor` → 根上的 CSS 变量（`block.css` 的 featured 两档读它们）：
@@ -182,7 +183,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
               ) : null}
               <div className="text-sm">
                 {proof.rating !== undefined && proof.rating !== '' ? (
-                  <><span className="text-warning" aria-hidden="true">★★★★★</span> <b>{proof.rating}</b> · </>
+                  <><span className="text-warning" aria-hidden="true">★★★★★</span> <b data-slot="proof.rating">{proof.rating}</b> · </>
                 ) : null}
                 <span data-slot="proof.text">{proof.text}</span>
               </div>

@@ -42,6 +42,7 @@
       "listMax": { "avatars": 4 },
       "editLabel": {
         "avatars.imageUrl": "Photo",
+        "rating": "Rating",
         "text": "Review line"
       }
     },

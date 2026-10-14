@@ -8,9 +8,10 @@
  *   ③ 不漏到老块：Puck 画布渲染时把 defaultProps 浅合并在每个块的 props 底下 —— 老块的 props（§pageToPuck）
  *      必须把 defaultProps 的每个键都占着，否则老块上会画出占位（存盘不存，画布上看得见）。
  *   ④ 交给 fill 的格：名字是数据里的路径（真实下标）、带着占位文字、没有 `ai: false` 的格。
- *   ⑤ 验收 6：遍历全部页面块 —— 播种集合恰好那八个（#1766 加了 gallery / logos / reviews，`fill: false`）、条数在 minItems..maxItems 内、交给 fill 的格没有 `ai: false`、
- *      条目里没有 `[string]` 列表 / 子对象被填、格数 ≤ manager 的 rewriteMaxFields（**从 `manager/ai_rewrite.go` 源码现读**，
- *      不在这里抄一个 20）。
+ *   ⑤ 验收 6：遍历全部页面块 —— 播种集合恰好那十一个（#1766 加了 gallery / logos / reviews，`fill: false`；#1767 加了三列）、条数在 minItems..maxItems 内、交给 fill 的格没有 `ai: false`、
+ *      只交还是占位的格、每一批 ≤ manager 的 rewriteMaxFields（**从 `manager/ai_rewrite.go` 源码现读**，不在这里抄一个 20）。
+ *   📌 #1767 改过的格（「按钮不播」「数字不播」「[string] / 子对象不填」「格数 ≤ 20」）：拖下时按钮、示例数、图标、套餐的功能点
+ *      现在都播（`block-seed.test.js` 按种类逐格查），这里改成断言新规矩，每一处就地写了为什么。
  *
  *   node scripts/editor-placeholders.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -52,9 +53,11 @@ for (const l of have) {
   const row = bp.WORDS[l];
   const missing = cats.filter((k) => typeof row[k] !== 'string' || !row[k].trim());
   check(missing.length === 0 && Object.keys(row).length === cats.length, `${l}：${cats.length} 个类别齐全`, missing);
-  const head = ['eyebrow', 'title', 'text', 'label'];
-  const badN = cats.filter((k) => head.includes(k) === row[k].includes('{n}'));
-  check(badN.length === 0, `${l}：块头类别不带序号、条目类别都带 {n}`, badN);
+  // #1767 —— 按钮字（callUs …）、联系方式那四行的标题（phone …）不带序号；数字说明（statLabel）带 {v}（那一条的数）。
+  const NO_N = ['eyebrow', 'title', 'text', 'label', 'callUs', 'emailUs', 'contactUs', 'allPosts', 'statLabel', 'phone', 'email', 'address', 'hours'];
+  const badN = cats.filter((k) => NO_N.includes(k) === row[k].includes('{n}'));
+  check(badN.length === 0, `${l}：块头 / 按钮 / 联系方式类别不带序号、条目类别都带 {n}`, badN);
+  check(row.statLabel.includes('{v}'), `${l}：数字说明带 {v}`, row.statLabel);
   if (l !== 'en') {
     // #1766 —— `Logo {n}` 同 Name / Label：这个词在 de / fr / es / it / pt / vi / 中文里就是写 Logo，不是没翻。
     const same = cats.filter((k) => row[k] === bp.WORDS.en[k] && !/^(Name|Label|Logo) \{n\}$/.test(row[k]));
@@ -74,7 +77,9 @@ check(Array.isArray(fz.items) && fz.items.length === 3, 'items 播 3 条', fz.it
 check(fz.headline === '这里写标题' && fz.introEyebrow.text === '简短标语' && fz.body === '用一两句话介绍这里的内容。', '块头三格是中文占位', { headline: fz.headline, eyebrow: fz.introEyebrow, body: fz.body });
 check(fz.items.every((it, i) => it.title === `标题 ${i + 1}` && it.text === `用一两句话介绍第 ${i + 1} 项。`), '每张卡的标题 / 正文是中文占位、带各自的序号', fz.items);
 check(new Set(fz.items.map((it) => it.title)).size === 3, '三张卡的标题各不相同（T6 点击层按内容找回下标，一样的会判 ambiguous）');
-check(Array.isArray(fz.introCtas) && fz.introCtas.length === 0, '选填列表（introCtas）不播');
+// #1767 改：原来断言「选填列表（introCtas）不播」—— 那是 #1660「只写文字等于一个死按钮」的规矩；本票按钮带着能去的链接一起播
+//    （有电话链电话、没有链联系页 / 首页），所以块头按钮播 1 颗。不给站点资料 ⟹ 链首页。
+check(Array.isArray(fz.introCtas) && fz.introCtas.length === 1 && fz.introCtas[0].href === '/' && fz.introCtas[0].label === '联系我们', '块头按钮（introCtas）播 1 颗，字是中文占位、链接能去', fz.introCtas);
 const fz2 = bp.seedProps(features, 'zh');
 check(fz2.items !== fz.items && fz2.items[0] !== fz.items[0], '两次调用不共享列表 / 条目对象');
 check(!JSON.stringify(fz).includes('Northside'), '不含演示文案（Northside）');
@@ -98,12 +103,20 @@ check(Array.isArray(gallery.items) && gallery.items.length === 3 && gallery.item
 const hero = bp.seedProps(byType.get('hero'), 'en');
 check(Array.isArray(hero.stats) && hero.stats.length === 0, 'hero.stats（选填、含事实格 value）不播');
 const pricing = bp.seedProps(byType.get('pricing'), 'en');
-check(pricing.plans.length === 3 && pricing.plans.every((p) => p.price === undefined), 'pricing 播 3 套餐，价格（事实格）不填', pricing.plans);
+// #1767 改：原来「价格（事实格）不填」—— Chris 2026-10-13 改掉了「拖下新块不编数字」：填一个示例价，三个不一样。
+check(pricing.plans.length === 3 && new Set(pricing.plans.map((p) => p.price && p.price.monthly)).size === 3, 'pricing 播 3 套餐，各有一个不一样的示例月付价', pricing.plans.map((p) => p.price));
+check(pricing.plans.every((p) => p.price && p.price.yearly === undefined), 'pricing：年付价不填（填了就多出月付 / 年付切换，SEED_EXEMPT 有理由）');
 check(pricing.plans[0].name === 'Title 1', '套餐名按标题类给占位（不是「Name 1」）', pricing.plans[0].name);
-check(pricing.plans.every((p) => p.features === undefined && p.cta === undefined), 'pricing：条目里的 features（[string]）和 cta（子对象）不填', pricing.plans[0]);
-check(fz.items.every((it) => it.number === undefined && it.bullets === undefined && it.link === undefined), 'features：可选事实格 number、bullets（[string]）、link（子对象）都不填', fz.items[0]);
+// #1767 改：原来「features（[string]）和 cta（子对象）不填」—— 那条防的是「把 [string] 写成一个字符串」和「只写 label 的死按钮」；
+//    本票播的是 3 条真的字符串列表、带链接的按钮，类型对、按钮活。
+check(pricing.plans.every((p) => Array.isArray(p.features) && p.features.length === 3 && p.features.every((f) => typeof f === 'string')), 'pricing：每个套餐的 features 是 3 条字（[string]，不是一个字符串）', pricing.plans[0].features);
+check(pricing.plans.every((p) => p.cta && p.cta.label && p.cta.href), 'pricing：每个套餐的 cta 有字有链接（不是死按钮）', pricing.plans[0].cta);
+check(fz.items.every((it) => it.number === undefined && it.bullets === undefined && it.link === undefined), 'features：number / bullets / link 不播（SEED_EXEMPT 各有理由）', fz.items[0]);
+check(fz.items.every((it) => typeof it.icon === 'string' && it.icon) && new Set(fz.items.map((it) => it.icon)).size === 3, 'features：每张卡一个图标、三个不一样（#1767）', fz.items.map((it) => it.icon));
 const testi = bp.seedProps(byType.get('testimonials'), 'en');
-check(testi.items.length === 3 && testi.items.every((it) => it.rating === undefined), 'testimonials 播 3 条（可选的 rating? 不挡播种），rating 不填', testi.items);
+// #1767 改：原来「rating 不填」—— 同上，拖下时给一个示例评分（不贴下界、三条不一样）。
+//    校验只收 1–5 的整数（validateSite），三条不一样 ⟹ 5 / 4 / 3。
+check(testi.items.length === 3 && new Set(testi.items.map((it) => it.rating)).size === 3 && testi.items.every((it) => Number.isInteger(it.rating) && it.rating > 1 && it.rating <= 5), 'testimonials 播 3 条，各有一个不一样的示例评分（1–5 的整数，不贴下界 1）', testi.items.map((it) => it.rating));
 const team = bp.seedProps(byType.get('team'), 'en');
 check(team.members[2].name === 'Name 3' && team.members[2].role === 'Role 3', '人名 / 职位按各自类别', team.members[2]);
 
@@ -127,10 +140,15 @@ for (const c of schema.components) {
 // ══ ④ 交给 fill 的格 ══════════════════════════════════════════════════════════════════════════════
 console.log('④ fillFields');
 const ff = bp.fillFields(features, fz);
-check(ff.length === 9, 'features：块头 3 + 3 张卡 × 2 = 9 格', ff.length);
+// #1767 改：9 → 10，多的那一格是块头按钮的字（introCtas.0.label）。
+check(ff.length === 10 && ff.some((f) => f.name === 'introCtas.0.label'), 'features：块头 3 + 3 张卡 × 2 + 块头按钮的字 = 10 格', ff.map((f) => f.name));
 check(ff.some((f) => f.name === 'items.2.text' && f.text === '用一两句话介绍第 3 项。'), '名字是真实下标的路径，text 带占位', ff);
 const fp = bp.fillFields(byType.get('pricing'), pricing);
-check(fp.every((f) => !/price/.test(f.name)), 'pricing 不交价格格', fp.map((f) => f.name));
+check(fp.every((f) => !/price/.test(f.name)), 'pricing 不交价格格（示例价不让 AI 改：manager 的提示词禁止它编数字）', fp.map((f) => f.name));
+check(fp.some((f) => f.name === 'plans.1.features.2') && fp.some((f) => f.name === 'plans.0.cta.label'), 'pricing 交功能点的每一行和套餐按钮的字（#1767）', fp.map((f) => f.name));
+// #1767 —— 只交还是占位的格：演示值（summary 的 `Google`）不交，交了 AI 会把平台名改成一句话。
+const fts = bp.fillFields(byType.get('testimonials'), testi);
+check(!fts.some((f) => /^summary\./.test(f.name)), 'testimonials：summary 的平台名（演示值 Google）不交给 AI', fts.filter((f) => /^summary/.test(f.name)));
 check(JSON.stringify(bp.pathOfName('plans.1.description')) === JSON.stringify(['plans', 1, 'description']), 'pathOfName 把下标还成数字');
 // 老板在等 AI 的时候改了一格 —— 那一格不再是占位，不再交（EditorApp §startFill 只换还是占位的格，读的是同一份名字）。
 const edited = { ...fz, headline: '' };
@@ -154,6 +172,7 @@ if (!declM) die(`${path.basename(REWRITE_GO)} 里找不到 \`rewriteMaxFields = 
 const limitM = declM[1].match(/^(\d+)[ \t]*(?:\/\/.*)?$/);
 if (!limitM) die(`${path.basename(REWRITE_GO)} 里 rewriteMaxFields 写成了 \`${declM[1].trim()}\` —— 只认一个整数（可带行尾 // 注释），表达式这里不算`);
 const rewriteMaxFields = Number(limitM[1]);
+check(bp.FILL_BATCH_MAX <= rewriteMaxFields, `编辑器一批最多 ${bp.FILL_BATCH_MAX} 格 ≤ manager 的 rewriteMaxFields=${rewriteMaxFields}`);
 console.log(`  (manager/ai_rewrite.go 现读 rewriteMaxFields = ${rewriteMaxFields})`);
 const manifests = blockShapeCatalog().manifests;
 const seeded = [];
@@ -168,26 +187,44 @@ for (const c of schema.components) {
   }
   const fact = new Set(c.inline.filter((e) => !e.ai).map((e) => e.path));
   const props = bp.seedProps(c, 'en');
-  // #1660 r5 —— 播出来的条目里只有项形状顶层的纯文字键：`[string]` 列表没被写成字符串、子对象（link / cta）没被写进去。
-  // 判据读 manifest 的项形状原文（§itemShapeEntries），不读 `seed.keys` —— 拿被测的那份名单验它自己就是在跟自己比。
+  // #1660 r5 —— `[string]` 列表没被写成字符串、子对象没被写成别的。判据读 manifest 的项形状原文（§itemShapeEntries），不读 `seed.keys` ——
+  // 拿被测的那份名单验它自己就是在跟自己比。
+  // #1767 改：原来断言这两种键「一个都没被填」（播种不碰它们）；本票起套餐的 features（3 条字）、cta（带链接的按钮）、price（示例价）
+  //    都播了 ⟹ 改成断言**写进去的类型对**：`[…]` 的是数组，`{…}` 的是对象，按钮对象有字有链接（不是死按钮）。
   for (const s of c.seed) {
     const shape = schemaLib.itemShapeEntries(slots[s.slot] && slots[s.slot].shape);
     const nonText = new Map(shape.filter((e) => /[[{]/.test(e.value)).map((e) => [e.key, e.value]));
-    const wrote = (props[s.slot] || []).flatMap((it) => Object.keys(it).filter((k) => nonText.has(k)).map((k) => `${k}=${JSON.stringify(it[k])}`));
-    check(wrote.length === 0, `${c.type}·${s.slot}：条目里没有 [string] 列表 / 子对象被填（${[...nonText.keys()].join(', ') || '无'}）`, wrote);
+    const wrong = (props[s.slot] || []).flatMap((it) => Object.keys(it).filter((k) => nonText.has(k)).filter((k) => {
+      const v = it[k];
+      const want = nonText.get(k);
+      if (/^\[/.test(want)) return !Array.isArray(v);
+      if (!(v && typeof v === 'object' && !Array.isArray(v))) return true;
+      return 'label' in v && !v.href; // 按钮：有字就得有链接
+    }).map((k) => `${k}=${JSON.stringify(it[k])}`));
+    check(wrong.length === 0, `${c.type}·${s.slot}：条目里写进去的 [string] 列表 / 子对象类型对、按钮不是死的（${[...nonText.keys()].join(', ') || '无'}）`, wrong);
   }
-  const names = bp.fillFields(c, props).map((f) => f.name);
+  const sent = bp.fillFields(c, props);
+  const names = sent.map((f) => f.name);
   check(names.length >= 1, `${c.type}：交给 fill 的格 ≥1（交 0 格 manager 回 400）`, names.length);
-  check(names.length <= rewriteMaxFields, `${c.type}：交给 fill ${names.length} 格 ≤ rewriteMaxFields=${rewriteMaxFields}（超了每拖一次都 400）`);
+  // #1767 改：原来断言「一块交的格 ≤ rewriteMaxFields」—— pricing 现在交 38 格；编辑器按条分批发（§fillBatches），要守的是每一批。
+  const batches = bp.fillBatches(sent);
+  check(batches.every((b) => b.length >= 1 && b.length <= rewriteMaxFields), `${c.type}：交给 fill ${names.length} 格，分 ${batches.length} 批，每批 ≤ rewriteMaxFields=${rewriteMaxFields}（超了那一批 400）`, batches.map((b) => b.length));
+  const key = (f) => `${f.name}=${f.text}`;
+  check(JSON.stringify(batches.flat().map(key).sort()) === JSON.stringify(sent.map(key).sort()), `${c.type}：分批不丢格、不多格`);
+  const split = new Map();
+  batches.forEach((b, i) => b.forEach((f) => { const m = /^([^.]+\.\d+)\./.exec(f.name); if (m) split.set(m[1], [...new Set([...(split.get(m[1]) || []), i])]); }));
+  check([...split.values()].every((v) => v.length === 1), `${c.type}：同一条（plans.0.*）不拆进两批`, [...split].filter(([, v]) => v.length > 1));
   // `items.1.title` → `items.title`（inline 清单里的路径不带序号）
   const leaked = names.filter((n) => fact.has(n.split('.').filter((seg) => !/^\d+$/.test(seg)).join('.')));
   check(leaked.length === 0, `${c.type}：交给 fill 的格里没有 ai:false（数字 / 评分 AI 不编）`, leaked);
 }
 seeded.sort();
-// #1766 —— 集合从五个变八个：gallery·items、logos·items（`itemRequires` 的列表，#1734 有了可点的占位图之后播 3 个空图位）、
+// #1766 —— gallery·items、logos·items（`itemRequires` 的列表，#1734 有了可点的占位图之后播 3 个空图位）、
 //    reviews·platforms（manifest 的 `seedItems`：Google / Yelp / Facebook 带示例分）。这三个都是 `fill: false`，交给 fill 的格里
-//    一格都没有它们 —— 下面那一格守着。原来那五个一个没动。
-const wantSeed = ['faq·items', 'features·items', 'gallery·items', 'logos·items', 'pricing·plans', 'reviews·platforms', 'team·members', 'testimonials·items'];
+//    一格都没有它们 —— 下面那一格守着。
+// #1767 —— 再多三列，因为列表里有一格本票要补（图标 / 数字）：milestones·stats（一排数字，块的主体）、
+//    pricing·highlights（每条一个图标）、testimonials·summary（平台评分，照 manifest 的 demo 播 1 条）。
+const wantSeed = ['faq·items', 'features·items', 'gallery·items', 'logos·items', 'milestones·stats', 'pricing·highlights', 'pricing·plans', 'reviews·platforms', 'team·members', 'testimonials·items', 'testimonials·summary'];
 check(JSON.stringify(seeded) === JSON.stringify(wantSeed), `播种集合恰好是 ${wantSeed.join(' / ')}`, seeded);
 // #1766 —— `fill: false` 的列表播了但不交给 AI：交给 fill 的格里没有一格落在这些列表里。
 for (const c of schema.components) {

@@ -42,6 +42,7 @@ import { editorPages } from '../../../../scripts/lib/editor-pages.js';
 import { navMenuOf } from '../../../../scripts/lib/editor-nav.js';
 import { navMenuToPanel } from '../../../../scripts/lib/nav-editor.js';
 import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
+import { seedProps } from '../../../../scripts/lib/block-placeholders.js';
 import { itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import type { IconTable } from '@/components/InlineIcon';
 
@@ -156,7 +157,10 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
   const iconTables: Record<string, IconTable> = {};
   for (const c of schema.components) {
     if (!usesIconTable(c.type)) continue;
-    iconTables[c.type] = iconTableFor(c.type, resolved.filter((b) => b.type === c.type).map((b) => b.data)) as IconTable;
+    // #1767 —— 再加上「拖下这种块时播的那一份」（`block-placeholders.js` §seedProps 写的示例图标）：它们是编辑中新冒出来的名字，
+    //    不在这一页的数据里，不并进来的话新块的图标位照样是空的。
+    const seeded = seedProps(c, locale);
+    iconTables[c.type] = iconTableFor(c.type, [...resolved.filter((b) => b.type === c.type).map((b) => b.data), seeded]) as IconTable;
   }
 
   return (

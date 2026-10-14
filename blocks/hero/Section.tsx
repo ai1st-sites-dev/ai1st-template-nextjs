@@ -29,7 +29,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss 写成 CSS、§toneForBg 按亮度反白；#1477，
 //    跟 footer / header / cta 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
 //    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
-import { knobImg, slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, rowImgs, slotImg } from '@/lib/sections/blockMedia';
 import { itemPath } from '@/lib/sections/itemPath';
 
 import BlockSection from '@/components/BlockSection';
@@ -86,8 +86,8 @@ const MAX = {
 } as const;
 
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
-const imgs = (v: unknown): HeroNewImage[] =>
-  (Array.isArray(v) ? v : []).filter((x): x is HeroNewImage => isObj(x) && typeof (x as HeroNewImage).imageUrl === 'string' && !!(x as HeroNewImage).imageUrl);
+// #1767 —— 成排的小图（头像 / logo / band）：没有地址的项垫占位图（`blockMedia.tsx` §rowImgs，判据只在那一处）。
+const imgs = (v: unknown): HeroNewImage[] => rowImgs<HeroNewImage>(v);
 
 /**
  * 行的类，按 `image` 出（#1470）。DOM 顺序恒为「文字在前、图在后」。
@@ -207,7 +207,7 @@ export default function HeroNewSection({ data, locale = 'en', block, site }: Pro
                 ) : null}
                 <div className="text-sm">
                   {proof.rating !== undefined && proof.rating !== '' ? (
-                    <><span className="text-warning" aria-hidden="true">★★★★★</span> <b>{proof.rating}</b> · </>
+                    <><span className="text-warning" aria-hidden="true">★★★★★</span> <b data-slot="proof.rating">{proof.rating}</b> · </>
                   ) : null}
                   <span data-slot="proof.text">{proof.text}</span>
                 </div>
