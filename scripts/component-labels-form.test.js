@@ -21,7 +21,9 @@ const path = require('path');
 const NEXT = path.resolve(__dirname, '..');
 const LABELS = path.join(NEXT, 'src', 'lib', 'component-labels.ts');
 const FORM = path.join(NEXT, 'src', 'components', 'BlockLeadForm.tsx');
-const KEYS = ['formSubmit', 'formThanks', 'formNeedEmail', 'formNeedPhone', 'formFailed', 'formSending'];
+// #1769 加了第七个 `formRequired`（必填项没填）。它不是从 BlockLeadForm 里搬出来的，没有「改之前的原文」；
+//    ORIGINAL 里那一行就是 en 那一行，③ ④ 照样成立（④ 管的是它没被写死回组件里）。
+const KEYS = ['formSubmit', 'formThanks', 'formNeedEmail', 'formNeedPhone', 'formFailed', 'formSending', 'formRequired'];
 /** 改之前 BlockLeadForm.tsx 写死的原文（#1641 正文「做什么」1 那张表）。 */
 const ORIGINAL = {
   formSubmit: 'Get a free quote',
@@ -30,6 +32,7 @@ const ORIGINAL = {
   formNeedPhone: 'Please enter your phone number.',
   formFailed: 'Something went wrong. Please try again or call us.',
   formSending: 'Sending…',
+  formRequired: 'Please fill in the required fields.',
 };
 
 let pass = 0;
@@ -59,13 +62,13 @@ check(`字表是 14 种语言（en 在里面）：${LOCALES.join(' ')}`, () => {
   assert.ok(LOCALES.includes('en'));
 });
 for (const loc of LOCALES) {
-  check(`① ${loc}：六个键都是非空字符串`, () => {
+  check(`① ${loc}：${KEYS.length} 个键都是非空字符串`, () => {
     const row = COMPONENT_LABELS[loc];
     const bad = KEYS.filter((k) => typeof row[k] !== 'string' || !row[k].trim());
     assert.deepStrictEqual(bad, [], `${loc} 缺 / 空：${bad.join(', ')}`);
   });
   if (loc === 'en') continue;
-  check(`② ${loc}：六句没有一句跟英文逐字相同`, () => {
+  check(`② ${loc}：${KEYS.length} 句没有一句跟英文逐字相同`, () => {
     const same = KEYS.filter((k) => COMPONENT_LABELS[loc][k] === COMPONENT_LABELS.en[k]);
     assert.deepStrictEqual(same, [], `${loc} 跟英文一样：${same.join(', ')}`);
   });
@@ -73,11 +76,11 @@ for (const loc of LOCALES) {
 check('③ en 那一行 = 改之前写死的原文，逐字', () => {
   for (const k of KEYS) assert.strictEqual(COMPONENT_LABELS.en[k], ORIGINAL[k], k);
 });
-check("③ getLabels('xx')（表里没有）六个键回英文那一行，逐字", () => {
+check(`③ getLabels('xx')（表里没有）${KEYS.length} 个键回英文那一行，逐字`, () => {
   const l = getLabels('xx');
   for (const k of KEYS) assert.strictEqual(l[k], ORIGINAL[k], k);
 });
-check('④ BlockLeadForm.tsx（去掉注释）里六句英文原文一句都不在了', () => {
+check(`④ BlockLeadForm.tsx（去掉注释）里 ${KEYS.length} 句英文原文一句都不在了`, () => {
   const js = strip(FORM);
   const left = Object.values(ORIGINAL).filter((t) => js.includes(t) || js.includes(JSON.stringify(t).slice(1, -1)));
   assert.deepStrictEqual(left, []);

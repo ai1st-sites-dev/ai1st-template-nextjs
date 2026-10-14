@@ -947,7 +947,8 @@ function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'l
 }
 
 /** #1768 —— 表单库里弹窗能改的那几个键（`FormCopyEditor.tsx` §applyFormCopyEdit 换的就是这几个）。 */
-const FORM_VIEW_KEYS = ['name', 'buttonText', 'successMessage', 'fields', 'primary', 'labels'] as const;
+// #1769 —— `required` 也在：Add custom 里开了 Required，画布上那一格当场带「 *」。
+const FORM_VIEW_KEYS = ['name', 'buttonText', 'successMessage', 'fields', 'primary', 'labels', 'required'] as const;
 /**
  * #1768 —— 画布上的表单按编辑器手上那份表单库画（含 Done 了、还在交的那一笔，§canvasForms）：构建时那份站点数据只在重建后才变，
  *   而弹窗 Done 之后画布要当场看得见（按钮字、字段顺序、占位字）。只换弹窗管的那几个键；那一张里没有的键 = 删掉（回默认那句）。

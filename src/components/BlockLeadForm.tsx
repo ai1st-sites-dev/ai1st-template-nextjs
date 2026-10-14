@@ -34,18 +34,28 @@
 //    `data-tone`，输入框的字 / 占位字 / 边框换成白色那一档（规则在 `scripts/lib/site-css.js` §ON_DEEP_FORM，全站一份）。
 //    只给「输入框透明、直接压在深底上」的调用方传（footer）；cta 深底时自己把输入框涂成白底（它的
 //    `block.css`），占位字原来的灰在白底上看得清，所以它不传 —— 传了就是白底白字。
+// 🔴 #1769 —— 完整版（full）还画老板自己加的字段（`fields` 里的 `{ id, type: 'text' }`，名字在 `labels[id]`），一行字、占整行，
+//    按 `fields` 的顺序跟内置字段混排。答案进 `meta.answers`：`[{ id, label, value }]`，`label` 是**此刻**的名字（同 #1510
+//    记表单名的道理：老板以后改名，旧线索留着当时问的是什么），没填的不带。`manager/leads.go` §sanitizeLeadAnswers 收它。
+//    `required`（站级表单库里那张的结构）里的字段：输入框带 `required`、占位符后面加「 *」；提交时空着（只有空白也算空）
+//    ⟹ 不发请求，那一格标红（`is-invalid`）、出一句「请填必填项」、光标落到第一格。短版（teaser）只露 `primary`，不变。
 // 🔴 #1665 —— 这里不再 import `@/lib/config`：站点内容是服务端每次请求读的，浏览器端拿不到。往哪儿提交（`leadApi`）、
 //    哪个站（`siteId`）、表单库（`forms`）由渲染它的块从站点数据里取好递进来（`config.ts` §leadFormSite）。
 
 import { useState } from 'react';
-import type { SiteFormConfig } from '@/lib/types/config';
-import { FORM_FIELDS, pickForm } from '../../scripts/lib/site-forms.js';
+import type { CustomFormField, SiteFormConfig } from '@/lib/types/config';
+import { CUSTOM_FIELD_TYPES, FORM_FIELDS, isCustomField, isRequired, pickForm } from '../../scripts/lib/site-forms.js';
 import { getLabels } from '@/lib/component-labels';
 
 export type LeadField = 'name' | 'phone' | 'email' | 'message' | 'service';
 export type LeadFormMode = 'teaser' | 'full';
 
 const VOCAB = FORM_FIELDS as LeadField[];
+/** 表单里的一格：内置字段（字符串）或老板加的字段（#1769）。 */
+type FormItem = LeadField | CustomFormField;
+const idOf = (f: FormItem): string => (typeof f === 'string' ? f : f.id);
+/** #1769 —— 自定义字段的答案在 `values` 里的键，跟内置字段的键分开（id 已经不许跟内置重名，这里再隔一层）。 */
+const answerKey = (id: string) => `custom:${id}`;
 // 站没有表单库（老站，没有 forms.json）时的内置默认 —— 留着，老站靠它顶（#1471 dead code 审查）。
 const DEFAULT_FIELDS: Record<LeadFormMode, LeadField[]> = {
   teaser: ['phone'],
@@ -87,15 +97,21 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
   const PLACEHOLDER = placeholdersFor(locale);
   const L = getLabels(locale);
   const variant: 'inline' | 'stacked' = mode === 'teaser' ? 'inline' : 'stacked';
-  const asked = form
-    ? (mode === 'teaser' ? [form.primary] : form.fields).filter((f): f is LeadField => VOCAB.includes(f))
+  const asked: FormItem[] = form
+    ? (mode === 'teaser' ? [form.primary] : form.fields).filter((f): f is FormItem => (isCustomField(f)
+      ? typeof (f as CustomFormField).id === 'string' && CUSTOM_FIELD_TYPES.includes((f as CustomFormField).type)
+      : VOCAB.includes(f as LeadField)))
     : [];
-  const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[mode]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
+  const unique = asked.filter((f, i) => asked.findIndex((g) => idOf(g) === idOf(f)) === i);
+  const fields: FormItem[] = (unique.length ? unique : DEFAULT_FIELDS[mode]).slice(0, variant === 'inline' ? 1 : unique.length || VOCAB.length);
   // #1637 —— 字段名：老板写的 `labels` > 语言默认（`PLACEHOLDER`，#1631 那一层）。只在这里叠一层，不动下面那一层。
-  const label = (f: LeadField) => {
-    const own = form?.labels?.[f];
-    return (typeof own === 'string' && own.trim()) || PLACEHOLDER[f];
+  const label = (f: FormItem) => {
+    const own = form?.labels?.[idOf(f)];
+    return (typeof own === 'string' && own.trim()) || (typeof f === 'string' ? PLACEHOLDER[f] : f.id);
   };
+  // #1769 —— 必填：站级那张表单的 `required`（没有表单库 ⟹ 一格都不是）。占位符后面加「 *」。
+  const required = (f: FormItem) => !!form && isRequired(form, f);
+  const hint = (f: FormItem) => (required(f) ? `${label(f)} *` : label(f));
   const buttonText = form?.buttonText || DEFAULT_BUTTON_TEXT(locale);
   const successMessage = form?.successMessage || DEFAULT_SUCCESS(locale);
   const redirect = form?.redirect;
@@ -105,12 +121,36 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
   const [hp, setHp] = useState('');
   const [state, setState] = useState<SubmitState>('idle');
   const [error, setError] = useState('');
-  const set = (k: string) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }));
+  const [invalid, setInvalid] = useState<string[]>([]);
+  const set = (k: string, id = k) => (e: { target: { value: string } }) => {
+    setValues((v) => ({ ...v, [k]: e.target.value }));
+    if (invalid.includes(id)) setInvalid((xs) => xs.filter((x) => x !== id));
+  };
+  const valueOf = (f: FormItem) => (typeof f === 'string' ? values[f] : values[answerKey(f.id)]) || '';
   const endpoint = leadApi.replace(/\/$/, '') + '/api/leads';
+
+  // #1769 —— 真浏览器里，必填格空着时浏览器自己的 `required` 先拦（不触发 submit），handleSubmit 根本不跑 ⟹ 那一格的标红和
+  //    「请填必填项」那句要在这里补上：浏览器拦下时对每个不合格的格子发一次 `invalid`。只管「空着」（valueMissing），
+  //    邮箱格式不对之类照旧由浏览器自己说。
+  const handleInvalid = (e: React.FormEvent) => {
+    const el = e.target as HTMLInputElement;
+    if (!el.validity || !el.validity.valueMissing || !el.id.startsWith(`${idPrefix}-`)) return;
+    const id = el.id.slice(idPrefix.length + 1);
+    setInvalid((xs) => (xs.includes(id) ? xs : [...xs, id]));
+    setError(L.formRequired);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    // #1769 —— 必填没填（只有空白也算没填）⟹ 不发，标出来。浏览器自己的 `required` 拦不住只有空白的那种，这里补上。
+    const missing = fields.filter((f) => required(f) && !valueOf(f).trim()).map(idOf);
+    setInvalid(missing);
+    if (missing.length) {
+      setError(L.formRequired);
+      if (typeof document !== 'undefined') document.getElementById(`${idPrefix}-${missing[0]}`)?.focus();
+      return;
+    }
     const email = (values.email || '').trim();
     const phone = (values.phone || '').trim();
     if (!email && !phone) {
@@ -120,6 +160,10 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
     const parts: string[] = [];
     if (values.service) parts.push(`Service: ${values.service}`);
     if ((values.message || '').trim()) parts.push(values.message.trim());
+    // #1769 —— 老板加的字段的答案：带着此刻的名字，没填的不带。
+    const answers = fields.filter(isCustomField).map((f) => f as CustomFormField)
+      .map((f) => ({ id: f.id, label: label(f), value: valueOf(f).trim() }))
+      .filter((a) => a.value);
     setState('submitting');
     try {
       const res = await fetch(endpoint, {
@@ -127,7 +171,7 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           siteId, name: (values.name || '').trim(), email, phone, message: parts.join('\n'), source: 'contact-form', hp,
-          ...(form ? { meta: { formId: form.id, formName: form.name, formMode: mode } } : {}),
+          ...(form ? { meta: { formId: form.id, formName: form.name, formMode: mode, ...(answers.length ? { answers } : {}) } } : {}),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -147,21 +191,28 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
   const sz = size === 'sm'
     ? { control: 'form-control form-control-sm', select: 'form-select form-select-sm', btn: 'btn btn-primary btn-sm' }
     : { control: 'form-control form-control-lg', select: 'form-select form-select-lg', btn: 'btn btn-primary btn-lg' };
-  const input = (f: LeadField, extra = '') => {
-    const id = `${idPrefix}-${f}`;
+  const input = (f: FormItem) => {
+    const id = `${idPrefix}-${idOf(f)}`;
+    // #1769 —— 必填的格子带 `required` / `aria-required`；提交时被拦下的那一格加 `is-invalid`（Bootstrap 的标红）。
+    const req = required(f) ? { required: true, 'aria-required': true } : {};
+    const bad = invalid.includes(idOf(f)) ? ' is-invalid' : '';
+    const badAttr = bad ? { 'aria-invalid': true } : {};
+    if (typeof f !== 'string') {
+      return <input id={id} className={`${sz.control}${bad}`} type="text" placeholder={hint(f)} aria-label={label(f)} value={values[answerKey(f.id)] || ''} onChange={set(answerKey(f.id), f.id)} maxLength={200} data-field={f.id} {...req} {...badAttr} />;
+    }
     if (f === 'service') {
       return (
-        <select id={id} className={`${sz.select}${extra}`} aria-label={label('service')} value={values.service || ''} onChange={set('service')}>
-          <option value="">{label('service')}</option>
+        <select id={id} className={`${sz.select}${bad}`} aria-label={label('service')} value={values.service || ''} onChange={set('service')} {...req} {...badAttr}>
+          <option value="">{hint('service')}</option>
           {services.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>
       );
     }
     if (f === 'message') {
-      return <textarea id={id} className={`${sz.control}${extra}`} rows={3} placeholder={label('message')} aria-label={label('message')} value={values.message || ''} onChange={set('message')} maxLength={2000} />;
+      return <textarea id={id} className={`${sz.control}${bad}`} rows={3} placeholder={hint('message')} aria-label={label('message')} value={values.message || ''} onChange={set('message')} maxLength={2000} {...req} {...badAttr} />;
     }
     const type = f === 'phone' ? 'tel' : f === 'email' ? 'email' : 'text';
-    return <input id={id} className={`${sz.control}${extra}`} type={type} placeholder={label(f)} aria-label={label(f)} value={values[f] || ''} onChange={set(f)} maxLength={f === 'email' ? 320 : 200} />;
+    return <input id={id} className={`${sz.control}${bad}`} type={type} placeholder={hint(f)} aria-label={label(f)} value={values[f] || ''} onChange={set(f)} maxLength={f === 'email' ? 320 : 200} {...req} {...badAttr} />;
   };
 
   // 蜜罐：屏幕外，真人填不到。内联样式是有意的 —— 它不是外观，主题不许把它打开（同 HeroLeadForm）。
@@ -186,7 +237,7 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
 
   if (variant === 'inline') {
     return (
-      <form onSubmit={handleSubmit} className={`hro-form mt-6${place}`} data-form-variant="inline" data-role="essential" {...toneAttr} {...formAttr}>
+      <form onSubmit={handleSubmit} onInvalidCapture={handleInvalid} className={`hro-form mt-6${place}`} data-form-variant="inline" data-role="essential" {...toneAttr} {...formAttr}>
         <div className="d-flex flex-column flex-sm-row gap-2">
           {input(fields[0])}
           {button(`${sz.btn} text-nowrap`)}
@@ -199,7 +250,8 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
 
   // 姓名 / 电话 / 邮箱各占半行（两个一排），需求下拉与留言占整行。
   // #1654 —— 按 `fields` 当前顺序（编辑器能重排，#1637），连续的半行字段算一段；段里个数是奇数时最后一个占整行，不落单。
-  const half = (f: LeadField) => f === 'name' || f === 'phone' || f === 'email';
+  // #1769 —— 老板加的字段占整行（名字可能长，半行放不下）。
+  const half = (f: FormItem) => f === 'name' || f === 'phone' || f === 'email';
   const wide = (i: number) => {
     if (!half(fields[i])) return true;
     if (i + 1 < fields.length && half(fields[i + 1])) return false;
@@ -208,9 +260,9 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
     return (i - start) % 2 === 0;
   };
   return (
-    <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${place}`} data-form-variant="stacked" data-role="essential" {...toneAttr} {...formAttr}>
+    <form onSubmit={handleSubmit} onInvalidCapture={handleInvalid} className={`hro-form mt-6 w-100${place}`} data-form-variant="stacked" data-role="essential" {...toneAttr} {...formAttr}>
       <div className="row g-2">
-        {fields.map((f, i) => <div key={f} className={wide(i) ? 'col-12' : 'col-12 col-sm-6'}>{input(f)}</div>)}
+        {fields.map((f, i) => <div key={idOf(f)} className={wide(i) ? 'col-12' : 'col-12 col-sm-6'}>{input(f)}</div>)}
         <div className="col-12">{button(`${sz.btn} w-100`)}</div>
       </div>
       {honeypot}

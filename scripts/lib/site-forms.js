@@ -14,11 +14,20 @@
 //    建站（`create-site.js` 写默认那一张）。三处各写一份的话，分歧那天谁都不会红。
 // 🔴 `id` / `fields` / `primary` 各语言必须一致（`formsProblems`）：块里写的是 `id`，某个语言少一张 = 那个语言下指空。
 //    `name` / `buttonText` / `successMessage` / `labels`（#1637，字段名 = 输入框占位符）是给访客看的文字，各语言各自翻。
+// 🔴 #1769 —— `fields` 里除了词表那五个字符串，还可以有老板自己加的字段 `{ id, type: 'text' }`（这张票只有「一行字」一种）。
+//    它是结构，各语言一致；它的名字是给访客看的字，住 `labels[id]`（跟内置字段的名字同一个地方，各语言各自翻）。
+//    `required`（字段 id 的数组，内置和自定义都能列）同样是结构。「电话和邮箱至少填一个」那条照旧，跟 `required` 无关。
 
 /** 字段词表 —— 每个字段对应客户记录（Customers）的一列（对照表见 BlockLeadForm.tsx 头注释）。本票不扩。 */
 const FORM_FIELDS = ['name', 'phone', 'email', 'message', 'service'];
 /** #1637 —— `labels`（老板写的字段名）每条的上限。 */
 const LABEL_CAP = 40;
+/** #1769 —— 自定义字段能取的类型（T10r-2 往里加多行 / 下拉 / 多选 / 单选 / 日期）。 */
+const CUSTOM_FIELD_TYPES = ['text'];
+/** #1769 —— 一张表单最多几个自定义字段（manager 那边按同一个数收答案：`leads.go` §leadMaxAnswers）。 */
+const MAX_CUSTOM_FIELDS = 10;
+/** #1769 —— 自定义字段 id 的形状：字母开头，字母数字 `_` `-`，≤ 40 个字符（manager 收答案时按同一条判）。 */
+const CUSTOM_ID_RE = /^[A-Za-z][A-Za-z0-9_-]{0,39}$/;
 /** 旋钮 `form` 的取值（四个块的 manifest 里同一串）。 */
 const FORM_MODES = ['none', 'teaser', 'full'];
 
@@ -46,6 +55,34 @@ const { hrefAllowed } = require('./href-allowed');
 const { formWords } = require('./locale-words');
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** #1769 —— `fields` 里的一项是不是自定义字段（对象）。内置字段是字符串。 */
+const isCustomField = (f) => isObj(f);
+/** #1769 —— 一项的 id：内置字段就是它自己，自定义字段是 `.id`。 */
+const fieldId = (f) => (isCustomField(f) ? f.id : f);
+/** #1769 —— 一张表单里的自定义字段（按 `fields` 的顺序）。 */
+const customFieldsOf = (form) => (isObj(form) && Array.isArray(form.fields) ? form.fields.filter(isCustomField) : []);
+/** #1769 —— 这一项（内置或自定义）在这张表单里是不是必填。 */
+const isRequired = (form, f) => isObj(form) && Array.isArray(form.required) && form.required.includes(fieldId(f));
+
+/**
+ * #1769 —— 一个自定义字段对象的毛病（不看名字：名字在 `labels` 里，按语言查）。`me` 是报文前缀。
+ * 只认 `id` / `type` 两个键；`options` 是 T10r-2 的，这张票不收。
+ */
+function customFieldProblems(f, me) {
+  const out = [];
+  if (typeof f.id !== 'string' || !CUSTOM_ID_RE.test(f.id)) {
+    out.push(`${me}: 自定义字段的 id ${JSON.stringify(f.id)} 不对 —— 要字母开头、只含字母数字 _ -、不超过 40 个字符`);
+    return out;
+  }
+  if (FORM_FIELDS.includes(f.id)) out.push(`${me}: 自定义字段的 id "${f.id}" 跟内置字段重名`);
+  if (!CUSTOM_FIELD_TYPES.includes(f.type)) {
+    out.push(`${me}: 自定义字段 "${f.id}" 的 type ${JSON.stringify(f.type)} 不认识 —— 只能是 ${CUSTOM_FIELD_TYPES.join(' / ')}`);
+  }
+  const extra = Object.keys(f).filter((k) => k !== 'id' && k !== 'type');
+  if (extra.length) out.push(`${me}: 自定义字段 "${f.id}" 有不认识的键 ${JSON.stringify(extra)} —— 只能有 id / type（名字写在 labels 里）`);
+  return out;
+}
 
 /**
  * #1511 —— 提交前要求「电话和邮箱至少填一个」（BlockLeadForm.tsx §submit）⟹ 两个框都没有的表单永远提交不了。
@@ -82,8 +119,24 @@ function formListProblems(forms, where = 'forms.json') {
     if (!Array.isArray(f.fields) || !f.fields.length) {
       out.push(`${me}: fields 必须是非空数组`);
     } else {
-      const bad = f.fields.filter((x) => !FORM_FIELDS.includes(x));
-      if (bad.length) out.push(`${me}: fields 里有词表外的值 ${JSON.stringify(bad)} —— 只能是 ${FORM_FIELDS.join(' / ')}`);
+      const bad = f.fields.filter((x) => !isCustomField(x) && !FORM_FIELDS.includes(x));
+      if (bad.length) out.push(`${me}: fields 里有词表外的值 ${JSON.stringify(bad)} —— 只能是 ${FORM_FIELDS.join(' / ')}，或自定义字段 { id, type }`);
+      // #1769 —— 自定义字段：形状、个数、名字（这个语言的 labels 里必须有）；整张表单里 id 不许重复。
+      const custom = f.fields.filter(isCustomField);
+      for (const c of custom) out.push(...customFieldProblems(c, me));
+      if (custom.length > MAX_CUSTOM_FIELDS) out.push(`${me}: 自定义字段有 ${custom.length} 个 —— 最多 ${MAX_CUSTOM_FIELDS} 个`);
+      const idsSeen = new Set();
+      for (const x of f.fields) {
+        const id = fieldId(x);
+        if (typeof id !== 'string') continue;
+        if (idsSeen.has(id)) out.push(`${me}: fields 里 "${id}" 出现了不止一次`);
+        idsSeen.add(id);
+      }
+      for (const c of custom) {
+        if (typeof c.id !== 'string') continue;
+        const name = isObj(f.labels) ? f.labels[c.id] : undefined;
+        if (typeof name !== 'string' || !name.trim()) out.push(`${me}: 自定义字段 "${c.id}" 没有名字 —— 这个语言的 labels.${c.id} 要写上（访客看到的就是它）`);
+      }
       if (!f.fields.includes(f.primary)) {
         out.push(`${me}: primary ${JSON.stringify(f.primary)} 不在 fields 里 —— teaser 只露这一个字段，它得是表单里有的那一格`);
       } else if (!primaryChoices(f.fields).includes(f.primary)) {
@@ -94,14 +147,27 @@ function formListProblems(forms, where = 'forms.json') {
       }
     }
     // #1637 —— `labels`：{ 字段: 非空字符串 ≤ LABEL_CAP }，可缺。键只能是词表里的（不要求在 fields 里：删掉的字段再加回来，名字还在）。
+    // #1769 —— 或者是这张表单里某个自定义字段的 id（自定义字段删了，它的名字也该一起删 —— 它不会「再加回来」，加回来是新 id）。
     if (f.labels !== undefined) {
       if (!isObj(f.labels)) {
         out.push(`${me}: labels 必须是对象 { 字段: 字段名 }`);
       } else {
         for (const [k, v] of Object.entries(f.labels)) {
-          if (!FORM_FIELDS.includes(k)) out.push(`${me}: labels 里有词表外的字段 ${JSON.stringify(k)}`);
+          const customIds = customFieldsOf(f).map((c) => c.id);
+          if (!FORM_FIELDS.includes(k) && !customIds.includes(k)) out.push(`${me}: labels 里有词表外的字段 ${JSON.stringify(k)}（自定义字段的名字要对应 fields 里的一个自定义字段）`);
           else if (typeof v !== 'string' || !v.trim() || [...v].length > LABEL_CAP) out.push(`${me}: labels.${k} 必须是 1~${LABEL_CAP} 字的字符串`);
         }
+      }
+    }
+    // #1769 —— `required`：字段 id 的数组，可缺；每一项都得是这张表单 `fields` 里有的，不重复。
+    if (f.required !== undefined) {
+      const have = Array.isArray(f.fields) ? f.fields.map(fieldId) : [];
+      if (!Array.isArray(f.required) || f.required.some((x) => typeof x !== 'string')) {
+        out.push(`${me}: required 必须是字段 id 的数组`);
+      } else {
+        const stray = f.required.filter((x) => !have.includes(x));
+        if (stray.length) out.push(`${me}: required 里有不在 fields 里的字段 ${JSON.stringify(stray)}`);
+        if (new Set(f.required).size !== f.required.length) out.push(`${me}: required 里有重复的字段`);
       }
     }
     // #1511 —— 提交成功后 BlockLeadForm 直接 `window.location.assign(redirect)`：判据跟块里的按钮链接同一份（href-allowed.js）。
@@ -113,8 +179,10 @@ function formListProblems(forms, where = 'forms.json') {
   return out;
 }
 
-/** 一张表单的「结构」（各语言必须一致的那三样）。 */
-const skeleton = (f) => JSON.stringify({ fields: isObj(f) ? f.fields : undefined, primary: isObj(f) ? f.primary : undefined });
+/** 一张表单的「结构」（各语言必须一致的那几样；#1769 起含自定义字段对象和 `required`）。 */
+const skeleton = (f) => JSON.stringify({
+  fields: isObj(f) ? f.fields : undefined, primary: isObj(f) ? f.primary : undefined, required: isObj(f) ? f.required : undefined,
+});
 
 /**
  * 全站表单库的毛病：每个语言各查一遍 + 各语言的 `id` / `fields` / `primary` 一致。
@@ -127,7 +195,7 @@ function formsProblems(formsByLocale) {
   return out.concat(formsConsistencyProblems(formsByLocale));
 }
 
-/** 只查「各语言的 id / fields / primary 一致」这一条（构建期逐语言校验完之后单独补这一句用）。 */
+/** 只查「各语言的 id / fields / primary / required 一致」这一条（构建期逐语言校验完之后单独补这一句用）。 */
 function formsConsistencyProblems(formsByLocale) {
   const out = [];
   if (!isObj(formsByLocale)) return out;
@@ -142,7 +210,11 @@ function formsConsistencyProblems(formsByLocale) {
       if (!ref.has(id) || !cur.has(id)) {
         out.push(`forms.json: 表单 "${id}" 只在 ${ref.has(id) ? base : loc} 里有 —— 各语言的 id 必须一致，否则块里的 form.id 会在另一个语言下指空`);
       } else if (skeleton(ref.get(id)) !== skeleton(cur.get(id))) {
-        out.push(`forms.json: 表单 "${id}" 的 fields / primary 在 ${base} 与 ${loc} 不一样 —— 这两样各语言必须一致（只有给访客看的文字各自翻）`);
+        // #1769 —— 报文点名不一样的那几样（`fields / primary` 这一截沿用原来的说法，后面再补 `required`）。
+        const a = ref.get(id); const c = cur.get(id);
+        const diff = (k) => JSON.stringify(a[k]) !== JSON.stringify(c[k]);
+        const what = [diff('fields') || diff('primary') ? 'fields / primary' : '', diff('required') ? 'required' : ''].filter(Boolean).join(' / ');
+        out.push(`forms.json: 表单 "${id}" 的 ${what} 在 ${base} 与 ${loc} 不一样 —— 这几样各语言必须一致（只有给访客看的文字各自翻）`);
       }
     }
   }
@@ -186,7 +258,7 @@ const COPY_CAPS = { name: 60, buttonText: 40, successMessage: 200 };
 function siteFormsFrom(copy, base, locale) {
   const given = new Map((Array.isArray(copy) ? copy : []).filter((f) => isObj(f) && typeof f.id === 'string').map((f) => [f.id, f]));
   return (Array.isArray(base) ? base : DEFAULT_SITE_FORMS).map((b) => {
-    const out = { ...b, fields: [...b.fields] };
+    const out = { ...b, fields: b.fields.map((x) => (isCustomField(x) ? { ...x } : x)) };
     if (locale) Object.assign(out, formWords(locale, b.id) || {});
     const c = given.get(b.id);
     if (c) {
@@ -207,4 +279,4 @@ function formIdOptions(forms) {
   return [{ label: `First form${first}`, value: '' }, ...list.map((f) => ({ label: f.name || f.id, value: f.id }))];
 }
 
-module.exports = { FORM_FIELDS, FORM_MODES, LABEL_CAP, CONTACT_FIELDS, lacksContactField, primaryChoices, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };
+module.exports = { FORM_FIELDS, FORM_MODES, LABEL_CAP, CUSTOM_FIELD_TYPES, MAX_CUSTOM_FIELDS, CUSTOM_ID_RE, isCustomField, fieldId, customFieldsOf, isRequired, CONTACT_FIELDS, lacksContactField, primaryChoices, DEFAULT_SITE_FORMS, COPY_CAPS, formListProblems, formsProblems, formsConsistencyProblems, formIds, pickForm, siteFormsFrom, formIdOptions };

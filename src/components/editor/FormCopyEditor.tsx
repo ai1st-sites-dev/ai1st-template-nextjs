@@ -17,17 +17,42 @@
 // #1768 —— 弹窗分页（照 Durable）：第一页三行（联系方式 · 成功提示 · 表单字段）各点进子页 + Submit button label + 表单名；
 //    字段列表每行 Edit 再进一层改字段名 / 快速表单露不露这一格（`primary`，原来那个下拉）。多了一页「联系方式」：改的是站里的资料
 //    （Page 面板 Business info 那三格，整站一份），跟表单那一笔同一个 Done / Cancel。入口多一个：块的浮动条上那颗 Edit form（EditorApp §BlockBar）。
+// #1769 —— 老板自己的问题：Form fields 页「+ Add field」里多一个 **Add custom**，打开 **Add field** 页（Label · Type · Required），
+//    Save 回到 Form fields；自定义字段那一行的 Edit 打开同一页。内置字段的那一页多一个 Required 开关。自定义字段是
+//    `fields` 里的 `{ id, type: 'text' }`，名字在 `labels[id]`（只写这个语言），必填是 `required`（字段 id 的数组）——
+//    形状和规则在 `site-forms.js`，存盘在 `forms-write.js`。id 在 Add 时生成一次，之后改名字不变。
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { COPY_CAPS, FORM_FIELDS, LABEL_CAP, formIdOptions, lacksContactField, primaryChoices } from '../../../scripts/lib/site-forms.js';
+import { COPY_CAPS, CUSTOM_FIELD_TYPES, CUSTOM_ID_RE, FORM_FIELDS, LABEL_CAP, MAX_CUSTOM_FIELDS, formIdOptions, isCustomField, lacksContactField, primaryChoices } from '../../../scripts/lib/site-forms.js';
+import type { CustomFormField } from '@/lib/types/config';
 
 export type FormField = 'name' | 'phone' | 'email' | 'message' | 'service';
-type Labels = Partial<Record<FormField, string>>;
+/** #1769 —— 表单上的一格：内置字段（字符串）或老板加的字段（`{ id, type }`）。 */
+export type EditorField = FormField | CustomFormField;
+/** 字段名，键 = 字段 id（内置字段就是它的名字）。 */
+type Labels = Partial<Record<string, string>>;
+const idOf = (f: EditorField): string => (typeof f === 'string' ? f : f.id);
+const isCustom = (f: EditorField): f is CustomFormField => isCustomField(f);
+const sameFields = (a: readonly EditorField[], b: readonly EditorField[]) => a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]));
+const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
+/** #1769 —— Type 下拉的选项（这张票只有一种；T10r-2 往这里加）。 */
+const CUSTOM_TYPES: { value: CustomFormField['type']; label: string; help: string }[] = [
+  { value: 'text', label: 'One line', help: 'A short text answer.' },
+];
+/** #1769 —— 新自定义字段的 id：`f-` + 6 位，跟这张表单里已有的不撞（形状合 site-forms.js §CUSTOM_ID_RE）。 */
+function newCustomId(taken: readonly string[]): string {
+  for (;;) {
+    const id = `f-${Math.random().toString(36).slice(2, 8).padEnd(6, '0')}`;
+    if (!taken.includes(id) && CUSTOM_ID_RE.test(id)) return id;
+  }
+}
 
 /** 站级表单库里一张的摘要：下拉要 id / name，面板要三句文字、字段、字段名的现值。 */
 export interface EditorFormChoice {
   id: string; name: string; buttonText?: string; successMessage?: string;
-  fields?: FormField[]; primary?: FormField; labels?: Labels;
+  fields?: EditorField[]; primary?: FormField; labels?: Labels;
+  /** #1769 —— 必填的字段 id。 */
+  required?: string[];
 }
 
 /** 面板交出来的一笔：只带改过的键；空串 = 删掉这个键。改了字段就连 `primary` 一起带（各语言一致，存盘写到每个语言）。
@@ -35,8 +60,10 @@ export interface EditorFormChoice {
  *  对不上 ⟹ 编辑器手上那份结构是旧的（重建前烤进去的），这一笔会把别处那次改动改回去 ⟹ 退出码 10、不写。 */
 export interface FormCopyEdit {
   id: string; name?: string; buttonText?: string; successMessage?: string;
-  fields?: FormField[]; primary?: FormField; labels?: Labels;
-  base?: { fields?: FormField[]; primary?: FormField };
+  fields?: EditorField[]; primary?: FormField; labels?: Labels;
+  /** #1769 —— 结构的第三样；改了字段 / primary / 必填任一样，三样一起交。 */
+  required?: string[];
+  base?: { fields?: EditorField[]; primary?: FormField; required?: string[] };
 }
 
 type CopyKey = 'name' | 'buttonText' | 'successMessage';
@@ -53,7 +80,6 @@ const VOCAB = FORM_FIELDS as FormField[];
 const KIND: Record<FormField, string> = { name: 'Name', phone: 'Phone', email: 'Email', message: 'Message', service: 'Service' };
 const WHY_CONTACT = 'Phone and Email can’t both be removed — visitors must leave one of them to send the form.';
 const WHY_LAST = 'A form needs at least one field.';
-const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** EditorApp 递下来的：这个语言的表单库（存成功之后会换成新的）、打开面板、画布是不是锁着。 */
 // #1768 —— `canvasForms`：画布按它画表单（= `forms` 再套上 Done 了、还在交的那一笔）。
@@ -105,7 +131,8 @@ const CONTACT_KEYS: ContactKey[] = ['phone', 'email', 'address'];
 const CONTACT_LABEL: Record<ContactKey, string> = { phone: 'Phone', email: 'Email', address: 'Address' };
 
 /** #1768 —— 弹窗分页：第一页 + 三个子页（联系方式 / 成功提示 / 字段列表），字段列表再往下一层是某一个字段。 */
-type Page = 'main' | 'contact' | 'success' | 'fields' | `field:${FormField}`;
+// #1769 —— `custom:` 是 Add field 页：后面跟自定义字段的 id（改它）或空（新加一个）。
+type Page = 'main' | 'contact' | 'success' | 'fields' | `field:${FormField}` | `custom:${string}`;
 const PAGE_TITLE: Record<'contact' | 'success' | 'fields', string> = {
   contact: 'Business contact information', success: 'Success message', fields: 'Form fields',
 };
@@ -145,10 +172,17 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     name: form.name || '', buttonText: form.buttonText || '', successMessage: form.successMessage || '',
   });
   const [contact, setContact] = useState<BusinessContact>({ phone: business?.phone || '', email: business?.email || '', address: business?.address || '' });
-  const startFields = (form.fields || []).filter((f) => VOCAB.includes(f));
-  const [fields, setFields] = useState<FormField[]>(startFields);
+  const startFields = (form.fields || []).filter((f) => (isCustom(f)
+    ? typeof f.id === 'string' && CUSTOM_FIELD_TYPES.includes(f.type)
+    : VOCAB.includes(f)));
+  const [fields, setFields] = useState<EditorField[]>(startFields);
   const [primary, setPrimary] = useState<FormField | undefined>(form.primary);
   const [labels, setLabels] = useState<Labels>({ ...(form.labels || {}) });
+  const startRequired = (form.required || []).filter((x) => startFields.some((f) => idOf(f) === x));
+  const [required, setRequired] = useState<string[]>(startRequired);
+  const setReq = (id: string, on: boolean) => setRequired((r) => (on ? (r.includes(id) ? r : [...r, id]) : r.filter((x) => x !== id)));
+  /** #1769 —— Add field 页手上那一份（Save 才写进上面三样；← 回去 = 不要了）。 */
+  const [draft, setDraft] = useState<{ label: string; type: CustomFormField['type']; required: boolean }>({ label: '', type: 'text', required: false });
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [page, setPage] = useState<Page>('main');
   const [adding, setAdding] = useState(false);
@@ -191,23 +225,24 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     setAdding(false);
   }, [page]);
   const over = KEYS.filter((k) => Array.from(vals[k].trim()).length > CAPS[k]);
-  const labelLen = (f: FormField) => Array.from((labels[f] || '').trim()).length;
+  const labelLen = (f: EditorField) => Array.from((labels[idOf(f)] || '').trim()).length;
   const labelsOver = fields.filter((f) => labelLen(f) > LABEL_CAP);
   const blocked = over.length > 0 || labelsOver.length > 0;
   /** 这一格删不删得掉；删不掉时回原因那句。 */
-  const whyKeep = (f: FormField): string | null => {
-    const rest = fields.filter((x) => x !== f);
+  const whyKeep = (f: EditorField): string | null => {
+    const rest = fields.filter((x) => idOf(x) !== idOf(f));
     if (!rest.length) return WHY_LAST;
     return lacksContactField(rest) ? WHY_CONTACT : null;
   };
   /** `primary` 现在能取哪些 / 实际是哪个（磁盘上的不合格时按落位规则读）。 */
-  const choices = primaryChoices(fields) as FormField[];
+  const choices = primaryChoices(fields.filter((x): x is FormField => !isCustom(x))) as FormField[];
   const shownPrimary = primary && choices.includes(primary) ? primary : choices[0];
-  const remove = (f: FormField) => {
+  const remove = (f: EditorField) => {
     if (whyKeep(f)) return;
-    const rest = fields.filter((x) => x !== f);
+    const rest = fields.filter((x) => idOf(x) !== idOf(f));
     setFields(rest);
-    const left = primaryChoices(rest) as FormField[];
+    setReq(idOf(f), false);
+    const left = primaryChoices(rest.filter((x): x is FormField => !isCustom(x))) as FormField[];
     if (!primary || !left.includes(primary)) setPrimary(left[0]);
   };
   const add = (f: FormField) => {
@@ -220,7 +255,25 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   };
   const why = fields.map(whyKeep).find((w) => w === WHY_CONTACT) || (fields.length === 1 ? WHY_LAST : null);
   /** 这一行显示的字段名：老板改过的名字；没改过 ⟹ 访客看到的语言默认那句。 */
-  const nameOf = (f: FormField) => (labels[f] || '').trim() || fieldNames?.[f] || KIND[f];
+  const nameOf = (f: EditorField) => (labels[idOf(f)] || '').trim() || (isCustom(f) ? f.id : fieldNames?.[f] || KIND[f]);
+  const kindOf = (f: EditorField) => (isCustom(f) ? (CUSTOM_TYPES.find((t) => t.value === f.type) || CUSTOM_TYPES[0]).label : KIND[f]);
+  const customCount = fields.filter(isCustom).length;
+  /** #1769 —— 打开 Add field 页：`id` 空 = 新加一个；否则改那一个（带上它现在的名字 / 必填）。 */
+  const openCustom = (id: string) => {
+    const f = fields.find((x) => isCustom(x) && x.id === id) as CustomFormField | undefined;
+    setDraft(f ? { label: labels[f.id] || '', type: f.type, required: required.includes(f.id) } : { label: '', type: 'text', required: false });
+    setPage(`custom:${id}`);
+  };
+  const saveCustom = (id: string) => {
+    const label = draft.label.trim();
+    if (!label || Array.from(label).length > LABEL_CAP) return;
+    const fid = id || newCustomId(fields.map(idOf));
+    if (id) setFields((list) => list.map((x) => (isCustom(x) && x.id === id ? { id, type: draft.type } : x)));
+    else setFields((list) => [...list, { id: fid, type: draft.type }]);
+    setLabels((l) => ({ ...l, [fid]: label }));
+    setReq(fid, draft.required);
+    setPage('fields');
+  };
   /** 超限的都在哪一页（Done 灰着时第一页底下说清楚是哪一格）。 */
   const blockedWhy = [
     ...over.map((k) => `${k === 'buttonText' ? 'Submit button label' : LABEL[k]} is too long.`),
@@ -233,20 +286,26 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
       const next = vals[k].trim();
       if (next !== (form[k] || '')) edit[k] = next;
     }
-    // 字段 / primary：任一变了就两样一起交（存盘那一侧按「各语言一致」写进每个语言）。
-    if (fields.length && (!sameList(fields, startFields) || primary !== form.primary)) {
+    // 字段 / primary / 必填（#1769）：任一变了就三样一起交（存盘那一侧按「各语言一致」写进每个语言）。
+    const reqNow = required.filter((x) => fields.some((f) => idOf(f) === x));
+    if (fields.length && (!sameFields(fields, startFields) || primary !== form.primary || !sameSet(reqNow, form.required || []))) {
       edit.fields = fields;
       edit.primary = shownPrimary;
-      edit.base = { fields: form.fields, primary: form.primary };
+      edit.required = reqNow;
+      // 底稿 = 打开时这张表单的结构，原样（没有的键就不带 —— 存盘那一侧按「两边都没有算相同」比）。
+      edit.base = { fields: form.fields, primary: form.primary, ...(form.required ? { required: form.required } : {}) };
     }
     // 字段名：只交变了的那几格（只写这个语言）；空串 = 回到默认。
+    // #1769 —— 自定义字段的名字也在这里（键 = 它的 id）；已经删掉的自定义字段不交（存盘那一侧会连它在每个语言里的名字一起删，
+    //    这里再交一句反而因为「表单上没有这个字段」被整笔拒收）。
     const changed: Labels = {};
-    for (const f of VOCAB) {
-      const next = (labels[f] || '').trim();
+    const customIds = fields.filter(isCustom).map((f) => f.id);
+    for (const k of [...VOCAB, ...customIds] as string[]) {
+      const next = (labels[k] || '').trim();
       // #1644 —— 超限、而这个字段已经删掉了：这串字是这次刚打的、从没存过，面板上也没有它那一行（Done 的闸只看还在的
       //    字段，老板看不见也改不了）⟹ 不交。交上去会被整笔拒收，连删字段那一步也存不上。
-      if (!fields.includes(f) && Array.from(next).length > LABEL_CAP) continue;
-      if (next !== ((form.labels && form.labels[f]) || '').trim()) changed[f] = next;
+      if (!fields.some((f) => idOf(f) === k) && Array.from(next).length > LABEL_CAP) continue;
+      if (next !== ((form.labels && form.labels[k]) || '').trim()) changed[k] = next;
     }
     if (Object.keys(changed).length) edit.labels = changed;
     // 联系方式：只交改过的那几格（空串 = 清掉，同 Page 面板）。
@@ -322,34 +381,37 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   } else if (page === 'fields') {
     title = <>{back('main')}{PAGE_TITLE.fields}</>;
     const unused = VOCAB.filter((f) => !fields.includes(f));
+    const canAddCustom = customCount < MAX_CUSTOM_FIELDS;
     body = (
       <div data-editor-form-fields="">
         <div style={{ fontSize: 12, color: '#667085', marginBottom: 8 }}>Drag to reorder. The name is what visitors see in the empty box.</div>
         {fields.map((f, i) => {
           const keep = whyKeep(f);
+          const fid = idOf(f);
           return (
             <div
-              key={f}
-              data-editor-form-row={f}
+              key={fid}
+              data-editor-form-row={fid}
               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
               onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) move(dragFrom, i); setDragFrom(null); }}
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', marginBottom: 6, border: '1px solid #eaecf0', borderRadius: 8, opacity: dragFrom === i ? 0.5 : 1 }}
             >
               {/* 只有把手可拖（同 #1637）。 */}
               <span data-editor-form-handle draggable aria-hidden="true" title="Drag to reorder"
-                onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f); }}
+                onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', fid); }}
                 onDragEnd={() => setDragFrom(null)}
                 style={{ cursor: 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none' }}>⋮⋮</span>
-              <span data-editor-form-row-name={f} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: labelLen(f) > LABEL_CAP ? '#d92d20' : '#101828' }}>{nameOf(f)}</span>
-              {shownPrimary === f && <span data-editor-form-primary-tag={f} title="Shown in the short form" style={{ fontSize: 11, color: '#175cd3', background: '#eff8ff', borderRadius: 999, padding: '1px 8px' }}>Short form</span>}
-              <button type="button" data-editor-form-field-edit={f} onClick={() => setPage(`field:${f}`)} style={small}>Edit</button>
-              <button type="button" data-editor-form-remove={f} disabled={!!keep} title={keep || `Remove ${KIND[f]}`} aria-label={`Remove ${KIND[f]}`}
+              <span data-editor-form-row-name={fid} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: labelLen(f) > LABEL_CAP ? '#d92d20' : '#101828' }}>{nameOf(f)}</span>
+              {required.includes(fid) && <span data-editor-form-required-tag={fid} title="Visitors must fill this in" style={{ fontSize: 11, color: '#b42318', background: '#fef3f2', borderRadius: 999, padding: '1px 8px' }}>Required</span>}
+              {shownPrimary === f && <span data-editor-form-primary-tag={fid} title="Shown in the short form" style={{ fontSize: 11, color: '#175cd3', background: '#eff8ff', borderRadius: 999, padding: '1px 8px' }}>Short form</span>}
+              <button type="button" data-editor-form-field-edit={fid} onClick={() => (isCustom(f) ? openCustom(f.id) : setPage(`field:${f}`))} style={small}>Edit</button>
+              <button type="button" data-editor-form-remove={fid} disabled={!!keep} title={keep || `Remove ${nameOf(f)}`} aria-label={`Remove ${isCustom(f) ? nameOf(f) : KIND[f]}`}
                 onClick={() => remove(f)} style={{ ...small, cursor: keep ? 'not-allowed' : 'pointer', color: keep ? '#d0d5dd' : '#344054' }}>🗑</button>
             </div>
           );
         })}
         {why && <div data-editor-form-remove-why style={{ fontSize: 12, color: '#93370d', marginBottom: 8 }}>{why}</div>}
-        {unused.length > 0 && (
+        {(unused.length > 0 || canAddCustom) && (
           <div>
             <button type="button" data-editor-form-add-open="" aria-expanded={adding} onClick={() => setAdding((a) => !a)} style={small}>+ Add field</button>
             {adding && (
@@ -357,10 +419,54 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
                 {unused.map((f) => (
                   <button key={f} type="button" data-editor-form-add={f} onClick={() => add(f)} style={small}>{fieldNames?.[f] || KIND[f]}</button>
                 ))}
+                {/* #1769 —— 老板自己的问题（Durable 的「Field selector」字段库不做，直接进 Add field 页）。 */}
+                {canAddCustom && <button type="button" data-editor-form-add-custom="" onClick={() => openCustom('')} style={small}>Add custom</button>}
               </div>
             )}
           </div>
         )}
+        {!canAddCustom && <div data-editor-form-custom-max="" style={{ fontSize: 12, color: '#667085', marginTop: 8 }}>{`A form can have at most ${MAX_CUSTOM_FIELDS} fields of your own.`}</div>}
+      </div>
+    );
+  } else if (page.startsWith('custom:')) {
+    // #1769 —— Add field 页：新加（id 空）或改一个自定义字段。Save 才落到表单上，← 回去 = 不要这次改的。
+    const id = page.slice('custom:'.length);
+    const n = Array.from(draft.label.trim()).length;
+    const type = CUSTOM_TYPES.find((t) => t.value === draft.type) || CUSTOM_TYPES[0];
+    const canSave = n > 0 && n <= LABEL_CAP;
+    title = <>{back('fields')}{id ? 'Edit field' : 'Add field'}</>;
+    body = (
+      <div data-editor-form-custom={id || 'new'}>
+        <label style={{ display: 'block', marginBottom: 14 }}>
+          <span style={FIELD_LABEL}>
+            <span>Label</span>
+            <span style={{ fontWeight: 400, color: n > LABEL_CAP ? '#d92d20' : '#98a2b3' }}>{`${n} / ${LABEL_CAP}`}</span>
+          </span>
+          <input data-editor-form-custom-label="" type="text" value={draft.label} placeholder="e.g. What car do you drive?"
+            onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} style={inputStyle(n > LABEL_CAP)} />
+          <span style={HELP}>The question visitors see in the empty box.</span>
+        </label>
+        <label style={{ display: 'block', marginBottom: 14 }}>
+          <span style={FIELD_LABEL}><span>Type</span></span>
+          <select data-editor-form-custom-type="" value={draft.type}
+            onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as CustomFormField['type'] }))}
+            style={{ width: '100%', padding: 8, border: '1px solid #d0d5dd', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, background: '#fff' }}>
+            {CUSTOM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <span style={HELP}>{type.help}</span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14 }}>
+          <input type="checkbox" role="switch" data-editor-form-custom-required="" checked={draft.required}
+            onChange={(e) => setDraft((d) => ({ ...d, required: e.target.checked }))} />
+          <span>
+            <span style={{ display: 'block', fontWeight: 500, color: '#101828' }}>Required</span>
+            <span style={HELP}>Visitors can’t send the form without answering it.</span>
+          </span>
+        </label>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" data-editor-form-custom-save="" disabled={!canSave} onClick={() => saveCustom(id)}
+            style={{ ...BTN, border: 0, background: canSave ? '#1d4ed8' : '#98a2b3', color: '#fff', cursor: canSave ? 'pointer' : 'not-allowed' }}>Save</button>
+        </div>
       </div>
     );
   } else {
@@ -390,6 +496,14 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
           />
           <span style={HELP}>What visitors see in the empty box. Leave it empty to use the default.</span>
           {n > LABEL_CAP && <span style={{ ...HELP, color: '#d92d20' }}>{`A field name can be at most ${LABEL_CAP} characters.`}</span>}
+        </label>
+        {/* #1769 —— 内置字段也能设必填。 */}
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14 }}>
+          <input type="checkbox" role="switch" data-editor-form-required={f} checked={required.includes(f)} onChange={(e) => setReq(f, e.target.checked)} />
+          <span>
+            <span style={{ display: 'block', fontWeight: 500, color: '#101828' }}>Required</span>
+            <span style={HELP}>Visitors can’t send the form without filling it in.</span>
+          </span>
         </label>
         {isContact && (
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -447,11 +561,14 @@ export function applyFormCopyEdit(forms: EditorFormChoice[], edit: FormCopyEdit)
     }
     if (edit.fields) next.fields = [...edit.fields];
     if (edit.primary) next.primary = edit.primary;
-    if (edit.labels) {
+    // #1769 —— 必填整列替换（空 = 删掉这个键）；删掉的自定义字段，它的名字也去掉（同存盘那一侧）。
+    if (edit.required) { if (edit.required.length) next.required = [...edit.required]; else delete next.required; }
+    if (edit.labels || edit.fields) {
       const labels: Labels = { ...(f.labels || {}) };
-      for (const [k, v] of Object.entries(edit.labels) as [FormField, string][]) {
+      for (const [k, v] of Object.entries(edit.labels || {})) {
         if (v) labels[k] = v; else delete labels[k];
       }
+      if (edit.fields) for (const k of Object.keys(labels)) if (!VOCAB.includes(k as FormField) && !edit.fields.some((x) => idOf(x) === k)) delete labels[k];
       if (Object.keys(labels).length) next.labels = labels; else delete next.labels;
     }
     return next;

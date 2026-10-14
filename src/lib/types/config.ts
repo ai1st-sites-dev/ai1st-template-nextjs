@@ -166,17 +166,26 @@ export interface ServiceProduct {
 }
 
 /** #1471 —— 站级表单库里的一张（`site/<locale>/forms.json`；字段词表与校验在 `scripts/lib/site-forms.js`）。 */
+/** 表单的内置字段（`site-forms.js` §FORM_FIELDS）。 */
+export type BuiltinFormField = 'name' | 'phone' | 'email' | 'message' | 'service';
+/** #1769 —— 老板自己加的字段（这张票只有 `text` 一种）。名字不在这里，在 `labels[id]`（各语言各自翻）。 */
+export interface CustomFormField {
+  id: string;
+  type: 'text';
+}
 export interface SiteFormConfig {
   id: string;
   name: string;
-  fields: Array<'name' | 'phone' | 'email' | 'message' | 'service'>;
+  fields: Array<BuiltinFormField | CustomFormField>;
   /** teaser 只露这一个字段 + 按钮。 */
-  primary: 'name' | 'phone' | 'email' | 'message' | 'service';
+  primary: BuiltinFormField;
   buttonText?: string;
   successMessage?: string;
   redirect?: string;
-  /** #1637 —— 老板写的字段名（= 输入框占位符），只写这一个语言的；没有的字段用语言默认那句。 */
-  labels?: Partial<Record<'name' | 'phone' | 'email' | 'message' | 'service', string>>;
+  /** #1637 —— 老板写的字段名（= 输入框占位符），只写这一个语言的；没有的字段用语言默认那句。#1769 起自定义字段的名字也在这里（键 = 它的 id）。 */
+  labels?: Partial<Record<string, string>>;
+  /** #1769 —— 必填的字段 id（内置 / 自定义都行）；结构，各语言一致。 */
+  required?: string[];
 }
 
 export interface ServiceConfig {

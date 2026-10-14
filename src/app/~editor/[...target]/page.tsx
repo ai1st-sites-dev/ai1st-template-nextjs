@@ -179,8 +179,9 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       slugs={src.slugs}
       pages={editorPages(locales, pagesByLocale)}
       // #1634 —— 「Edit this form」面板要三句文字的现值（没写的键 = 用默认，面板里那格就是空的）。
+      // #1769 —— 自定义字段（`fields` 里的 `{ id, type }`）和 `required` 一起递：面板的 Add custom / Required 要它们。
       forms={getForms(site, locale).map((f) => ({
-        id: f.id, name: f.name, fields: f.fields, primary: f.primary,
+        id: f.id, name: f.name, fields: f.fields, primary: f.primary, ...(f.required ? { required: f.required } : {}),
         ...(f.buttonText ? { buttonText: f.buttonText } : {}), ...(f.successMessage ? { successMessage: f.successMessage } : {}),
         ...(f.labels ? { labels: f.labels } : {}),
       }))}
