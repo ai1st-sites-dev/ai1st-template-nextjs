@@ -1704,6 +1704,8 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
  *   这一项对不上 schema 里的一列（§itemListsOf）· 那一列不是数组（引用写法 `{source}`，面板上那一栏也是只读）。
  * 三颗按钮动的是 Puck 那个数组字段（同右栏，经 Puck 的 `replace`）⟹ 右栏当场同步、Ctrl+Z 照旧；🗑 到 schema 的 `min` 灰掉，
  * 跟右栏同一个数。每按一下另记一条侧记（§recordItemNote）：记录摘要比的是前后两份 JSON，分不出「挪了一项」和「删一项加一项」。
+ * #1755 r3 —— 按钮列表（schema 的 `button`，`editor-schema.js` 按形状派生）的一项多一组 ✎ Edit，排在 ↑ ↓ 🗑 左边、隔一道竖线（长相同 §BlockBar）：
+ *   点它 = 点按钮本身（InlineEdit §onClick → `openButton`），开同一个按钮弹窗、定位到这一颗。锁着时跟另外三颗一起灰。
  */
 function ItemBars({ doc }: { doc: Document }) {
   const hovered = useCanvasHoverOf(doc, itemKeyAt, true);
@@ -1753,6 +1755,8 @@ type ItemBarPos = { top: number; left: number; scale: number; above: boolean; be
  * #1744 —— 项比条还窄（logo、头像那种小图）：条贴在项里就把整格盖住 —— 图上的 ✎ Edit 收起、点图正中落在 🗑 上。
  *   这时条挪到项的外面：上方（右沿对齐、底边 = 项上沿 − 间距）→ 放不下就下方 → 都放不下才退回贴在项里。
  *   宽窄按条自己画出来的宽度比（已乘过 1/zoom，跟项同一个口径），每帧现量；条还没画出来那一帧按宽项放。宽项位置照旧。
+ * #1755 r3 —— 条上有这一项的按钮 ✎ Edit（§ItemBar）⟹ 这一项整个就是一颗按钮、字铺满整颗：条贴在里面就一定压字（Chris 截图「Ca|」），
+ *   不论按钮比条宽还是窄（量过：hero `Book a service` 171 px、features 第二颗 196 px，都比加了 Edit 的条宽）⟹ 一律走上面「窄项」那一支。
  */
 function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | null {
   const [pos, setPos] = useState<ItemBarPos | null>(null);
@@ -1778,8 +1782,9 @@ function useItemBarPos(doc: Document, id: string, item: string): ItemBarPos | nu
         const frame = win.frameElement as HTMLElement | null;
         const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
         next = { top: Math.max(r.top, 0) + ITEMBAR_GAP, left: r.right - ITEMBAR_GAP, scale: 1 / zoom, above, below };
-        const b = doc.querySelector(`[data-editor-itembar-for="${CSS.escape(`${id} ${item}`)}"]`)?.getBoundingClientRect();
-        if (b && b.width > r.width) {
+        const bar = doc.querySelector(`[data-editor-itembar-for="${CSS.escape(`${id} ${item}`)}"]`);
+        const b = bar?.getBoundingClientRect();
+        if (b && (b.width > r.width || !!bar?.querySelector('[data-editor-item-action="edit"]'))) {
           const up = r.top - ITEMBAR_GAP - b.height;
           const down = r.bottom + ITEMBAR_GAP;
           if (up >= 0) next = { ...next, top: up, left: r.right };
@@ -1807,8 +1812,17 @@ function ItemBar({ doc, id, item: itemAttr }: { doc: Document; id: string; item:
   const spec = item ? itemListsOf(inline?.components.get(item.type)).find((l) => l.path.join('.') === segs.join('.')) : undefined;
   const list = spec ? getAt(props, spec.path) : undefined;
   if (!item || props._src?.locked || !spec || !Array.isArray(list) || !Number.isInteger(index) || index >= list.length || !pos) return null;
-  // AI 聊天在改这一页：三颗都灰（同面板 LOCKED_PERMISSIONS 那一套，改了也会被 AI 那一笔盖掉）。
+  // #1755 r3 —— 按钮列表那一列（schema 的 `button`）⟹ 多一颗 ✎ Edit。
+  const button = !!inline?.components.get(item.type)?.fields.find((f) => f.control === 'list' && f.slot === spec.slot)?.button;
+  // AI 聊天在改这一页：整条都灰（同面板 LOCKED_PERMISSIONS 那一套，改了也会被 AI 那一笔盖掉）。
   const busy = !!inline?.locked;
+  const selectIt = () => {
+    const g = getPuck();
+    const sel = g.getSelectorForId(id);
+    if (sel && selectedId !== id) g.dispatch({ type: 'setUi', ui: { itemSelector: sel } } as never);
+  };
+  // 同点按钮本身（InlineEdit §onClick）：先选中这一块，再开按钮弹窗。
+  const edit = () => { selectIt(); inline?.openButton(id, spec.slot, index); };
   const act = (op: ItemOp) => {
     const g = getPuck();
     const now = g.getItemById(id) as unknown as { type: string; props: ItemProps } | undefined;
@@ -1828,6 +1842,14 @@ function ItemBar({ doc, id, item: itemAttr }: { doc: Document; id: string; item:
     <span data-editor-itembar="" data-editor-itembar-for={`${id} ${itemAttr}`} data-editor-itembar-block={id} onClick={halt}
       {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...ITEMBAR_BOX, top: pos.top, left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
+        {button && (
+          <ActionBar.Group>
+            <ActionBar.Action label="Edit" disabled={busy} onClick={edit} data-editor-item-action="edit">
+              {BLOCKBAR_ICON.edit}
+              <span style={BLOCKBAR_TEXT}>Edit</span>
+            </ActionBar.Action>
+          </ActionBar.Group>
+        )}
         <ActionBar.Group>
           <ActionBar.Action label="Move up" disabled={busy || index <= 0 || !pos.above} onClick={() => act('up')} data-editor-item-action="up">
             {BLOCKBAR_ICON.up}
