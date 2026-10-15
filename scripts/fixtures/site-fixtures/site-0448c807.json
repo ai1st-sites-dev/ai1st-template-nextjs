@@ -1,0 +1,1668 @@
+{
+  "brand.json": {
+    "name": {
+      "en": "SparkleClean Pro"
+    },
+    "tagline": {
+      "en": "Spotless Spaces, Every Single Time"
+    },
+    "logoIcon": "droplet",
+    "logoUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-logo.png",
+    "colors": {
+      "primary": {
+        "50": "#f1f4f9",
+        "100": "#dbe2f0",
+        "200": "#becbe4",
+        "300": "#92a9d3",
+        "400": "#6e8cc4",
+        "500": "#4a6fb5",
+        "600": "#3e5e98",
+        "700": "#324c7b",
+        "800": "#263a5e",
+        "900": "#18243a"
+      },
+      "accent": {
+        "50": "#fcfaed",
+        "100": "#f8f4d3",
+        "200": "#f2eab0",
+        "300": "#eadd7b",
+        "400": "#e2d150",
+        "500": "#dbc624",
+        "600": "#b8a61e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "buttonShape": "pill"
+    },
+    "email": "hello@demo.com",
+    "locations": [
+      {
+        "label": "SparkleClean Pro Toronto",
+        "address": "Toronto, Ontario, Canada",
+        "phone": "647-555-2222",
+        "city": "Toronto",
+        "geo": {
+          "lat": 43.6534817,
+          "lng": -79.3839347
+        }
+      }
+    ],
+    "googleFormUrl": "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform",
+    "googleFormEntries": {
+      "source": "entry.0000000000",
+      "services": "entry.0000000000",
+      "propertyType": "entry.0000000000",
+      "urgency": "entry.0000000000"
+    },
+    "logoHasWordmark": false
+  },
+  "en/forms.json": [
+    {
+      "id": "contact",
+      "name": "Contact us",
+      "fields": [
+        "name",
+        "phone",
+        "email",
+        "message",
+        "service"
+      ],
+      "primary": "phone",
+      "buttonText": "Get in touch",
+      "successMessage": "Thanks — we will get back to you shortly.",
+      "labels": {
+        "name": "Your Name"
+      }
+    }
+  ],
+  "en/navigation.json": {
+    "header": {
+      "links": [
+        {
+          "label": "Home",
+          "href": "/"
+        },
+        {
+          "label": "Services",
+          "href": "/services"
+        },
+        {
+          "label": "FAQ",
+          "href": "/faq"
+        }
+      ],
+      "cta": {
+        "label": "Get a Free Quote",
+        "href": "/contact"
+      }
+    },
+    "footer": {
+      "description": "SparkleClean Pro provides professional Window Cleaning and House Cleaning services across Toronto, Ontario, delivering spotless results every time.",
+      "columns": [
+        {
+          "title": "Quick Links",
+          "links": [
+            {
+              "label": "Home",
+              "href": "/"
+            },
+            {
+              "label": "Services",
+              "href": "/services"
+            },
+            {
+              "label": "FAQ",
+              "href": "/faq"
+            },
+            {
+              "label": "Contact",
+              "href": "/contact"
+            }
+          ]
+        }
+      ],
+      "copyright": "SparkleClean Pro. All rights reserved."
+    }
+  },
+  "en/pages/contact.json": {
+    "slug": "contact",
+    "title": "Contact Us",
+    "navLabel": "Contact",
+    "navOrder": 4,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "description": "Contact SparkleClean Pro in Toronto to book House Cleaning or Window Cleaning. Call 647-555-2222 or fill out our quick online quote form.",
+    "blocks": [
+      {
+        "id": "contact-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "textAlign": "left",
+            "image": "none",
+            "headlinePosition": "top"
+          },
+          "introEyebrow": {
+            "text": "Get in Touch",
+            "style": "pill"
+          },
+          "headline": "Contact SparkleClean Pro",
+          "subheadline": "Ready for a spotless space? Reach us by phone, email, or the quick form below — same-day bookings welcome.",
+          "ctas": [
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "solid"
+            },
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "outline"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84498e889_ai-page-header.jpg",
+            "alt": "SparkleClean Pro cleaner preparing eco-friendly supplies for a Toronto home cleaning visit"
+          },
+          "bg": "deep-gradient"
+        }
+      },
+      {
+        "id": "contact-contact-1",
+        "type": "contact",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "introPosition": "beside",
+            "introAlign": "left",
+            "sidePosition": "right",
+            "form": "full",
+            "formStyle": "card",
+            "itemsLayout": "list",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "left",
+            "map": "none"
+          },
+          "introEyebrow": {
+            "text": "Same-Day Booking Available",
+            "style": "pill"
+          },
+          "headline": "Let's Get Your Space Sparkling",
+          "body": "Whether you need a one-time deep clean or recurring service for your Toronto home or office, SparkleClean Pro makes it simple to get started. Fill out the form and we'll get back to you fast — or reach us directly by phone or email right now.\n\n**Why clients choose SparkleClean Pro:**\n- Eco-friendly, family-safe cleaning products\n- Bonded and insured for your complete peace of mind\n- Consistent cleaning teams — you get the same cleaner every time\n- Same-day booking available across Toronto",
+          "items": [
+            {
+              "kind": "phone",
+              "title": "Call Us",
+              "hint": "Same-day booking available — we pick up fast"
+            },
+            {
+              "kind": "email",
+              "title": "Email Us",
+              "hint": "We reply within a few hours on business days"
+            },
+            {
+              "kind": "hours",
+              "title": "Hours of Operation"
+            },
+            {
+              "kind": "link",
+              "title": "Service Area",
+              "hint": "Proudly serving Toronto and the surrounding GTA",
+              "href": "/contact"
+            }
+          ],
+          "form": {
+            "id": "contact"
+          },
+          "bg": "brand-soft"
+        }
+      }
+    ]
+  },
+  "en/pages/faq.json": {
+    "slug": "faq",
+    "title": "Frequently Asked Questions",
+    "navLabel": "FAQ",
+    "navOrder": 2,
+    "changeFrequency": "monthly",
+    "priority": 0.7,
+    "description": "Get answers to common questions about SparkleClean Pro's cleaning services in Toronto — booking, products, insurance, and more.",
+    "blocks": [
+      {
+        "id": "faq-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "image": "none"
+          },
+          "introEyebrow": {
+            "text": "Got Questions?",
+            "style": "pill"
+          },
+          "headline": "Frequently Asked Questions",
+          "subheadline": "Everything you need to know before booking with SparkleClean Pro in Toronto — from eco-friendly products to same-day availability and how our consistent team model works.",
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84498e889_ai-page-header.jpg",
+            "alt": "A SparkleClean Pro cleaner preparing eco-friendly supplies before a residential cleaning appointment in Toronto"
+          },
+          "bg": "deep-gradient"
+        }
+      },
+      {
+        "id": "faq-faq-1",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "2",
+            "itemStyle": "card",
+            "itemToggle": "chevron"
+          },
+          "introEyebrow": {
+            "text": "Honest Answers",
+            "style": "dash"
+          },
+          "headline": "Your Questions, Answered",
+          "body": "We know hiring a cleaning service is a big decision. Here are the questions Toronto customers ask most often before booking with SparkleClean Pro.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Our team is happy to help. Reach out and we'll get back to you right away.",
+            "cta": {
+              "label": "Contact Us",
+              "href": "/contact",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Can I book a same-day cleaning?",
+              "answer": "Yes! SparkleClean Pro offers same-day booking in Toronto, subject to team availability. If you need a clean on short notice — whether for an Airbnb turnover, a last-minute guest, or a busy workday — just call us or submit a request through our contact page and we'll do our best to accommodate you that day."
+            },
+            {
+              "question": "What eco-friendly products do you use?",
+              "answer": "SparkleClean Pro uses environmentally responsible, non-toxic cleaning products that are safe for children, pets, and surfaces. Our green cleaning solutions are effective against dirt, grease, and bacteria without releasing harsh chemicals into your home or the environment — so you get a spotless space with complete peace of mind."
+            },
+            {
+              "question": "Is SparkleClean Pro bonded and insured?",
+              "answer": "Absolutely. SparkleClean Pro is fully bonded and insured, which means you are protected in the unlikely event of accidental damage or loss during a cleaning visit. We take accountability seriously — our clients in Toronto can welcome our team into their home or office knowing they're fully covered."
+            },
+            {
+              "question": "Will I get the same cleaner every time?",
+              "answer": "Yes — that's one of the things our clients love most about SparkleClean Pro. We assign you a consistent cleaning team so they get to know your home, your preferences, and your routines. No more re-explaining where things go or what needs extra attention. You build trust with a team that truly knows your space."
+            },
+            {
+              "question": "What's included in a House Cleaning visit?",
+              "answer": "Our House Cleaning service covers all key areas of your Toronto home, including kitchens, bathrooms, bedrooms, living areas, and common spaces. We dust surfaces, clean appliances, sanitize sinks and toilets, vacuum and mop floors, and wipe down counters and fixtures. Need something specific? Just let us know and we'll tailor the clean to your needs."
+            },
+            {
+              "question": "What does your Window Cleaning service include?",
+              "answer": "SparkleClean Pro's Window Cleaning service covers both interior and exterior windows for homes and businesses in Toronto. We remove dirt, streaks, grime, and water spots to leave every pane crystal clear. We bring all the necessary equipment and eco-friendly solutions — you don't need to provide a thing."
+            },
+            {
+              "question": "How do I reschedule or cancel a booking?",
+              "answer": "Life happens — we get it. To reschedule or cancel your appointment, simply contact us by phone or email as early as possible. We ask for reasonable notice so we can offer that slot to another client, but we always work with you to find a new time that fits your schedule."
+            },
+            {
+              "question": "Do I need to be home during the cleaning?",
+              "answer": "Not at all. Many of our Toronto clients — including busy professionals and Airbnb hosts — provide access instructions and trust our bonded, insured team to take care of things while they're away. Your home is in safe, professional hands with SparkleClean Pro every single time."
+            }
+          ],
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "faq-cta-2",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "layout": "inline",
+            "frame": "boxed",
+            "textAlign": "left",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Ready to Book?",
+            "style": "pill"
+          },
+          "headline": "Experience the SparkleClean Pro Difference Today",
+          "body": "Join Toronto homeowners, office managers, busy families, and Airbnb hosts who trust SparkleClean Pro for consistent, eco-friendly, professional cleaning. Same-day booking available — get your free quote in minutes.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "bg": "deep-gradient"
+        }
+      }
+    ]
+  },
+  "en/pages/home.json": {
+    "slug": "home",
+    "title": "Home",
+    "navLabel": "Home",
+    "navOrder": 0,
+    "changeFrequency": "weekly",
+    "priority": 1,
+    "description": "SparkleClean Pro offers expert Window Cleaning and House Cleaning in Toronto. Eco-friendly, bonded & insured. Same-day booking available. Call 647-555-2222.",
+    "seo": {
+      "targetKeyword": "Window Cleaning"
+    },
+    "blocks": [
+      {
+        "id": "home-hero-0",
+        "type": "hero",
+        "role": "lead",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "textAlign": "left",
+            "image": "right",
+            "form": "full"
+          },
+          "bg": "deep-gradient",
+          "eyebrow": {
+            "text": "Toronto's Trusted Cleaning Experts",
+            "style": "pill"
+          },
+          "headline": "Professional Window Cleaning & Home Services in Toronto",
+          "subheadline": "SparkleClean Pro delivers spotless results for busy Toronto families, professionals, Airbnb hosts, and office managers — using eco-friendly products, bonded and insured teams, with same-day booking available.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true,
+              "size": "lg"
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "size": "lg"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/b1b2fa6b1_ai-hero.jpg",
+            "alt": "Window Cleaning: SparkleClean Pro team member cleaning a bright Toronto home"
+          },
+          "proof": {
+            "rating": 5,
+            "text": "Trusted by hundreds of Toronto households and businesses"
+          },
+          "form": {}
+        }
+      },
+      {
+        "id": "home-testimonials-1",
+        "type": "testimonials",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsLayout": "carousel",
+            "itemsColumns": "3",
+            "itemStyle": "card",
+            "quoteSize": "md",
+            "itemAlign": "left"
+          },
+          "bg": "brand-soft",
+          "introEyebrow": {
+            "text": "What Our Clients Say",
+            "style": "pill"
+          },
+          "headline": "Toronto Homeowners & Businesses Love SparkleClean Pro",
+          "body": "Real results, real people. Here's what our clients across Toronto have to say about their experience with SparkleClean Pro.",
+          "items": [
+            {
+              "quote": "SparkleClean Pro transformed our downtown condo. The window cleaning was absolutely flawless — I could see the CN Tower like never before. Same team every visit, which means so much to me.",
+              "name": "Sarah M.",
+              "role": "Toronto · Window Cleaning",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "As an Airbnb host managing three properties in Toronto, I rely on SparkleClean Pro every week. Same-day booking has saved me more than once, and my guests always comment on the spotless cleanliness.",
+              "name": "David K.",
+              "role": "Toronto · House Cleaning",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Our office in the Financial District has never looked better. SparkleClean Pro's team is punctual, professional, and uses eco-friendly products — perfect for our environmentally conscious building.",
+              "name": "Michelle T.",
+              "role": "Toronto · Commercial Cleaning",
+              "rating": 5,
+              "source": "HomeStars"
+            },
+            {
+              "quote": "I was nervous about letting cleaners into my home, but SparkleClean Pro being bonded and insured gave me complete peace of mind. The window cleaning and house clean were both exceptional.",
+              "name": "James R.",
+              "role": "North York · House Cleaning",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "We've tried several cleaning services in Toronto and nothing compares to SparkleClean Pro. The consistency of getting the same cleaner each time means they know our home inside and out.",
+              "name": "Priya S.",
+              "role": "Scarborough · House Cleaning",
+              "rating": 5,
+              "source": "Yelp"
+            },
+            {
+              "quote": "The window cleaning service SparkleClean Pro provided for our Etobicoke home was incredible. Inside and out, every pane was crystal clear. Will absolutely be booking them again.",
+              "name": "Tom & Linda B.",
+              "role": "Etobicoke · Window Cleaning",
+              "rating": 5,
+              "source": "HomeStars"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-reviews-2",
+        "type": "reviews",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "total": "show",
+            "itemsLayout": "row",
+            "itemStyle": "card",
+            "itemAlign": "center"
+          },
+          "bg": "accent-soft",
+          "introEyebrow": {
+            "text": "Rated #1 in Toronto",
+            "style": "dash"
+          },
+          "headline": "Top-Rated Window Cleaning & House Cleaning in Toronto",
+          "body": "SparkleClean Pro is consistently rated 5 stars across every major review platform. See for yourself why Toronto trusts us.",
+          "platforms": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 214
+            },
+            {
+              "source": "HomeStars",
+              "rating": 4.8,
+              "count": 97
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 63
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-logos-3",
+        "type": "logos",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsLayout": "row",
+            "itemStyle": "plain",
+            "logoColor": "mono"
+          },
+          "bg": "soft-gradient",
+          "headline": "Proudly Serving Toronto's Most Trusted Neighbourhoods",
+          "body": "From downtown condos to suburban family homes, SparkleClean Pro brings professional window cleaning and house cleaning services across the Greater Toronto Area.",
+          "items": [
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-home-s0-hero-image.jpg",
+              "alt": "SparkleClean Pro serving Downtown Toronto"
+            },
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_house-cleaning-s0-page-header-image.jpg",
+              "alt": "SparkleClean Pro house cleaning service in North York"
+            },
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_window-cleaning-s0-page-header-image.jpg",
+              "alt": "SparkleClean Pro window cleaning service in Etobicoke"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-features-4",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "introImage": "none",
+            "itemsLayout": "grid",
+            "itemsColumns": "4",
+            "itemStyle": "card",
+            "itemAlign": "center",
+            "itemIcon": "top",
+            "itemImage": "none",
+            "itemConnector": "none"
+          },
+          "bg": "brand-soft",
+          "introEyebrow": {
+            "text": "Why SparkleClean Pro",
+            "style": "pill"
+          },
+          "headline": "Window Cleaning & Home Care Built Around You",
+          "body": "Every service SparkleClean Pro provides is designed to give Toronto homeowners, Airbnb hosts, and businesses a completely worry-free clean.",
+          "introCtas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "items": [
+            {
+              "icon": "leaf",
+              "title": "Eco-Friendly Products",
+              "text": "We use only environmentally safe, non-toxic cleaning solutions that are gentle on your home and family — and kind to Toronto's environment."
+            },
+            {
+              "icon": "shield-check",
+              "title": "Bonded & Insured",
+              "text": "Every SparkleClean Pro team member is fully bonded and insured, giving you complete peace of mind each and every visit."
+            },
+            {
+              "icon": "bell",
+              "title": "Same-Day Booking",
+              "text": "Need a clean at short notice? SparkleClean Pro offers same-day booking so your home or office is always guest- or client-ready."
+            },
+            {
+              "icon": "sun",
+              "title": "Consistent Cleaning Teams",
+              "text": "We match you with the same cleaner for every visit so they learn your home, your preferences, and your standards — every single time."
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-content-5",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 50,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "textStyle": "article",
+            "image": "right",
+            "frame": "none"
+          },
+          "bg": "accent-soft",
+          "introEyebrow": {
+            "text": "Professional Window Cleaning Toronto",
+            "style": "dash"
+          },
+          "headline": "Crystal-Clear Window Cleaning for Toronto Homes & Businesses",
+          "body": "SparkleClean Pro's professional window cleaning service is trusted by homeowners, condo residents, Airbnb hosts, and commercial property managers across Toronto and the Greater Toronto Area.\n\nOur expert team cleans every window inside and out, removing grime, streaks, mineral deposits, and environmental build-up to deliver a crystal-clear finish that lets natural light flood your space.\n\n**Why choose SparkleClean Pro for window cleaning?**\n\n- Interior and exterior window cleaning for all property types\n- Safe, eco-friendly cleaning solutions — no harsh chemicals\n- Bonded and insured for your complete protection\n- Consistent teams who learn your property's specific needs\n- Same-day booking available across Toronto\n\nWhether you manage a busy household in North York, a short-term rental in the Annex, or a commercial office in the Financial District, SparkleClean Pro delivers spotless windows every single time.\n\nBook your professional window cleaning service today and experience the SparkleClean Pro difference.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Learn More About Window Cleaning",
+              "href": "/services/window-cleaning",
+              "style": "outline"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_window-cleaning-s0-page-header-image.jpg",
+            "alt": "SparkleClean Pro technician cleaning exterior windows on a Toronto home"
+          }
+        }
+      },
+      {
+        "id": "home-features-6",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 60,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "introImage": "none",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "card",
+            "itemAlign": "left",
+            "itemIcon": "top",
+            "itemImage": "none",
+            "itemConnector": "line"
+          },
+          "bg": "soft-gradient",
+          "introEyebrow": {
+            "text": "How It Works",
+            "style": "outline"
+          },
+          "headline": "Book Your Window Cleaning in 3 Simple Steps",
+          "body": "Getting started with SparkleClean Pro is quick and easy. From first contact to a spotless finish, we make the whole process effortless.",
+          "items": [
+            {
+              "number": "01",
+              "icon": "lightbulb",
+              "title": "Request Your Free Quote",
+              "text": "Fill out our quick online form or give us a call. Tell us about your property and cleaning needs, and we'll provide a fast, transparent quote — no hidden fees."
+            },
+            {
+              "number": "02",
+              "icon": "bell",
+              "title": "Schedule Your Clean",
+              "text": "Choose a time that works for you. Same-day booking is available across Toronto for urgent requests. We confirm your appointment immediately."
+            },
+            {
+              "number": "03",
+              "icon": "droplet",
+              "title": "Enjoy Spotless Results",
+              "text": "Your dedicated SparkleClean Pro team arrives on time, uses eco-friendly products, and leaves your home or business looking immaculate."
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-faq-7",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 70,
+        "data": {
+          "options": {
+            "introPosition": "left",
+            "introAlign": "left",
+            "itemsMode": "accordion",
+            "itemsColumns": "1",
+            "itemStyle": "divided",
+            "itemToggle": "plus"
+          },
+          "bg": "brand-soft",
+          "introEyebrow": {
+            "text": "Common Questions",
+            "style": "pill"
+          },
+          "headline": "Frequently Asked Questions About SparkleClean Pro",
+          "body": "Have questions about our cleaning services in Toronto? We've answered the most common ones below. Don't see yours? Get in touch — we're happy to help.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Our friendly Toronto-based team is ready to help. Call or email us — we respond fast.",
+            "cta": {
+              "label": "Contact Us",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          },
+          "items": [
+            {
+              "question": "Do you offer same-day window cleaning bookings in Toronto?",
+              "answer": "Yes! SparkleClean Pro offers same-day booking for both window cleaning and house cleaning services across Toronto, subject to availability. Simply call us or fill out our online form and we'll do our best to accommodate your schedule."
+            },
+            {
+              "question": "Are your cleaning products safe for children and pets?",
+              "answer": "Absolutely. SparkleClean Pro uses only eco-friendly, non-toxic cleaning products that are completely safe for children, pets, and family members with sensitivities. We care about your family's health as much as your home's cleanliness."
+            },
+            {
+              "question": "Is SparkleClean Pro bonded and insured?",
+              "answer": "Yes. Every SparkleClean Pro team member is fully bonded and insured. This means you are fully protected in the unlikely event of any accidental damage or incident during your clean. Your peace of mind is our priority."
+            },
+            {
+              "question": "Will I get the same cleaner each time?",
+              "answer": "We believe consistency leads to better results. SparkleClean Pro assigns you a consistent cleaning team so the same professional visits your home or office each time. They learn your space, your preferences, and your standards."
+            },
+            {
+              "question": "What areas in Toronto do you service?",
+              "answer": "SparkleClean Pro services all neighbourhoods across Toronto including Downtown, North York, Scarborough, Etobicoke, East York, and surrounding areas in the Greater Toronto Area. Contact us to confirm availability in your specific location."
+            },
+            {
+              "question": "Do you clean windows inside and out?",
+              "answer": "Yes. Our professional window cleaning service covers both interior and exterior surfaces. We remove all dirt, streaks, mineral deposits, and grime to deliver a crystal-clear finish throughout your entire property."
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-contact-8",
+        "type": "contact",
+        "role": "essential",
+        "region": "content",
+        "weight": 80,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "sidePosition": "right",
+            "form": "full",
+            "formStyle": "card",
+            "itemsLayout": "grid",
+            "itemStyle": "card",
+            "itemAlign": "left",
+            "itemIcon": "left",
+            "map": "none"
+          },
+          "bg": "accent-soft",
+          "introEyebrow": {
+            "text": "Get In Touch",
+            "style": "pill"
+          },
+          "headline": "Book Your Cleaning Service in Toronto Today",
+          "body": "Ready for spotless windows and a cleaner home? Contact SparkleClean Pro for a free, no-obligation quote. Same-day booking available across Toronto.",
+          "items": [
+            {
+              "kind": "phone",
+              "title": "Call Us",
+              "hint": "Same-day booking available"
+            },
+            {
+              "kind": "email",
+              "title": "Email Us",
+              "hint": "We respond within a few hours"
+            },
+            {
+              "kind": "hours",
+              "title": "Our Hours",
+              "hint": "Available 7 days a week"
+            }
+          ],
+          "form": {}
+        }
+      },
+      {
+        "id": "home-cta-9",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 90,
+        "data": {
+          "options": {
+            "layout": "centered",
+            "frame": "boxed",
+            "textAlign": "center",
+            "image": "background",
+            "form": "none"
+          },
+          "bg": "deep-gradient",
+          "eyebrow": {
+            "text": "Spotless Spaces, Every Single Time",
+            "style": "pill"
+          },
+          "headline": "Toronto's Best Window Cleaning Starts with SparkleClean Pro",
+          "body": "Join hundreds of satisfied Toronto homeowners, Airbnb hosts, and office managers who trust SparkleClean Pro for reliable, eco-friendly cleaning services. Bonded, insured, and ready to book today.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true,
+              "size": "lg"
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "size": "lg"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-home-s0-hero-image.jpg",
+            "alt": "SparkleClean Pro team delivering professional cleaning results in a Toronto home"
+          }
+        }
+      }
+    ]
+  },
+  "en/pages/services.json": {
+    "slug": "services",
+    "title": "Our Cleaning Services",
+    "navLabel": "Services",
+    "navOrder": 1,
+    "changeFrequency": "weekly",
+    "priority": 0.9,
+    "description": "Explore SparkleClean Pro's professional House Cleaning and Window Cleaning services in Toronto. Eco-friendly, bonded & insured. Book same-day.",
+    "blocks": [
+      {
+        "id": "services-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "image": "none"
+          },
+          "introEyebrow": {
+            "text": "Toronto's Trusted Cleaning Experts",
+            "style": "pill"
+          },
+          "headline": "Our Cleaning Services",
+          "subheadline": "SparkleClean Pro offers professional House Cleaning and Window Cleaning across Toronto — with eco-friendly products, bonded and insured teams, and same-day booking available.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84498e889_ai-page-header.jpg",
+            "alt": "SparkleClean Pro cleaning professional at work in a bright Toronto home"
+          },
+          "bg": "deep-gradient"
+        }
+      },
+      {
+        "id": "services-features-1",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "left",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "top",
+            "itemImage": "none",
+            "introImage": "none",
+            "itemsImage": "none",
+            "itemConnector": "none"
+          },
+          "introEyebrow": {
+            "text": "What We Offer",
+            "style": "dash"
+          },
+          "headline": "Choose the Right Service for Your Space",
+          "body": "Whether you need a sparkling home or streak-free windows, SparkleClean Pro has a tailored solution for Toronto homeowners, busy families, working professionals, office managers, and Airbnb hosts. Every service is delivered by our consistent, bonded teams using eco-friendly products.",
+          "introCtas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "items": {
+            "source": "services"
+          },
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-cta-2",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "layout": "inline",
+            "frame": "boxed",
+            "textAlign": "left",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Same-Day Booking Available",
+            "style": "pill"
+          },
+          "headline": "Ready for a Spotless Space? Book SparkleClean Pro Today.",
+          "body": "Join Toronto homeowners, professionals, and Airbnb hosts who trust SparkleClean Pro for reliable, eco-friendly cleaning. Our bonded and insured teams are ready to help — often the very same day.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Call Us",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_house-cleaning-s0-page-header-image.jpg",
+            "alt": "SparkleClean Pro team member cleaning a spotless Toronto kitchen"
+          },
+          "bg": "deep-gradient"
+        }
+      }
+    ]
+  },
+  "en/pages/services/house-cleaning.json": {
+    "slug": "services/house-cleaning",
+    "title": "House Cleaning",
+    "navLabel": "House Cleaning",
+    "navOrder": 10,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "description": "Professional House Cleaning in Toronto by SparkleClean Pro. Eco-friendly products, consistent teams, same-day booking. Call 647-555-2222 today.",
+    "serviceDetailPage": true,
+    "parentService": "house-cleaning",
+    "seo": {
+      "targetKeyword": "House Cleaning"
+    },
+    "blocks": [
+      {
+        "id": "services-house-cleaning-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Residential Cleaning · Toronto",
+            "style": "pill"
+          },
+          "headline": "House Cleaning in Toronto You Can Count On",
+          "subheadline": "SparkleClean Pro delivers thorough, eco-friendly house cleaning across Toronto — with consistent assigned cleaners, same-day booking, and complete peace of mind for busy families, professionals, and Airbnb hosts.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_house-cleaning-s0-page-header-image.jpg",
+            "alt": "House Cleaning: SparkleClean Pro cleaner tidying a bright, modern Toronto home living room"
+          },
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-house-cleaning-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "textStyle": "article",
+            "image": "none",
+            "frame": "none"
+          },
+          "introEyebrow": {
+            "text": "What Is Included",
+            "style": "dash"
+          },
+          "headline": "Professional House Cleaning Tailored to Your Toronto Home",
+          "body": "At SparkleClean Pro, our house cleaning service is built around the reality of modern Toronto life. Whether you're a working professional with a packed schedule, a family juggling school runs and after-school activities, or an Airbnb host preparing a property for the next guest, our team arrives fully equipped and ready to deliver a spotless result — every single visit.\n\nA standard SparkleClean Pro house cleaning covers every room in your home with careful, methodical attention:\n\n- Kitchen surfaces, appliances, sinks, and cabinet fronts wiped down and sanitized\n- Bathrooms scrubbed thoroughly — toilets, showers, tubs, mirrors, and floors\n- All floors vacuumed and mopped, including under furniture\n- Bedrooms dusted, bedding straightened, and surfaces wiped\n- Living areas dusted, cushions fluffed, and high-touch points sanitized\n- Baseboards, light switches, door handles, and window ledges cleaned\n\nWe use only **eco-friendly, non-toxic cleaning products** that are safe for children, pets, and allergy-sensitive households — without compromising on cleaning power. Every product in our kit meets our strict environmental standards, so your home is genuinely clean, not just surface-level fresh.\n\nChoose from a **one-time deep clean** for a special occasion or post-renovation refresh, or set up **recurring visits** — weekly, bi-weekly, or monthly — so your home stays consistently immaculate without you lifting a finger. SparkleClean Pro is bonded and insured, giving you full peace of mind every time we enter your home.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_house-cleaning-s0-page-header-image.jpg",
+            "alt": "SparkleClean Pro team member cleaning a Toronto kitchen with eco-friendly products"
+          }
+        }
+      },
+      {
+        "id": "services-house-cleaning-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "left",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "none",
+            "itemConnector": "line",
+            "introImage": "none",
+            "itemsImage": "none",
+            "itemImage": "none"
+          },
+          "introEyebrow": {
+            "text": "Our House Cleaning Process",
+            "style": "pill"
+          },
+          "headline": "How Our House Cleaning Service Works",
+          "body": "From your first booking to the moment our cleaner locks your door behind them, SparkleClean Pro follows a proven, step-by-step process designed to deliver a consistently exceptional clean — every single time.",
+          "items": [
+            {
+              "number": "01",
+              "icon": "calendar-check",
+              "title": "Book in Minutes — Same-Day Available",
+              "text": "Request your house cleaning online or by phone. SparkleClean Pro offers same-day booking across Toronto, so you never have to wait long for a clean home. Tell us your home size, preferred date, and any special requests and we'll handle the rest.",
+              "bullets": [
+                "Online booking or call us directly",
+                "Same-day slots available across Toronto",
+                "One-time or recurring schedule options"
+              ]
+            },
+            {
+              "number": "02",
+              "icon": "person-check",
+              "title": "Meet Your Dedicated House Cleaning Team",
+              "text": "We match you with a consistent cleaning professional who learns your home, your preferences, and your standards. You'll see the same friendly, trusted face each visit — no more explaining your routine to a stranger every time.",
+              "bullets": [
+                "Same cleaner assigned to your home",
+                "All cleaners are background-checked",
+                "Bonded and insured for your protection"
+              ]
+            },
+            {
+              "number": "03",
+              "icon": "droplet",
+              "title": "Thorough, Eco-Friendly House Cleaning",
+              "text": "Your assigned cleaner works through a detailed, room-by-room checklist using eco-friendly, non-toxic products. Every surface, corner, and high-touch point is addressed with care — from kitchen countertops and bathroom tiles to floors, baseboards, and beyond.",
+              "bullets": [
+                "Non-toxic, pet- and child-safe products",
+                "Detailed room-by-room checklist",
+                "High-touch point sanitization included"
+              ]
+            },
+            {
+              "number": "04",
+              "icon": "shield-check",
+              "title": "Quality Check and Your Peace of Mind",
+              "text": "Once the clean is complete, your cleaner does a final walkthrough to make sure every item on the checklist has been addressed to our high standards. If anything isn't right, we come back and fix it — your satisfaction is guaranteed.",
+              "bullets": [
+                "Final walkthrough before departure",
+                "Satisfaction guarantee on every visit",
+                "Easy rebooking for recurring cleans"
+              ]
+            }
+          ],
+          "bg": "soft-gradient"
+        }
+      },
+      {
+        "id": "services-house-cleaning-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "2",
+            "itemStyle": "card",
+            "itemToggle": "chevron"
+          },
+          "introEyebrow": {
+            "text": "House Cleaning FAQs",
+            "style": "dash"
+          },
+          "headline": "Common Questions About Our House Cleaning Service",
+          "body": "Have a question about how SparkleClean Pro's house cleaning works? Find answers to the most common queries below, or reach out to our team directly.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Our team is happy to help. Call or email us and we'll get back to you right away.",
+            "cta": {
+              "label": "Contact Us",
+              "href": "/contact",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "What does a standard house cleaning from SparkleClean Pro include?",
+              "answer": "A standard house cleaning covers all main living areas of your Toronto home: kitchens (surfaces, sinks, appliances, cabinet fronts), bathrooms (toilets, showers, tubs, mirrors, floors), bedrooms (dusting, surfaces, tidying), and living areas (dusting, vacuuming, mopping). We also clean baseboards, light switches, door handles, and window ledges. For add-ons like inside-oven cleaning or fridge cleaning, just let us know when you book."
+            },
+            {
+              "question": "Will I get the same cleaner every time?",
+              "answer": "Yes — that's one of the things SparkleClean Pro clients love most. We assign a consistent cleaning professional to your home so they get to know your space, your preferences, and your standards. You won't need to re-explain your routine on every visit."
+            },
+            {
+              "question": "Are your cleaning products safe for children and pets?",
+              "answer": "Absolutely. SparkleClean Pro uses only eco-friendly, non-toxic cleaning products on every job. Our products are free from harsh chemicals and are safe for children, pets, and allergy-sensitive households — without any compromise on cleaning effectiveness."
+            },
+            {
+              "question": "Can I book a house cleaning the same day?",
+              "answer": "In most cases, yes. SparkleClean Pro offers same-day booking across Toronto, subject to cleaner availability. The easiest way to check availability and lock in a slot is to call us or use our online booking form — we'll confirm your appointment quickly."
+            },
+            {
+              "question": "Is SparkleClean Pro bonded and insured?",
+              "answer": "Yes, SparkleClean Pro is fully bonded and insured. This means you're protected in the unlikely event of any accidental damage or loss during a cleaning visit. Our clients across Toronto trust us to enter their homes with complete confidence."
+            }
+          ],
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-house-cleaning-cta-4",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {
+            "layout": "inline",
+            "frame": "boxed",
+            "textAlign": "left",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Book Your House Cleaning Today",
+            "style": "pill"
+          },
+          "headline": "Ready for a Spotless Home? SparkleClean Pro Is Here to Help.",
+          "body": "Join hundreds of Toronto homeowners, families, and Airbnb hosts who trust SparkleClean Pro for reliable, eco-friendly house cleaning. Same-day booking is available — get your free quote now and experience the SparkleClean Pro difference.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true,
+              "size": "lg"
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "size": "lg"
+            }
+          ],
+          "bg": "deep-gradient"
+        }
+      }
+    ]
+  },
+  "en/pages/services/window-cleaning.json": {
+    "slug": "services/window-cleaning",
+    "title": "Window Cleaning",
+    "navLabel": "Window Cleaning",
+    "navOrder": 11,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "description": "Expert Window Cleaning in Toronto by SparkleClean Pro. Streak-free results, eco-friendly solutions, bonded & insured. Same-day booking available.",
+    "serviceDetailPage": true,
+    "parentService": "window-cleaning",
+    "seo": {
+      "targetKeyword": "Window Cleaning"
+    },
+    "blocks": [
+      {
+        "id": "services-window-cleaning-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Toronto's Window Cleaning Experts",
+            "style": "pill"
+          },
+          "headline": "Professional Window Cleaning in Toronto",
+          "subheadline": "Streak-free, crystal-clear windows for homes and businesses across Toronto — inside and out. SparkleClean Pro uses eco-friendly solutions and a bonded, insured team you can trust.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_window-cleaning-s0-page-header-image.jpg",
+            "alt": "Window Cleaning: SparkleClean Pro technician cleaning large windows on a Toronto home to a streak-free finish"
+          },
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-window-cleaning-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "textStyle": "article",
+            "image": "none",
+            "frame": "none"
+          },
+          "introEyebrow": {
+            "text": "What We Do & Who We Serve",
+            "style": "dash"
+          },
+          "headline": "Expert Window Cleaning for Toronto Homes and Commercial Spaces",
+          "body": "Window Cleaning is one of the most impactful ways to refresh the look and feel of any property — yet it is also one of the most frequently overlooked. At SparkleClean Pro, we provide comprehensive interior and exterior window cleaning services for residential homes, condos, office buildings, retail storefronts, and Airbnb properties throughout Toronto and the surrounding areas.\n\nOur trained technicians remove dirt, grime, hard-water deposits, and streaks from every pane, leaving glass crystal-clear and your view unobstructed. Every visit includes cleaning of window screens and frames, so nothing is left behind. For upper-floor or hard-to-reach windows, we use safe, professional-grade equipment and techniques that eliminate the need for ladders on your part.\n\n**Who benefits most from our Window Cleaning service?**\n\n- **Busy families** who want bright, clean homes without the weekend hassle\n- **Working professionals** who take pride in a polished living space\n- **Office managers** looking to maintain a professional first impression for clients and staff\n- **Airbnb hosts** who need sparkling windows between every guest turnover\n\nAll SparkleClean Pro window cleaning technicians are bonded and insured, giving you complete peace of mind every time we step onto your property. Same-day booking is available — so even last-minute clean-ups before a showing, an event, or a new guest check-in are never a problem.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/site-0448c807-services_window-cleaning-s0-page-header-image.jpg",
+            "alt": "Sparkling clean windows on a Toronto residential property after a SparkleClean Pro visit"
+          }
+        }
+      },
+      {
+        "id": "services-window-cleaning-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "left",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "none",
+            "itemConnector": "line",
+            "introImage": "none",
+            "itemsImage": "none",
+            "itemImage": "none"
+          },
+          "introEyebrow": {
+            "text": "Our Window Cleaning Process",
+            "style": "pill"
+          },
+          "headline": "How Our Window Cleaning Service Works",
+          "body": "SparkleClean Pro follows a thorough, proven process on every job — so you always know exactly what to expect and can count on flawless results from start to finish.",
+          "items": [
+            {
+              "number": "01",
+              "icon": "search",
+              "title": "On-Site Assessment & Prep",
+              "text": "We begin every Window Cleaning appointment with a quick walkthrough of your property. Our technician identifies any stubborn staining, hard-water buildup, or high-access windows that need special attention, then protects surrounding surfaces before any cleaning begins.",
+              "bullets": [
+                "Interior and exterior window count confirmed",
+                "High-reach areas flagged for safe equipment setup",
+                "Sills and frames inspected for damage"
+              ]
+            },
+            {
+              "number": "02",
+              "icon": "droplet",
+              "title": "Eco-Friendly Solution Application",
+              "text": "We apply our biodegradable, streak-free cleaning solution to every pane. Our eco-friendly products are tough on grease, grime, and mineral deposits but completely safe for your family, pets, and the environment — a core commitment at SparkleClean Pro.",
+              "bullets": [
+                "Biodegradable, non-toxic formula",
+                "Safe for children and pets",
+                "Breaks down hard-water mineral deposits"
+              ]
+            },
+            {
+              "number": "03",
+              "icon": "sun",
+              "title": "Interior & Exterior Glass Cleaning",
+              "text": "Every window is cleaned on both sides using professional squeegees and microfibre detailing cloths. We work methodically from top to bottom, eliminating streaks and ensuring a crystal-clear finish across all glass surfaces — including skylights where accessible.",
+              "bullets": [
+                "Both interior and exterior surfaces cleaned",
+                "Professional squeegee and microfibre technique",
+                "Skylight cleaning where safely accessible"
+              ]
+            },
+            {
+              "number": "04",
+              "icon": "shield-check",
+              "title": "Screen, Frame & Sill Detail",
+              "text": "Clean glass deserves clean surroundings. After the glass itself is done, we remove, rinse, and reinstall window screens, then wipe down frames and sills to remove accumulated dust and debris. The result is a complete, polished finish — not just clean panes.",
+              "bullets": [
+                "Screens removed, rinsed, and reinstalled",
+                "Frames wiped down inside and out",
+                "Sills cleared of dirt and debris"
+              ]
+            },
+            {
+              "number": "05",
+              "icon": "check2-circle",
+              "title": "Quality Check & Final Inspection",
+              "text": "Before we consider the job complete, every technician conducts a final walk-around with the client (or on their behalf when no one is home). We verify every pane is streak-free, every screen is in place, and the workspace is left cleaner than we found it.",
+              "bullets": [
+                "Streak-free verification on every pane",
+                "All screens confirmed reinstalled correctly",
+                "Work area tidied before departure"
+              ]
+            }
+          ],
+          "bg": "soft-gradient"
+        }
+      },
+      {
+        "id": "services-window-cleaning-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "2",
+            "itemStyle": "card",
+            "itemToggle": "chevron"
+          },
+          "introEyebrow": {
+            "text": "Common Questions",
+            "style": "dash"
+          },
+          "headline": "Window Cleaning FAQs",
+          "body": "Have a question about our Window Cleaning service in Toronto? We have answered the most common ones below. If you don't see what you're looking for, our team is happy to help.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Our team is ready to answer anything about our Window Cleaning service or help you book a same-day appointment.",
+            "cta": {
+              "label": "Contact Us",
+              "href": "/contact",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Do you clean both the inside and outside of windows?",
+              "answer": "Yes — every SparkleClean Pro Window Cleaning visit covers both the interior and exterior surfaces of your windows. We also clean screens, frames, and sills as part of the standard service, so you get a completely finished result rather than just clean glass on one side."
+            },
+            {
+              "question": "Are your cleaning products safe for children and pets?",
+              "answer": "Absolutely. SparkleClean Pro uses only biodegradable, eco-friendly cleaning solutions that are non-toxic and safe for households with children, pets, and allergy-sensitive individuals. You do not need to vacate the property during or after the clean."
+            },
+            {
+              "question": "Can you clean windows on upper floors or hard-to-reach areas?",
+              "answer": "Yes. Our technicians are trained and equipped to safely clean upper-floor and high-access windows using professional-grade extension tools and water-fed poles. Because we are bonded and insured, you have full peace of mind for any work carried out at height on your Toronto property."
+            },
+            {
+              "question": "Is same-day Window Cleaning booking available in Toronto?",
+              "answer": "Same-day booking is available subject to schedule availability. Contact SparkleClean Pro by phone or through our online booking form and we will do our best to arrange a technician for you the same day — especially useful before an Airbnb guest check-in, a property showing, or a special event."
+            },
+            {
+              "question": "Do I need to be home during the window cleaning appointment?",
+              "answer": "Not necessarily. Many of SparkleClean Pro's clients in Toronto prefer to provide access instructions and let us work while they're at the office or out with family. For exterior-only cleans, no access to the interior is needed at all. Our technicians are bonded and insured, so you can leave with complete confidence."
+            }
+          ],
+          "bg": "accent-soft"
+        }
+      },
+      {
+        "id": "services-window-cleaning-cta-4",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {
+            "layout": "inline",
+            "frame": "boxed",
+            "textAlign": "left",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Same-Day Booking Available",
+            "style": "pill"
+          },
+          "headline": "Ready for Crystal-Clear Windows? Book SparkleClean Pro Today.",
+          "body": "Whether you need a one-time deep clean before a showing or regular Window Cleaning for your Toronto home or commercial space, SparkleClean Pro is ready to help. Our bonded and insured team delivers streak-free results using eco-friendly products — and same-day appointments are available when you need us fast.",
+          "ctas": [
+            {
+              "label": "Get a Free Quote",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true,
+              "size": "lg"
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "size": "lg"
+            }
+          ],
+          "bg": "deep-gradient"
+        }
+      }
+    ]
+  },
+  "en/seo.json": {
+    "domain": "http://site-0448c807.ai1st-clouddev.localhost:8090",
+    "locale": "en_CA",
+    "siteTitle": "SparkleClean Pro | Window Cleaning Toronto",
+    "siteDescription": "SparkleClean Pro offers expert Window Cleaning and House Cleaning in Toronto. Eco-friendly, bonded & insured. Same-day booking available. Call 647-555-2222.",
+    "verification": {
+      "google": "YOUR_GOOGLE_VERIFICATION_CODE"
+    },
+    "schema": {
+      "areaServed": [
+        {
+          "type": "City",
+          "name": "Toronto"
+        }
+      ],
+      "addresses": [
+        {
+          "locality": "Toronto",
+          "region": "ON",
+          "country": "CA"
+        }
+      ],
+      "priceRange": "$$",
+      "offerCatalogName": "SparkleClean Pro Cleaning Services"
+    },
+    "targetKeywords": {
+      "primary": {
+        "keyword": "Window Cleaning",
+        "volume": 590,
+        "goldIndex": 648.48
+      },
+      "byService": {
+        "house-cleaning": [
+          {
+            "keyword": "House Cleaning",
+            "volume": 390,
+            "goldIndex": 241.99,
+            "selected": true,
+            "isPrimary": true
+          }
+        ],
+        "window-cleaning": [
+          {
+            "keyword": "Window Cleaning",
+            "volume": 590,
+            "goldIndex": 648.48,
+            "selected": true,
+            "isPrimary": true
+          }
+        ]
+      }
+    }
+  },
+  "en/services.json": [
+    {
+      "id": "house-cleaning",
+      "name": "House Cleaning",
+      "shortDescription": "Thorough, eco-friendly house cleaning for Toronto homes by bonded, consistent cleaning teams.",
+      "fullDescription": "SparkleClean Pro delivers comprehensive House Cleaning services to homes across Toronto, Ontario. Our dedicated teams use eco-friendly products to clean every room to a high standard, and you'll always enjoy the consistency of the same cleaner each visit. Whether you need a one-time deep clean or recurring service, we tailor each appointment to your household's specific needs.",
+      "icon": "leaf",
+      "features": [
+        "Full kitchen cleaning including appliances and countertops",
+        "Bathroom sanitization and fixture polishing",
+        "Vacuuming, mopping, and dusting all rooms",
+        "Eco-friendly, non-toxic cleaning products used throughout",
+        "Consistent assigned cleaner for every visit",
+        "Same-day booking available for urgent cleans"
+      ],
+      "products": [
+        {
+          "name": "One-Time Deep Clean",
+          "description": "A thorough top-to-bottom cleaning of your entire home, ideal for move-ins, move-outs, or special occasions."
+        },
+        {
+          "name": "Recurring Home Cleaning",
+          "description": "Scheduled weekly, bi-weekly, or monthly cleaning visits to keep your Toronto home consistently spotless."
+        }
+      ]
+    },
+    {
+      "id": "window-cleaning",
+      "name": "Window Cleaning",
+      "shortDescription": "Crystal-clear window cleaning for Toronto homes and businesses, inside and out.",
+      "fullDescription": "SparkleClean Pro specializes in professional Window Cleaning for residential and commercial properties throughout Toronto, Ontario. Our bonded and insured technicians clean interior and exterior glass surfaces using eco-friendly solutions, leaving streak-free, sparkling results. From downtown condos to suburban family homes, we bring clarity and brightness to every window we touch.",
+      "icon": "sun",
+      "features": [
+        "Interior and exterior window cleaning",
+        "Streak-free finish using eco-friendly solutions",
+        "Screen cleaning and frame wiping included",
+        "Safe techniques for high and hard-to-reach windows",
+        "Bonded and insured technicians for your peace of mind",
+        "Same-day booking available for residential and commercial clients"
+      ],
+      "products": [
+        {
+          "name": "Residential Window Cleaning",
+          "description": "Complete interior and exterior window cleaning for Toronto houses, condos, and townhomes."
+        },
+        {
+          "name": "Commercial Window Cleaning",
+          "description": "Professional window cleaning for offices, storefronts, and commercial properties across Toronto."
+        }
+      ]
+    }
+  ],
+  "site_meta.json": {
+    "siteId": "site-0448c807",
+    "leadApi": "",
+    "defaultLocale": "en",
+    "locales": [
+      "en"
+    ],
+    "buildPhase": "secondaryLocales"
+  },
+  "theme.json": {
+    "themeId": "azure-29",
+    "applied": false,
+    "css": "azure-29",
+    "tweaks": {
+      "hueShift": 12,
+      "radiusScale": 0.9,
+      "densityScale": 1.05
+    },
+    "colorScheme": "light"
+  }
+}

@@ -1,0 +1,1974 @@
+{
+  "brand.json": {
+    "name": {
+      "en": "Petal & Bloom"
+    },
+    "tagline": {
+      "en": "Fresh Blooms, Crafted with Heart in Toronto"
+    },
+    "logoIcon": "leaf",
+    "logoUrl": "/logo.png",
+    "colors": {
+      "primary": {
+        "50": "#f9f5ec",
+        "100": "#efe5cf",
+        "200": "#e2d1a9",
+        "300": "#cfb270",
+        "400": "#bf9840",
+        "500": "#907230",
+        "600": "#796028",
+        "700": "#624e21",
+        "800": "#4b3c19",
+        "900": "#2e250f"
+      },
+      "accent": {
+        "50": "#faf9ef",
+        "100": "#f3f0d8",
+        "200": "#e9e5b9",
+        "300": "#dad38b",
+        "400": "#cec464",
+        "500": "#c2b63d",
+        "600": "#a39933"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "buttonShape": "square"
+    },
+    "email": "hello@petalandbloom.ca",
+    "locations": [
+      {
+        "label": "Petal & Bloom Toronto",
+        "address": "500 Danforth Ave, Toronto, ON",
+        "phone": "416-555-3030",
+        "city": "Toronto",
+        "streetAddress": "500 Danforth Avenue",
+        "postalCode": "M4K 1P6",
+        "geo": {
+          "lat": 43.6783637,
+          "lng": -79.3489312
+        }
+      }
+    ],
+    "googleFormUrl": "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform",
+    "googleFormEntries": {
+      "source": "entry.0000000000",
+      "services": "entry.0000000000",
+      "propertyType": "entry.0000000000",
+      "urgency": "entry.0000000000"
+    },
+    "logoHasWordmark": false
+  },
+  "en/forms.json": [
+    {
+      "id": "contact",
+      "name": "Contact us",
+      "fields": [
+        "name",
+        "phone",
+        "email",
+        "message"
+      ],
+      "primary": "phone",
+      "buttonText": "Get in touch",
+      "successMessage": "Thanks — we will get back to you shortly."
+    }
+  ],
+  "en/navigation.json": {
+    "header": {
+      "links": [
+        {
+          "label": "Home",
+          "href": "/"
+        },
+        {
+          "label": "Services",
+          "href": "/services"
+        },
+        {
+          "label": "FAQ",
+          "href": "/faq"
+        }
+      ],
+      "cta": {
+        "label": "Get in Touch",
+        "href": "/contact"
+      }
+    },
+    "footer": {
+      "description": "Petal & Bloom offers custom bouquets, wedding flowers, and funeral arrangements with same-day delivery across Toronto.",
+      "columns": [
+        {
+          "title": "Quick Links",
+          "links": [
+            {
+              "label": "Home",
+              "href": "/"
+            },
+            {
+              "label": "Services",
+              "href": "/services"
+            },
+            {
+              "label": "FAQ",
+              "href": "/faq"
+            },
+            {
+              "label": "Contact",
+              "href": "/contact"
+            }
+          ]
+        }
+      ],
+      "copyright": "Petal & Bloom. All rights reserved."
+    }
+  },
+  "en/pages/contact.json": {
+    "slug": "contact",
+    "title": "Contact Us",
+    "navLabel": "Contact",
+    "navOrder": 9,
+    "changeFrequency": "monthly",
+    "priority": 0.85,
+    "description": "Contact Petal & Bloom at 416-555-3030 or visit us at 500 Danforth Ave, Toronto. Send a message to order flowers or book a consultation.",
+    "blocks": [
+      {
+        "id": "contact-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "textAlign": "center",
+            "image": "none",
+            "headlinePosition": "top"
+          },
+          "introEyebrow": {
+            "text": "Get in Touch",
+            "style": "pill"
+          },
+          "headline": "Contact Petal & Bloom",
+          "subheadline": "Whether you need a same-day bouquet delivered across Toronto, want to plan your wedding flowers, or are looking to set up a corporate subscription, our team is ready to help. Reach out and let's create something beautiful together.",
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "contact-contact-1",
+        "type": "contact",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "sidePosition": "bottom",
+            "form": "full",
+            "formStyle": "card",
+            "itemsLayout": "grid",
+            "itemStyle": "card",
+            "itemAlign": "center",
+            "itemIcon": "top",
+            "map": "none"
+          },
+          "introEyebrow": {
+            "text": "We'd Love to Hear From You",
+            "style": "dash"
+          },
+          "headline": "Send Petal & Bloom a Message",
+          "body": "Have a question about our floral arrangements, want to place a custom order, or ready to book a wedding consultation? Fill out the form and a member of our team will get back to you promptly. You can also call us or stop by our shop on Danforth Ave in Toronto.",
+          "items": [
+            {
+              "kind": "phone",
+              "title": "Call Us",
+              "hint": "Speak directly with one of our certified florists"
+            },
+            {
+              "kind": "email",
+              "title": "Email Us",
+              "hint": "We aim to respond within the same business day"
+            },
+            {
+              "kind": "address",
+              "title": "Visit Our Shop",
+              "hint": "Street parking and transit accessible on Danforth Ave"
+            },
+            {
+              "kind": "hours",
+              "title": "Shop Hours",
+              "hint": "Same-day delivery orders accepted until early afternoon"
+            }
+          ],
+          "form": {
+            "id": "contact"
+          }
+        }
+      }
+    ]
+  },
+  "en/pages/faq.json": {
+    "slug": "faq",
+    "title": "Frequently Asked Questions",
+    "navLabel": "FAQ",
+    "navOrder": 2,
+    "changeFrequency": "monthly",
+    "priority": 0.7,
+    "description": "Have questions about ordering flowers in Toronto? Petal & Bloom answers your top FAQs on delivery, custom designs, weddings, and more.",
+    "blocks": [
+      {
+        "id": "faq-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "textAlign": "center",
+            "image": "none",
+            "headlinePosition": "top"
+          },
+          "introEyebrow": {
+            "text": "Got Questions?",
+            "style": "pill"
+          },
+          "headline": "Frequently Asked Questions",
+          "subheadline": "Everything you need to know about ordering flowers from Petal & Bloom — from same-day delivery in Toronto to custom designs and wedding consultations.",
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "faq-faq-1",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "1",
+            "itemStyle": "divided",
+            "itemToggle": "chevron"
+          },
+          "introEyebrow": {
+            "text": "Your Questions, Answered",
+            "style": "dash"
+          },
+          "headline": "Common Questions About Petal & Bloom",
+          "body": "We want ordering flowers to be easy and stress-free. Browse the answers below, and if you still have questions, our team is always happy to help.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Our friendly florists are ready to help you find the perfect arrangement. Reach out and we'll get back to you right away.",
+            "cta": {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Do you offer same-day flower delivery in Toronto?",
+              "answer": "Yes! Petal & Bloom offers same-day delivery across Toronto for orders placed before noon. We deliver to homes, offices, hospitals, and event venues throughout the city. Place your order online or give us a call, and our team will ensure your fresh blooms arrive on time."
+            },
+            {
+              "question": "How do I order a custom bouquet?",
+              "answer": "Ordering a custom bouquet from Petal & Bloom is simple. You can visit us at 500 Danforth Ave, call us at 416-555-3030, or use our contact form online. Let us know your occasion, preferred colours, budget, and any flowers you love or want to avoid. Our certified florists will design something unique just for you using fresh blooms sourced from local Toronto-area farms."
+            },
+            {
+              "question": "What should I expect during a wedding flower consultation?",
+              "answer": "During your wedding flower consultation, one of our certified florists will sit down with you to discuss your vision, wedding date, venue, colour palette, and budget. We'll walk you through options for bridal bouquets, bridesmaid flowers, boutonnieres, ceremony arrangements, and full venue installations. We recommend booking your consultation as early as possible — ideally 6 to 12 months before your wedding date — to ensure availability and allow time for planning."
+            },
+            {
+              "question": "How far in advance should I order funeral arrangements?",
+              "answer": "We understand that funeral arrangements are often needed on short notice. Petal & Bloom does its best to accommodate urgent requests, and same-day or next-day arrangements are often possible depending on availability. That said, ordering 2 to 3 days in advance gives us the best chance to craft exactly what you need. Our florists handle each funeral arrangement with the greatest care and compassion, and we're here to help you through a difficult time."
+            },
+            {
+              "question": "Does Petal & Bloom offer a flower subscription service?",
+              "answer": "Yes, we do! Our subscription service lets you receive fresh, custom-designed floral arrangements on a schedule that works for you — weekly, bi-weekly, or monthly. Subscriptions are popular with Toronto businesses looking to keep their lobbies and reception areas beautiful, as well as individuals who want to enjoy fresh flowers at home regularly. Contact us to set up a plan tailored to your preferences and budget."
+            },
+            {
+              "question": "Are your flowers sourced locally?",
+              "answer": "Absolutely. At Petal & Bloom, we prioritize fresh blooms sourced directly from local farms. Buying locally means your flowers are fresher, last longer, and support the communities around Toronto. Our certified florists carefully select the best seasonal blooms available so that every arrangement looks and smells its best."
+            },
+            {
+              "question": "Do you create floral arrangements for corporate clients and businesses?",
+              "answer": "Yes — corporate floral services are one of our specialties. Petal & Bloom works with businesses across Toronto to provide lobby arrangements, reception displays, boardroom centrepieces, and recurring subscription deliveries. We'll work around your brand colours and office aesthetic to create arrangements that make a great first impression on clients and employees alike."
+            },
+            {
+              "question": "What areas of Toronto do you deliver to?",
+              "answer": "Petal & Bloom delivers to addresses throughout Toronto, including the Danforth, Downtown, Midtown, East York, North York, Scarborough, Etobicoke, and surrounding neighbourhoods. If you're unsure whether we deliver to your area, give us a call at 416-555-3030 or send us a message through our contact page and we'll confirm right away."
+            }
+          ],
+          "bg": "soft-gradient"
+        }
+      },
+      {
+        "id": "faq-cta-2",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "layout": "centered",
+            "frame": "boxed",
+            "textAlign": "center",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Ready to Order?",
+            "style": "pill"
+          },
+          "headline": "Let Petal & Bloom bring your floral vision to life.",
+          "body": "Whether you're planning a wedding, sending a gift, or setting up a subscription for your Toronto business, our certified florists are here to help. Same-day delivery available.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "View Our Services",
+              "href": "/services",
+              "style": "outline"
+            }
+          ],
+          "bg": "brand"
+        }
+      }
+    ]
+  },
+  "en/pages/home.json": {
+    "slug": "home",
+    "title": "Home",
+    "navLabel": "Home",
+    "navOrder": 0,
+    "changeFrequency": "weekly",
+    "priority": 1,
+    "description": "Petal & Bloom crafts custom bouquets, wedding flowers, and funeral arrangements in Toronto. Same-day delivery. Call 416-555-3030.",
+    "seo": {
+      "targetKeyword": "Funeral Arrangements"
+    },
+    "blocks": [
+      {
+        "id": "home-hero-0",
+        "type": "hero",
+        "role": "lead",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "textAlign": "left",
+            "image": "right",
+            "form": "none"
+          },
+          "bg": "accent-soft",
+          "eyebrow": {
+            "text": "Toronto's Trusted Florist",
+            "style": "pill"
+          },
+          "headline": "Funeral Arrangements & Custom Flowers Crafted with Heart in Toronto",
+          "subheadline": "Petal & Bloom creates handcrafted floral designs for every occasion — from compassionate funeral arrangements to stunning wedding flowers — using fresh blooms sourced directly from local Toronto-area farms. Same-day delivery available.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Explore Our Services",
+              "href": "/services",
+              "style": "outline"
+            }
+          ],
+          "image": {
+            "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84a6c906b_icon.png",
+            "alt": "Funeral Arrangements: A certified Petal & Bloom florist arranging a vibrant custom bouquet of fresh local flowers in the Toronto shop"
+          }
+        }
+      },
+      {
+        "id": "home-milestones-1",
+        "type": "milestones",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "blockImage": "none",
+            "introPosition": "top",
+            "introAlign": "center",
+            "introImage": "none",
+            "statsColumns": "3",
+            "statSize": "xl",
+            "statStyle": "card",
+            "statAlign": "center",
+            "statIcon": true
+          },
+          "bg": "brand-soft",
+          "introEyebrow": {
+            "text": "Why Toronto Chooses Us",
+            "style": "dash"
+          },
+          "headline": "Fresh Flowers, Reliable Service, Every Time",
+          "body": "At Petal & Bloom, we back every arrangement with a commitment to quality, speed, and care — so you can trust that your flowers arrive fresh and on time, wherever you are in Toronto.",
+          "stats": [
+            {
+              "value": "Same-Day",
+              "label": "Delivery Across Toronto",
+              "icon": "stopwatch"
+            },
+            {
+              "value": "Local",
+              "label": "Farms Supplying Fresh Blooms",
+              "icon": "calendar-check"
+            },
+            {
+              "value": "Certified",
+              "label": "Florists on Every Order",
+              "icon": "star-fill"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-reviews-2",
+        "type": "reviews",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "total": "show",
+            "itemsLayout": "row",
+            "itemStyle": "card",
+            "itemAlign": "center"
+          },
+          "bg": "accent-soft",
+          "introEyebrow": {
+            "text": "Rated by Toronto Customers",
+            "style": "pill"
+          },
+          "headline": "Loved Across Toronto",
+          "body": "Petal & Bloom is proud to be rated highly by customers throughout Toronto who trust us for their most meaningful moments — from joyful celebrations to heartfelt farewells.",
+          "platforms": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 214
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 87
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-testimonials-3",
+        "type": "testimonials",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "summaryStyle": "inline",
+            "itemsLayout": "carousel",
+            "itemsColumns": "3",
+            "itemStyle": "card",
+            "quoteSize": "md",
+            "itemAlign": "left"
+          },
+          "bg": "brand-soft",
+          "introEyebrow": {
+            "text": "Customer Stories",
+            "style": "dash"
+          },
+          "headline": "What Our Toronto Customers Are Saying",
+          "body": "From wedding days to grief-filled goodbyes, Petal & Bloom customers share how our floral designs made their moments truly unforgettable.",
+          "items": [
+            {
+              "quote": "Petal & Bloom created the most breathtaking bridal bouquet I could have imagined. Every stem was fresh, the colours were perfect, and they delivered right on time to our venue on Queen Street East.",
+              "name": "Sophia Martino",
+              "role": "Leslieville · Wedding Flowers",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "When my mother passed, I called Petal & Bloom and they handled everything with such compassion. The funeral arrangements were absolutely beautiful and comforting for our whole family.",
+              "name": "David Okafor",
+              "role": "North York · Funeral Arrangements",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "I ordered a custom bouquet for my partner's birthday and it arrived the same day — stunning! The florists at Petal & Bloom clearly put so much heart into their work.",
+              "name": "Priya Sharma",
+              "role": "Danforth · Custom Bouquets",
+              "rating": 5,
+              "source": "Yelp"
+            },
+            {
+              "quote": "Our office lobby has never looked better. Petal & Bloom set us up with a subscription arrangement and every week it's a showstopper. Our clients always comment on it.",
+              "name": "Marcus Leung",
+              "role": "Downtown Toronto · Corporate Subscription",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "I've used Petal & Bloom three times now for different events and the quality is consistently amazing. The flowers are always fresh and clearly local — you can just tell the difference.",
+              "name": "Aisha Thompson",
+              "role": "The Beaches · Custom Bouquets",
+              "rating": 5,
+              "source": "Yelp"
+            },
+            {
+              "quote": "Petal & Bloom did all the floral installations for our wedding at a historic hall in Rosedale. The arch, the centrepieces, the boutonnieres — every detail was flawless and exceeded our vision.",
+              "name": "Jordan & Camille Reyes",
+              "role": "Rosedale · Wedding Flowers",
+              "rating": 5,
+              "source": "Google"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-features-4",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "introImage": "none",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "card",
+            "itemAlign": "left",
+            "itemIcon": "top",
+            "itemImage": "none",
+            "itemConnector": "none"
+          },
+          "bg": "accent-soft",
+          "introEyebrow": {
+            "text": "What Sets Petal & Bloom Apart",
+            "style": "pill"
+          },
+          "headline": "Funeral Arrangements and Every Occasion, Done Right",
+          "body": "Whether you need compassionate funeral arrangements, breathtaking wedding florals, or a custom bouquet delivered today, Petal & Bloom combines certified craftsmanship with locally sourced blooms and Toronto-wide same-day delivery.",
+          "introCtas": [
+            {
+              "label": "See All Services",
+              "href": "/services",
+              "style": "outline",
+              "arrow": true
+            }
+          ],
+          "items": [
+            {
+              "icon": "leaf",
+              "title": "Locally Sourced Fresh Blooms",
+              "text": "We partner directly with Toronto-area farms to bring you the freshest flowers available — seasonal, vibrant, and full of life. No cold-storage filler, just honest, beautiful florals."
+            },
+            {
+              "icon": "scissors",
+              "title": "Certified Florist Craftsmanship",
+              "text": "Every arrangement at Petal & Bloom is designed by a certified florist who takes the time to understand your vision and translate it into a one-of-a-kind, handcrafted design."
+            },
+            {
+              "icon": "sun",
+              "title": "Same-Day Delivery in Toronto",
+              "text": "Need flowers today? Our reliable same-day delivery service covers all of Toronto, so your blooms arrive fresh and on time — whether it's a surprise gift or a scheduled event."
+            },
+            {
+              "icon": "bell",
+              "title": "Flexible Subscription Service",
+              "text": "Keep your home or business lobby in bloom all year long with our flexible floral subscription service. Choose your frequency, your style, and let us handle the rest."
+            },
+            {
+              "icon": "droplet",
+              "title": "Custom Designs for Every Occasion",
+              "text": "From romantic anniversaries and joyful birthdays to corporate events and intimate memorials, we craft custom arrangements that suit the mood, message, and moment perfectly."
+            },
+            {
+              "icon": "thermometer",
+              "title": "Compassionate Funeral Arrangements",
+              "text": "Our florists handle funeral arrangements with the utmost care and sensitivity, creating tributes that honour loved ones with grace and beauty during life's most difficult moments."
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-content-5",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 50,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "textStyle": "article",
+            "image": "right",
+            "frame": "none"
+          },
+          "bg": "brand-soft",
+          "introEyebrow": {
+            "text": "About Petal & Bloom",
+            "style": "dash"
+          },
+          "headline": "Toronto's Florist for Every Meaningful Moment",
+          "body": "Petal & Bloom was born from a love of flowers and a belief that every arrangement should tell a story. Located at 500 Danforth Ave in Toronto, our shop serves individuals, families, couples, event planners, and businesses across the city — bringing floral artistry to life with every order.\n\nWe work exclusively with certified florists who are passionate about their craft, and we source our blooms directly from local farms so that freshness is never a compromise. Whether you're planning a grand wedding installation, honouring a loved one with a funeral arrangement, brightening someone's day with a custom bouquet, or refreshing your lobby with a recurring subscription, Petal & Bloom brings the same level of dedication and heart to every single design.\n\nWe're proud to offer same-day delivery across Toronto because we understand that some moments can't wait. When you choose Petal & Bloom, you're not just ordering flowers — you're partnering with a team that genuinely cares about making your moment beautiful.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Our Services",
+              "href": "/services",
+              "style": "outline"
+            }
+          ],
+          "image": {
+            "imageUrl": "/photos/home-s5-content-image.jpg",
+            "alt": "The interior of the Petal & Bloom flower shop on Danforth Ave with fresh seasonal blooms arranged in buckets and display shelves"
+          }
+        }
+      },
+      {
+        "id": "home-features-6",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 60,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "introImage": "none",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "center",
+            "itemIcon": "top",
+            "itemImage": "none",
+            "itemConnector": "line"
+          },
+          "bg": "accent-soft",
+          "introEyebrow": {
+            "text": "How It Works",
+            "style": "outline"
+          },
+          "headline": "Order Your Flowers in Three Simple Steps",
+          "body": "Getting stunning, fresh flowers from Petal & Bloom is easy. Here's how the process works from first contact to your door.",
+          "items": [
+            {
+              "number": "01",
+              "icon": "lightbulb",
+              "title": "Tell Us Your Vision",
+              "text": "Reach out via our contact form or call us directly. Share the occasion, your preferred colours, flower types, and any special requests — our certified florists are here to listen."
+            },
+            {
+              "number": "02",
+              "icon": "scissors",
+              "title": "We Craft Your Arrangement",
+              "text": "Our florists handcraft your custom design using the freshest locally sourced blooms, tailored precisely to your specifications and the mood of your occasion."
+            },
+            {
+              "number": "03",
+              "icon": "sun",
+              "title": "Same-Day Delivery to Your Door",
+              "text": "We deliver your arrangement fresh across Toronto, often the same day you order. Funeral arrangements, wedding florals, bouquets — all handled with care from our shop to your location."
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-faq-7",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 70,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "1",
+            "itemStyle": "divided",
+            "itemToggle": "plus"
+          },
+          "bg": "brand-soft",
+          "introEyebrow": {
+            "text": "Common Questions",
+            "style": "pill"
+          },
+          "headline": "Frequently Asked Questions About Petal & Bloom",
+          "body": "Have questions about ordering flowers, our delivery area, or how our funeral arrangements service works? We've answered the most common ones below.",
+          "help": {
+            "headline": "Still Have a Question?",
+            "body": "Our team at Petal & Bloom is happy to help. Give us a call or send a message and we'll get back to you promptly.",
+            "cta": {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Do you offer same-day flower delivery in Toronto?",
+              "answer": "Yes! Petal & Bloom offers same-day delivery across Toronto. Place your order early in the day and our team will handcraft and deliver your arrangement the same day. Contact us directly to confirm availability for your specific neighbourhood."
+            },
+            {
+              "question": "Can I order a fully custom floral arrangement?",
+              "answer": "Absolutely. Custom design is at the heart of what we do at Petal & Bloom. Share your occasion, colour preferences, favourite flowers, and any special requirements, and our certified florists will create a one-of-a-kind arrangement just for you."
+            },
+            {
+              "question": "How do your funeral arrangements work?",
+              "answer": "Our certified florists handle funeral arrangements with great compassion and care. You can contact Petal & Bloom by phone or through our website to discuss the tribute you have in mind. We'll guide you through styles, flowers, and sizing options, and we deliver respectfully to funeral homes and services across Toronto."
+            },
+            {
+              "question": "Do you offer floral subscriptions for businesses or homes?",
+              "answer": "Yes. Petal & Bloom offers a flexible subscription service for businesses and residences throughout Toronto. Choose your preferred delivery frequency and arrangement style, and we'll keep your space looking beautiful with fresh local blooms on a regular schedule."
+            },
+            {
+              "question": "Where do your flowers come from?",
+              "answer": "We source our blooms directly from local farms in and around Toronto. This means you get fresher flowers with a longer vase life, while also supporting the local agricultural community. Seasonal availability influences our selection, which keeps every arrangement feeling vibrant and natural."
+            },
+            {
+              "question": "Can Petal & Bloom handle full wedding floral installations?",
+              "answer": "Yes. Our certified florists work with couples throughout Toronto from the initial consultation to the final installation. We design and deliver everything from bridal bouquets and boutonnieres to ceremony arches, aisle arrangements, and full venue centrepiece installations."
+            }
+          ]
+        }
+      },
+      {
+        "type": "logos",
+        "id": "home-logos-10",
+        "data": {
+          "introEyebrow": {
+            "text": "Trusted by Toronto"
+          },
+          "headline": "Featured in the media",
+          "body": "Petal & Bloom has been recognized by local press and publications for our fresh arrangements and commitment to customer service.",
+          "introCta": {
+            "label": "View press"
+          },
+          "items": [
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84a6c906b_icon.png",
+              "alt": "ai1st 1"
+            },
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/d574cf6d8_anjia-logo.png",
+              "alt": "ai1st 2"
+            },
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84a6c906b_icon.png",
+              "alt": "ai1st 3"
+            },
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84a6c906b_icon.png",
+              "alt": "ai1st 4"
+            },
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84a6c906b_icon.png",
+              "alt": "ai1st 5"
+            },
+            {
+              "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84a6c906b_icon.png",
+              "alt": ""
+            }
+          ]
+        },
+        "weight": 80
+      },
+      {
+        "id": "home-contact-8",
+        "type": "contact",
+        "role": "essential",
+        "region": "content",
+        "weight": 90,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "sidePosition": "right",
+            "form": "full",
+            "formStyle": "card",
+            "itemsLayout": "grid",
+            "itemStyle": "card",
+            "itemAlign": "left",
+            "itemIcon": "left",
+            "map": "bottom"
+          },
+          "bg": "accent-soft",
+          "introEyebrow": {
+            "text": "Get in Touch",
+            "style": "dash"
+          },
+          "headline": "Order Flowers or Ask About Funeral Arrangements",
+          "body": "Ready to place an order or need guidance on funeral arrangements, wedding florals, or a subscription plan? Reach out to Petal & Bloom — our Toronto team is happy to help you find the perfect design for your occasion.",
+          "items": [
+            {
+              "kind": "phone",
+              "title": "Call Us",
+              "hint": "Same-day orders welcome"
+            },
+            {
+              "kind": "address",
+              "title": "Visit Our Shop",
+              "hint": "Free street parking available nearby"
+            },
+            {
+              "kind": "hours",
+              "title": "Shop Hours",
+              "hint": "We also take advance orders anytime"
+            }
+          ],
+          "form": {}
+        }
+      },
+      {
+        "id": "home-cta-9",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 100,
+        "data": {
+          "options": {
+            "layout": "centered",
+            "frame": "boxed",
+            "textAlign": "center",
+            "image": "none",
+            "form": "none"
+          },
+          "bg": "deep-gradient",
+          "eyebrow": {
+            "text": "Fresh Blooms, Crafted with Heart in Toronto",
+            "style": "pill"
+          },
+          "headline": "Let Petal & Bloom Make Your Moment Beautiful",
+          "body": "Whether you need compassionate funeral arrangements, show-stopping wedding flowers, or a same-day custom bouquet delivered anywhere in Toronto — Petal & Bloom is ready to craft something extraordinary for you.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true,
+              "size": "lg"
+            },
+            {
+              "label": "View Our Services",
+              "href": "/services",
+              "style": "outline",
+              "size": "lg"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "en/pages/services.json": {
+    "slug": "services",
+    "title": "Our Floral Services",
+    "navLabel": "Services",
+    "navOrder": 1,
+    "changeFrequency": "weekly",
+    "priority": 0.9,
+    "description": "Explore Petal & Bloom's floral services in Toronto: custom bouquets, wedding flowers, and funeral arrangements with same-day delivery.",
+    "blocks": [
+      {
+        "id": "services-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "center",
+            "image": "none"
+          },
+          "introEyebrow": {
+            "text": "Toronto's Trusted Florist",
+            "style": "pill"
+          },
+          "headline": "Our Floral Services",
+          "subheadline": "From handcrafted custom bouquets to full wedding installations and compassionate funeral arrangements, Petal & Bloom brings fresh, locally sourced flowers to every occasion across Toronto — with same-day delivery available.",
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-features-1",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "left",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "top",
+            "itemImage": "none",
+            "introImage": "none",
+            "itemsImage": "none",
+            "itemConnector": "none"
+          },
+          "introEyebrow": {
+            "text": "What We Offer",
+            "style": "dash"
+          },
+          "headline": "Floral Designs for Every Occasion",
+          "body": "At Petal & Bloom, every arrangement is crafted by certified florists using fresh blooms sourced directly from local Toronto-area farms. Whether you need a one-of-a-kind gift, flowers for your wedding day, or a meaningful tribute, we have a service designed for you.",
+          "introCtas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "items": {
+            "source": "services"
+          },
+          "bg": "accent-soft"
+        }
+      },
+      {
+        "id": "services-cta-2",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "layout": "centered",
+            "frame": "boxed",
+            "textAlign": "center",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Same-Day Delivery in Toronto",
+            "style": "outline"
+          },
+          "headline": "Ready to Order? Petal & Bloom Is Here to Help.",
+          "body": "Contact our certified florists today to discuss your floral needs — whether it's a last-minute gift, a wedding consultation, or a recurring subscription for your business lobby. We deliver fresh blooms across Toronto, often the same day.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "bg": "soft-gradient"
+        }
+      }
+    ]
+  },
+  "en/pages/services/custom-bouquets.json": {
+    "slug": "services/custom-bouquets",
+    "title": "Custom Bouquets",
+    "navLabel": "Custom Bouquets",
+    "navOrder": 10,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "description": "Order custom bouquets in Toronto from Petal & Bloom. Handcrafted by certified florists using fresh local blooms, with same-day delivery.",
+    "serviceDetailPage": true,
+    "parentService": "custom-bouquets",
+    "seo": {
+      "targetKeyword": "Custom Bouquets"
+    },
+    "blocks": [
+      {
+        "id": "services-custom-bouquets-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Petal & Bloom — Toronto Florist",
+            "style": "pill"
+          },
+          "headline": "Custom Bouquets",
+          "subheadline": "Handcrafted custom bouquets made from fresh Ontario blooms — designed just for you, delivered same-day across Toronto.",
+          "ctas": [
+            {
+              "label": "Order Your Custom Bouquet",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "View All Services",
+              "href": "/services",
+              "style": "outline"
+            }
+          ],
+          "bg": "brand-soft",
+          "image": {
+            "imageUrl": "/photos/services_custom-bouquets-s0-page-header-image.jpg",
+            "alt": "Custom Bouquets"
+          }
+        }
+      },
+      {
+        "id": "services-custom-bouquets-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "textStyle": "article",
+            "image": "none",
+            "frame": "none"
+          },
+          "introEyebrow": {
+            "text": "What Are Custom Bouquets?",
+            "style": "dash"
+          },
+          "headline": "Toronto's Favourite Custom Bouquets, Made to Order",
+          "body": "At Petal & Bloom, our custom bouquets are far more than a bundle of flowers — they are a personal expression crafted by certified florists who understand how the right arrangement can move people. Whether you are sending a birthday gift to someone special in the Beaches, celebrating an anniversary in Midtown, or saying thank you to a colleague downtown, we design each bouquet to suit the moment, the person, and your vision.\n\nEvery custom bouquet begins with your ideas. You tell us the occasion, the colours you love, and any flowers that hold meaning for you. Our florists then select from the freshest blooms sourced directly from local Ontario farms, ensuring every stem is vibrant, long-lasting, and seasonally appropriate. Because we work with local growers, our flowers travel far shorter distances than imported alternatives — which means they arrive at your door fresher and last significantly longer in the vase.\n\n**Who are custom bouquets for?**\n\n- People sending a heartfelt gift to a friend, partner, or family member anywhere in Toronto\n- Couples looking for personalised bridal party flowers that complement their wedding theme\n- Event planners who need striking centrepiece arrangements for corporate dinners, galas, or parties\n- Businesses wanting to impress clients or employees with a beautifully arranged floral gift\n- Anyone who wants something more thoughtful than an off-the-shelf bunch\n\nPetal & Bloom also offers a convenient **subscription service** for those who love having fresh flowers in their home or office on a regular basis. Choose weekly, bi-weekly, or monthly delivery of a custom seasonal bouquet — curated by our florists and delivered right to your door across Toronto. It is the perfect gift for yourself or someone you care about.\n\nWith same-day delivery available throughout Toronto, ordering a custom bouquet from Petal & Bloom is as easy as it is rewarding. Place your order before our daily cutoff and we will have a stunning, freshly made arrangement on its way to you or your recipient the very same day.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "services-custom-bouquets-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "left",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "top",
+            "itemImage": "none",
+            "itemConnector": "none",
+            "introImage": "none",
+            "itemsImage": "none"
+          },
+          "introEyebrow": {
+            "text": "Why Choose Petal & Bloom",
+            "style": "pill"
+          },
+          "headline": "What Makes Our Custom Bouquets Stand Apart",
+          "body": "From the flowers we choose to the door we deliver to, every detail of a Petal & Bloom custom bouquet is designed to impress.",
+          "items": [
+            {
+              "icon": "leaf",
+              "title": "Fresh Blooms from Local Ontario Farms",
+              "text": "We source our flowers directly from Ontario growers, so every bouquet is made with the freshest, most vibrant stems available. Local sourcing means fewer days in transit, longer vase life, and a smaller environmental footprint."
+            },
+            {
+              "icon": "scissors",
+              "title": "Designed by Certified Florists",
+              "text": "Every arrangement is created by one of Petal & Bloom's certified florists. Our team brings professional training and genuine artistry to each bouquet, ensuring the colours, textures, and proportions work beautifully together."
+            },
+            {
+              "icon": "sun",
+              "title": "Truly Personalised to Your Vision",
+              "text": "No two bouquets are alike. We take the time to understand your occasion, colour preferences, and favourite flowers before a single stem is selected. The result is something unique — made for that one person, at that one moment."
+            },
+            {
+              "icon": "droplet",
+              "title": "Same-Day Delivery Across Toronto",
+              "text": "Order before our daily cutoff and Petal & Bloom will deliver your custom bouquet anywhere in Toronto that same day. From the Annex to Scarborough, we bring fresh flowers to your door without the wait."
+            },
+            {
+              "icon": "bell",
+              "title": "Flexible Subscription Service",
+              "text": "Love having fresh flowers around? Our subscription service lets you schedule weekly, bi-weekly, or monthly custom bouquet deliveries. It is the easiest way to keep your home or office filled with beautiful seasonal blooms."
+            },
+            {
+              "icon": "shield-check",
+              "title": "Satisfaction Guaranteed",
+              "text": "Petal & Bloom stands behind every bouquet we create. If you are not completely happy with your arrangement, we will make it right — because your joy in the flowers is what matters most to us."
+            }
+          ],
+          "bg": "accent-soft"
+        }
+      },
+      {
+        "id": "services-custom-bouquets-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "1",
+            "itemStyle": "divided",
+            "itemToggle": "chevron"
+          },
+          "introEyebrow": {
+            "text": "Common Questions",
+            "style": "dash"
+          },
+          "headline": "Custom Bouquets — Frequently Asked Questions",
+          "body": "Everything you need to know before placing your order with Petal & Bloom.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Our team is happy to help you choose the perfect bouquet. Give us a call or send a message and we will get back to you right away.",
+            "cta": {
+              "label": "Contact Petal & Bloom",
+              "href": "/contact",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "How do I order a custom bouquet from Petal & Bloom?",
+              "answer": "Ordering is simple. Visit our Contact page and send us a message describing your occasion, your colour preferences, any specific flowers you love, and your delivery details. One of our certified florists will follow up to confirm your design and arrange payment. You can also call us directly at 416-555-3030 and we will walk you through the options over the phone."
+            },
+            {
+              "question": "Do you offer same-day delivery for custom bouquets in Toronto?",
+              "answer": "Yes — Petal & Bloom offers same-day delivery on custom bouquets across Toronto. Place your order before our daily cutoff time and we will have a freshly crafted arrangement on its way to you or your recipient that same day. Delivery is available throughout the city, from Etobicoke to Scarborough and everywhere in between."
+            },
+            {
+              "question": "Where do you source the flowers used in your bouquets?",
+              "answer": "We source our flowers directly from local Ontario farms wherever possible. Working with nearby growers means our blooms spend far less time in transit than imported alternatives, arriving at our studio — and your door — at peak freshness. Seasonal availability does vary, so our florists will always suggest the best local options for the time of year."
+            },
+            {
+              "question": "Can I set up a flower subscription for regular custom bouquet deliveries?",
+              "answer": "Absolutely. Petal & Bloom's subscription service lets you schedule regular deliveries of custom seasonal bouquets — weekly, bi-weekly, or monthly. Each delivery is freshly designed by our florists using the best blooms available that week. It is a wonderful gift for yourself, a loved one, or a colleague, and a great way to keep any space feeling warm and alive year-round."
+            },
+            {
+              "question": "Can Petal & Bloom create custom bouquets for corporate or event clients?",
+              "answer": "Yes. We regularly work with event planners, corporate clients, and businesses across Toronto who need custom floral arrangements for galas, product launches, client gifts, and lobby displays. Whether you need one statement bouquet or a large quantity for a function, our team will work with your brief and budget to deliver something exceptional."
+            }
+          ],
+          "bg": "soft-gradient"
+        }
+      },
+      {
+        "id": "services-custom-bouquets-cta-4",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {
+            "layout": "centered",
+            "frame": "boxed",
+            "textAlign": "center",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Ready to Order?",
+            "style": "pill"
+          },
+          "headline": "Order Custom Bouquets from Petal & Bloom Today",
+          "body": "Tell us about your occasion and let our certified florists design something beautiful. Fresh local blooms, handcrafted just for you, with same-day delivery across Toronto.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "bg": "deep-gradient"
+        }
+      }
+    ]
+  },
+  "en/pages/services/funeral-arrangements.json": {
+    "slug": "services/funeral-arrangements",
+    "title": "Funeral Arrangements",
+    "navLabel": "Funeral Arrangements",
+    "navOrder": 12,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "description": "Compassionate funeral arrangements in Toronto by Petal & Bloom. Casket sprays, sympathy wreaths, and same-day delivery to funeral homes.",
+    "serviceDetailPage": true,
+    "parentService": "funeral-arrangements",
+    "seo": {
+      "targetKeyword": "Funeral Arrangements"
+    },
+    "blocks": [
+      {
+        "id": "services-funeral-arrangements-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "textAlign": "left",
+            "image": "right",
+            "headlinePosition": "top"
+          },
+          "introEyebrow": {
+            "text": "With Compassion & Care",
+            "style": "pill"
+          },
+          "headline": "Funeral Arrangements in Toronto",
+          "subheadline": "Petal & Bloom's certified florists craft compassionate funeral arrangements — casket sprays, standing wreaths, and condolence bouquets — with same-day delivery to funeral homes and residences across Toronto.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call Us Now",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "bg": "soft-gradient",
+          "image": {
+            "imageUrl": "/photos/services_funeral-arrangements-s0-page-header-image.jpg",
+            "alt": "Funeral Arrangements in Toronto"
+          }
+        }
+      },
+      {
+        "id": "services-funeral-arrangements-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "textStyle": "article",
+            "image": "none",
+            "frame": "none"
+          },
+          "introEyebrow": {
+            "text": "Our Service",
+            "style": "dash"
+          },
+          "headline": "Thoughtful Funeral Arrangements for Toronto Families",
+          "body": "Losing a loved one is one of life's most difficult moments. At Petal & Bloom, we understand that the right flowers can offer comfort, express grief, and honour a life beautifully lived. Our certified florists specialise in creating compassionate funeral arrangements tailored to each family's wishes, cultural traditions, and personal memories.\n\nFrom the moment you reach out, our team guides you with sensitivity and professionalism. Whether you need a grand casket spray, a dignified standing wreath, a heartfelt condolence bouquet, or a full floral tribute for the service, Petal & Bloom handles every detail so you don't have to.\n\nAll of our funeral flowers are sourced fresh from local Toronto-area farms, ensuring that every arrangement is vibrant, fragrant, and worthy of the occasion. We offer **same-day delivery** to funeral homes, chapels, and private residences throughout Toronto — because we know that timing matters deeply during times of loss.\n\n**Who we help:**\n- Immediate family members arranging a funeral service\n- Funeral homes seeking a trusted Toronto florist partner\n- Friends and colleagues wishing to send a condolence gift\n- Event coordinators managing memorial services and celebrations of life\n\nNo matter your relationship to the departed, Petal & Bloom is here to create a floral tribute that speaks from the heart.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-funeral-arrangements-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "left",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "top",
+            "introImage": "none",
+            "itemsImage": "none",
+            "itemImage": "none",
+            "itemConnector": "none"
+          },
+          "introEyebrow": {
+            "text": "Why Choose Petal & Bloom",
+            "style": "pill"
+          },
+          "headline": "Funeral Arrangements Handled with Expertise and Heart",
+          "body": "Petal & Bloom brings care, craftsmanship, and reliability to every funeral arrangement we create for Toronto families.",
+          "items": [
+            {
+              "icon": "flower1",
+              "title": "Fresh, Locally Sourced Blooms",
+              "text": "Every arrangement is made with flowers sourced directly from local Toronto-area farms. Fresh blooms ensure your tribute looks and feels its most beautiful on the day it matters most.",
+              "bullets": [
+                "Farm-direct freshness guaranteed",
+                "Seasonal varieties available",
+                "No imported or artificial flowers"
+              ]
+            },
+            {
+              "icon": "clock",
+              "title": "Same-Day Delivery Across Toronto",
+              "text": "We know that funeral timelines move quickly. Petal & Bloom offers same-day delivery to funeral homes, chapels, and private residences throughout Toronto so your flowers arrive exactly when needed.",
+              "bullets": [
+                "Delivery to all Toronto funeral homes",
+                "Residential delivery available",
+                "Urgent orders welcomed"
+              ]
+            },
+            {
+              "icon": "award",
+              "title": "Certified Florists You Can Trust",
+              "text": "Our certified florists bring professional skill and genuine empathy to every funeral arrangement. You can trust Petal & Bloom to translate your wishes into a floral tribute that truly honours your loved one.",
+              "bullets": [
+                "Certified, experienced floral designers",
+                "Personalised consultations available",
+                "Cultural and religious traditions respected"
+              ]
+            },
+            {
+              "icon": "list-check",
+              "title": "Full Range of Funeral Tributes",
+              "text": "From traditional casket sprays and standing wreaths to sympathy bouquets and memorial table centrepieces, Petal & Bloom offers a complete selection of funeral floral tributes for every service.",
+              "bullets": [
+                "Casket sprays and covers",
+                "Standing wreaths and easel arrangements",
+                "Condolence and sympathy bouquets",
+                "Memorial centrepieces"
+              ]
+            },
+            {
+              "icon": "chat-heart",
+              "title": "Compassionate, Stress-Free Process",
+              "text": "We make the ordering process as simple and stress-free as possible. Our team is available by phone or online to answer questions, take your order, and keep you informed every step of the way.",
+              "bullets": [
+                "Easy phone and online ordering",
+                "Friendly guidance from our team",
+                "Clear communication throughout"
+              ]
+            },
+            {
+              "icon": "leaf",
+              "title": "Custom Designs for Every Tribute",
+              "text": "No two lives are the same, and no two arrangements should be either. Petal & Bloom creates bespoke funeral arrangements personalised to reflect the unique story, personality, and preferences of your loved one.",
+              "bullets": [
+                "Colour preferences accommodated",
+                "Favourite flowers incorporated",
+                "Themed and personalised designs available"
+              ]
+            }
+          ],
+          "bg": "accent-soft"
+        }
+      },
+      {
+        "id": "services-funeral-arrangements-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "1",
+            "itemStyle": "divided",
+            "itemToggle": "chevron"
+          },
+          "introEyebrow": {
+            "text": "Common Questions",
+            "style": "dash"
+          },
+          "headline": "Funeral Arrangements — Frequently Asked Questions",
+          "body": "We know you may have questions during a difficult time. Here are answers to what families most often ask Petal & Bloom about our funeral arrangement services in Toronto.",
+          "help": {
+            "headline": "Need to place an urgent order?",
+            "body": "Our team is ready to help right away. Call us directly and we'll take care of everything with compassion and speed.",
+            "cta": {
+              "label": "Call Petal & Bloom",
+              "href": {
+                "source": "phone"
+              },
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Can Petal & Bloom deliver funeral flowers the same day?",
+              "answer": "Yes. Petal & Bloom offers same-day delivery of funeral arrangements to funeral homes, chapels, and private residences throughout Toronto. We understand that timing is critical, so please call us as early in the day as possible to secure same-day service. Our team will confirm your delivery window and keep you updated."
+            },
+            {
+              "question": "What types of funeral arrangements does Petal & Bloom offer?",
+              "answer": "We offer a full range of funeral floral tributes, including casket sprays and full casket covers, standing wreaths on easels, sympathy and condolence bouquets, memorial table centrepieces, and personalised tribute arrangements. Our certified florists can also create custom designs that reflect the personality and preferences of your loved one. Contact us to discuss your specific needs."
+            },
+            {
+              "question": "How do I place an order for funeral flowers with Petal & Bloom?",
+              "answer": "You can place an order by calling us directly at 416-555-3030, visiting us at 500 Danforth Ave, Toronto, or using the contact form on our website. We recommend calling for urgent or same-day orders so our team can assist you immediately. We'll guide you through the options, help you choose the right arrangement, and confirm delivery details."
+            },
+            {
+              "question": "Can I customise the flowers and colours in a funeral arrangement?",
+              "answer": "Absolutely. Petal & Bloom specialises in custom floral designs. We can incorporate your loved one's favourite flowers, preferred colour palette, or meaningful blooms that reflect their personality and story. Our certified florists are experienced in working with families to create deeply personal tributes, and we also respect cultural and religious floral traditions."
+            },
+            {
+              "question": "Does Petal & Bloom deliver to all funeral homes in Toronto?",
+              "answer": "Yes, we deliver funeral arrangements to funeral homes, chapels, memorial halls, and private residences throughout Toronto. If you are unsure whether we can reach your specific location, please call us at 416-555-3030 and we will confirm availability. We strive to accommodate every family across the city, including same-day requests."
+            }
+          ],
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-funeral-arrangements-cta-4",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {
+            "layout": "centered",
+            "frame": "boxed",
+            "textAlign": "center",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Same-Day Delivery Available",
+            "style": "pill"
+          },
+          "headline": "Let Petal & Bloom Help You Honour Your Loved One",
+          "body": "During one of life's most tender moments, Petal & Bloom is here to take care of every floral detail. Reach out to our compassionate team in Toronto today to place an order or ask any questions — we're ready to help.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            }
+          ],
+          "bg": "deep-gradient"
+        }
+      }
+    ]
+  },
+  "en/pages/services/wedding-flowers.json": {
+    "slug": "services/wedding-flowers",
+    "title": "Wedding Flowers",
+    "navLabel": "Wedding Flowers",
+    "navOrder": 11,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "description": "Beautiful wedding flowers in Toronto by Petal & Bloom. From bridal bouquets to full venue styling — locally sourced, expertly designed.",
+    "serviceDetailPage": true,
+    "parentService": "wedding-flowers",
+    "seo": {
+      "targetKeyword": "Wedding Flowers"
+    },
+    "blocks": [
+      {
+        "id": "services-wedding-flowers-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "data": {
+          "options": {
+            "textAlign": "left",
+            "image": "right",
+            "headlinePosition": "top"
+          },
+          "introEyebrow": {
+            "text": "Toronto Wedding Florist",
+            "style": "pill"
+          },
+          "headline": "Wedding Flowers Toronto Couples Will Cherish Forever",
+          "subheadline": "From intimate ceremonies to grand receptions, Petal & Bloom designs breathtaking wedding flowers rooted in locally sourced blooms and personalised artistry — crafted for your day, your style, your love story.",
+          "ctas": [
+            {
+              "label": "Book a Consultation",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            },
+            {
+              "label": "View Our Services",
+              "href": "/services",
+              "style": "outline"
+            }
+          ],
+          "bg": "soft-gradient",
+          "image": {
+            "imageUrl": "/photos/services_wedding-flowers-s0-page-header-image.jpg",
+            "alt": "Wedding Flowers Toronto Couples Will Cherish Forever"
+          }
+        }
+      },
+      {
+        "id": "services-wedding-flowers-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {
+            "headlinePosition": "top",
+            "textAlign": "left",
+            "textStyle": "article",
+            "image": "none",
+            "frame": "none"
+          },
+          "introEyebrow": {
+            "text": "What We Offer",
+            "style": "dash"
+          },
+          "headline": "Toronto's Wedding Flowers, Designed Around You",
+          "body": "Your wedding day deserves flowers that feel as unique as your relationship. At Petal & Bloom, our certified florists specialise in bespoke wedding flower designs for Toronto couples — bringing together seasonal blooms, personal style, and years of hands-on experience to create arrangements that leave lasting impressions.\n\nWe work with a wide range of Toronto venues, from historic downtown event spaces to garden settings in the surrounding neighbourhoods. Whether you envision a romantic, lush garden aesthetic, a sleek modern palette, or something wildly eclectic, our team takes the time to understand your vision and translate it into stunning floral reality.\n\nOur wedding flower services cover every floral need on your big day:\n\n- **Bridal bouquets** — Handcrafted to complement your gown, colour palette, and personality\n- **Bridesmaid bouquets** — Coordinated designs that frame and support the bride's look\n- **Ceremony installations** — Statement arches, altar arrangements, and aisle markers\n- **Reception centrepieces** — From low garden arrangements to dramatic tall vase displays\n- **Bud vases and accent florals** — Escort card tables, cake tables, and lounge areas\n- **Buttonholes and corsages** — Finished with care for the entire wedding party\n\nEvery bloom we use is sourced directly from local Ontario farms, ensuring your wedding flowers arrive fresh, vibrant, and full of life. We believe that the most beautiful arrangements start with the best ingredients — and nothing surpasses the quality of flowers grown close to home.\n\nOur personalised consultation process begins with a one-on-one meeting where we listen first and design second. We review inspiration images, discuss your venue layout, and walk through every floral moment of your day together. The result is a detailed floral proposal tailored entirely to you — no templates, no shortcuts.\n\nPetal & Bloom proudly serves couples planning weddings across Toronto, including venues in the Distillery District, Rosedale, the Beaches, Yorkville, and beyond. Our team is experienced in coordinating with wedding planners, venue coordinators, and other vendors to ensure seamless delivery and setup on your wedding day.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-wedding-flowers-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "left",
+            "itemsLayout": "grid",
+            "itemsColumns": "3",
+            "itemStyle": "plain",
+            "itemAlign": "left",
+            "itemIcon": "top",
+            "introImage": "none",
+            "itemsImage": "none",
+            "itemImage": "none",
+            "itemConnector": "none"
+          },
+          "introEyebrow": {
+            "text": "Why Choose Petal & Bloom",
+            "style": "pill"
+          },
+          "headline": "Wedding Flowers Crafted With Expertise and Heart",
+          "body": "Petal & Bloom brings together locally sourced blooms, certified floral design, and a deeply personalised process to make your Toronto wedding florals truly unforgettable.",
+          "introCtas": [
+            {
+              "label": "Book Your Consultation",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true
+            }
+          ],
+          "items": [
+            {
+              "icon": "leaf",
+              "title": "Locally Sourced, Farm-Fresh Blooms",
+              "text": "Every petal in your wedding arrangements comes from Ontario local farms. Fresh blooms mean richer colours, longer-lasting florals on your big day, and a smaller environmental footprint.",
+              "bullets": [
+                "Seasonal flowers at peak freshness",
+                "Supporting Ontario growers",
+                "Vibrant colour and longer vase life"
+              ]
+            },
+            {
+              "icon": "scissors",
+              "title": "Certified Florists With Wedding Expertise",
+              "text": "Our team of certified florists has extensive experience designing wedding flowers for Toronto couples across every style — from whimsical wildflower arrangements to structured, high-end luxury designs.",
+              "bullets": [
+                "Certified floral design professionals",
+                "Experience across Toronto venues",
+                "Every style and aesthetic covered"
+              ]
+            },
+            {
+              "icon": "lightbulb",
+              "title": "Personalised Consultation Process",
+              "text": "We begin every wedding with a dedicated one-on-one consultation. We learn your vision, review your venue, and deliver a detailed floral proposal — nothing off-the-shelf, everything bespoke.",
+              "bullets": [
+                "One-on-one design meetings",
+                "Full floral proposal for your review",
+                "Revisions until it's just right"
+              ]
+            },
+            {
+              "icon": "sun",
+              "title": "Full-Day Floral Coverage",
+              "text": "From the bridal suite flowers at sunrise to the last reception centrepiece, Petal & Bloom handles every floral touch point of your wedding day so you never have to worry about a single stem.",
+              "bullets": [
+                "Ceremony and reception florals",
+                "Wedding party flowers included",
+                "On-site setup and styling"
+              ]
+            },
+            {
+              "icon": "shield-check",
+              "title": "Reliable Delivery and On-Site Setup",
+              "text": "We deliver and set up all wedding flowers at your Toronto venue ourselves, coordinating with your planner and venue team for a seamless, stress-free experience on your wedding morning.",
+              "bullets": [
+                "Punctual delivery guaranteed",
+                "Full venue setup by our team",
+                "Coordination with venue and planner"
+              ]
+            },
+            {
+              "icon": "droplet",
+              "title": "Every Budget, Every Scale",
+              "text": "Whether you are planning an intimate elopement or a lavish ballroom reception for 300 guests, Petal & Bloom designs stunning wedding flowers that work beautifully within your budget.",
+              "bullets": [
+                "Elopements to grand receptions",
+                "Transparent, itemised proposals",
+                "Flexible package options"
+              ]
+            }
+          ],
+          "bg": "accent-soft"
+        }
+      },
+      {
+        "id": "services-wedding-flowers-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {
+            "introPosition": "top",
+            "introAlign": "center",
+            "itemsMode": "accordion",
+            "itemsColumns": "1",
+            "itemStyle": "divided",
+            "itemToggle": "chevron"
+          },
+          "introEyebrow": {
+            "text": "Your Questions, Answered",
+            "style": "dash"
+          },
+          "headline": "Frequently Asked Questions About Our Wedding Flowers",
+          "body": "Planning your wedding florals raises a lot of questions — and we are here to make the process clear and stress-free. If you don't see your question below, reach out to the Petal & Bloom team directly.",
+          "help": {
+            "headline": "Still have questions?",
+            "body": "Our wedding florists are happy to walk you through every detail. Get in touch and we'll set up a consultation at your convenience.",
+            "cta": {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "How far in advance should I book wedding flowers with Petal & Bloom?",
+              "answer": "We recommend booking as early as possible — ideally 6 to 12 months before your wedding date. Toronto wedding seasons fill up quickly, especially for peak dates in spring and fall. Booking early ensures you secure your date and gives our florists plenty of time to source your preferred blooms and refine your design. That said, we do accommodate shorter timelines when availability allows, so don't hesitate to reach out even if your date is coming up soon."
+            },
+            {
+              "question": "Do you offer a consultation before we commit to a package?",
+              "answer": "Absolutely. Every wedding at Petal & Bloom begins with a personalised consultation — a dedicated meeting where we listen to your vision, review your venue details, and discuss your floral preferences and budget. Following the consultation, we put together a detailed floral proposal for your review. There is no obligation to book until you are completely happy with the plan."
+            },
+            {
+              "question": "Can you work with specific flowers or a particular colour palette?",
+              "answer": "Yes — your wedding flowers are entirely custom. If you have specific flowers in mind, a precise colour palette, or inspiration images you love, we build your arrangements around those preferences. We source blooms directly from local Ontario farms and also work with specialty suppliers to find the flowers that match your vision. Our florists will advise on what is in season for your wedding date to get the freshest, most beautiful results."
+            },
+            {
+              "question": "Do you deliver and set up the flowers at the wedding venue?",
+              "answer": "Yes. Petal & Bloom handles delivery and complete on-site setup at your Toronto venue. Our team arrives with plenty of time before guests do, coordinates with your venue coordinator and wedding planner, and ensures every arrangement is positioned and looking its best before your ceremony begins. You won't need to lift a finger when it comes to your florals on the day."
+            },
+            {
+              "question": "What areas of Toronto do you serve for wedding flowers?",
+              "answer": "We serve couples across Toronto and the surrounding Greater Toronto Area. We have experience working with venues throughout the city, including the Distillery District, Yorkville, Rosedale, the Beaches, Liberty Village, and many more. If you are unsure whether we cover your venue location, get in touch and we will be happy to confirm."
+            }
+          ],
+          "bg": "brand-soft"
+        }
+      },
+      {
+        "id": "services-wedding-flowers-cta-4",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {
+            "layout": "centered",
+            "frame": "boxed",
+            "textAlign": "center",
+            "image": "none",
+            "form": "none"
+          },
+          "eyebrow": {
+            "text": "Ready to Start Planning?",
+            "style": "pill"
+          },
+          "headline": "Let Petal & Bloom Design Your Dream Wedding Flowers",
+          "body": "Every beautiful Toronto wedding begins with a conversation. Book your personalised consultation with the Petal & Bloom team today and let's start bringing your wedding flower vision to life — with locally sourced blooms, expert design, and care in every detail.",
+          "ctas": [
+            {
+              "label": "Get in Touch",
+              "href": "/contact",
+              "style": "solid",
+              "arrow": true,
+              "size": "lg"
+            },
+            {
+              "label": "Call {phone}",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "size": "lg"
+            }
+          ],
+          "bg": "deep-gradient"
+        }
+      }
+    ]
+  },
+  "en/seo.json": {
+    "domain": "http://site-bbc4ff97.ai1st-clouddev.localhost:8090",
+    "locale": "en_CA",
+    "siteTitle": "Petal & Bloom | Funeral Arrangements in Toronto",
+    "siteDescription": "Petal & Bloom crafts custom bouquets, wedding flowers, and funeral arrangements in Toronto. Same-day delivery. Call 416-555-3030.",
+    "verification": {
+      "google": "YOUR_GOOGLE_VERIFICATION_CODE"
+    },
+    "schema": {
+      "areaServed": [
+        {
+          "type": "City",
+          "name": "Toronto"
+        }
+      ],
+      "addresses": [
+        {
+          "locality": "Toronto",
+          "region": "ON",
+          "country": "CA"
+        }
+      ],
+      "priceRange": "$$",
+      "offerCatalogName": "Petal & Bloom Floral Services"
+    },
+    "targetKeywords": {
+      "primary": {
+        "keyword": "Funeral Arrangements",
+        "volume": 70,
+        "goldIndex": 86.45
+      },
+      "byService": {
+        "custom-bouquets": [
+          {
+            "keyword": "Custom Bouquets",
+            "volume": 30,
+            "goldIndex": 0.17,
+            "selected": true,
+            "isPrimary": true
+          }
+        ],
+        "wedding-flowers": [
+          {
+            "keyword": "Wedding Flowers",
+            "volume": 390,
+            "goldIndex": 29,
+            "selected": true,
+            "isPrimary": true
+          }
+        ],
+        "funeral-arrangements": [
+          {
+            "keyword": "Funeral Arrangements",
+            "volume": 70,
+            "goldIndex": 86.45,
+            "selected": true,
+            "isPrimary": true
+          }
+        ]
+      }
+    }
+  },
+  "en/services.json": [
+    {
+      "id": "custom-bouquets",
+      "name": "Custom Bouquets",
+      "shortDescription": "Handcrafted custom bouquets made from fresh local blooms, designed to suit any occasion in Toronto.",
+      "fullDescription": "Petal & Bloom's certified florists design one-of-a-kind custom bouquets tailored to your personal style, colour palette, and occasion. We source fresh flowers directly from local Ontario farms to ensure every arrangement is vibrant and long-lasting. Whether you're sending a gift across Toronto or treating yourself, our same-day delivery makes it effortless.",
+      "icon": "leaf",
+      "features": [
+        "Fully personalised design consultations",
+        "Fresh blooms sourced from local Ontario farms",
+        "Same-day delivery across Toronto",
+        "Seasonal and year-round flower availability",
+        "Designed by certified florists",
+        "Subscription bouquet service available"
+      ],
+      "products": [
+        {
+          "name": "Signature Custom Bouquet",
+          "description": "A fully bespoke arrangement built around your chosen flowers, colours, and occasion."
+        },
+        {
+          "name": "Monthly Bloom Subscription",
+          "description": "A recurring bouquet delivery plan with fresh, locally sourced flowers delivered to your door."
+        },
+        {
+          "name": "Gift Bouquet with Message Card",
+          "description": "A handcrafted bouquet paired with a personalised card, perfect for gifting across Toronto."
+        }
+      ]
+    },
+    {
+      "id": "wedding-flowers",
+      "name": "Wedding Flowers",
+      "shortDescription": "Elegant wedding flower designs for Toronto couples, from bridal bouquets to full venue installations.",
+      "fullDescription": "Petal & Bloom specialises in wedding flowers that transform Toronto venues into breathtaking floral experiences. Our certified florists work closely with couples and event planners to design cohesive floral themes, from the bridal bouquet to ceremony arches and reception centrepieces. Every bloom is hand-selected from local farms to ensure freshness and beauty on your special day.",
+      "icon": "sun",
+      "features": [
+        "One-on-one wedding consultation with a certified florist",
+        "Bridal bouquets, boutonnieres, and bridesmaid arrangements",
+        "Ceremony arch and altar floral installations",
+        "Reception table centrepieces and venue styling",
+        "Fresh flowers sourced from local Ontario farms",
+        "Coordination with Toronto event planners"
+      ],
+      "products": [
+        {
+          "name": "Bridal Bouquet",
+          "description": "A stunning, custom-designed bouquet crafted to complement the bride's style and wedding theme."
+        },
+        {
+          "name": "Ceremony Floral Package",
+          "description": "A complete floral package covering the altar, arch, and aisle décor for Toronto ceremonies."
+        },
+        {
+          "name": "Reception Centrepiece Collection",
+          "description": "Coordinated table centrepieces and venue arrangements that bring your reception vision to life."
+        }
+      ]
+    },
+    {
+      "id": "funeral-arrangements",
+      "name": "Funeral Arrangements",
+      "shortDescription": "Compassionate funeral arrangements crafted with care for families and services across Toronto.",
+      "fullDescription": "Petal & Bloom provides thoughtful, dignified funeral arrangements to help Toronto families honour their loved ones. Our certified florists create casket sprays, standing tributes, sympathy wreaths, and condolence bouquets with gentle care and attention to detail. We offer same-day delivery to funeral homes and residences throughout Toronto, ensuring your tribute arrives when it matters most.",
+      "icon": "droplet",
+      "features": [
+        "Compassionate service from certified florists",
+        "Casket sprays, wreaths, and standing tributes",
+        "Sympathy and condolence bouquets",
+        "Same-day delivery to Toronto funeral homes",
+        "Fresh, locally sourced blooms",
+        "Custom colour themes and flower selections"
+      ],
+      "products": [
+        {
+          "name": "Casket Spray",
+          "description": "A full or half casket spray arranged with fresh flowers to honour the deceased with elegance."
+        },
+        {
+          "name": "Sympathy Wreath",
+          "description": "A circular standing wreath crafted as a lasting tribute for funeral services and memorial gatherings."
+        },
+        {
+          "name": "Condolence Bouquet",
+          "description": "A gentle, heartfelt bouquet delivered to the family home or funeral venue on the same day."
+        }
+      ]
+    }
+  ],
+  "site_meta.json": {
+    "siteId": "site-bbc4ff97",
+    "leadApi": "",
+    "defaultLocale": "en",
+    "locales": [
+      "en"
+    ],
+    "buildPhase": "secondaryLocales"
+  },
+  "theme.json": {
+    "themeId": "ember-12",
+    "applied": false,
+    "css": "ember-12",
+    "tweaks": {
+      "hueShift": 3,
+      "radiusScale": 0.85,
+      "densityScale": 1.15
+    },
+    "colorScheme": "light"
+  }
+}
