@@ -47,6 +47,13 @@
 //
 // 🔴 **图标是内联 SVG，不是字体**（#1462，Chris 拍板）：`iconTable` 由服务端按名查好传进来
 //    （`scripts/lib/icons.js`），这里用 `InlineIcon` 画；查不到的名字不画。
+//
+// 🔴 **Sticky**（#1786，布尔 `options.sticky`，默认关）：根元素 `position: sticky`（block.css §hdr-sticky）。开着顶条时
+//    `top` = 负的顶条高度，顶条滚走、主行停在视口顶 —— 高度渲染后量（ResizeObserver，顶条 <992 是 display:none ⟹ 0），
+//    写进根上的 `--hdr-sticky-top`；主行高写进 `--hdr-nav-h`，抽屉据它限高、超过一屏自己滚。页面滚过 40px 换阴影
+//    （滚动监听翻 `hdr-scrolled`，不用 `animation-timeline`：Safari 旧版不支持）。
+//    **编辑器画布里不吸**（`editorCanvas`，由 `SiteShell` 按「收到了编辑器的 ShellOverride」传）：画布里顶栏有自己的
+//    浮动条（#1772），吸住会跟它和选中块的条打架。判据不是 `AI1ST_RENDER` —— 预览和画布都是 preview 渲染。
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -82,6 +89,8 @@ export interface HeaderOptions {
   /** 归预设管的开关：没写就跟形态（= 预设）走。 */
   topbar?: boolean;
   icons?: boolean;
+  /** #1786 —— 往下滚时吸在页面顶上（§文件头）。不归预设管。 */
+  sticky?: boolean;
 }
 
 export interface HeaderNewData {
@@ -136,11 +145,16 @@ interface Props {
   iconTable?: IconTable;
   /** #1425 —— logo 那个「回首页」链接。多语言站的副语言页上是 `/<locale>`，由外壳（`SiteShell`）算好传进来；不传 = `/`。 */
   homeHref?: string;
+  /** #1786 —— 编辑器画布（或它的缩略图）在画：`options.sticky` 不生效，照普通顶栏画。站上 / 预览不传。 */
+  editorCanvas?: boolean;
 }
+
+/** #1786 —— 滚过多少 px 底边细线换阴影。 */
+const STICKY_SHADOW_AT = 40;
 
 type CollapseCtor = { getInstance(el: Element): { hide(): void } | null };
 
-export default function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, homeHref = '/' }: Props) {
+export default function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, homeHref = '/', editorCanvas = false }: Props) {
   // 抽屉 = Bootstrap Collapse（§文件头）。按钮和抽屉靠这个 id 对上；一页只有一个顶栏，块没 id 就叫 main。
   const drawerId = `hdr-drawer-${(block && block.id) || 'main'}`;
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -156,6 +170,35 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     return () => document.removeEventListener('keydown', onKey);
   }, []);
   const opts = data.options || {};
+  const sticky = opts.sticky === true && !editorCanvas;
+  const rootRef = useRef<HTMLElement>(null);
+  const topbarRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  // #1786 —— 吸住时要的两个量（§文件头）：顶条高 → `--hdr-sticky-top`，主行高 → `--hdr-nav-h`；滚动 > 40 → 阴影类。
+  //    阴影类直接在 DOM 上翻，不进 React 状态（这个文件不放 React 状态，header-render.test.js 盯着）：根上的 className
+  //    只由 options 定，站上渲染后不变 ⟹ React 不会回头把它冲掉。
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!sticky || !root) return;
+    const measure = () => {
+      // 取 getBoundingClientRect 的小数高，不取 offsetHeight：后者取整，顶条 41.75 高时主行会停在 -0.25（publish 产物实测）。
+      root.style.setProperty('--hdr-sticky-top', `${-(topbarRef.current?.getBoundingClientRect().height || 0)}px`);
+      root.style.setProperty('--hdr-nav-h', `${navRef.current?.getBoundingClientRect().height || 0}px`);
+    };
+    const onScroll = () => root.classList.toggle('hdr-scrolled', window.scrollY > STICKY_SHADOW_AT);
+    measure();
+    onScroll();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    if (ro) for (const el of [topbarRef.current, navRef.current]) if (el) ro.observe(el);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('scroll', onScroll);
+      root.classList.remove('hdr-scrolled');
+      root.style.removeProperty('--hdr-sticky-top');
+      root.style.removeProperty('--hdr-nav-h');
+    };
+  }, [sticky]);
   const { knobs, topbar: hasTopbar, preset, shape } = resolveKnobs(shapeIn, opts);
   const { logo, menu } = knobs;
   const { icons = false } = opts;
@@ -280,6 +323,9 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     // 填了 `bg` 就不挂 `bg-body`：Webpixels 的背景工具类带 `!important`，会压过 style 上的底色（footer 同一条）。
     bgStyle ? (deep ? 'text-white' : '') : 'bg-body',
     'border-bottom',
+    // #1786 —— 吸住；滚过 40px 底边细线换成阴影（block.css §hdr-sticky / §hdr-scrolled，后者由上面的滚动监听翻 ——
+    //    细线是变透明，不是去掉：高度不跳 1px）。
+    sticky ? 'hdr-sticky' : '',
     lineTone,
     `hdr-logo-${logo}`,
     `hdr-menu-${menu}`,
@@ -322,11 +368,13 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
       data-logo={logo}
       data-menu={menu}
       data-topbar={hasTopbar ? 'on' : 'off'}
+      data-sticky={sticky ? 'on' : 'off'}
+      ref={rootRef}
       style={bgStyle}
     >
       {hasTopbar ? (
         // 顶条：只在 ≥992 出现（block.css），手机 / iPad 上它的内容折进抽屉。
-        <div className={`hdr-topbar border-bottom ${lineTone} py-2 text-sm`}>
+        <div ref={topbarRef} className={`hdr-topbar border-bottom ${lineTone} py-2 text-sm`}>
           <div className={`container-lg d-flex align-items-center justify-content-between gap-6 ${right ? 'hdr-flip' : ''}`}>
             <div className={`d-flex align-items-center gap-5 ${mutedTone}`}>
               {messageLine('bar-message')}
@@ -345,7 +393,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
         </div>
       ) : null}
 
-      <nav className="navbar py-4" aria-label="Main">
+      <nav ref={navRef} className="navbar py-4" aria-label="Main">
         {/* < 992：logo ·（topbar 开时）电话圆图标 · 汉堡。logo=right 时整条反过来（block.css）。 */}
         <div className="hdr-compact container-lg d-flex flex-nowrap d-lg-none align-items-center justify-content-between gap-3">
           {brandLink(true)}

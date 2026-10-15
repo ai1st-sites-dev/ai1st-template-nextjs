@@ -317,5 +317,41 @@ console.log('\n⑦ 一句话公告（topbar.message）');
   C = loadSection();
 }
 
+// ══ ⑧ #1786：Sticky —— 开 ⟹ 根上 hdr-sticky + data-sticky=on；关 / 没写 ⟹ 都没有；编辑器画布（editorCanvas）勾上也不吸 ══════
+console.log('\n⑧ sticky');
+{
+  const renderE = (shape, data, editorCanvas, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: ICONS, editorCanvas }));
+  const cls = (h) => (attr(h, 'class') || '').split(/\s+/);
+  for (const n of ['logo-left', 'topbar']) {
+    const on = render(n, withOpts({ sticky: true }));
+    const off = render(n, withOpts({ sticky: false }));
+    const none = render(n, clone(DEMO));
+    check(attr(on, 'data-sticky') === 'on' && cls(on).includes('hdr-sticky'), `${n} 勾 sticky ⟹ data-sticky=on、根上 hdr-sticky`);
+    // 服务端 HTML 是「还没滚」那一刻：细线在、阴影类不在（阴影要滚过 40px，浏览器里翻）。
+    check(cls(on).includes('border-bottom') && !cls(on).includes('hdr-scrolled'), `${n} 勾 sticky、没滚 ⟹ 细线在、没有 hdr-scrolled`);
+    check(attr(off, 'data-sticky') === 'off' && !cls(off).includes('hdr-sticky'), `${n} sticky=false ⟹ data-sticky=off、没有 hdr-sticky`);
+    check(off === none, `${n}：sticky=false 与没写 sticky 逐字相同（默认关）`);
+    const strip = (h) => h.replace(/<header[^>]*>/, '');
+    check(strip(on) === strip(off), `${n}：开 / 关只差根元素那一行，里面的 markup 逐字相同`);
+    const ed = renderE(n, withOpts({ sticky: true }), true);
+    check(attr(ed, 'data-sticky') === 'off' && !cls(ed).includes('hdr-sticky'), `${n} 编辑器画布里勾 sticky ⟹ 不吸（data-sticky=off、没有 hdr-sticky）`);
+    check(ed === off, `${n} 编辑器画布里勾 sticky 逐字等于不勾`);
+  }
+  // CSS：吸住那条规则挂在 hdr-sticky 上（类名在 Section 源码里是字面量 ⟹ site.css 的 purge 留得住）。
+  const css = fs.readFileSync(path.join(BLOCK_DIR, 'block.css'), 'utf-8');
+  check(/\[data-block="header"\]\.hdr-sticky\s*\{[^}]*position:\s*sticky/.test(css), 'block.css：[data-block="header"].hdr-sticky { position: sticky }');
+  check(/\[data-block="header"\]\.hdr-sticky\.hdr-scrolled\s*\{[^}]*box-shadow:\s*0 4px 18px rgba\(15, 23, 42, \.10\)/.test(css), 'block.css：hdr-scrolled 的阴影是正文那一道');
+  check(ORIGINAL.includes("'hdr-sticky'") && ORIGINAL.includes("'hdr-scrolled'"), 'Section.tsx 里 hdr-sticky / hdr-scrolled 是字面量（purge 认得出）');
+  // 反向对照 ①：判据不看 editorCanvas ⟹ 「编辑器画布里不吸」那格会红。
+  const s1 = mutate('opts.sticky === true && !editorCanvas', 'opts.sticky === true');
+  if (!s1) bad('反向对照没改到源码（锚点找不到）');
+  else check(attr(renderE('logo-left', withOpts({ sticky: true }), true, loadSection(s1)), 'data-sticky') === 'on', '反向对照①：判据不看 editorCanvas ⟹ 画布里也吸（上面那格红得起来）');
+  // 反向对照 ②：sticky 不读 options ⟹ 「勾上 ⟹ 吸」那格会红。
+  const s2 = mutate('opts.sticky === true && !editorCanvas', 'false');
+  if (!s2) bad('反向对照没改到源码（锚点找不到）');
+  else check(attr(render('logo-left', withOpts({ sticky: true }), loadSection(s2)), 'data-sticky') === 'off', '反向对照②：不读 options.sticky ⟹ 勾上也不吸（上面那格红得起来）');
+  C = loadSection();
+}
+
 console.log(`\n${fail ? '🔴' : '✅'} header-render: ${pass} 过 / ${fail} 不过`);
 process.exit(fail ? 1 : 0);

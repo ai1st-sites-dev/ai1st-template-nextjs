@@ -52,7 +52,7 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{preset?: string, logo, menu, topbar: bool, icons: bool}",
+      "shape": "{preset?: string, logo, menu, topbar: bool, icons: bool, sticky: bool}",
       "knobs": [
         { "name": "logo", "values": ["left", "center", "right"] },
         { "name": "menu", "values": ["beside", "center", "split", "gathered", "below"] }
@@ -75,7 +75,7 @@
     "discouraged": []
   },
   "toolbarGroups": [
-    ["logo", "menu", "bool:topbar"],
+    ["logo", "menu", "bool:topbar", "bool:sticky"],
     ["color:bg"],
     ["bool:icons"]
   ]

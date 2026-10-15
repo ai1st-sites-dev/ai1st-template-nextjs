@@ -5621,6 +5621,26 @@
   display: none !important;
 }
 
+/* ═══ Sticky（#1786，`options.sticky`）：吸在视口顶，盖在页面块上面、在抽屉和弹窗下面（Bootstrap 的 $zindex-sticky）════════
+   `--hdr-sticky-top` / `--hdr-nav-h` 由 Section 渲染后量了写在根上（顶条高的负数 / 主行高）：开着顶条时顶条滚走、主行停在顶上。
+   滚过 40px（`hdr-scrolled`）：底边细线变透明（不去掉 —— 去掉高度会跳 1px）、加一道阴影。
+   抽屉（< 992）在顶栏里面，跟着它吸住；比一屏高时限高、自己滚 —— 不然吸住的元素比视口高，菜单最后几项永远够不着。 */
+[data-block="header"].hdr-sticky {
+  position: sticky;
+  top: var(--hdr-sticky-top, 0px);
+  z-index: 1020;
+}
+[data-block="header"].hdr-sticky.hdr-scrolled {
+  border-bottom-color: transparent !important;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, .10);
+}
+[data-block="header"].hdr-sticky > .hdr-drawer {
+  max-height: calc(100vh - var(--hdr-nav-h, 0px));
+  max-height: calc(100dvh - var(--hdr-nav-h, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /* ── header · logo-left = 预设（logo=left · menu=beside · topbar 关）──────────────────────
    🔴 #1462 起这个文件夹**只是一个名字**：预设 = 两个旋钮 + topbar 开关的一组值（manifest 的 `presets`，#1468），排版全在
       `blocks/header/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）

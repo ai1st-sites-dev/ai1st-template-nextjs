@@ -75,7 +75,8 @@ function shellBlockData(site: SiteData, region: 'header' | 'footer', locale: str
 export function ShellRegion({ site, locale, region, shape, options }: { site: SiteData; locale: string; region: 'header' | 'footer'; shape: string; options?: Record<string, unknown> }) {
   const homeHref = locale === site.defaultLocale ? '/' : `/${locale}`;
   const data = shellBlockData(site, region, locale, options);
-  if (region === 'header') return <Header shape={shape} data={data as HeaderNewData} homeHref={homeHref} iconTable={shellIconTable(site, 'header', locale)} />;
+  // #1786 —— 缩略图只在编辑器里画 ⟹ 顶栏一律不吸（`editorCanvas`）。
+  if (region === 'header') return <Header shape={shape} data={data as HeaderNewData} homeHref={homeHref} iconTable={shellIconTable(site, 'header', locale)} editorCanvas />;
   return <Footer shape={shape} locale={locale} homeHref={homeHref} data={data as FooterNewData} iconTable={shellIconTable(site, 'footer', locale)} leadForm={footerLeadFormOf(site, locale)} />;
 }
 
@@ -128,8 +129,9 @@ export default function SiteShell({ site, locale, page, shell, notFound, childre
                     </div>
                   </div>
                 ) : null}
+                {/* #1786 —— 收到 `shell` = 编辑器画布在画（站上 / 预览都不传）⟹ Sticky 不生效（Header 文件头）。 */}
                 <Header shape={shell?.headerShape || siteRegions.header.shape} data={headerData as HeaderNewData} homeHref={homeHref}
-                  iconTable={shellIconTable(site, 'header', locale)} />
+                  iconTable={shellIconTable(site, 'header', locale)} editorCanvas={!!shell} />
               </Fragment>
             );
           case 'content':
