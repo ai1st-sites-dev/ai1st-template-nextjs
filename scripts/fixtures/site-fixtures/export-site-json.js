@@ -9,7 +9,7 @@
 //   node export-site-json.js to-dir    <输入 .json> <site 目录>
 //
 // 两个夹具 `site-0448c807.json`（SparkleClean，单语）、`site-bbc4ff97.json`（Petal & Bloom，单语）
-// 是 2026-10-12 spike 用的两个真站，T1d / T2a / T2b 的验收都拿它们当夹具；多语言 / 博客 / RTL 三个夹具由 T2a-2 补。
+// 是 2026-10-12 spike 用的两个真站，T1d / T2a / T2b 的验收都拿它们当夹具；多语言 / 博客 / RTL 三个夹具由 T2a-3 #1804 补（`make-fixture.sh`，一条命令可复现）。
 // 🔴 往返必须无损：`to-json` 再 `to-dir` 出来的目录跟原目录逐文件相同（JSON 文件按 2 空格缩进 + 末尾换行比）。
 const fs = require('fs');
 const path = require('path');
