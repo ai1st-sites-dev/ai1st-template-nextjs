@@ -89,6 +89,7 @@ const isRequired = (form, f) => isObj(form) && Array.isArray(form.required) && f
 /**
  * #1769 —— 一个自定义字段对象的毛病（不看名字：名字在 `labels` 里，按语言查）。`me` 是报文前缀。
  * 只认 `id` / `type` 两个键；#1770 起带选项的类型再加一个 `options`（必须有），别的类型有它就报。
+ * #1792 —— `date` 可以再带一个 `time: true`（日期旁边再问一个时间）；别的类型带了就报，值不是 `true` 也报（不问时间就不带这个键）。
  */
 function customFieldProblems(f, me) {
   const out = [];
@@ -101,9 +102,14 @@ function customFieldProblems(f, me) {
     out.push(`${me}: 自定义字段 "${f.id}" 的 type ${JSON.stringify(f.type)} 不认识 —— 只能是 ${CUSTOM_FIELD_TYPES.join(' / ')}`);
   }
   const withOptions = hasOptions(f.type);
-  const extra = Object.keys(f).filter((k) => k !== 'id' && k !== 'type' && !(withOptions && k === 'options'));
+  const withTime = f.type === 'date';
+  const extra = Object.keys(f).filter((k) => k !== 'id' && k !== 'type' && !(withOptions && k === 'options') && !(withTime && k === 'time'));
   if (extra.length) {
-    out.push(`${me}: 自定义字段 "${f.id}" 有不认识的键 ${JSON.stringify(extra)} —— 只能有 id / type${withOptions ? ' / options' : `（options 只有 ${OPTION_FIELD_TYPES.join(' / ')} 能有）`}（名字写在 labels 里）`);
+    out.push(`${me}: 自定义字段 "${f.id}" 有不认识的键 ${JSON.stringify(extra)} —— 只能有 id / type${withOptions ? ' / options' : withTime ? ' / time' : `（options 只有 ${OPTION_FIELD_TYPES.join(' / ')} 能有，time 只有 date 能有）`}（名字写在 labels 里）`);
+  }
+  // #1792 —— 问时间：只有 `true` 一种写法（不问就不带这个键）。
+  if (withTime && Object.prototype.hasOwnProperty.call(f, 'time') && f.time !== true) {
+    out.push(`${me}: 自定义字段 "${f.id}" 的 time 只能是 true（不问时间就不带这个键）`);
   }
   // #1770 —— 选项：选项 id 的数组，§MIN_OPTIONS~§MAX_OPTIONS 项，id 形状同字段 id、不重复（文字在 labels 里，按语言查）。
   if (withOptions) {
@@ -154,7 +160,7 @@ function formListProblems(forms, where = 'forms.json') {
       out.push(`${me}: fields 必须是非空数组`);
     } else {
       const bad = f.fields.filter((x) => !isCustomField(x) && !FORM_FIELDS.includes(x));
-      if (bad.length) out.push(`${me}: fields 里有词表外的值 ${JSON.stringify(bad)} —— 只能是 ${FORM_FIELDS.join(' / ')}，或自定义字段 { id, type, options? }`);
+      if (bad.length) out.push(`${me}: fields 里有词表外的值 ${JSON.stringify(bad)} —— 只能是 ${FORM_FIELDS.join(' / ')}，或自定义字段 { id, type, options?, time? }`);
       // #1769 —— 自定义字段：形状、个数、名字（这个语言的 labels 里必须有）；整张表单里 id 不许重复。
       const custom = f.fields.filter(isCustomField);
       for (const c of custom) out.push(...customFieldProblems(c, me));

@@ -95,13 +95,17 @@ function staleKeys(base, onDisk) {
 }
 
 /** #1769 —— `fields` 里一项自定义字段的形状对不对（不对就拒收，话是给老板看的）。
- *  #1770 —— 带选项的类型多一个 `options`（必须有，§MIN_OPTIONS~§MAX_OPTIONS 个不重复的选项 id），别的类型带了就拒。 */
+ *  #1770 —— 带选项的类型多一个 `options`（必须有，§MIN_OPTIONS~§MAX_OPTIONS 个不重复的选项 id），别的类型带了就拒。
+ *  #1792 —— `date` 可以多一个 `time: true`（日期旁边再问一个时间）；别的类型带了、或值不是 true ⟹ 拒。 */
 function checkCustomField(x) {
-  const extra = Object.keys(x).filter((k) => k !== 'id' && k !== 'type' && k !== 'options');
+  const extra = Object.keys(x).filter((k) => k !== 'id' && k !== 'type' && k !== 'options' && k !== 'time');
   if (typeof x.id !== 'string' || !CUSTOM_ID_RE.test(x.id) || FORM_FIELDS.includes(x.id) || extra.length) {
-    fail(5, `forms.fields 里的自定义字段形状不对：${JSON.stringify(x)}（只能是 { id, type, options? }，id 字母开头、≤ 40 个字符、不跟内置字段重名）`);
+    fail(5, `forms.fields 里的自定义字段形状不对：${JSON.stringify(x)}（只能是 { id, type, options?, time? }，id 字母开头、≤ 40 个字符、不跟内置字段重名）`);
   }
   if (!CUSTOM_FIELD_TYPES.includes(x.type)) fail(REFUSED, `This form can't have a field of type ${String(x.type)}. ${NOT_SAVED}`);
+  if (has(x, 'time') && (x.type !== 'date' || x.time !== true)) {
+    fail(5, `forms.fields 里的自定义字段 ${x.id} 是 ${x.type}，time 只有 date 能带、而且只能是 true`);
+  }
   if (!hasOptions(x.type)) {
     if (has(x, 'options')) fail(5, `forms.fields 里的自定义字段 ${x.id} 是 ${x.type}，不能带 options`);
     return;
@@ -133,7 +137,10 @@ function nextStructure(form, forms) {
     if (lacksContactField(forms.fields)) {
       fail(REFUSED, `A form needs a Phone or an Email field — visitors must leave one of them to send it. ${NOT_SAVED}`);
     }
-    fields = forms.fields.map((x) => (isCustomField(x) ? { id: x.id, type: x.type, ...(hasOptions(x.type) ? { options: [...x.options] } : {}) } : x));
+    // 逐键重建（只搬认得的键）。#1792 —— `time` 也要搬，漏了它就在这里被悄悄抹掉。
+    fields = forms.fields.map((x) => (isCustomField(x)
+      ? { id: x.id, type: x.type, ...(hasOptions(x.type) ? { options: [...x.options] } : {}), ...(x.time === true ? { time: true } : {}) }
+      : x));
   }
   let primary = form.primary;
   if (has(forms, 'primary')) {

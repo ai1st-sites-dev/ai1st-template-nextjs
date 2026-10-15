@@ -219,7 +219,8 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
   /** #1769 —— Add field 页手上那一份（Save 才写进上面三样；← 回去 = 不要了）。 */
   // #1770 —— `options`：带选项的类型才用；换成不带选项的类型时留在手上（换回来还在），Save 时才按类型取舍。
   // #1768 r5 —— `builtin`：Type 选的是一个自带字段（只在新加时可选）；这时 `type` / `options` 不用。
-  const [draft, setDraft] = useState<{ label: string; type: CustomFormField['type']; required: boolean; options: DraftOption[]; builtin: FormField | null }>({ label: '', type: 'text', required: false, options: [], builtin: null });
+  // #1792 —— `time`：Date 那一种的「Also ask for a time」。换成别的类型时手上这一格留着（换回 Date 还在），存盘只有 Date 才带。
+  const [draft, setDraft] = useState<{ label: string; type: CustomFormField['type']; required: boolean; options: DraftOption[]; builtin: FormField | null; time: boolean }>({ label: '', type: 'text', required: false, options: [], builtin: null, time: false });
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOpt, setDragOpt] = useState<number | null>(null);
   const [page, setPage] = useState<Page>('main');
@@ -301,10 +302,10 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     // #1768 r5 —— 新加、自定义字段已经到上限 ⟹ 只剩自带字段可选，停在第一个。
     const first = !f && !canAddCustom ? unused[0] : undefined;
     setDraft(f
-      ? { label: labels[f.id] || '', type: f.type, required: required.includes(f.id), options: (optionsOf(f) as string[]).map((o) => ({ id: o, label: labels[optionLabelKey(f.id, o)] || '' })), builtin: null }
+      ? { label: labels[f.id] || '', type: f.type, required: required.includes(f.id), options: (optionsOf(f) as string[]).map((o) => ({ id: o, label: labels[optionLabelKey(f.id, o)] || '' })), builtin: null, time: f.type === 'date' && f.time === true }
       : first
-        ? { label: defaultName(first), type: 'text', required: false, options: [], builtin: first }
-        : { label: '', type: 'text', required: false, options: [], builtin: null });
+        ? { label: defaultName(first), type: 'text', required: false, options: [], builtin: first, time: false }
+        : { label: '', type: 'text', required: false, options: [], builtin: null, time: false });
     setPage(`custom:${id}`);
   };
   /**
@@ -346,6 +347,8 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
     // #1770 —— 带选项的类型连同选项 id 一起进结构；不带的不留 `options`。
     const withOpts = hasOptions(draft.type);
     const field: CustomFormField = withOpts ? { id: fid, type: draft.type, options: draft.options.map((o) => o.id) } : { id: fid, type: draft.type };
+    // #1792 —— 只有 Date 带 `time`，而且只在勾上时带（不勾 ⟹ 没有这个键，跟 #1770 那一版逐字节一样）。
+    if (draft.type === 'date' && draft.time) field.time = true;
     if (id) setFields((list) => list.map((x) => (isCustom(x) && x.id === id ? field : x)));
     else setFields((list) => [...list, field]);
     setLabels((l) => {
@@ -571,6 +574,17 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
                 style={{ ...small, marginTop: 2 }}>+ Add option</button>
               : <span data-editor-form-option-max="" style={HELP}>{`A list can have at most ${MAX_OPTIONS} options.`}</span>}
           </div>
+        )}
+        {/* #1792 —— Date 才有：日期旁边再问一个时间（访客可以不选）。放在 Required 上面。 */}
+        {!b && draft.type === 'date' && (
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14 }}>
+            <input type="checkbox" data-editor-form-custom-time="" checked={draft.time}
+              onChange={(e) => setDraft((d) => ({ ...d, time: e.target.checked }))} />
+            <span>
+              <span style={{ display: 'block', fontWeight: 500, color: '#101828' }}>Also ask for a time</span>
+              <span style={HELP}>Visitors can leave the time empty.</span>
+            </span>
+          </label>
         )}
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14 }}>
           <input type="checkbox" role="switch" data-editor-form-custom-required="" checked={draft.required}

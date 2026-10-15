@@ -64,6 +64,8 @@ type FormItem = LeadField | CustomFormField;
 const idOf = (f: FormItem): string => (typeof f === 'string' ? f : f.id);
 /** #1769 —— 自定义字段的答案在 `values` 里的键，跟内置字段的键分开（id 已经不许跟内置重名，这里再隔一层）。 */
 const answerKey = (id: string) => `custom:${id}`;
+// #1792 —— Date 字段旁边那个时间框的值（另一个键：没勾时间的 Date 一个字节不变）。
+const timeKey = (id: string) => `custom-time:${id}`;
 // 站没有表单库（老站，没有 forms.json）时的内置默认 —— 留着，老站靠它顶（#1471 dead code 审查）。
 const DEFAULT_FIELDS: Record<LeadFormMode, LeadField[]> = {
   teaser: ['phone'],
@@ -154,6 +156,12 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
     if (f.type === 'checkbox') return opts(f).filter((o) => (picked[f.id] || []).includes(o)).map((o) => optText(f, o)).join(', ');
     const v = values[answerKey(f.id)] || '';
     if (f.type === 'select' || f.type === 'radio') return opts(f).includes(v) ? optText(f, v) : '';
+    // #1792 —— 问了时间：有日期才算填了这一格（只选了时间 ⟹ ''，必填时照样拦、选填时不进答案）；
+    //    有时间就拼成 `YYYY-MM-DD HH:MM`（24 小时制，不按语言格式化，同 #1770 的日期）。
+    if (f.type === 'date' && f.time === true && v.trim()) {
+      const t = (values[timeKey(f.id)] || '').trim().slice(0, 5);
+      return t ? `${v.trim()} ${t}` : v;
+    }
     return v;
   };
   const endpoint = leadApi.replace(/\/$/, '') + '/api/leads';
@@ -246,10 +254,22 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
         );
       }
       if (f.type === 'date') {
+        const dateInput = <input id={id} className={`${sz.control}${bad}`} type="date" aria-label={label(f)} value={values[k] || ''} onChange={set(k, f.id)} data-field={f.id} {...req} {...badAttr} />;
         return (
           <>
             <label htmlFor={id} className={size === 'sm' ? 'form-label small mb-1' : 'form-label mb-1'}>{hint(f)}</label>
-            <input id={id} className={`${sz.control}${bad}`} type="date" aria-label={label(f)} value={values[k] || ''} onChange={set(k, f.id)} data-field={f.id} {...req} {...badAttr} />
+            {f.time === true ? (
+              // #1792 —— 再问一个时间：≥576 宽并排各占一半，更窄上下叠。时间永远可以空（不带 required，Required 只管日期）。
+              //   🔴 不写 `step`：Chromium 实测 `step="900"` 碰到手打的 14:37 会 stepMismatch、拦下整张表单，弹的是浏览器语言的
+              //      一句话（不走我们那 14 种语言）—— 访客被一句我们控制不了的话挡在提交之外。PM 在票上批准了这处偏离。
+              <div className="row g-2" data-field-datetime={f.id}>
+                <div className="col-12 col-sm-6">{dateInput}</div>
+                <div className="col-12 col-sm-6">
+                  <input id={`${id}-time`} className={sz.control} type="time" aria-label={`${label(f)} – ${L.formTime}`}
+                    value={values[timeKey(f.id)] || ''} onChange={set(timeKey(f.id))} data-field-time={f.id} />
+                </div>
+              </div>
+            ) : dateInput}
           </>
         );
       }

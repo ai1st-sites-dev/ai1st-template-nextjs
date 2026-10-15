@@ -191,6 +191,8 @@ export interface CustomFormField {
   id: string;
   type: CustomFieldType;
   options?: string[];
+  /** #1792 —— 只有 `date` 能带：日期旁边再问一个时间（访客可以不选）。不问时间 ⟹ 不带这个键（不写 `false`）。 */
+  time?: true;
 }
 export interface SiteFormConfig {
   id: string;
