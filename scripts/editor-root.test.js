@@ -154,10 +154,10 @@ function otherValues(cur) {
     // #1738 —— 顶栏 / 页脚的底色 + 旋钮：一个对象，跟现值不同就行（每一格都得是 manifest 认的，`region-options.js`）。
     headerOptions: cur.headerOptions && cur.headerOptions.menu === 'below' ? { bg: '#1e293b' } : { bg: '#0f172a', logo: 'center', menu: 'below', icons: true },
     footerOptions: cur.footerOptions && cur.footerOptions.brand === 'right' ? { form: 'teaser' } : { bg: 'brand', brand: 'right' },
-    // #1759 —— 顶栏 Content 页三样：logo 地址、两颗按钮（`{label, href}`）。
+    // #1759 —— 顶栏 Content 页：logo 地址、按钮（#1787：`[{label, href}]`，0–3 颗）。
     logoUrl: cur.logoUrl === '/images/renamed-logo.svg' ? '/images/other-logo.svg' : '/images/renamed-logo.svg',
-    headerCta: cur.headerCta && cur.headerCta.label === 'Book now' ? { label: 'Call us', href: '/about' } : { label: 'Book now', href: '/services' },
-    headerCtaSecondary: cur.headerCtaSecondary && cur.headerCtaSecondary.label === 'Our work' ? { label: 'Prices', href: '/services' } : { label: 'Our work', href: '/about' },
+    headerButtons: cur.headerButtons && cur.headerButtons[0] && cur.headerButtons[0].label === 'Book now'
+      ? [{ label: 'Call us', href: '/about' }] : [{ label: 'Book now', href: '/services' }, { label: 'Our work', href: '/about' }],
   };
 }
 
@@ -169,7 +169,7 @@ const localeBrandFiles = (site) => fs.readdirSync(site, { withFileTypes: true })
 function roundTripProblems() {
   const problems = [];
   // 🔴 这张名单故意手写、不照分派表遍历：守卫要量的就是「分派表少了谁」（下面那格反向把一行拿掉）。
-  for (const f of ['layout', 'headerShape', 'footerShape', 'headerOptions', 'footerOptions', 'brandName', 'phone', 'email', 'address', 'logoUrl', 'headerCta', 'headerCtaSecondary']) {
+  for (const f of ['layout', 'headerShape', 'footerShape', 'headerOptions', 'footerOptions', 'brandName', 'phone', 'email', 'address', 'logoUrl', 'headerButtons']) {
     freshSite();
     const before = readRoot('en');
     const want = otherValues(before)[f];
@@ -181,8 +181,8 @@ function roundTripProblems() {
       const stray = localeBrandFiles(path.join(TEMPLATE, 'site'));
       if (stray.length) problems.push(`${f}（语言目录下多了 ${stray.join(', ')}）`);
     }
-    // #1759 —— 两颗按钮只许写这种语言那一份 navigation.json。
-    if (['headerCta', 'headerCtaSecondary'].includes(f) && JSON.stringify(r.files) !== JSON.stringify([path.join('en', 'navigation.json')])) {
+    // #1759 —— 按钮只许写这种语言那一份 navigation.json。
+    if (f === 'headerButtons' && JSON.stringify(r.files) !== JSON.stringify([path.join('en', 'navigation.json')])) {
       problems.push(`${f}（写的是 ${JSON.stringify(r.files)}，不是 en/navigation.json）`);
     }
     const after = readRoot('en');
@@ -198,7 +198,7 @@ function roundTripProblems() {
 console.log('① 往返（分派表每一行）');
 {
   const problems = roundTripProblems();
-  check(problems.length === 0, '12 个 root 字段各写一次都读得回来、不碰别的字段（brand 五样只写站根的 brand.json，两颗按钮只写 en/navigation.json）', problems.join(' · '));
+  check(problems.length === 0, '11 个 root 字段各写一次都读得回来、不碰别的字段（brand 五样只写站根的 brand.json，按钮只写 en/navigation.json）', problems.join(' · '));
 
   // 反向：把分派表的 footerShape 那一行拿掉（editor-root.js 拿的是同一个数组）。#1425（T3）：原来拿的是 topbarLink。
   const table = fieldsMod.ROOT_FIELDS;
@@ -538,54 +538,52 @@ console.log('⑨ Business info（brand.json）');
     '查不到（网络错）⟹ 保存照样成功、旧坐标删掉（不留一个指着老地方的钉子）', `${s.status} ${JSON.stringify(b.locations[0])} ${s.stderr}`);
 }
 
-// ══ ⑩ #1759 顶栏两颗按钮 + logo：主按钮不许空、次按钮两格都空 = 删键、只填一格拒收、navigation.json 别的键一个字节不动 ══════
-console.log('⑩ 顶栏按钮 / logo（#1759）');
+// ══ ⑩ #1759 / #1787 顶栏按钮 + logo：0–3 颗、每颗名字和链接都不许空、navigation.json 别的键一个字节不动 ══════
+console.log('⑩ 顶栏按钮 / logo（#1759 · #1787）');
 {
   freshSite();
   const site = path.join(TEMPLATE, 'site');
   const navFile = path.join(site, 'en', 'navigation.json');
   const navOf = () => JSON.parse(fs.readFileSync(navFile, 'utf-8'));
   const nav0 = navOf();
-  check(!('ctaSecondary' in nav0.header), '前提：夹具站没有次按钮（同 fallback-site.js:97 的默认站）', JSON.stringify(nav0.header));
-  check(JSON.stringify(readRoot('en').headerCtaSecondary) === JSON.stringify({ label: '', href: '' }), '没有次按钮 ⟹ 读回两格空串');
+  check(Array.isArray(nav0.header.buttons) && nav0.header.buttons.length === 1 && !('cta' in nav0.header) && !('ctaSecondary' in nav0.header),
+    '前提：夹具站 header.buttons 1 颗、没有 cta / ctaSecondary（同 create-site 的新站）', JSON.stringify(nav0.header));
+  check(JSON.stringify(readRoot('en').headerButtons) === JSON.stringify(nav0.header.buttons), '读回来就是那 1 颗');
   let before = snapshot(site);
-  let r = tryWrite({ headerCta: { label: '  ', href: '/contact' } }, 'en');
-  check(r.code === editorRoot.REFUSED && /main button/.test(r.message) && changedFiles(before, snapshot(site)).length === 0, '主按钮文字清空 ⟹ 拒、什么都没写', r.message);
-  r = tryWrite({ headerCta: { label: 'Go', href: '' } }, 'en');
-  check(r.code === editorRoot.REFUSED && changedFiles(before, snapshot(site)).length === 0, '主按钮链接清空 ⟹ 拒、什么都没写', r.message);
-  r = tryWrite({ headerCtaSecondary: { label: 'Our work', href: '' } }, 'en');
-  check(r.code === editorRoot.REFUSED && /second button/.test(r.message) && changedFiles(before, snapshot(site)).length === 0, '次按钮只填文字 ⟹ 拒（构建 usableLink 两格缺一就不画）', r.message);
-  r = tryWrite({ headerCtaSecondary: { label: '', href: '/about' } }, 'en');
-  check(r.code === editorRoot.REFUSED && changedFiles(before, snapshot(site)).length === 0, '次按钮只填链接 ⟹ 拒', r.message);
-  r = tryWrite({ headerCta: { label: 'Go', href: '/x', style: 'solid' } }, 'en');
+  let r = tryWrite({ headerButtons: [{ label: '  ', href: '/contact' }] }, 'en');
+  check(r.code === editorRoot.REFUSED && /header button needs both a name and a link/.test(r.message) && changedFiles(before, snapshot(site)).length === 0,
+    '唯一那颗文字清空 ⟹ 拒、什么都没写', r.message);
+  r = tryWrite({ headerButtons: [{ label: 'Go', href: '/go' }, { label: 'Go', href: '' }] }, 'en');
+  check(r.code === editorRoot.REFUSED && /Header button 2 needs both a name and a link/.test(r.message) && changedFiles(before, snapshot(site)).length === 0,
+    '第 2 颗链接清空 ⟹ 拒、话里点第几颗、什么都没写', r.message);
+  r = tryWrite({ headerButtons: [{ label: '', href: { source: 'email' } }] }, 'en');
+  check(r.code === editorRoot.REFUSED, '只有引用、没有文字 ⟹ 拒（引用不算空链接，但文字是空的）', r.message);
+  r = tryWrite({ headerButtons: ['a', 'b', 'c', 'd'].map((x) => ({ label: x, href: `/${x}` })) }, 'en');
+  check(r.code === editorRoot.REFUSED && /up to 3 buttons/.test(r.message) && changedFiles(before, snapshot(site)).length === 0, '4 颗 ⟹ 拒「up to 3」', r.message);
+  r = tryWrite({ headerButtons: [{ label: 'Go', href: '/x', style: 'solid' }] }, 'en');
   check(r.code === 5, '按钮对象带了别的键 ⟹ 形状不对（5）', JSON.stringify(r));
+  r = tryWrite({ headerButtons: { label: 'Go', href: '/x' } }, 'en');
+  check(r.code === 5, 'headerButtons 不是数组 ⟹ 形状不对（5）', JSON.stringify(r));
   // #1779 —— 按钮链接可以是电话 / 邮箱引用（按钮弹窗选 Phone / Email 存的那种）；源不认识、多余的键 ⟹ 形状不对。
-  //    （#1759 时这一格判的是「引用对象一律拒」—— 那时构建对 header.cta.href 调 .replace；#1779 把构建、写盘那道门一起放开了。）
-  r = tryWrite({ headerCta: { label: 'Go', href: { source: 'address' } } }, 'en');
+  r = tryWrite({ headerButtons: [{ label: 'Go', href: { source: 'address' } }] }, 'en');
   check(r.code === 5, '按钮链接引用了按钮不收的源（address）⟹ 形状不对（5）', JSON.stringify(r));
-  r = tryWrite({ headerCta: { label: 'Go', href: { source: 'phone', extra: 1 } } }, 'en');
+  r = tryWrite({ headerButtons: [{ label: 'Go', href: { source: 'phone', extra: 1 } }] }, 'en');
   check(r.code === 5, '按钮链接引用带了多余的键 ⟹ 形状不对（5）', JSON.stringify(r));
   check(changedFiles(before, snapshot(site)).length === 0, '上面几次拒收：什么都没写');
-  r = tryWrite({ headerCta: { label: 'Call us', href: { source: 'phone' } } }, 'en');
-  const navRef = navOf();
-  check(!r.code && JSON.stringify(navRef.header.cta) === JSON.stringify({ label: 'Call us', href: { source: 'phone' } }),
-    '主按钮链接写成 {source: "phone"} ⟹ navigation.json 原样存下引用', `${JSON.stringify(r)} ${JSON.stringify(navRef.header)}`);
-  check(JSON.stringify(readRoot('en').headerCta) === JSON.stringify({ label: 'Call us', href: { source: 'phone' } }), '读回来还是那个引用（编辑器打开时按钮弹窗认它）');
-  r = tryWrite({ headerCtaSecondary: { label: '', href: { source: 'email' } } }, 'en');
-  check(r.code === editorRoot.REFUSED && /second button/.test(r.message), '次按钮只有引用、没有文字 ⟹ 拒（引用不算空）', r.message);
-  r = tryWrite({ headerCta: nav0.header.cta }, 'en');
-  check(!r.code && JSON.stringify(navOf()) === JSON.stringify(nav0), '主按钮改回原来的地址 ⟹ 文件回到原样', JSON.stringify(navOf().header));
-
-  // 加一颗次按钮：只多了 header.ctaSecondary，navigation.json 别的键一个字节不动。
-  r = tryWrite({ headerCtaSecondary: { label: ' Our work ', href: '/about' } }, 'en');
+  // 3 颗、含一个引用、顺序照交上来的：只变 header.buttons，navigation.json 别的键一个字节不动。
+  const three = [{ label: ' Get a quote ', href: '/contact' }, { label: 'Call us', href: { source: 'phone' } }, { label: 'Book online', href: 'https://book.example.com' }];
+  r = tryWrite({ headerButtons: three }, 'en');
   const nav1 = navOf();
-  check(!r.code && JSON.stringify(nav1.header.ctaSecondary) === JSON.stringify({ label: 'Our work', href: '/about' }), '加次按钮 ⟹ header.ctaSecondary 出现（去掉首尾空格）', JSON.stringify(nav1.header));
-  const rest = (n) => { const c = JSON.parse(JSON.stringify(n)); delete c.header.ctaSecondary; return JSON.stringify(c); };
-  check(rest(nav1) === rest(nav0), 'navigation.json 别的键（菜单、页脚、主按钮）一个字节不动');
-  // 删掉：两格都清空 ⟹ 键整个没了。
-  r = tryWrite({ headerCtaSecondary: { label: '', href: '' } }, 'en');
-  const nav2 = navOf();
-  check(!r.code && !('ctaSecondary' in nav2.header) && JSON.stringify(nav2) === JSON.stringify(nav0), '两格都清空 ⟹ header.ctaSecondary 这个键不存在，文件回到原样', JSON.stringify(nav2.header));
+  check(!r.code && JSON.stringify(nav1.header.buttons) === JSON.stringify([{ label: 'Get a quote', href: '/contact' }, three[1], three[2]]),
+    '3 颗 ⟹ header.buttons 3 项、顺序同交上来的、去首尾空格、引用原样', `${JSON.stringify(r)} ${JSON.stringify(nav1.header)}`);
+  const rest = (n) => { const c = JSON.parse(JSON.stringify(n)); delete c.header.buttons; return JSON.stringify(c); };
+  check(rest(nav1) === rest(nav0), 'navigation.json 别的键（菜单、页脚）一个字节不动');
+  check(JSON.stringify(readRoot('en').headerButtons[1]) === JSON.stringify({ label: 'Call us', href: { source: 'phone' } }), '读回来引用还是引用（编辑器打开时按钮弹窗认它）');
+  // 0 颗：老板删光了 ⟹ 照写空列表（= 不要按钮），不拒。
+  r = tryWrite({ headerButtons: [] }, 'en');
+  check(!r.code && JSON.stringify(navOf().header.buttons) === '[]' && rest(navOf()) === rest(nav0), '0 颗 ⟹ header.buttons = []，别的键不动', JSON.stringify(navOf().header));
+  r = tryWrite({ headerButtons: nav0.header.buttons }, 'en');
+  check(!r.code && JSON.stringify(navOf()) === JSON.stringify(nav0), '改回原来那 1 颗 ⟹ 文件回到原样', JSON.stringify(navOf().header));
   // logo：写地址、清空 = 删键。
   r = tryWrite({ logoUrl: '/images/my-logo.png' }, 'en');
   check(!r.code && JSON.parse(fs.readFileSync(path.join(site, 'brand.json'), 'utf-8')).logoUrl === '/images/my-logo.png', '换 logo ⟹ brand.json 的 logoUrl 是那张图');
@@ -593,9 +591,9 @@ console.log('⑩ 顶栏按钮 / logo（#1759）');
   check(!r.code && !('logoUrl' in JSON.parse(fs.readFileSync(path.join(site, 'brand.json'), 'utf-8'))), 'logo 清空 ⟹ logoUrl 这个键删掉（顶栏画名字）');
   // 坏链接：容器里那一步（§commitWrites 的链接判据）拒，原话点名那颗按钮。
   before = snapshot(site);
-  const s1 = runScript({ page: 'home', locale: 'en' }, { root: { headerCta: { label: 'Go', href: 'javascript:alert(1)' } } });
+  const s1 = runScript({ page: 'home', locale: 'en' }, { root: { headerButtons: [{ label: 'Book', href: '/contact' }, { label: 'Go', href: 'javascript:alert(1)' }] } });
   check(s1.status === 11 && s1.last && s1.last.ok === false && /Go/.test(s1.last.message) && changedFiles(before, snapshot(site)).length === 0,
-    '主按钮链接是 javascript: ⟹ exit 11、一句给老板的话、什么都没写', `${s1.status} ${s1.stdout}`);
+    '第 2 颗按钮链接是 javascript: ⟹ exit 11、一句给老板的话（点名那颗按钮）、什么都没写', `${s1.status} ${s1.stdout}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

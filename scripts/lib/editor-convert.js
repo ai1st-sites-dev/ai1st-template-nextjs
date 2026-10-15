@@ -681,13 +681,14 @@ function rootToPuck(values) {
   // #1738 —— 顶栏 / 页脚的底色 + 旋钮（一个对象；老站仓里的底稿不带 ⟹ 不放键，编辑器那头留构建时那份）。
   for (const k of ['headerOptions', 'footerOptions']) if (isPlainObject(values[k])) out[k] = { ...values[k] };
   for (const k of ['brandName', 'phone', 'email', 'address']) if (typeof values[k] === 'string') out[k] = values[k];
-  // #1759 —— 顶栏 Content 页：logo、两颗按钮（`{label, href}`，次按钮没有 = 两格空串）、菜单（`nav-editor.js` 那一份面板数据）。
+  // #1759 —— 顶栏 Content 页：logo、按钮（#1787：`[{label, href}]`，0–3 颗）、菜单（`nav-editor.js` 那一份面板数据）。
   //    `navMenu` 不是分派表里的字段（菜单是从各页推出来的）：存盘时由 `nav-editor.js` §navMenuChanges 单独比，不经 §puckRootChanges。
   if (typeof values.logoUrl === 'string') out.logoUrl = values.logoUrl;
-  for (const k of ['headerCta', 'headerCtaSecondary']) {
-    const b = values[k];
+  if (Array.isArray(values.headerButtons)) {
     // #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`，原样带过去）。
-    if (isPlainObject(b)) out[k] = { label: typeof b.label === 'string' ? b.label : '', href: typeof b.href === 'string' ? b.href : isButtonRef(b.href) ? { ...b.href } : '' };
+    out.headerButtons = values.headerButtons.filter(isPlainObject).map((b) => ({
+      label: typeof b.label === 'string' ? b.label : '', href: typeof b.href === 'string' ? b.href : isButtonRef(b.href) ? { ...b.href } : '',
+    }));
   }
   if (isPlainObject(values.navMenu)) out.navMenu = clone(values.navMenu);
   return out;

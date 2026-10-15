@@ -942,7 +942,7 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       };
       const notWritable = writeRejection(relPath, writeCtx);
       if (notWritable) return { error: notWritable };
-      // #1104 r2 —— 放行了，但**别处会跟着变**的那些改动要说出来（今天只有 header.cta.href：
+      // #1104 r2 —— 放行了，但**别处会跟着变**的那些改动要说出来（今天只有主按钮的 href —— #1787 起是 header.buttons[0].href：
       // 构建拿它算出 ctaSlug，再用它把那一页从顶部菜单里过滤掉）。判据在 lib/navigation-owned.js
       // 的 SIDE_EFFECTS，理由整段写在那里。它不是拒绝 —— 文件照常落盘，只是回话里带上实话。
       const sideEffects = writeNotes(relPath, writeCtx);
@@ -1107,13 +1107,14 @@ The site is defined by JSON configuration files:
   not go and edit those pages.
 - **pages/home.json** — Homepage sections
 - **pages/{slug}.json** — Other pages (about, services, contact, menu, gallery, faq, etc.)
-- **navigation.json** — **partly yours to edit.** You MAY change the header button (header.cta — its
-  label and href; it is the button at the top of every page and in the mobile menu), the footer
-  copyright, the footer description, the footer column titles, and the topbar. You MAY also add, change or
-  remove two optional ones: a second header button (header.ctaSecondary — {"label", "href"}) and the footer
-  legal links (footer.legal — a list of {"label", "href"}, e.g. Privacy policy / Terms). The owner can also
-  change the two header buttons in the page editor (the header's Content tab); the footer legal links
-  can only be changed by you. When the owner asks you for any of these, change them here.
+- **navigation.json** — **partly yours to edit.** You MAY change the header buttons (header.buttons — a
+  list of 0 to 3 {"label", "href"}; they are the buttons at the top of every page and in the mobile menu;
+  the first one is the main button, and how each one looks follows its position — filled, outlined, plain
+  link — so to change the main button, reorder the list), the footer copyright, the footer description,
+  the footer column titles, and the topbar. You MAY also add, change or remove the footer legal links
+  (footer.legal — a list of {"label", "href"}, e.g. Privacy policy / Terms). The owner can also change
+  the header buttons in the page editor (the header's Content tab); the footer legal links can only be
+  changed by you. When the owner asks you for any of these, change them here.
   A header button's href may be {"source": "phone"} or {"source": "email"} instead of an address — the
   button then calls / emails the business, filled in from brand.json. Keep it exactly as it is unless the
   owner asks to change where that button goes; to make a button call the business, write it that way.

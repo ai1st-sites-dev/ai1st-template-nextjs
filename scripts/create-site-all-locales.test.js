@@ -812,7 +812,7 @@ check('两种语言的顶部导航都到得了服务列表页、按钮都指 con
   for (const loc of ['zh', 'en']) {
     const nav = JSON.parse(fs.readFileSync(path.join(RG.site, loc, 'navigation.json'), 'utf8'));
     assert.deepStrictEqual(nav.header.links.map((l) => l.href), ['/', '/services'], loc);
-    assert.strictEqual(nav.header.cta.href, '/contact', loc);
+    assert.strictEqual(nav.header.buttons[0].href, '/contact', loc);
   }
 });
 check('文案各取各的：en 的服务页是英文那份', () => {

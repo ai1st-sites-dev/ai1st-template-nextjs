@@ -53,7 +53,7 @@ const TYPES_FILE = path.join(TEMPLATE_ROOT, 'src', 'lib', 'types', 'config.ts');
 const BASE = {
   header: {
     links: [{ label: 'Home', href: '/' }, { label: 'About Us', href: '/about' }],
-    cta: { label: 'Book Appointment', href: '/contact' },
+    buttons: [{ label: 'Book Appointment', href: '/contact' }],
   },
   footer: {
     description: 'Serving the Greater Toronto Area since 2014.',
@@ -74,9 +74,9 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
 // ── ① 构建不碰的那几处：写得进去 ───────────────────────────────────────────────────────────────
 {
   const CASES = [
-    ['顶部那个按钮的文字（本票的实物）', (n) => { n.header.cta.label = 'Book Now'; }],
-    ['顶部那个按钮的链接', (n) => { n.header.cta.href = '/quote'; }],
-    ['文字和链接一起改', (n) => { n.header.cta = { label: 'Get a Quote', href: '/quote' }; }],
+    ['顶部那个按钮的文字（本票的实物）', (n) => { n.header.buttons[0].label = 'Book Now'; }],
+    ['顶部那个按钮的链接', (n) => { n.header.buttons[0].href = '/quote'; }],
+    ['文字和链接一起改', (n) => { n.header.buttons[0] = { label: 'Get a Quote', href: '/quote' }; }],
     ['页脚版权', (n) => { n.footer.copyright = 'Northside Roofing Ltd.'; }],
     ['页脚那段介绍', (n) => { n.footer.description = 'Roofing across the GTA since 2014.'; }],
     ['第一栏页脚的【标题】（它的 links 才是构建的）', (n) => { n.footer.columns[0].title = '快速链接'; }],
@@ -122,7 +122,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
   }
   // 拒绝理由还必须告诉模型这里【能】改什么 —— 否则它只知道不许干什么，就又去说「改不了」。
   const why = tryWrite('navigation.json', (() => { const n = clone(BASE); n.header.links = []; return n; })());
-  for (const needle of ['header.cta', 'footer copyright', 'Nothing was written']) {
+  for (const needle of ['header.buttons', 'footer copyright', 'Nothing was written']) {
     if (!String(why).includes(needle)) problems.push(`拒绝理由里没有 "${needle}"`);
   }
   if (problems.length === 0) ok(`构建会重写的那几处：${CASES.length} 种改法全部被拒，理由点名了去改 navLabel / navOrder，也说了这里能改什么`);
@@ -272,16 +272,20 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
 // ── ⑤ 构建每次都读的那几处缺了：拒，而且说清缺的是什么 ─────────────────────────────────────────
 //
 // 放行一份缺了它们的 navigation.json，后果不是"这次编辑没生效"，是这个站从此重建不出来
-// （sync-config.js 对 header.cta.href 直接 .replace、对 footer.columns 直接取 .length）。
+// （sync-config.js 对 footer.columns 直接取 .length；#1787 之前还对 header.cta.href 直接 .replace）。
 {
   const CASES = [
-    ['按钮整个没了', (n) => { delete n.header.cta; }, 'header.cta'],
-    ['按钮没有链接', (n) => { delete n.header.cta.href; }, 'header.cta.href'],
-    ['按钮链接写成了空串', (n) => { n.header.cta.href = ''; }, 'header.cta.href'],
-    ['按钮没有文字', (n) => { delete n.header.cta.label; }, 'header.cta.label'],
-    ['按钮文字写成了数字', (n) => { n.header.cta.label = 42; }, 'header.cta.label'],
+    // #1787 —— 按钮是一个列表：整个键没了 / 不是数组 / 超过 3 颗 拒；每一颗的文字、链接都不许空。
+    ['按钮列表整个没了', (n) => { delete n.header.buttons; }, 'header.buttons'],
+    ['按钮列表不是数组', (n) => { n.header.buttons = { label: 'A', href: '/a' }; }, 'header.buttons'],
+    ['4 颗按钮', (n) => { n.header.buttons = ['a', 'b', 'c', 'd'].map((x) => ({ label: x, href: `/${x}` })); }, 'can have at most 3'],
+    ['按钮没有链接', (n) => { delete n.header.buttons[0].href; }, 'header.buttons[0].href'],
+    ['按钮链接写成了空串', (n) => { n.header.buttons[0].href = ''; }, 'header.buttons[0].href'],
+    ['按钮没有文字', (n) => { delete n.header.buttons[0].label; }, 'header.buttons[0].label'],
+    ['按钮文字写成了数字', (n) => { n.header.buttons[0].label = 42; }, 'header.buttons[0].label'],
     // QA3 在 #1104 r2 报的非阻断第 2 条：纯空白也是一个没有字的按钮。
-    ['按钮文字只有空格', (n) => { n.header.cta.label = '   '; }, 'header.cta.label'],
+    ['按钮文字只有空格', (n) => { n.header.buttons[0].label = '   '; }, 'header.buttons[0].label'],
+    ['第 3 颗按钮文字只有空格', (n) => { n.header.buttons.push({ label: 'B', href: '/b' }, { label: ' ', href: '/c' }); }, 'header.buttons[2].label'],
     ['footer.columns 不是数组', (n) => { n.footer.columns = { '0': {} }; }, 'footer.columns'],
     ['footer 整个没了', (n) => { delete n.footer; }, 'footer'],
     ['header 整个没了', (n) => { delete n.header; }, 'header'],
@@ -371,22 +375,22 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
     readCurrent: () => JSON.stringify(BASE),
   });
 
-  const onlyLabel = notesVia(nav((n) => { n.header.cta.label = 'Book Now'; }));
+  const onlyLabel = notesVia(nav((n) => { n.header.buttons[0].label = 'Book Now'; }));
   if (onlyLabel.length !== 0) problems.push(`只改按钮文字不该有附带说明，实际有 ${onlyLabel.length} 句`);
 
-  const hrefChanged = notesVia(nav((n) => { n.header.cta.href = '/about'; n.header.cta.label = 'Read Our Story'; }));
+  const hrefChanged = notesVia(nav((n) => { n.header.buttons[0].href = '/about'; n.header.buttons[0].label = 'Read Our Story'; }));
   if (hrefChanged.length !== 1) {
     problems.push(`改了按钮链接应当带 1 句附带说明，实际 ${hrefChanged.length} 句`);
   } else {
     const text = hrefChanged[0];
-    for (const needle of ['/about', BASE.header.cta.href, 'top menu']) {
+    for (const needle of ['/about', BASE.header.buttons[0].href, 'top menu']) {
       if (!text.includes(needle)) problems.push(`那句附带说明里没有 "${needle}"（它必须点名改前改后是哪两页）`);
     }
   }
 
   // 🔴 它是【说明】不是【拒绝】：同一次编辑必须照常放行，否则本票就白做了。
   const stillAllowed = writeRejection('en/navigation.json', {
-    content: JSON.stringify(nav((n) => { n.header.cta.href = '/about'; })),
+    content: JSON.stringify(nav((n) => { n.header.buttons[0].href = '/about'; })),
     readCurrent: () => JSON.stringify(BASE),
   });
   if (stillAllowed !== null) problems.push(`改按钮链接被拒了（本票要它能改）：${stillAllowed}`);
@@ -754,7 +758,7 @@ function navWritesInSyncConfig(file) {
   const CASES = [
     ['顶层多一个没人认识的键', (n) => { n.somethingNew = { a: 1 }; }],
     ['footer 里多一个陌生键', (n) => { n.footer.extraThing = 5; }],
-    ['按钮上多一个陌生键', (n) => { n.header.cta.style = 'big'; }],
+    ['按钮上多一个陌生键', (n) => { n.header.buttons[0].style = 'big'; }],
     ['topbar 只写 message（link 是可选的）', (n) => { n.topbar = { message: '24/7 emergency service' }; }],
     ['本来就没有 topbar（可选，缺了不算错）', (n) => { delete n.topbar; }],
   ];
@@ -806,9 +810,9 @@ function navWritesInSyncConfig(file) {
   // 第一二格就是本票 AC1 / AC2 的两臂（QA2 在 #1104 r4 真机上量的那两个）。
   const CASES = [
     ['B 臂：footer 多一个 copyRight（原 copyright 仍在）', (n) => { n.footer.copyRight = 'X Ltd.'; }, ['footer.copyRight']],
-    ['C 臂：header.cta 多一个 text（label 没动）', (n) => { n.header.cta.text = 'Book Now'; }, ['header.cta.text']],
+    ['C 臂：header.buttons[0] 多一个 text（label 没动）', (n) => { n.header.buttons[0].text = 'Book Now'; }, ['header.buttons[0].text']],
     ['顶层多一个没人认识的键', (n) => { n.somethingNew = { a: 1 }; }, ['somethingNew']],
-    ['一次多两个键', (n) => { n.footer.copyRight = 'X'; n.header.cta.text = 'Y'; }, ['footer.copyRight', 'header.cta.text']],
+    ['一次多两个键', (n) => { n.footer.copyRight = 'X'; n.header.buttons[0].text = 'Y'; }, ['footer.copyRight', 'header.buttons[0].text']],
     // 陌生子树只报最外面那一层 —— 里面每一层同样没人读，逐层报是把同一件事说成好几件。
     ['陌生键底下还套着东西', (n) => { n.footer.extra = { a: { b: 1 } }; }, ['footer.extra']],
     ['第二栏那个对象上多一个键（构建不重写它 ⟹ 走得到这一步）', (n) => { n.footer.columns[1].note = 'x'; }, ['footer.columns[1].note']],
@@ -839,12 +843,12 @@ function navWritesInSyncConfig(file) {
     //      （'do not say the build does not read'）是第一版措辞跑完 5 次之后加的 —— 那 5 次
     //      假话 0 次，但 4 次把「谁都不读它」压成了「构建不读它」，而那句话是假的（#1128 在
     //      真站上量过：那个键进了产物、连访客浏览器都收到了，没有的是页面去看它）
-    //   ④ 还是要给一条照做有用的路          'header.cta'（来自 NAVIGATION_EDITABLE_SUMMARY）
+    //   ④ 还是要给一条照做有用的路          'header.buttons'（来自 NAVIGATION_EDITABLE_SUMMARY）
     // 🔴 ③ 那三条挑的都是**单复数同形**的片段（`removed it` / `removed them` 的公共前缀等），
     //    理由跟上面 NEEDLE 那条一样。
     for (const needle of [' nothing on the site:', 'on disk right now', 'do not tell the owner that you removed',
       'only the recognised fields were saved', 'that you will clean', 'do not say the build does not read',
-      'header.cta']) {
+      'header.buttons']) {
       if (!said[0].includes(needle)) problems.push(`${name} → 那句话里没有 "${needle}"`);
     }
     // 报出来的键数 == 真的陌生键数（多报一个就是对一个真生效的字段说假话）
@@ -855,9 +859,9 @@ function navWritesInSyncConfig(file) {
   // 🔴 反向（AC3）：#1104 那些**正当**编辑一句都不许多。这一半不是可选的 —— 没有它，把判据写成
   //    「恒定说一句」也能让上面全绿，而那句话对每一次正常编辑都是假话。
   const LEGIT = [
-    ['改按钮文字', (n) => { n.header.cta.label = 'Book Now'; }],
-    ['改按钮链接', (n) => { n.header.cta.href = '/quote'; }],
-    ['文字和链接一起改', (n) => { n.header.cta = { label: 'Get a Quote', href: '/quote' }; }],
+    ['改按钮文字', (n) => { n.header.buttons[0].label = 'Book Now'; }],
+    ['改按钮链接', (n) => { n.header.buttons[0].href = '/quote'; }],
+    ['文字和链接一起改', (n) => { n.header.buttons[0] = { label: 'Get a Quote', href: '/quote' }; }],
     ['改页脚版权', (n) => { n.footer.copyright = 'Northside Roofing Ltd.'; }],
     ['版权设成空串', (n) => { n.footer.copyright = ''; }],
     ['页脚介绍', (n) => { n.footer.description = 'Roofing across the GTA since 2014.'; }],
@@ -876,9 +880,9 @@ function navWritesInSyncConfig(file) {
     ['删掉 topbar 键', (n) => { n.topbar = { message: 'x' }; delete n.topbar; }],
     ['版权带 emoji 和换行', (n) => { n.footer.copyright = '© 2026 Northside 🏠\nAll rights reserved.'; }],
     ['介绍 3000 字', (n) => { n.footer.description = 'Roofing. '.repeat(375); }],
-    ['按钮文字带前后空格', (n) => { n.header.cta.label = '  Book Now  '; }],
-    ['按钮链接换成外链', (n) => { n.header.cta.href = 'https://example.com/book'; }],
-    ['按钮链接换成锚点', (n) => { n.header.cta.href = '#contact'; }],
+    ['按钮文字带前后空格', (n) => { n.header.buttons[0].label = '  Book Now  '; }],
+    ['按钮链接换成外链', (n) => { n.header.buttons[0].href = 'https://example.com/book'; }],
+    ['按钮链接换成锚点', (n) => { n.header.buttons[0].href = '#contact'; }],
   ];
   let clean = 0;
   for (const [name, mutate] of LEGIT) {
@@ -948,11 +952,11 @@ console.log('\n⑱ 陌生键那句话排在 side-effect 那几句的最前面');
 {
   const next = clone(BASE);
   next.footer.extra = 'x';                       // 制造一个陌生键 ⟹ 那句话必须出现
-  // 🔴 第二类的话必须真的被触发。`SIDE_EFFECTS` 今天只有一条,它读的是 `header.cta.href`
+  // 🔴 第二类的话必须真的被触发。`SIDE_EFFECTS` 今天只有一条,它读的是主按钮的 href（#1787 起是 `header.buttons[0].href`）
   //    (自己核:`node -e "console.log(require('./navigation-owned.js').SIDE_EFFECTS.length)"`)——
   //    所以这里改的是它,不是版权。我第一版改版权,这一格当场打「只有那一句」并红:夹具立不起来
   //    跟顺序反了长得不一样,这一格分得开,而那正是它该有的样子。
-  next.header.cta.href = '/quote';               // 触发那一条 side effect ⟹ 第二类的话也必须出现
+  next.header.buttons[0].href = '/quote';               // 触发那一条 side effect ⟹ 第二类的话也必须出现
   const said = mod.navigationEditSideEffects(next, clone(BASE), true);
   const isUndeclared = (l) => l.includes('still in the copy that was just written');
   const iUnd = said.findIndex(isUndeclared);
@@ -1099,7 +1103,7 @@ function flattenShape(shape, at = '', out = []) {
 //   AC1 看不见的那几格 —— 照常放行（值真的写进去），并且回话里点名这个站的页面不显示它
 //   AC3 看得见的那两格 —— **一句都不许多**。它们本来就真生效，多说一句「可能没生效」就是新的假话，
 //       而本票存在的全部意义就是别让老板听到假话。这一格在「算得出版式」和「算不出版式」两条路上
-//       各钉一次 —— 第一版只在前一条路上成立，后一条路上 `header.cta` 也被多说了一句（自己抓到的）。
+//       各钉一次 —— 第一版只在前一条路上成立，后一条路上 `header.cta`（#1787 起 `header.buttons`）也被多说了一句（自己抓到的）。
 {
   const { PAGE_READS, alwaysRendered, VARIANTS_BY_REGION } = mod;
   const NEEDLE = 'One more thing to tell the owner:';
@@ -1124,14 +1128,13 @@ function flattenShape(shape, at = '', out = []) {
   };
   /** 每一格各改一处它自己的值。 */
   const MUTATE = {
-    'header.cta': (n) => { n.header.cta.label = 'Book Now Today'; },
+    'header.buttons': (n) => { n.header.buttons[0].label = 'Book Now Today'; },
     'footer.copyright': (n) => { n.footer.copyright = 'Northside Roofing Ltd.'; },
     'footer.description': (n) => { n.footer.description = 'Roofing across the GTA since 2014.'; },
     'footer.columns[].title': (n) => { n.footer.columns[0].title = 'What We Do'; },
     'footer.columns[>0].links': (n) => { n.footer.columns[1].links[0].label = 'Emergency callout'; },
     topbar: (n) => { n.topbar = { message: '24/7 emergency service' }; },
     // #1529
-    'header.ctaSecondary': (n) => { n.header.ctaSecondary = { label: 'Call us', href: '/contact' }; },
     'footer.legal': (n) => { n.footer.legal = [{ label: 'Privacy policy', href: '/privacy' }]; },
   };
 
@@ -1203,7 +1206,7 @@ function flattenShape(shape, at = '', out = []) {
     const invisible = PAGE_READS.filter((e) => !alwaysRendered(e));
     ok(`⑬ AC1：${invisible.length} 格看不见的字段（${invisible.map((e) => `\`${e.key}\``).join(' · ')}）`
       + '各自照常放行 + 回话点名这个站不显示它；换成真的画它的站就闭嘴'
-      + `；AC3：${PAGE_READS.length - invisible.length} 格永远看得见的（\`header.cta\` · \`footer.copyright\`）`
+      + `；AC3：${PAGE_READS.length - invisible.length} 格永远看得见的（\`header.buttons\` · \`footer.copyright\`）`
       + '在两条路上都一句不多');
   } else bads.forEach(bad);
 
@@ -1521,14 +1524,13 @@ function flattenShape(shape, at = '', out = []) {
     /** 每一格种一个独有的记号（只用字母数字，HTML 转义碰不到它）。 */
     const markOf = (e) => `Qq1425${e.key.replace(/[^A-Za-z0-9]/g, '')}`;
     const PLANT = {
-      'header.cta': (n, m) => { n.header.cta.label = m; },
+      'header.buttons': (n, m) => { n.header.buttons[0].label = m; n.header.buttons.push({ label: `${m}b`, href: '/b' }, { label: `${m}c`, href: '/c' }); },
       'footer.copyright': (n, m) => { n.footer.copyright = m; },
       'footer.description': (n, m) => { n.footer.description = m; },
       'footer.columns[].title': (n, m) => { n.footer.columns.forEach((c) => { c.title = m; }); },
       'footer.columns[>0].links': (n, m) => { n.footer.columns.slice(1).forEach((c) => c.links.forEach((l) => { l.label = m; })); },
       topbar: (n, m) => { n.topbar = { message: m, link: { label: m, href: '/contact' } }; },
       // #1529
-      'header.ctaSecondary': (n, m) => { n.header.ctaSecondary = { label: m, href: '/contact' }; },
       'footer.legal': (n, m) => { n.footer.legal = [{ label: m, href: '/privacy' }]; },
     };
     const REGIONS = ['header', 'footer'];
@@ -1650,8 +1652,8 @@ function flattenShape(shape, at = '', out = []) {
 {
   const problems = [];
   const phoneSite = clone(BASE);
-  phoneSite.header.cta.href = { source: 'phone' };
-  phoneSite.header.ctaSecondary = { label: 'Email us', href: { source: 'email', location: 1 } };
+  phoneSite.header.buttons[0].href = { source: 'phone' };
+  phoneSite.header.buttons.push({ label: 'Email us', href: { source: 'email', location: 1 } });
   const notesFor = (next, current) => writeNotes('en/navigation.json', {
     content: JSON.stringify(next),
     readCurrent: () => JSON.stringify(current),
@@ -1668,7 +1670,7 @@ function flattenShape(shape, at = '', out = []) {
 
   // ② 把主按钮从 Phone 改成 /contact：放行；那句「菜单也会跟着变」里原来那一边是人话，不是 [object Object]。
   const toPage = clone(phoneSite);
-  toPage.header.cta.href = '/contact';
+  toPage.header.buttons[0].href = '/contact';
   const r2 = tryWrite('en/navigation.json', toPage, phoneSite);
   if (r2 !== null) problems.push(`Phone → /contact 被拒了：${r2}`);
   const n2 = notesFor(toPage, phoneSite);
@@ -1689,16 +1691,16 @@ function flattenShape(shape, at = '', out = []) {
 
   // ④ 两头都是引用（Phone → Email）：菜单不变 ⟹ 不说。
   const toEmail = clone(phoneSite);
-  toEmail.header.cta.href = { source: 'email' };
+  toEmail.header.buttons[0].href = { source: 'email' };
   const n4 = notesFor(toEmail, phoneSite);
   if (n4.length !== 0) problems.push(`Phone → Email 菜单不变，不该有附带说明：${n4.join(' | ')}`);
 
   // ⑤ 门照样有牙：按钮不收的源、多余的键、空字符串都拒，并且说清是哪一格。
   for (const [name, href] of [['源不认识（address）', { source: 'address' }], ['多一个键', { source: 'phone', x: 1 }], ['空字符串', '  ']]) {
     const bad1 = clone(phoneSite);
-    bad1.header.cta.href = href;
+    bad1.header.buttons[0].href = href;
     const why = tryWrite('en/navigation.json', bad1, phoneSite);
-    if (!why || !why.includes('header.cta.href')) problems.push(`主按钮 href ${name} 应当被拒并点名 header.cta.href，实际：${why}`);
+    if (!why || !why.includes('header.buttons[0].href')) problems.push(`主按钮 href ${name} 应当被拒并点名 header.buttons[0].href，实际：${why}`);
   }
 
   if (problems.length === 0) {

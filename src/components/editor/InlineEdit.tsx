@@ -96,7 +96,8 @@ export type InlineApi = {
   openButton: (id: string, slot: string, index: number) => void;
   /**
    * #1779 —— 画布上点了外壳区（顶栏 / 页脚，不是 Puck 的块）里的一样东西：开按钮弹窗，改的是 root 上的 `field`。
-   * 今天只有顶栏两颗按钮（`headerCta` / `headerCtaSecondary`）；#1780 顶上那一行的链接复用这一条（PM 2026-10-14：钩子只挂一套）。
+   * 今天只有顶栏的按钮（#1787：`field` 是它在 root `headerButtons` 里的下标，`"0"` = 主按钮）；#1780 顶上那一行的链接复用这一条
+   * （PM 2026-10-14：钩子只挂一套）。
    */
   openRegionButton: (region: 'header' | 'footer', field: string) => void;
 };
@@ -379,13 +380,14 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         registerOverlayPortal(el);
         el.setAttribute('data-editor-button', '');
       }
-      // #1779 —— 顶栏的按钮：外壳区不是 Puck 的块，上面两遍扫不到。`blocks/header/Section.tsx` 给每颗挂 `data-hdr-cta`（main / second），
-      //    这里整颗登记成收得到鼠标（同块的按钮：悬停只有外面一圈虚线、点哪儿都开按钮弹窗，§onClick）。
-      //    `data-editor-region-button` 的值是弹窗改的那个 root 字段；React 换了这颗是主还是次时元素可能原样复用 ⟹ 每遍都对一次。
+      // #1779 —— 顶栏的按钮：外壳区不是 Puck 的块，上面两遍扫不到。`blocks/header/Section.tsx` 给每颗挂 `data-hdr-cta`（#1787：
+      //    它在 `headerButtons` 里的下标），这里整颗登记成收得到鼠标（同块的按钮：悬停只有外面一圈虚线、点哪儿都开按钮弹窗，§onClick）。
+      //    `data-editor-region-button` 的值就是那个下标；拖动换了顺序时 React 可能原样复用元素 ⟹ 每遍都对一次。
       //    Design 面板缩略图里画的那几份不算（同 EditorApp §regionEl）。
       for (const el of Array.from(doc.querySelectorAll('[data-block="header"] [data-hdr-cta]')) as HTMLElement[]) {
         if (el.closest('[data-editor-popover]')) continue;
-        const field = el.getAttribute('data-hdr-cta') === 'main' ? 'headerCta' : 'headerCtaSecondary';
+        const field = el.getAttribute('data-hdr-cta') || '';
+        if (!/^\d+$/.test(field)) continue;
         if (el.getAttribute('data-editor-region-button') !== field) el.setAttribute('data-editor-region-button', field);
         if (seen.has(el)) continue;
         seen.add(el);
@@ -475,7 +477,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (barRef.current && barRef.current.contains(t)) return;
       // #1700 —— Design 弹层里的点击归弹层自己（缩略图里的字不是画布上的字）。
       if (t.closest('[data-editor-popover]')) return;
-      // #1779 —— 点到顶栏的按钮：开按钮弹窗（改 root 上那一颗），不导航。字段按点下去那一刻的 `data-hdr-cta` 认（同 §scan）。
+      // #1779 —— 点到顶栏的按钮：开按钮弹窗（改 root 上那一颗），不导航。下标按点下去那一刻的 `data-hdr-cta` 认（同 §scan）。
       const rb = t.closest('[data-editor-region-button]') as HTMLElement | null;
       if (rb) {
         e.preventDefault();
@@ -484,7 +486,7 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         setNote('');
         setActive(null);
         if (!apiRef.current || apiRef.current.locked) return;
-        const field = rb.getAttribute('data-hdr-cta') === 'main' ? 'headerCta' : 'headerCtaSecondary';
+        const field = rb.getAttribute('data-hdr-cta') || '';
         // 排在点外面那一下的 Cancel 后面（同下面块的按钮那一支）：顶栏的 Design 面板开着时先收它、再开弹窗。
         doc.defaultView!.setTimeout(() => apiRef.current?.openRegionButton('header', field), 0);
         return;

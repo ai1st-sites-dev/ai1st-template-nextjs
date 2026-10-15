@@ -1681,11 +1681,12 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
   const calls = [];
   BAD.forEach((href, i) => {
     calls.push({ id: `p${i}`, what: `页面 hero 按钮 ${href.split(':')[0]}:`, call: writeCall(`p${i}`, 'en/pages/home.json', pageWith(0, href)) });
-    calls.push({ id: `h${i}`, what: `navigation.json 顶栏按钮 ${href.split(':')[0]}:`, call: writeCall(`h${i}`, 'en/navigation.json', navWith((n) => { n.header.cta = { label: 'Get a Quote', href }; })) });
+    calls.push({ id: `h${i}`, what: `navigation.json 顶栏按钮 ${href.split(':')[0]}:`, call: writeCall(`h${i}`, 'en/navigation.json', navWith((n) => { n.header.buttons = [{ label: 'Get a Quote', href }]; })) });
     // #1528：一句话公告的链接（topbar.link）又画到页面上了（header 的 topbar.message）⟹ 这一臂加回来。
     calls.push({ id: `t${i}`, what: `navigation.json 公告链接 ${href.split(':')[0]}:`, call: writeCall(`t${i}`, 'en/navigation.json', navWith((n) => { n.topbar = { message: 'Open Saturday', link: { label: 'Details', href } }; })) });
-    // #1529：老板新能写的两处链接（顶栏副按钮 · 页脚法律链接）走同一关（#1648 删了页脚 CTA 条那一处）。
-    calls.push({ id: `c${i}`, what: `navigation.json 顶栏副按钮 ${href.split(':')[0]}:`, call: writeCall(`c${i}`, 'en/navigation.json', navWith((n) => { n.header.ctaSecondary = { label: 'Call us', href }; })) });
+    // #1529：老板新能写的两处链接（顶栏后几颗按钮 · 页脚法律链接）走同一关（#1648 删了页脚 CTA 条那一处）。
+    // #1787：顶栏按钮是一个列表 —— 第 2 颗坏、第 1 颗好，照样拒。
+    calls.push({ id: `c${i}`, what: `navigation.json 顶栏第 2 颗按钮 ${href.split(':')[0]}:`, call: writeCall(`c${i}`, 'en/navigation.json', navWith((n) => { n.header.buttons = [{ label: 'Book', href: '/contact' }, { label: 'Call us', href }]; })) });
     calls.push({ id: `l${i}`, what: `navigation.json 页脚法律链接 ${href.split(':')[0]}:`, call: writeCall(`l${i}`, 'en/navigation.json', navWith((n) => { n.footer.legal = [{ label: 'Privacy', href: '/privacy' }, { label: 'Terms', href }]; })) });
     calls.push({ id: `s${i}`, what: `站级块库 cta ${href.split(':')[0]}:`, call: writeCall(`s${i}`, 'en/blocks/site-blocks.json', libWith(href)) });
   });
@@ -1696,7 +1697,7 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
     ['en/./pages/home.json', () => pageWith(0, 'vbscript:msgbox(1)')],
     ['en/blocks//site-blocks.json', () => libWith('vbscript:msgbox(1)')],
     ['en/blocks/./site-blocks.json', () => libWith('vbscript:msgbox(1)')],
-    ['en//navigation.json', () => navWith((n) => { n.header.cta = { label: 'Get a Quote', href: 'vbscript:msgbox(1)' }; })],
+    ['en//navigation.json', () => navWith((n) => { n.header.buttons = [{ label: 'Get a Quote', href: 'vbscript:msgbox(1)' }]; })],
   ].forEach(([p, body], i) => {
     calls.push({ id: `w${i}`, what: `拼写 ${p} vbscript:`, call: writeCall(`w${i}`, p, body()) });
   });
@@ -1731,7 +1732,7 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
         return JSON.stringify(p, null, 2);
       })()),
       writeCall('g2', 'en/navigation.json', navWith((n) => {
-        n.header.cta = { label: 'Contact', href: '/contact' };
+        n.header.buttons = [{ label: 'Contact', href: '/contact' }];
       })),
       writeCall('g3', 'en/blocks/site-blocks.json', libWith('tel:+15551234')),
     ], 'tool_use'),
@@ -1741,7 +1742,7 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
   const n = JSON.parse(fs.readFileSync(navFile, 'utf8'));
   const l = fs.existsSync(libFile) ? JSON.parse(fs.readFileSync(libFile, 'utf8')) : {};
   const libHref = l['shared-cta'] && l['shared-cta'].data && Array.isArray(l['shared-cta'].data.ctas) && l['shared-cta'].data.ctas[0] ? l['shared-cta'].data.ctas[0].href : undefined;
-  const got = [h.ctas && h.ctas[0] && h.ctas[0].href, h.ctas && h.ctas[1] && h.ctas[1].href, libHref, n.header && n.header.cta && n.header.cta.href];
+  const got = [h.ctas && h.ctas[0] && h.ctas[0].href, h.ctas && h.ctas[1] && h.ctas[1].href, libHref, n.header && Array.isArray(n.header.buttons) && n.header.buttons[0] && n.header.buttons[0].href];
   const want = ['https://example.com', 'mailto:a@b.com', 'tel:+15551234', '/contact'];
   if (JSON.stringify(got) === JSON.stringify(want)) ok(`⑮ 对照：四种合法地址照收、逐字落盘 ${JSON.stringify(got)}`);
   else bad(`🔴 ⑮ 对照：合法地址没照收 —— 落盘 ${JSON.stringify(got)} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g3')).slice(0, 160)}`);

@@ -19,8 +19,8 @@
 //    navigation.json 里**本来就有**的两格照搬：`footer.description` → `tagline`、`footer.copyright` →
 //    `copyright`（旧页脚画的是 `© 年份 {copyright}`，这里拼成同一句）。
 // 📌 #1529：老板能写进 navigation.json 的两格（AI 改站那条路，`navigation-owned.js` 把门），**写了才派生，没写就不进 data**：
-//    `header.ctaSecondary {label, href}` → 顶栏副按钮（补 `style: 'outline'`，跟主按钮补 `solid` 对称）·
 //    `footer.legal [{label, href}]` → 页脚底栏那排链接。
+// 📌 #1787：顶栏按钮 `header.buttons [{label, href}]`（0–3 颗）→ 块的 `buttons`，样子按位置补（`header-buttons.js`）。
 //    #1648 起页脚没有 CTA 条：navigation.json 页脚那一段里还留着的 CTA 那一格不派生、不报错（页尾号召只由页面里的 CTA 块负责）。
 //    站内链接都跟 `localizeHref` 走。
 // 📌 #1632：关键词页那几栏（按服务分组）现在画了 —— `columns.keywordGroups`，**每次构建从这一语言的当前页面现算**
@@ -35,7 +35,7 @@ const { hrefAllowed } = require('./href-allowed');
 const { localizeHref } = require('./nav-menu');
 const { isKeywordPage } = require('./keyword-service');
 const { keywordFooterColumns, serviceIdOfKeywordPath } = require('./keyword-pages');
-const { isButtonRef } = require('./item-sources');
+const { headerButtonsData } = require('./header-buttons');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
@@ -55,19 +55,6 @@ function links(list, loc) {
  *    本票开始画它而上页面 ⟹ 不过白名单的那一项当没写。
  */
 const usableLink = (l) => isObj(l) && !!str(l.label) && !!str(l.href) && hrefAllowed(l.href);
-
-/**
- * #1779 —— 顶栏两颗按钮（`header.cta` / `header.ctaSecondary`）→ 外壳 data 的那一颗；画不出 ⟹ null。
- * href 是联系方式引用（`{source: "phone"}` …，§isButtonRef）⟹ 原样交下去：`SiteShell` 渲染前 `resolveItemSources`
- * 把按钮的引用展开成 `tel:` / `mailto:`（§resolveButtons，跟页面块同一条路）。是字符串 ⟹ 照旧：非空、按语言加前缀；
- * `allowed`（次按钮）再过一道白名单（同 §usableLink，#1529）。
- */
-function headerButton(b, style, loc, allowed) {
-  if (!isObj(b) || !str(b.label)) return null;
-  if (isButtonRef(b.href)) return { label: str(b.label), href: { ...b.href }, style };
-  if (!str(b.href) || (allowed && !hrefAllowed(b.href))) return null;
-  return { label: str(b.label), href: loc(str(b.href)), style };
-}
 
 /**
  * navigation.json 的 `topbar`（老公告条的形状：`{message: string, link?: {label, href}}`）→ header 的
@@ -115,10 +102,9 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   if (logo) header.logo = logo;
   if (name) header.brandName = name;
   header.nav = links(h.links, loc);
-  const primary = headerButton(h.cta, 'solid', loc, false);
-  if (primary) header.ctaPrimary = primary;
-  const secondary = headerButton(h.ctaSecondary, 'outline', loc, true);
-  if (secondary) header.ctaSecondary = secondary;
+  // #1787 —— 顶栏按钮：画不出的那一颗不进 data；电话 / 邮箱引用原样交下去（`SiteShell` 渲染前 `resolveItemSources` 展开，
+  //    跟页面块的按钮同一条路），站内地址按语言加前缀。
+  header.buttons = headerButtonsData(h.buttons, loc);
   // 只有带 topbar 的预设才画这一条；值不存在的那一项展开时自己去掉（item-sources.js §ITEM_SLOTS）。
   header.topbar = { contact: [{ source: 'phone' }, { source: 'email' }] };
   const message = topbarMessage(n.topbar, loc);

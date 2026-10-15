@@ -84,7 +84,7 @@ export interface ContactRef {
   location?: number;
 }
 
-/** #1779 —— 顶栏两颗按钮：href 是地址，或电话 / 邮箱引用。写盘那道门（`navigation-owned.js` §NAV_SHAPE）按同一个形状判。 */
+/** #1779 —— 顶栏按钮：href 是地址，或电话 / 邮箱引用。写盘那道门（`navigation-owned.js` §NAV_SHAPE）按同一个形状判。 */
 export interface HeaderButton {
   label: string;
   href: string | ContactRef;
@@ -98,9 +98,9 @@ export interface FooterColumn {
 export interface NavigationConfig {
   header: {
     links: NavLink[];
-    cta: HeaderButton;
-    // #1529 —— 这一格和下面 footer 的 `legal` 都是可选的：写了才派生进外壳 data（`scripts/lib/shell-data.js`），没写的站一个字节不变。
-    ctaSecondary?: HeaderButton;
+    // #1529 —— 下面 footer 的 `legal` 是可选的：写了才派生进外壳 data（`scripts/lib/shell-data.js`），没写的站一个字节不变。
+    // #1787 —— 顶栏按钮：0–3 颗，第 1 颗是主按钮（实心）、第 2 颗描边、第 3 颗文字链接样 —— 样子按位置定，不另存。
+    buttons: HeaderButton[];
   };
   footer: {
     description: string;

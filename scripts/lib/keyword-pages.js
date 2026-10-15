@@ -319,7 +319,7 @@ function keywordPagePrompt({
   titleSpec = 'max 60 chars',
   // #1549 —— meta description 的长度说法（description-fit.js §descriptionSpec，目标区间）。默认值也从那里取，不另写数字。
   descriptionSpec = descriptionSpecFor('en'),
-  // #1601 —— 站的行动按钮指哪一页（navigation.header.cta.href）。整站配方的站没有 /quote 页（按钮落点是 /contact），
+  // #1601 —— 站的行动按钮指哪一页（主按钮 = navigation.header.buttons[0].href，#1787）。整站配方的站没有 /quote 页（按钮落点是 /contact），
   //    写死 "/quote" 就是让每张关键词页的 CTA 指一张不存在的页。不给时指联系页（#1636：代码里不再有报价页）。
   ctaHref = '',
 }) {

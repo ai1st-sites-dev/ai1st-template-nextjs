@@ -4,11 +4,12 @@
 // 跑法:  node scripts/lib/shell-data.test.js        退出码: 0 全过 · 1 有失败
 //
 // 判据都来自 PM 2026-10-02 在 #1425 上的裁定 ①：
-//   · 映射 header.links → nav · header.cta → ctaPrimary · footer.columns[0].links → nav · brand.logoUrl → logo · 生意名 → brandName；
+//   · 映射 header.links → nav · header.buttons → buttons（#1787，样子按位置补）· footer.columns[0].links → nav · brand.logoUrl → logo · 生意名 → brandName；
 //   · 联系方式 / 社交写成引用，不抄值；
 //   · 派生不到的维度（columns.areas · form · topbar.links / topbar.social）不造数据。
 //   · #1528：navigation.json 的 `topbar`（老公告条那句话）接回 header 的 `topbar.message`。
-//   · #1529：navigation.json 里老板写了的 header.ctaSecondary / footer.legal 照派生，没写就不进 data。
+//   · #1529：navigation.json 里老板写了的 footer.legal 照派生，没写就不进 data。
+//   · #1787：顶栏按钮是 0–3 颗的列表，第 1 / 2 / 3 颗补 solid / outline / link，画不出的那颗去掉（后面的不换样子）。
 //   · #1648：页脚没有 CTA 条了 —— navigation.json 里残留的 footer.cta 不派生、不报错、不产生 notes。
 // 还有一条反向：派生出来的每个键都必须是块 manifest 声明过的槽（写错一个键名，块就静默不画它）。
 'use strict';
@@ -24,7 +25,7 @@ const check = (cond, msg) => {
 };
 
 const NAV = {
-  header: { links: [{ label: 'Home', href: '/' }, { label: 'About', href: '/about' }, { label: '', href: '/x' }], cta: { label: 'Get a Quote', href: '/quote' } },
+  header: { links: [{ label: 'Home', href: '/' }, { label: 'About', href: '/about' }, { label: '', href: '/x' }], buttons: [{ label: 'Get a Quote', href: '/quote' }] },
   footer: {
     description: 'Independent auto repair since 1998.',
     columns: [
@@ -44,7 +45,7 @@ const d = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'Northside Auto Care
 console.log('── ① 映射（PM 裁定 ①）');
 check(JSON.stringify(d.header.nav) === JSON.stringify([{ label: 'Home', href: '/' }, { label: 'About', href: '/about' }]),
   `header.links → nav，label 空的那一项去掉（读到 ${JSON.stringify(d.header.nav)}）`);
-check(JSON.stringify(d.header.ctaPrimary) === JSON.stringify({ label: 'Get a Quote', href: '/quote', style: 'solid' }), 'header.cta → ctaPrimary（实心）');
+check(JSON.stringify(d.header.buttons) === JSON.stringify([{ label: 'Get a Quote', href: '/quote', style: 'solid', at: 0 }]), `header.buttons → buttons，第 1 颗实心（读到 ${JSON.stringify(d.header.buttons)}）`);
 check(d.header.logo === '/logo.svg' && d.footer.logo === '/logo.svg', 'brand.logoUrl → 两个区的 logo');
 check(d.header.brandName === 'Northside Auto Care' && d.footer.brandName === 'Northside Auto Care', '生意名 → 两个区的 brandName');
 check(JSON.stringify(d.footer.nav) === JSON.stringify(NAV.footer.columns[0].links), 'footer.columns[0].links → footer.nav');
@@ -62,7 +63,7 @@ check(!flat.includes('416-555-0000') && !flat.includes('hi@example.com') && !fla
 console.log('── ③ 派生不到的不造（PM 裁定 ①）');
 for (const k of ['legal', 'cta', 'form', 'bg', 'options']) check(!(k in d.footer), `footer 没有 ${k}（NAV 里没写 legal / cta）`);
 check(!('areas' in d.footer.columns), 'footer.columns 没有 areas');
-for (const k of ['ctaSecondary', 'bg', 'options']) check(!(k in d.header), `header 没有 ${k}（NAV 里没写 ctaSecondary）`);
+for (const k of ['bg', 'options']) check(!(k in d.header), `header 没有 ${k}`);
 check(Array.isArray(d.notes) && d.notes.length === 0, `没有要说的事 ⟹ notes 是空数组（读到 ${JSON.stringify(d.notes)}）`);
 check(!('links' in d.header.topbar) && !('social' in d.header.topbar), 'header.topbar 没有 links / social');
 
@@ -96,18 +97,30 @@ console.log('── ③b 老公告条那句话接回 header.topbar.message（#15
   }
 }
 
-console.log('── ③c 老板能写的两格（#1529）：写了照派生，没写 / 写坏了就不进 data · 残留的 footer.cta 被忽略（#1648）');
+console.log('── ③c 老板能写的几格（#1529 · #1787 按钮列表）：写了照派生，没写 / 写坏了就不进 data · 残留的 footer.cta 被忽略（#1648）');
 {
   const der = (edit, extra = {}) => {
     const nav = JSON.parse(JSON.stringify(NAV)); edit(nav);
     return shellDataFor({ nav, brand: BRAND, brandName: 'x', services: [], pages: [], year: 2026, ...extra });
   };
-  // header.ctaSecondary
-  const sec = der((n) => { n.header.ctaSecondary = { label: ' Call us ', href: '/contact' }; }).header.ctaSecondary;
-  check(JSON.stringify(sec) === JSON.stringify({ label: 'Call us', href: '/contact', style: 'outline' }), `header.ctaSecondary → ctaSecondary，补 style: outline（读到 ${JSON.stringify(sec)}）`);
+  // header.buttons（#1787）：样子按位置补；画不出的那颗去掉，后面那颗的样子和 at 不变（at = 老板列表里的下标）。
+  const three = der((n) => { n.header.buttons = [{ label: ' Get a quote ', href: '/contact' }, { label: 'Call us', href: '/call' }, { label: 'Book online', href: 'https://book.example.com' }]; }).header.buttons;
+  check(JSON.stringify(three) === JSON.stringify([
+    { label: 'Get a quote', href: '/contact', style: 'solid', at: 0 },
+    { label: 'Call us', href: '/call', style: 'outline', at: 1 },
+    { label: 'Book online', href: 'https://book.example.com', style: 'link', at: 2 },
+  ]), `3 颗 ⟹ 实心 · 描边 · 文字链接样，去首尾空格（读到 ${JSON.stringify(three)}）`);
+  const holed = der((n) => { n.header.buttons = [{ label: 'A', href: '/a' }, { label: '', href: '/b' }, { label: 'C', href: '/c' }]; }).header.buttons;
+  check(JSON.stringify(holed) === JSON.stringify([{ label: 'A', href: '/a', style: 'solid', at: 0 }, { label: 'C', href: '/c', style: 'link', at: 2 }]),
+    `中间那颗画不出 ⟹ 去掉，第 3 颗仍是文字链接样、at=2（读到 ${JSON.stringify(holed)}）`);
+  check(JSON.stringify(der((n) => { n.header.buttons = []; }).header.buttons) === '[]', '0 颗 ⟹ buttons 是空数组');
+  check(JSON.stringify(der((n) => { delete n.header.buttons; }).header.buttons) === '[]', 'buttons 这一格不在（#1787 之前的站）⟹ 空数组，不抛');
+  const four = der((n) => { n.header.buttons = ['a', 'b', 'c', 'd'].map((x) => ({ label: x, href: `/${x}` })); }).header.buttons;
+  check(four.map((b) => b.label).join('') === 'abc', `超过 3 颗 ⟹ 只画前 3 颗（读到 ${four.map((b) => b.label).join('')}）`);
   for (const [name, v] of [['没有 label', { label: '', href: '/c' }], ['没有 href', { label: 'Call', href: '  ' }], ['是字符串', 'Call'], ['是数组', [{ label: 'a', href: '/a' }]]]) {
-    check(!('ctaSecondary' in der((n) => { n.header.ctaSecondary = v; }).header), `header.ctaSecondary ${name} ⟹ 不进 data`);
+    check(der((n) => { n.header.buttons = [v]; }).header.buttons.length === 0, `header.buttons 里那一颗${name} ⟹ 不进 data`);
   }
+  check(der((n) => { n.header.buttons = { label: 'A', href: '/a' }; }).header.buttons.length === 0, 'header.buttons 是对象不是数组 ⟹ 空数组');
   // footer.legal
   const legal = der((n) => { n.footer.legal = [{ label: 'Privacy policy', href: '/privacy' }, { label: '', href: '/x' }, null, { label: 'Terms', href: 'https://x.com/terms' }]; }).footer.legal;
   check(JSON.stringify(legal) === JSON.stringify([{ label: 'Privacy policy', href: '/privacy' }, { label: 'Terms', href: 'https://x.com/terms' }]),
@@ -133,19 +146,20 @@ console.log('── ③c 老板能写的两格（#1529）：写了照派生，�
   // 写盘那一关会拒的地址（#1529 之前这两格不在那一关里）⟹ 当没写。
   for (const bad of ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,x', 'java\tscript:alert(1)', ' /contact']) {
     const x = der((n) => {
-      n.header.ctaSecondary = { label: 'C', href: bad };
+      n.header.buttons = [{ label: 'C', href: bad }, { label: 'D', href: '/d' }];
       n.footer.legal = [{ label: 'P', href: '/privacy' }, { label: 'T', href: bad }];
     });
-    check(!('ctaSecondary' in x.header) && JSON.stringify(x.footer.legal) === JSON.stringify([{ label: 'P', href: '/privacy' }]),
-      `地址 ${JSON.stringify(bad)} ⟹ 两格里那一项都不进 data（读到 ${JSON.stringify([x.header.ctaSecondary, x.footer.legal])}）`);
+    check(JSON.stringify(x.header.buttons) === JSON.stringify([{ label: 'D', href: '/d', style: 'outline', at: 1 }])
+      && JSON.stringify(x.footer.legal) === JSON.stringify([{ label: 'P', href: '/privacy' }]),
+      `地址 ${JSON.stringify(bad)} ⟹ 两格里那一项都不进 data（读到 ${JSON.stringify([x.header.buttons, x.footer.legal])}）`);
   }
   // 副语言：两格里的站内链接都加 /zh，站外不动（判据形状照 ⑦）。
   const zh = der((n) => {
-    n.header.ctaSecondary = { label: 'C', href: '/contact' };
+    n.header.buttons = [{ label: 'C', href: '/contact' }, { label: 'B', href: 'https://book.example.com' }];
     n.footer.legal = [{ label: 'P', href: '/privacy' }, { label: 'T', href: 'https://x.com/terms' }];
   }, { locale: 'zh', defaultLocale: 'en' });
-  const zhHrefs = [zh.header.ctaSecondary.href, ...zh.footer.legal.map((l) => l.href)];
-  check(JSON.stringify(zhHrefs) === JSON.stringify(['/zh/contact', '/zh/privacy', 'https://x.com/terms']),
+  const zhHrefs = [...zh.header.buttons.map((b) => b.href), ...zh.footer.legal.map((l) => l.href)];
+  check(JSON.stringify(zhHrefs) === JSON.stringify(['/zh/contact', 'https://book.example.com', '/zh/privacy', 'https://x.com/terms']),
     `zh：两格的站内链接加 /zh，站外不动（读到 ${zhHrefs.join(' ')}）`);
 }
 
@@ -156,8 +170,9 @@ check(withSign.footer.copyright === '© 2026 Demo Company. All rights reserved.'
 
 console.log('── ⑤ 空输入不抛、不造');
 const empty = shellDataFor({});
-check(Array.isArray(empty.header.nav) && empty.header.nav.length === 0 && !('ctaPrimary' in empty.header) && !('copyright' in empty.footer) && !('logo' in empty.header),
-  '什么都没给：nav 空、没有 ctaPrimary / copyright / logo');
+check(Array.isArray(empty.header.nav) && empty.header.nav.length === 0 && Array.isArray(empty.header.buttons) && empty.header.buttons.length === 0
+  && !('copyright' in empty.footer) && !('logo' in empty.header),
+  '什么都没给：nav 空、buttons 空、没有 copyright / logo');
 
 console.log('── ⑥ 每个键都是块 manifest 声明过的槽（写错键名 ⟹ 块静默不画它）');
 const manifests = loadManifests(path.join(__dirname, '..', '..', 'blocks'));
@@ -175,7 +190,7 @@ console.log('── ⑦ 副语言那一份：站内链接加 /<locale> 前缀，
 {
   const zh = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: PAGES, locale: 'zh', defaultLocale: 'en', year: 2026 });
   const en = shellDataFor({ nav: NAV, brand: BRAND, brandName: 'x', services: SERVICES, pages: PAGES, locale: 'en', defaultLocale: 'en', year: 2026 });
-  const hrefs = (x) => [...x.header.nav, ...(x.header.ctaPrimary ? [x.header.ctaPrimary] : []), ...x.footer.nav, ...x.footer.columns.services].map((l) => l.href);
+  const hrefs = (x) => [...x.header.nav, ...x.header.buttons, ...x.footer.nav, ...x.footer.columns.services].map((l) => l.href);
   const zhH = hrefs(zh); const enH = hrefs(en);
   check(zhH.length > 0, `zh 那一份有站内链接可查（${zhH.length} 个，分母不是 0）`);
   check(zhH.every((h) => h === '/zh' || h.startsWith('/zh/')), `zh 那一份每个站内链接都在 /zh 下：${zhH.join(' ')}`);
@@ -246,17 +261,17 @@ console.log('── ③d 顶栏按钮的 href 写成电话 / 邮箱引用（#177
     const nav = JSON.parse(JSON.stringify(NAV)); edit(nav);
     return shellDataFor({ nav, brand: BRAND, brandName: 'x', services: [], pages: [], year: 2026, locale: 'fr', defaultLocale: 'en' });
   };
-  const x = der((n) => { n.header.cta = { label: 'Call us', href: { source: 'phone' } }; n.header.ctaSecondary = { label: 'Email us', href: { source: 'email' } }; });
-  check(JSON.stringify(x.header.ctaPrimary) === JSON.stringify({ label: 'Call us', href: { source: 'phone' }, style: 'solid' })
-    && JSON.stringify(x.header.ctaSecondary) === JSON.stringify({ label: 'Email us', href: { source: 'email' }, style: 'outline' }),
-  `两颗按钮的引用原样进 data（不加语言前缀、不被吞掉）：${JSON.stringify([x.header.ctaPrimary, x.header.ctaSecondary])}`);
+  const x = der((n) => { n.header.buttons = [{ label: 'Call us', href: { source: 'phone' } }, { label: 'Email us', href: { source: 'email' } }]; });
+  check(JSON.stringify(x.header.buttons) === JSON.stringify([
+    { label: 'Call us', href: { source: 'phone' }, style: 'solid', at: 0 }, { label: 'Email us', href: { source: 'email' }, style: 'outline', at: 1 },
+  ]), `两颗按钮的引用原样进 data（不加语言前缀、不被吞掉）：${JSON.stringify(x.header.buttons)}`);
   // 外壳那一步（SiteShell §shellBlockData）跟页面块同一个 resolveItemSources：展开成 brand.json 里那个号码 / 邮箱。
   const [b] = resolveItemSources([{ type: 'header', data: x.header }], { brand: BRAND, log: () => {} });
-  check(b.data.ctaPrimary.href === 'tel:4165550000', `主按钮展开成 brand.json 第一家的电话 tel:4165550000（读到 ${b.data.ctaPrimary.href}）`);
-  check(b.data.ctaSecondary.href === 'mailto:hi@example.com', `次按钮展开成 mailto:hi@example.com（读到 ${b.data.ctaSecondary.href}）`);
+  check(b.data.buttons[0].href === 'tel:4165550000', `第 1 颗展开成 brand.json 第一家的电话 tel:4165550000（读到 ${b.data.buttons[0].href}）`);
+  check(b.data.buttons[1].href === 'mailto:hi@example.com', `第 2 颗展开成 mailto:hi@example.com（读到 ${b.data.buttons[1].href}）`);
   for (const [name, v] of [['源不认识（address）', { source: 'address' }], ['多一个键', { source: 'phone', x: 1 }], ['空对象', {}]]) {
-    const y = der((n) => { n.header.cta = { label: 'Call', href: v }; n.header.ctaSecondary = { label: 'Call', href: v }; });
-    check(!('ctaPrimary' in y.header) && !('ctaSecondary' in y.header), `按钮 href ${name} ⟹ 两颗都不进 data`);
+    const y = der((n) => { n.header.buttons = [{ label: 'Call', href: v }, { label: 'Call', href: v }]; });
+    check(y.header.buttons.length === 0, `按钮 href ${name} ⟹ 两颗都不进 data（读到 ${JSON.stringify(y.header.buttons)}）`);
   }
 }
 

@@ -199,9 +199,10 @@ const canWrite = (p) => writeRejection(p) === null;
     // navigation.json —— #1104 之后的真话：会被重建的只有那两处，顶部那个按钮不是，而它现在
     // **就在这条路上改**。这里只留这一格（它跨两票都成立）；本票新增的那几句由
     // `navigation-owned.test.js` ⑦ 钉。
-    { must: 'header.cta', why: 'SYSTEM_PROMPT 没点名 header.cta —— 模型会以为改页面元数据能动顶部那个按钮' },
+    // #1787 —— 顶部按钮从 header.cta 换成列表 header.buttons。
+    { must: 'header.buttons', why: 'SYSTEM_PROMPT 没点名 header.buttons —— 模型会以为改页面元数据能动顶部那几个按钮' },
     { mustNot: 'It is auto-regenerated from page metadata.',
-      why: 'SYSTEM_PROMPT 里那句「整份由页面元数据自动重建」又回来了 —— header.cta 恰恰不是' },
+      why: 'SYSTEM_PROMPT 里那句「整份由页面元数据自动重建」又回来了 —— header.buttons 恰恰不是' },
     // page-layout.json —— #1405 之后的真话：在页面编辑器里改（原来钉的是「没人改得了」，那句本票之后是假的）
     { must: 'the owner changes it in the page editor: click "Website" (the gear) in the bar on the left, then "Page layout" in the panel that opens on the right',
       why: 'SYSTEM_PROMPT 没把老板指到页面编辑器 —— 模型会说布局换不了，而编辑器里就能换' },
@@ -281,7 +282,7 @@ const canWrite = (p) => writeRejection(p) === null;
   // navigation.json 走的是 #1104 那道窄口子，光有形状还不够（缺内容一律拒），所以正向那一格要把
   // 材料备齐 —— 用一份长得像真站的 navigation.json，改的是构建不碰的 topbar。
   const NAV = {
-    header: { links: [{ label: 'Home', href: '/' }], cta: { label: 'Book', href: '/contact' } },
+    header: { links: [{ label: 'Home', href: '/' }], buttons: [{ label: 'Book', href: '/contact' }] },
     footer: { description: 'Serving the GTA.', columns: [{ title: 'Quick Links', links: [{ label: 'Home', href: '/' }] }], copyright: 'Northside Inc.' },
   };
   const navCtx = (shape) => ({
@@ -585,7 +586,7 @@ console.log('⑨ 这个语言这个站有吗（#1138）');
 //    `fs.existsSync(path.join(siteDir, p)) ? read : null`）。第一版我写成「不看参数、一律回内容」，
 //    于是拼错的路径也「比对成功」⟹ 走到末尾那一问、拿到拼写提示，**两臂都绿、这一格什么都没测**。
 const NAV10 = {
-  header: { links: [{ label: 'Home', href: '/' }], cta: { label: 'Book', href: '/contact' } },
+  header: { links: [{ label: 'Home', href: '/' }], buttons: [{ label: 'Book', href: '/contact' }] },
   footer: { description: 'Serving the GTA.', columns: [], copyright: 'Northside Inc.' },
 };
 const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigation.json/'];

@@ -160,12 +160,13 @@ console.log('\n③ 旋钮纠正 · topbar 开关（Section 那一次）');
   check(attr(render('logo-left', withOpts({ topbar: 'contact' })), 'data-topbar') === 'off', 'topbar 写成旧的字符串 "contact" 不算开（只认布尔）');
 }
 
-// ══ ④ 验收 4 的 HTML 那一半：电话图标 · 抽屉顺序 · 副 CTA · 联系信息段 ═══════════════════════════
+// ══ ④ 验收 4 的 HTML 那一半：电话图标 · 抽屉顺序 · 按钮（#1787 起 0–3 颗，抽屉里全出）· 联系信息段 ═══════════════════════════
 console.log('\n④ 紧凑条与抽屉');
 {
   const phoneHref = DEMO.topbar.contact.find((c) => (c.href || '').startsWith('tel:')).href;
-  const second = DEMO.ctaSecondary.label;
-  const first = DEMO.ctaPrimary.label;
+  const labels = DEMO.buttons.map((b) => b.label);
+  check(labels.length === 3, `夹具有 3 颗按钮（${labels.join(' · ')}）`);
+  const order = (html) => labels.map((l) => html.indexOf(`>${l}<`));
   for (const [n, , , topbar] of TABLE) {
     const closed = render(n, clone(DEMO));
     const compact = closed.slice(closed.indexOf('hdr-compact'), closed.indexOf('hdr-grid'));
@@ -177,22 +178,35 @@ console.log('\n④ 紧凑条与抽屉');
     const ctaBox = drawer.slice(drawer.indexOf('drawer-cta'), drawer.indexOf('drawer-contact') > 0 ? drawer.indexOf('drawer-contact') : undefined);
     if (topbar === 'on') {
       check(JSON.stringify(parts) === JSON.stringify(['drawer-nav', 'drawer-cta', 'drawer-contact', 'drawer-message', 'drawer-info', 'drawer-links', 'drawer-social']),
-        `${n}：抽屉顺序 = 菜单 → 主 CTA → 联系信息（公告 → 电话等）→ 链接 → 社交`, parts.join(' → '));
-      check(ctaBox.includes(first) && !ctaBox.includes(second), `${n}：抽屉里只有主 CTA，没有副 CTA`);
+        `${n}：抽屉顺序 = 菜单 → 按钮 → 联系信息（公告 → 电话等）→ 链接 → 社交`, parts.join(' → '));
       check(drawer.includes(`href="${phoneHref}"`), `${n}：抽屉里的电话可拨`);
     } else {
-      check(JSON.stringify(parts) === JSON.stringify(['drawer-nav', 'drawer-cta']), `${n}：抽屉里没有联系信息段（只有菜单 + CTA）`, parts.join(' → '));
-      check(ctaBox.includes(first) && ctaBox.includes(second), `${n}：抽屉里两个 CTA 都在`);
+      check(JSON.stringify(parts) === JSON.stringify(['drawer-nav', 'drawer-cta']), `${n}：抽屉里没有联系信息段（只有菜单 + 按钮）`, parts.join(' → '));
     }
+    // #1787 —— 抽屉：3 颗全出（topbar 开时也全出），按老板的顺序竖排、主按钮在最上；每颗的 data-hdr-cta 是它的下标。
+    const o = order(ctaBox);
+    check(o.every((x) => x >= 0) && o[0] < o[1] && o[1] < o[2], `${n}：抽屉里 3 颗全在、主按钮在最上（位置 ${o.join(' < ')}）`);
+    check(JSON.stringify([...ctaBox.matchAll(/data-hdr-cta="(\d+)"/g)].map((m) => m[1])) === '["0","1","2"]', `${n}：抽屉里 data-hdr-cta = 0 · 1 · 2`);
+    // 桌面一行：主按钮在最右 ⟹ DOM 里倒着排（第 3 颗最先）；第 3 颗 992–1199 不出（d-none d-xl-inline-block）。
+    const grid = closed.slice(closed.indexOf('hdr-grid'), closed.indexOf('data-hdr-part="drawer"'));
+    const g = order(grid);
+    check(g.every((x) => x >= 0) && g[2] < g[1] && g[1] < g[0], `${n}：桌面那一行从右往左 = 第 1 · 2 · 3 颗（DOM 位置 ${g.join(' / ')}）`);
+    const tag = (label) => { const at = grid.indexOf(`>${label}<`); return grid.slice(grid.lastIndexOf('<a', at), at); };
+    check(/d-none d-xl-inline-block/.test(tag(labels[2])) && !/d-none/.test(tag(labels[0])) && !/d-none/.test(tag(labels[1])),
+      `${n}：只有第 3 颗带 d-none d-xl-inline-block（1200 起才出）`);
+    check(/btn-primary/.test(tag(labels[0])) && /btn-outline/.test(tag(labels[1])) && /btn-link/.test(tag(labels[2])), `${n}：样子 = 实心 · 描边 · 文字链接样`);
   }
-  // 反向对照：副 CTA 不看 topbar ⟹ topbar 那一格「只有主 CTA」必须红。
-  const s = mutate('(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas)', 'ctas');
-  const so = s;
-  if (!so) bad('反向对照没改到源码（锚点找不到）');
+  // 0 颗：桌面和抽屉里一个按钮都没有，抽屉里也不留那个空格子。
+  const none = render('topbar', { ...clone(DEMO), buttons: [] });
+  check(!/data-hdr-cta=/.test(none) && !none.includes('drawer-cta'), '0 颗 ⟹ 页面上没有 data-hdr-cta、抽屉里没有 drawer-cta 那一格');
+  // 反向对照：抽屉在 topbar 开时只放主按钮（#1787 之前的规则）⟹ 上面「3 颗全在」那一格必须红。
+  const s = mutate('            <div className="d-grid gap-2" data-hdr-part="drawer-cta">\n              {ctas.map(',
+    '            <div className="d-grid gap-2" data-hdr-part="drawer-cta">\n              {(hasTopbar ? ctas.slice(0, 1) : ctas).map(');
+  if (!s) bad('反向对照没改到源码（锚点找不到）');
   else {
-    const h = render('topbar', clone(DEMO), loadSection(so));
+    const h = render('topbar', clone(DEMO), loadSection(s));
     const d = h.slice(h.indexOf('drawer-cta'), h.indexOf('drawer-contact'));
-    check(d.includes(second), '反向对照：副 CTA 不看 topbar ⟹ topbar 的抽屉里冒出副 CTA（上面那格红得起来）');
+    check(!d.includes(`>${labels[1]}<`), '反向对照：topbar 时抽屉只放主按钮 ⟹ 第 2 颗不在（上面那格红得起来）');
     C = loadSection();
   }
 }

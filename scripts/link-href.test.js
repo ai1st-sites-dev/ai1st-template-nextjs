@@ -349,10 +349,10 @@ console.log('⑫ #1755：块里的链接收 #<块 id>，navigation 照旧拒');
     }
   }
   check(linkRejection('site-blocks', { promo: { type: 'cta', visibility: ['*'], data: { ctas: [{ label: 'Go', href: '#home-cta-7' }] } } }, null) === null, 'kind=site-blocks 块里 #<块 id> → 收（块就是块，判据不分文件）');
-  const navOf = (h) => ({ header: { cta: { label: 'Book', href: h } } });
+  const navOf = (h) => ({ header: { buttons: [{ label: 'Book', href: h }] } });
   for (const kind of ['navigation', 'any']) {
     const m = linkRejection(kind, navOf('#home-cta-7'), null);
-    check(typeof m === 'string' && !/section of this page/.test(m), `kind=${kind} navigation 的 header.cta = #home-cta-7 → 照旧拒（外壳每页都有，锚点只一页有落点）`, m);
+    check(typeof m === 'string' && !/section of this page/.test(m), `kind=${kind} navigation 的 header.buttons[0] = #home-cta-7 → 照旧拒（外壳每页都有，锚点只一页有落点）`, m);
   }
   check(hrefAllowed('#home-cta-7') === false, 'hrefAllowed 本身不变（表单 redirect / 外壳派生用它）');
 }

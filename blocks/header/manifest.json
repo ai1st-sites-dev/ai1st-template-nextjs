@@ -29,17 +29,12 @@
       "promptOptional": false,
       "shape": "[{label, href, icon?, show: \"text\" | \"icon\" | \"both\"}]"
     },
-    "ctaPrimary": {
-      "kind": "link",
-      "required": true,
-      "promptOptional": false,
-      "shape": "{label, href, style: \"solid\" | \"outline\" | \"link\"}"
-    },
-    "ctaSecondary": {
-      "kind": "link",
+    "buttons": {
+      "kind": "list",
       "required": false,
       "promptOptional": true,
-      "shape": "{label, href, style: \"solid\" | \"outline\" | \"link\"}"
+      "maxItems": 3,
+      "shape": "[{label, href, style: \"solid\" | \"outline\" | \"link\"}]"
     },
     "topbar": {
       "kind": "object",

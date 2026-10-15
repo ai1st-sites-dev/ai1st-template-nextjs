@@ -1,7 +1,7 @@
 'use strict';
 
 // nav-editor.js —— 编辑器顶栏 Content 页的「Navigation links」在浏览器那一侧的全部算法（#1759）。纯函数，只 require 两份零依赖的库
-// （`nav-menu.js` 菜单规则、`href-allowed.js` 链接白名单），所以编辑器页（客户端）能直接 import，`editor-nav.test.js` 也能逐条量。
+// （`nav-menu.js` 菜单规则、`header-buttons.js` 顶栏按钮规则（#1787）），所以编辑器页（客户端）能直接 import，`editor-nav.test.js` 也能逐条量。
 //
 // 面板里那一份（存在 Puck root 的 `navMenu` 里，跟别的外壳字段同一个事务：Design 面板 Done / Cancel、撤销、自动存）：
 //   { home: { label, title }, items: [{ slug, title, label, shown, order? }] }
@@ -18,8 +18,7 @@
 //     正在编辑的这一页不进 `nav`，并进这一笔的页面 JSON（`lib/editor-nav.js` 文件头说为什么）。
 
 const { menuLinks, homeLabelOf, ctaSlugOf, localizeHref } = require('./nav-menu');
-const { hrefAllowed } = require('./href-allowed');
-const { isButtonRef } = require('./item-sources');
+const { headerButtonsData } = require('./header-buttons');
 
 /** 跟写盘那一侧（`lib/editor-nav.js` §NAV_LABEL_MAX）同一个数。 */
 const NAV_LABEL_MAX = 40;
@@ -145,22 +144,10 @@ function applyPageNav(json, change) {
 }
 
 /**
- * `{label, href}` 两样都是非空字符串（去首尾空格）⟹ 那颗按钮；否则 null。
- * #1779 —— href 是电话 / 邮箱引用 ⟹ 原样交下去（画布那头 `SiteShell` 跟构建同一条 `resolveItemSources` 展开，同 `shell-data.js` §headerButton）。
- */
-function buttonFrom(v, style, loc, allowed) {
-  const label = isObj(v) ? str(v.label).trim() : '';
-  if (label && isButtonRef(v.href)) return { label, href: { ...v.href }, style };
-  const href = isObj(v) ? str(v.href).trim() : '';
-  if (!label || !href || (allowed && !hrefAllowed(href))) return null;
-  return { label, href: loc(href), style };
-}
-
-/**
- * 画布预览：构建烤进来的顶栏 / 页脚 data（`shell-data.js` 那一份）换上面板里的现值 —— 菜单（同构建一条规则，§menuLinks）、两颗按钮、logo。
- * 判据跟 `shell-data.js` 一样：主按钮两格非空才画、次按钮再过一道链接白名单（`usableLink`）。没带的那一样原样。
+ * 画布预览：构建烤进来的顶栏 / 页脚 data（`shell-data.js` 那一份）换上面板里的现值 —— 菜单（同构建一条规则，§menuLinks）、按钮、logo。
+ * 按钮跟构建同一个函数（`header-buttons.js` §headerButtonsData，#1787）。没带的那一样原样。
  * @param {{ header: object, footer: object }} data  这种语言构建那一份（`regions.<区>.dataByLocale[语言]`）
- * @param {object} p  面板现值：{ navMenu?, headerCta?, headerCtaSecondary?, logoUrl? }
+ * @param {object} p  面板现值：{ navMenu?, headerButtons?, logoUrl? }
  */
 function liveShellData(data, p, locale, defaultLocale) {
   const loc = (href) => localizeHref(href, locale, defaultLocale);
@@ -169,17 +156,12 @@ function liveShellData(data, p, locale, defaultLocale) {
   if (typeof p.logoUrl === 'string') {
     if (p.logoUrl.trim()) { header.logo = p.logoUrl.trim(); footer.logo = p.logoUrl.trim(); } else { delete header.logo; delete footer.logo; }
   }
-  if (isObj(p.headerCta)) {
-    const b = buttonFrom(p.headerCta, 'solid', loc, false);
-    if (b) header.ctaPrimary = b; else delete header.ctaPrimary;
-  }
-  if (isObj(p.headerCtaSecondary)) {
-    const b = buttonFrom(p.headerCtaSecondary, 'outline', loc, true);
-    if (b) header.ctaSecondary = b; else delete header.ctaSecondary;
-  }
+  if (Array.isArray(p.headerButtons)) header.buttons = headerButtonsData(p.headerButtons, loc);
   if (isObj(p.navMenu) && Array.isArray(p.navMenu.items)) {
     const m = p.navMenu;
-    const ctaHref = isObj(p.headerCta) ? str(p.headerCta.href).trim() : '';
+    // 主按钮 = 第 1 颗（#1787）：它指向的那一页不进顶栏菜单（同构建，`derive-site.js` 的 ctaSlug）。
+    const first = Array.isArray(p.headerButtons) && isObj(p.headerButtons[0]) ? p.headerButtons[0] : null;
+    const ctaHref = first ? str(first.href).trim() : '';
     const { header: h, footer: f } = menuLinks({
       homeLabel: homeLabelOf(str(m.home && m.home.label).trim(), locale),
       regular: m.items.map((it) => ({ slug: it.slug, navLabel: it.shown ? str(it.label).trim() : '' })),

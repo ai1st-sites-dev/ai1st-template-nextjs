@@ -75,7 +75,8 @@ export type Logo = 'left' | 'center' | 'right';
 export type Menu = 'beside' | 'center' | 'split' | 'gathered' | 'below';
 
 export interface NavItem { label: string; href: string; icon?: string; show?: Show }
-export interface Cta { label: string; href: string; style?: CtaStyle }
+/** `at`（#1787）：它在老板那份 `header.buttons` 里的下标（0 = 主按钮）—— 编辑器画布上点它开那一颗的弹窗（`data-hdr-cta`）。 */
+export interface Cta { label: string; href: string; style?: CtaStyle; at?: number }
 export interface TopbarContact { icon?: string; text: string; href?: string }
 export interface TopbarLink { label: string; href: string; icon?: string }
 /** 一句话公告（#1528）。`href` 写了就是链接：带 `label` ⟹ 句子照常、后面跟一个写着 label 的链接（老公告条的画法）；
@@ -97,8 +98,8 @@ export interface HeaderNewData {
   logo?: string;
   brandName?: string;
   nav?: NavItem[];
-  ctaPrimary?: Cta;
-  ctaSecondary?: Cta;
+  /** #1787 —— 0–3 颗，第 1 颗是主按钮。样子由构建按位置补好（`scripts/lib/header-buttons.js`：实心 · 描边 · 文字链接样）。 */
+  buttons?: Cta[];
   topbar?: { message?: TopbarMessage; contact?: TopbarContact[]; links?: TopbarLink[]; social?: TopbarLink[] };
   /** 底色（§文件头）。没填 = 浅底。 */
   bg?: BgValue;
@@ -230,7 +231,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     : null;
   const social = topbar.social || [];
   const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
-  const ctas = [data.ctaPrimary, data.ctaSecondary].filter((c): c is Cta => !!c && !!c.label);
+  const ctas = (Array.isArray(data.buttons) ? data.buttons : []).filter((c): c is Cta => !!c && typeof c === 'object' && !!c.label);
   const brand = data.brandName || '';
 
   const linkTone = deep ? 'link-light' : '';
@@ -259,13 +260,15 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     </ul>
   );
 
-  // #1779 —— 每颗按钮挂 `data-hdr-cta="main" | "second"`（主 / 次按钮，按数据认、不按位置）：编辑器据它认出画布上的顶栏按钮，
-  //    点它开按钮弹窗（`InlineEdit.tsx` §scan 的顶栏那一遍）。站上多一个属性，画出来一个像素不变。
-  const ctaWhich = (c: Cta) => (c === data.ctaPrimary ? 'main' : 'second');
+  // #1779 / #1787 —— 每颗按钮挂 `data-hdr-cta="<下标>"`（它在老板那份 `header.buttons` 里排第几，0 = 主按钮）：编辑器据它认出
+  //    画布上的顶栏按钮，点它开那一颗的按钮弹窗（`InlineEdit.tsx` §scan 的顶栏那一遍）。站上多一个属性，画出来一个像素不变。
+  const ctaAt = (c: Cta, i: number) => String(Number.isInteger(c.at) && (c.at as number) >= 0 ? c.at : i);
+  // #1787 —— 桌面一行：主按钮在最右，第 2、3 颗依次往左（DOM 里倒着排）；992–1199 宽一行放不下第 3 颗 ⟹ 它到 1200 才出。
   const ctaButtons = (key: string) => (
     <div className="d-flex align-items-center gap-2" key={key}>
-      {ctas.map((c, i) => (
-        <SiteLink key={i} href={c.href} data-hdr-cta={ctaWhich(c)} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
+      {ctas.map((_, k) => ctas.length - 1 - k).map((i) => (
+        <SiteLink key={i} href={ctas[i].href} data-hdr-cta={ctaAt(ctas[i], i)}
+          className={`${ctaClass(ctas[i].style, deep, onBrand)} text-nowrap${i >= 2 ? ' d-none d-xl-inline-block' : ''}`}>{ctas[i].label}</SiteLink>
       ))}
     </div>
   );
@@ -439,18 +442,20 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
       </nav>
 
       {/* 抽屉：一直在 HTML 里，开没开由 Bootstrap Collapse 说（`.collapse` 藏、`.show` 显，#1514）；只在 < 992 出现
-          （`d-lg-none`）。顺序 = 菜单 → 主 CTA →（topbar 开时）联系信息 → 链接 → 社交。副 CTA 只在 topbar 关时进来：
-          有顶条时电话已经在联系信息那一行里。 */}
+          （`d-lg-none`）。顺序 = 菜单 → 按钮（全部竖排占满宽，主按钮在最上；#1787 起 topbar 开时也全出）→
+          （topbar 开时）联系信息 → 链接 → 社交。 */}
       <div id={drawerId} ref={drawerRef} className={`hdr-drawer collapse d-lg-none border-top ${lineTone}`} data-hdr-part="drawer">
         <div className="container-lg py-4 vstack gap-4">
           <ul className="navbar-nav" data-hdr-part="drawer-nav">
             {nav.map((it, i) => navItem(it, `m-${i}`, true))}
           </ul>
-          <div className="d-grid gap-2" data-hdr-part="drawer-cta">
-            {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
-              <SiteLink key={i} href={c.href} data-hdr-cta={ctaWhich(c)} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
-            ))}
-          </div>
+          {ctas.length ? (
+            <div className="d-grid gap-2" data-hdr-part="drawer-cta">
+              {ctas.map((c, i) => (
+                <SiteLink key={i} href={c.href} data-hdr-cta={ctaAt(c, i)} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
+              ))}
+            </div>
+          ) : null}
           {drawerContact}
         </div>
       </div>

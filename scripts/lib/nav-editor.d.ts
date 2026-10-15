@@ -14,7 +14,7 @@ export declare function navMenuChanges(args: { initial: NavPanel | null | undefi
 export declare function applyPageNav<T extends Record<string, unknown>>(json: T, change: NavChange | null): T;
 export declare function liveShellData(
   data: { header?: Record<string, unknown>; footer?: Record<string, unknown> },
-  p: { navMenu?: unknown; headerCta?: unknown; headerCtaSecondary?: unknown; logoUrl?: unknown },
+  p: { navMenu?: unknown; headerButtons?: unknown; logoUrl?: unknown },
   locale: string,
   defaultLocale: string,
 ): { header: Record<string, unknown>; footer: Record<string, unknown> };

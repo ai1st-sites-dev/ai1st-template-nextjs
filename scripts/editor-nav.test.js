@@ -140,7 +140,7 @@ console.log('② 预览与构建同一条规则（menuLinks vs sync-config）');
   const preview = (rule) => {
     const m = menuFromDisk();
     const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
-    return rule({ homeLabel: navMenu.homeLabelOf(m.home.navLabel, 'en'), regular: m.pages, ctaSlug: navMenu.ctaSlugOf(nav.header.cta.href) });
+    return rule({ homeLabel: navMenu.homeLabelOf(m.home.navLabel, 'en'), regular: m.pages, ctaSlug: navMenu.ctaSlugOf(nav.header.buttons[0].href) });
   };
   const built = () => {
     const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
@@ -153,7 +153,7 @@ console.log('② 预览与构建同一条规则（menuLinks vs sync-config）');
     ['按钮改指 pricing（contact 回到顶栏、pricing 离开）', () => {
       const f = path.join(SITE, 'en', 'navigation.json');
       const nav = JSON.parse(fs.readFileSync(f, 'utf-8'));
-      nav.header.cta.href = '/pricing';
+      nav.header.buttons[0].href = '/pricing';
       fs.writeFileSync(f, `${JSON.stringify(nav, null, 2)}\n`);
     }],
   ];
@@ -223,7 +223,7 @@ console.log('④ write-editor-save.js（容器里那一步）');
   let before = snapshot(SITE);
   let s = runScript({ page: 'home', locale: 'en', baseHash: hash }, {
     page: nextHome,
-    root: { headerCta: { label: 'Book now', href: '/pricing' } },
+    root: { headerButtons: [{ label: 'Book now', href: '/pricing' }] },
     nav: { about: { navOrder: 4 }, contact: { navOrder: 1 }, pricing: { navLabel: 'Prices' } },
   });
   check(s.status === 0 && s.last && s.last.ok, '页面 + 外壳 + 菜单一起存 ⟹ 成功', `${s.status} ${s.stdout} ${s.stderr}`);
@@ -253,7 +253,7 @@ console.log('④ write-editor-save.js（容器里那一步）');
   before = snapshot(SITE);
   s = runScript({ page: 'home', locale: 'en', baseHash: crypto.createHash('sha256').update(homeBytes2).digest('hex') }, {
     page: { ...JSON.parse(homeBytes2.toString('utf-8')), navLabel: 'Start' },
-    root: { headerCta: { label: 'Book now', href: '/about' }, logoUrl: '/images/new-logo.png' },
+    root: { headerButtons: [{ label: 'Book now', href: '/about' }], logoUrl: '/images/new-logo.png' },
     nav: { about: { navLabel: 'About us' }, pricing: { navLabel: 'Prices' } },
   });
   check(s.status !== 0 && changedFiles(before, snapshot(SITE)).length === 0, '验收 10：一页的文件坏了 ⟹ 失败、整个站一个字节都没变（首页 / navigation.json / brand.json / about 都没写）',
@@ -265,7 +265,7 @@ console.log('④ write-editor-save.js（容器里那一步）');
   const fixed = snapshot(SITE);
   s = runScript({ page: 'home', locale: 'en', baseHash: crypto.createHash('sha256').update(homeBytes2).digest('hex') }, {
     page: { ...JSON.parse(homeBytes2.toString('utf-8')), navLabel: 'Start' },
-    root: { headerCta: { label: 'Book now', href: '/about' }, logoUrl: '/images/new-logo.png' },
+    root: { headerButtons: [{ label: 'Book now', href: '/about' }], logoUrl: '/images/new-logo.png' },
     nav: { about: { navLabel: 'About us' }, pricing: { navLabel: 'Prices' } },
   });
   check(s.status === 0 && JSON.stringify(changedFiles(fixed, snapshot(SITE))) === JSON.stringify(['brand.json', 'en/navigation.json', 'en/pages/about.json', 'en/pages/home.json', 'en/pages/pricing.json']),
@@ -319,20 +319,26 @@ console.log('⑤ nav-editor（面板动作 · 存盘差 · 预览 == 构建）')
   check(s.status === 0, '照存盘差真存 ⟹ 成功', `${s.status} ${s.stdout} ${s.stderr}`);
   const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
   const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
-  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { navMenu: m, headerCta: nav.header.cta }, 'en', 'en');
+  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { navMenu: m, headerButtons: nav.header.buttons }, 'en', 'en');
   check(r.status === 0 && JSON.stringify(preview.header.nav) === JSON.stringify(nav.header.links) && JSON.stringify(preview.footer.nav) === JSON.stringify(nav.footer.columns[0].links),
     '预览 == 构建（顶栏、页脚第一列逐项）', `预览 ${JSON.stringify(preview)} · 构建 ${JSON.stringify({ h: nav.header.links, f: nav.footer.columns[0].links })}`);
   check(JSON.stringify(nav.footer.columns[0].links.map((l) => l.label)) === JSON.stringify(['Start', 'Pricing', 'Who we are', 'Contact']),
     '页脚第一列：首页 · 拖完的顺序 · 按钮那一页还在最后（隐藏的 services 不在）', JSON.stringify(nav.footer.columns[0].links));
   check(!nav.header.links.some((l) => l.href === '/contact') && !nav.header.links.some((l) => l.href === '/services'), '顶栏里没有按钮那一页、没有隐藏的那一页');
 
-  // 预览的按钮 / logo：同 shell-data 的判据（主按钮两格非空、次按钮过链接白名单）。
-  const base = { header: { ctaPrimary: { label: 'Old', href: '/x', style: 'solid' }, logo: '/old.png', nav: [] }, footer: { logo: '/old.png', nav: [] } };
-  const live = navEditor.liveShellData(base, { logoUrl: '/new.png', headerCta: { label: ' Book ', href: '/pricing' }, headerCtaSecondary: { label: 'Prices', href: '/pricing' } }, 'fr', 'en');
-  check(live.header.logo === '/new.png' && live.footer.logo === '/new.png' && JSON.stringify(live.header.ctaPrimary) === JSON.stringify({ label: 'Book', href: '/fr/pricing', style: 'solid' })
-    && JSON.stringify(live.header.ctaSecondary) === JSON.stringify({ label: 'Prices', href: '/fr/pricing', style: 'outline' }), 'logo / 主按钮 / 次按钮换上（站内链接按语言加前缀）', JSON.stringify(live));
-  const live2 = navEditor.liveShellData(base, { logoUrl: '', headerCtaSecondary: { label: 'Bad', href: 'javascript:x' } }, 'en', 'en');
-  check(!('logo' in live2.header) && !('ctaSecondary' in live2.header) && live2.header.ctaPrimary.label === 'Old', 'logo 清空 ⟹ 不画；次按钮链接不过白名单 ⟹ 不画；没带的主按钮原样', JSON.stringify(live2));
+  // 预览的按钮 / logo：同 shell-data 一个函数（#1787 `header-buttons.js`：名字和链接都非空、过链接白名单、样子按位置）。
+  const base = { header: { buttons: [{ label: 'Old', href: '/x', style: 'solid', at: 0 }], logo: '/old.png', nav: [] }, footer: { logo: '/old.png', nav: [] } };
+  const live = navEditor.liveShellData(base, { logoUrl: '/new.png', headerButtons: [{ label: ' Book ', href: '/pricing' }, { label: 'Prices', href: '/pricing' }, { label: 'Call', href: { source: 'phone' } }] }, 'fr', 'en');
+  check(live.header.logo === '/new.png' && live.footer.logo === '/new.png' && JSON.stringify(live.header.buttons) === JSON.stringify([
+    { label: 'Book', href: '/fr/pricing', style: 'solid', at: 0 }, { label: 'Prices', href: '/fr/pricing', style: 'outline', at: 1 }, { label: 'Call', href: { source: 'phone' }, style: 'link', at: 2 },
+  ]), 'logo / 3 颗按钮换上（站内链接按语言加前缀，样子按位置，引用原样）', JSON.stringify(live));
+  const live2 = navEditor.liveShellData(base, { logoUrl: '', headerButtons: [{ label: 'Bad', href: 'javascript:x' }, { label: 'Ok', href: '/ok' }] }, 'en', 'en');
+  check(!('logo' in live2.header) && JSON.stringify(live2.header.buttons) === JSON.stringify([{ label: 'Ok', href: '/ok', style: 'outline', at: 1 }]),
+    'logo 清空 ⟹ 不画；链接不过白名单的那颗 ⟹ 不画，后面那颗样子不变', JSON.stringify(live2));
+  const live3 = navEditor.liveShellData(base, { logoUrl: '/x.png' }, 'en', 'en');
+  check(JSON.stringify(live3.header.buttons) === JSON.stringify(base.header.buttons), '没带 headerButtons ⟹ 构建那份按钮原样', JSON.stringify(live3.header));
+  const live4 = navEditor.liveShellData(base, { headerButtons: [] }, 'en', 'en');
+  check(JSON.stringify(live4.header.buttons) === '[]', '带了空列表 ⟹ 0 颗（老板删光了）', JSON.stringify(live4.header));
 }
 
 // ══ ⑥ 首页没写 navLabel 的老站（#1759 QA3 退回）：面板首页那一格跟构建同一条兜底 ═══════════════════════════
@@ -358,7 +364,7 @@ console.log('⑥ 首页没有 navLabel 的老站');
   check(s.status === 0 && Buffer.compare(homeBefore, fs.readFileSync(path.join(PAGES, 'home.json'))) === 0, '真存 ⟹ 成功，home.json 逐字节没变', `${s.status} ${s.stderr}`);
   const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
   const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
-  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { navMenu: m, headerCta: nav.header.cta }, 'en', 'en');
+  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { navMenu: m, headerButtons: nav.header.buttons }, 'en', 'en');
   check(r.status === 0 && nav.header.links[0].label === 'Home' && JSON.stringify(preview.header.nav) === JSON.stringify(nav.header.links) && JSON.stringify(preview.footer.nav) === JSON.stringify(nav.footer.columns[0].links),
     '构建首项 = Home，预览 == 构建', `预览 ${JSON.stringify(preview)} · 构建 ${JSON.stringify({ h: nav.header.links, f: nav.footer.columns[0].links })}`);
   // 老板自己把首页那一格清空 ⟹ 照样拦（兜底只管「打开时没写」，不替老板填）。

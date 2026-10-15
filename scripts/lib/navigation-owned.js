@@ -142,8 +142,10 @@ function buttonLinkWords(v) {
 
 const SIDE_EFFECTS = [
   {
-    key: 'header.cta.href',
-    read: (nav) => (isObj(nav) && isObj(nav.header) && isObj(nav.header.cta) ? nav.header.cta.href : undefined),
+    // #1787 —— 主按钮 = `header.buttons` 的第 1 颗（构建读 `buttons[0].href` 算 ctaSlug，`derive-site.js`）。
+    key: 'header.buttons[0].href',
+    read: (nav) => (isObj(nav) && isObj(nav.header) && Array.isArray(nav.header.buttons) && isObj(nav.header.buttons[0])
+      ? nav.header.buttons[0].href : undefined),
     coupling: ['const ctaSlug =', 'p.slug !== ctaSlug'],
     // #1779 —— 只有「是一页」的那一头会动菜单：引用（电话 / 邮箱）不指向任何一页（构建里 `ctaSlug` 为空）。
     //    两头都不是页 ⟹ 菜单不变，不说（返回 null）。
@@ -154,8 +156,8 @@ const SIDE_EFFECTS = [
       if (!changes.length) return null;
       if (typeof to !== 'string') changes[0] = changes[0].replace(' in it', ' in the top menu');
       return 'One more thing to tell the owner: the top menu is rebuilt from the site\'s pages every '
-        + 'time, and the page the header button points at is deliberately left out of that menu. Because this edit '
-        + `changed the button's link from ${buttonLinkWords(from)} to ${buttonLinkWords(to)}, the next build will also change the menu itself — `
+        + 'time, and the page the main header button (the first one) points at is deliberately left out of that menu. Because this edit '
+        + `changed the main button's link from ${buttonLinkWords(from)} to ${buttonLinkWords(to)}, the next build will also change the menu itself — `
         + `${changes.join(', and ')}. `
         + 'Nothing else was changed. Say this out loud instead of only reporting that the button was updated.';
     },
@@ -177,7 +179,7 @@ const SIDE_EFFECTS = [
  * 新库的 header / footer 不再自己读 navigation.json：构建期 `lib/shell-data.js` 把它派生成块的 data，
  * 形态（= 预设名）决定排版。所以「这一格在这种形态下画不画」= 「这个字段派生进了哪个槽」×「这个预设的排版
  * 画不画那个槽」：
- *   header.cta              → header.ctaPrimary   7 个顶栏预设都画（`blocks/header/Section.tsx` 的 ctas）
+ *   header.buttons          → header.buttons      7 个顶栏预设都画（`blocks/header/Section.tsx` 的 ctas；#1787 前是主 / 次按钮两个单槽）
  *   footer.copyright        → footer.copyright    3 个页脚预设都画（三种 layout 的底栏都有版权行）
  *   footer.description      → footer.tagline      只有 layout = stacked / columns 的两个预设画（row 那一种没有）
  *   footer.columns[].title  → **没有槽**          新页脚的栏目标题是组件自己的字（Services / Pages …），不读它
@@ -192,7 +194,7 @@ const SIDE_EFFECTS = [
  *   · 表里说这种形态画它、渲染出来没有 ⟹ 渲染点没了，而这句话现在会漏说（老板拿到「已完成」）
  *   · 渲染出来有、表里没写 ⟹ 我们会对一个真的会显示的字段说「你这个站不显示它」= 新的假话
  *
- * 📌 `header.cta` 和 `footer.copyright` 的 `renderedBy` 覆盖了各自那一类区的**全部**形态 ⟹ 按下面
+ * 📌 `header.buttons` 和 `footer.copyright` 的 `renderedBy` 覆盖了各自那一类区的**全部**形态 ⟹ 按下面
  *    `alwaysRendered` 那条规则，它们**永远**不会多出这句话（AC3）。
  */
 
@@ -202,6 +204,7 @@ const SIDE_EFFECTS = [
 const { shapesOf, REGION_BLOCK } = require('../region-layout');
 const { REQUIRED_KINDS } = require('./page-layout');
 const { BUTTON_SOURCES, refProblemsAt } = require('./item-sources');
+const { MAX_HEADER_BUTTONS } = require('./header-buttons');
 
 /** 每一类区一共有哪些形态。唯一出处是**块的形态目录**（`blocks/<块>/<形态>/`）。现取，不在加载时固化。 */
 const VARIANTS_BY_REGION = new Proxy({}, {
@@ -213,13 +216,14 @@ const VARIANTS_BY_REGION = new Proxy({}, {
 
 const PAGE_READS = [
   {
-    key: 'header.cta',
+    // #1787 —— 顶栏按钮（0–3 颗）。7 个预设的桌面那格都画，手机抽屉里也全出（`blocks/header/Section.tsx` 的 ctas / drawer-cta）。
+    key: 'header.buttons',
     region: 'header',
     renderedBy: ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'topbar', 'stacked', 'topbar-stacked'],
     // 派生到了块的哪个槽（`lib/shell-data.js`）—— 测试按它往 data 里找值。
-    slot: 'ctaPrimary',
-    what: 'the button at the top of every page',
-    read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.cta : undefined),
+    slot: 'buttons',
+    what: 'the buttons at the top of every page',
+    read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.buttons : undefined),
   },
   {
     key: 'footer.copyright',
@@ -249,17 +253,8 @@ const PAGE_READS = [
     },
   },
   {
-    // #1529 —— 下面两格是老板能写进 navigation.json、构建派生进外壳 data 的（`lib/shell-data.js`）。
-    //    `renderedBy` 由 ⑫ 拿真组件逐个预设渲染出来两向核过：顶栏副按钮 7 个预设的桌面那格都画（topbar 两个预设只是
-    //    手机抽屉里不放它，`blocks/header/Section.tsx` 的 drawer-cta）。
-    key: 'header.ctaSecondary',
-    region: 'header',
-    renderedBy: ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'topbar', 'stacked', 'topbar-stacked'],
-    slot: 'ctaSecondary',
-    what: 'the second button at the top of the page',
-    read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.ctaSecondary : undefined),
-  },
-  {
+    // #1529 —— 老板能写进 navigation.json、构建派生进外壳 data 的（`lib/shell-data.js`）。
+    //    `renderedBy` 由 ⑫ 拿真组件逐个预设渲染出来两向核过。
     key: 'footer.legal',
     region: 'footer',
     renderedBy: ['slim-row', 'stacked', 'columns'],
@@ -587,7 +582,7 @@ function buildOwnedChanges(next, current) {
  *    说实话」的通道。别把这一段读成「多出来的键这个模块一个字都不说」—— 那是 #1128 之前的样子。
  */
 const NAV_LINK = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'string' } } };
-// #1779 —— 顶栏两颗按钮：`href` 是字符串，**或**电话 / 邮箱引用（`{source: "phone" | "email", location?}`，同页面块的按钮，
+// #1779 —— 顶栏按钮：`href` 是字符串，**或**电话 / 邮箱引用（`{source: "phone" | "email", location?}`，同页面块的按钮，
 //    构建时由 `item-sources.js` §resolveButtons 展开）。类型那头是 `HeaderButton.href: string | ContactRef`（⑩ 认这一种并集）。
 //    不放开的后果：老板在编辑器里把主按钮设成 Phone 之后，AI 每次改 navigation.json 都被这道门拒，
 //    而模型最自然的过门动作是把它改回字符串 —— 老板选的 Phone 被悄悄冲掉。菜单 / 页脚链接仍只收字符串。
@@ -596,7 +591,8 @@ const FOOTER_COLUMN = {
   kind: 'object',
   fields: { title: { kind: 'string' }, links: { kind: 'array', of: NAV_LINK } },
 };
-// #1529 —— `header.ctaSecondary` / `footer.legal` 两格是可选的（`NavigationConfig` 里都是 `?:`），写在下面各自那一行。
+// #1529 —— `footer.legal` 是可选的（`NavigationConfig` 里是 `?:`），写在下面那一行。
+// #1787 —— 顶栏按钮是一个列表 `header.buttons`（0–3 颗，`header-buttons.js`）；`max` 是这道门自己的要求（类型只说是数组）。
 const NAV_SHAPE = {
   kind: 'object',
   fields: {
@@ -604,8 +600,7 @@ const NAV_SHAPE = {
       kind: 'object',
       fields: {
         links: { kind: 'array', of: NAV_LINK },
-        cta: HEADER_BUTTON,
-        ctaSecondary: { kind: 'object', optional: true, fields: HEADER_BUTTON.fields },
+        buttons: { kind: 'array', of: HEADER_BUTTON, max: MAX_HEADER_BUTTONS },
       },
     },
     footer: {
@@ -629,23 +624,28 @@ const NAV_SHAPE = {
 };
 
 /**
- * 这两条**不是**从类型里来的 —— 类型只说 `string`，空串对 tsc 合法。它们是 `sync-config.js` 自己的
- * 要求：`header.cta.href` 被拿去 `.replace(/^\//, '')` 算 `ctaSlug`，空串等于按钮链到哪儿说不清；
- * 空的 `label` 就是页面上一个没有字的按钮。#1104 r1 起就是这个行为，这里只是把它跟类型那部分分开写，
- * 免得下一个人以为它也是 `NavigationConfig` 说的。
+ * 这几条**不是**从类型里来的 —— 类型只说 `string`，空串对 tsc 合法。空的 `href` 等于按钮链到哪儿说不清，
+ * 空的 `label` 就是页面上一个没有字的按钮（#1104 r1 起对主按钮就是这个行为）。#1787 起按钮是一个列表 ⟹
+ * 每一颗的 `label` / `href` 都不许空（同编辑器那一侧，`header-buttons.js` §headerButtonsProblem）。
+ * 这里只是把它跟类型那部分分开写，免得下一个人以为它也是 `NavigationConfig` 说的。
  */
-const NON_EMPTY = new Set(['header.cta.label', 'header.cta.href']);
+const NON_EMPTY = { has: (at) => /^header\.buttons\[\d+\]\.(label|href)$/.test(at) };
 
 /** 回给模型的话里，给这几处加一句「它是页面上的哪个东西」。 */
 const HINTS = {
-  'header.cta': 'the button at the top of every page',
-  'header.cta.label': "the button's text",
-  'header.cta.href': 'where the button links to, like "/contact", or {"source": "phone"} / {"source": "email"} for the business phone number / email',
+  'header.buttons': 'the buttons at the top of every page — a list of 0 to 3 {label, href}, the first one is the main button',
   'footer.copyright': 'the copyright line at the bottom of every page',
   'footer.description': 'the short blurb in the footer',
 };
 
-const withHint = (at) => (HINTS[at] ? `"${at}" (${HINTS[at]})` : `"${at}"`);
+// #1787 —— 按钮列表里的那一颗（`header.buttons[1].href` …）照它那一格说（文字 / 链接）。
+const BUTTON_PART = /^header\.buttons\[\d+\]\.(label|href)$/;
+const BUTTON_PART_HINT = {
+  label: "the button's text",
+  href: 'where the button links to, like "/contact", or {"source": "phone"} / {"source": "email"} for the business phone number / email',
+};
+const hintOf = (at) => HINTS[at] || (BUTTON_PART.test(at) ? BUTTON_PART_HINT[BUTTON_PART.exec(at)[1]] : '');
+const withHint = (at) => (hintOf(at) ? `"${at}" (${hintOf(at)})` : `"${at}"`);
 
 /** 一处的值跟它那一段形状对不上时，往 `out` 里写人话。 */
 function checkShape(value, shape, at, out) {
@@ -669,6 +669,7 @@ function checkShape(value, shape, at, out) {
   }
   if (shape.kind === 'array') {
     if (!Array.isArray(value)) { out.push(`${withHint(at)} must be an array.`); return; }
+    if (shape.max !== undefined && value.length > shape.max) out.push(`${withHint(at)} can have at most ${shape.max} items.`);
     value.forEach((item, i) => checkShape(item, shape.of, `${at}[${i}]`, out));
     return;
   }
@@ -706,8 +707,8 @@ function shapeProblems(nav) {
 
 /** 这里能改的是哪些 —— 拒绝理由里要带上，否则模型只知道不许改什么、不知道许改什么。 */
 const NAVIGATION_EDITABLE_SUMMARY =
-  'In navigation.json you may change: the header button (header.cta — its label and href), the second '
-  + 'header button (header.ctaSecondary — {label, href}), the footer copyright, the footer description, the '
+  'In navigation.json you may change: the header buttons (header.buttons — a list of 0 to 3 {label, href}; '
+  + 'the first one is the main button), the footer copyright, the footer description, the '
   + 'footer column titles, the footer legal links (footer.legal — a list of {label, href}), and the topbar. '
   + 'Write the complete file with everything else exactly as you read it.';
 

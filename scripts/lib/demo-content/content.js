@@ -593,7 +593,7 @@ const DEMO_CONTENT = {
 
 
   // #1424 —— Webpixels 那一版顶栏（`staging: true`，只在图册里）。#1462 起 7 个预设吃同一份：`topbar` 只有
-  // topbar 开的预设画（手机上折进抽屉），`ctaSecondary` 在那两个预设的抽屉里不出 —— 两样都填上，
+  // topbar 开的预设画（手机上折进抽屉）；按钮填满 3 颗（#1787），992–1199 宽第 3 颗不出 ——
   // 那几条断点行为单格页上才看得见。`options` 里不写旋钮、也不写 topbar（#1468 起它归预设管）：初值来自形态名（= 预设名），
   // 写了就会压过每个预设自己那一份。
   // 🔴 `topbar` 底下那三份 list 是嵌套的，守卫 (c) 只看顶层 list 槽，所以 3 个社交链接够用（票正文）。
@@ -608,10 +608,14 @@ const DEMO_CONTENT = {
       { label: 'About the shop', href: '/about', icon: 'shop', show: 'both' },
       { label: 'Contact', href: '/contact', icon: 'envelope', show: 'icon' },
     ],
-    ctaPrimary: { label: 'Book a service', href: '/contact', style: 'solid' },
+    // #1787 —— 顶栏按钮是一个列表（0–3 颗）：样子按位置（实心 · 描边 · 文字链接样），`at` = 在老板那份列表里的下标（构建补的那两格）。
     // #1506 —— 电话 / 地址写成引用（`scripts/lib/item-sources.js`），渲染前从站点数据（单格页是 DEMO_SITE.brand）填；
     //    营业时间不是联系方式的源（正文「不做」），照旧手写。
-    ctaSecondary: { label: 'Call us', href: { source: 'phone' }, style: 'outline' },
+    buttons: [
+      { label: 'Book a service', href: '/contact', style: 'solid', at: 0 },
+      { label: 'Call us', href: { source: 'phone' }, style: 'outline', at: 1 },
+      { label: 'See prices and service packages', href: '/pricing', style: 'link', at: 2 },
+    ],
     topbar: {
       // #1528 —— 一句话公告（带链接文字的那种写法，老公告条的形状派生过来就是这样）。
       message: { text: 'Free brake inspection with every oil change this month.', href: '/contact', label: 'Book now' },

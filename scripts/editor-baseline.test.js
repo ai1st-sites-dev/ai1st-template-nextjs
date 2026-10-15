@@ -101,14 +101,16 @@ function builtRoot(locale) {
     email: brand.email ?? '',
     phone: loc.phone ?? '',
     address: loc.address ?? '',
-    // #1759 —— 顶栏 Content 页：logo（page.tsx：`site.brand.logoUrl ?? ''`）+ 两颗按钮（page.tsx §headerContent：
-    //    `getNavigation(site, locale)` 的 header.cta / ctaSecondary，各取 label / href 两个字符串）。`navMenu` 不在 root 的比对里：
-    //    底稿里它是单独那一格 `nav`。
+    // #1759 —— 顶栏 Content 页：logo（page.tsx：`site.brand.logoUrl ?? ''`）+ 按钮（page.tsx §headerContent：
+    //    `getNavigation(site, locale)` 的 header.buttons，#1787 起是列表，每颗取 label / href；href 是电话 / 邮箱引用就原样）。
+    //    `navMenu` 不在 root 的比对里：底稿里它是单独那一格 `nav`。
     logoUrl: brand.logoUrl ?? '',
     ...(() => {
       const h = (lastRoot.nav[locale] ?? lastRoot.nav[defaultLocale] ?? {}).header || {};
-      const btn = (b) => ({ label: typeof b?.label === 'string' ? b.label : '', href: typeof b?.href === 'string' ? b.href : '' });
-      return { headerCta: btn(h.cta), headerCtaSecondary: btn(h.ctaSecondary) };
+      const isRef = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && (v.source === 'phone' || v.source === 'email');
+      const btn = (b) => ({ label: typeof b?.label === 'string' ? b.label : '', href: typeof b?.href === 'string' ? b.href : isRef(b?.href) ? { ...b.href } : '' });
+      const list = Array.isArray(h.buttons) ? h.buttons : [];
+      return { headerButtons: list.filter((b) => b && typeof b === 'object' && !Array.isArray(b)).map(btn) };
     })(),
   };
 }
@@ -266,10 +268,9 @@ console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存�
     email: 'changed-1681@example.com',
     phone: '(416) 555-1681',
     address: '1681 Changed St, Toronto, ON',
-    // #1759 —— 顶栏 Content 页那三样：logo 在 brand.json，两颗按钮在 en/navigation.json，同一条写路、同一个底稿。
+    // #1759 —— 顶栏 Content 页：logo 在 brand.json，按钮（#1787 列表）在 en/navigation.json，同一条写路、同一个底稿。
     logoUrl: '/images/logo-1759.png',
-    headerCta: { label: 'Book now 1759', href: '/about' },
-    headerCtaSecondary: { label: 'Our services 1759', href: '/services' },
+    headerButtons: [{ label: 'Book now 1759', href: '/about' }, { label: 'Our services 1759', href: '/services' }],
   };
   const writes = editorRoot.planRootWrite({
     siteDir, localeDir, locale: 'en', shape: { flat: false, locales: ['en'] }, root: change,
@@ -281,10 +282,10 @@ console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存�
   // #1738 —— 底色 + 旋钮是对象：按值比（JSON），不按引用。
   const eq = (x, y) => JSON.stringify(x) === JSON.stringify(y);
   const sameRoot = (a, b) => !!a && Object.keys(b).length === Object.keys(a).length && Object.keys(b).every((k) => eq(a[k], b[k]));
-  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那十二样', JSON.stringify(got.root));
+  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那十一样', JSON.stringify(got.root));
   // 反向：构建里（= 编辑器页烤进去的首屏）还是旧的 —— 不送 root 的话编辑器显示的就是这一份（票正文「不见了」）。
   const stale = Object.keys(change).filter((k) => eq(before[k], (got.root || {})[k]));
-  check(stale.length === 0, '十二样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
+  check(stale.length === 0, '十一样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
 
   // 读不出来 ⟹ 不带 root（编辑器沿用构建时那份），底稿其余照常。
   // #1425（T3）：弄坏的原来是 navigation.json（公告条那一样住在那儿，今天 root 不读它了）。root 今天读的站级文件

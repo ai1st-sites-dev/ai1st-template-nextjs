@@ -651,7 +651,7 @@ check('AC2：关键词页那一通的 CTA 指站的按钮落点 /contact，不�
 console.log('── #1601 AC3：导航与按钮（同 AC2 那个站，读 navigation.json）');
 const NAV = () => JSON.parse(fs.readFileSync(path.join(R1.work, 'site', 'zh', 'navigation.json'), 'utf8'));
 check('AC3：行动按钮的 href 指向的页在建成的页面集合里', () => {
-  const href = NAV().header.cta.href;
+  const href = NAV().header.buttons[0].href;
   const slug = href === '/' ? 'home' : href.replace(/^\//, '');
   assert.ok(pagesOn(R1.work).includes(slug), `${href} 不在 ${pagesOn(R1.work).join(' ')}`);
 });
@@ -687,7 +687,7 @@ const R3x = run('recipe-nav-adversarial', PAYLOAD(), { plan: (() => {
 check('AC3 对抗臂：回包不给服务列表页、按钮写 quote ⟹ 按钮仍指建成的页，7 张服务页仍都到得了', () => {
   assert.strictEqual(R3x.rc, 0, `${R3x.error}\n${R3x.stderr.slice(-800)}`);
   const nav = JSON.parse(fs.readFileSync(path.join(R3x.work, 'site', 'zh', 'navigation.json'), 'utf8'));
-  const href = nav.header.cta.href;
+  const href = nav.header.buttons[0].href;
   assert.ok(pagesOn(R3x.work).includes(href === '/' ? 'home' : href.replace(/^\//, '')), `${href} 不在 ${pagesOn(R3x.work).join(' ')}`);
   const svcPages = pagesOn(R3x.work).filter((s) => /^services\/[^/]+$/.test(s));
   assert.strictEqual(svcPages.length, 7);
@@ -719,11 +719,16 @@ check('AC4 反向读数：同一份 payload 不勾 structure ⟹ gallery 不出�
 //    两处都该是 contact。回包里删掉 ctaPage 才走得到兜底；不勾 structure 的正常建站今天就已是 /contact（配方覆盖），量不到这件事。
 const NO_CTA = (() => { const p = JSON.parse(JSON.stringify(FIFTEEN)); delete p.navigation.ctaPage; return p; })();
 const R4c = run('recipe-structure-no-cta', PAYLOAD(REF), { plan: NO_CTA });
-check('#1635 AC3：勾 structure + 回包没写 ctaPage ⟹ 顶栏按钮 header.cta.href 是 /contact', () => {
+check('#1635 AC3：勾 structure + 回包没写 ctaPage ⟹ 顶栏主按钮 header.buttons[0].href 是 /contact', () => {
   assert.strictEqual(R4c.rc, 0, `${R4c.error}\n${R4c.stderr.slice(-800)}`);
   assert.ok(!('ctaPage' in NO_CTA.navigation), '夹具里 ctaPage 没删掉 —— 这一格量的不是兜底');
   const nav = JSON.parse(fs.readFileSync(path.join(R4c.work, 'site', 'zh', 'navigation.json'), 'utf8'));
-  assert.strictEqual(nav.header.cta.href, '/contact');
+  assert.strictEqual(nav.header.buttons[0].href, '/contact');
+});
+check('#1787：新站的 navigation.json 顶栏按钮是 header.buttons 1 颗，没有 cta / ctaSecondary', () => {
+  const nav = JSON.parse(fs.readFileSync(path.join(R4c.work, 'site', 'zh', 'navigation.json'), 'utf8'));
+  assert.ok(Array.isArray(nav.header.buttons) && nav.header.buttons.length === 1, JSON.stringify(nav.header));
+  assert.ok(!('cta' in nav.header) && !('ctaSecondary' in nav.header), JSON.stringify(nav.header));
 });
 check('#1635 AC3：同一跑的站级提示词里是 e.g. contact，没有 e.g. quote', () => {
   const site = call1Prompts(R4c.events)[0].content;
@@ -749,7 +754,7 @@ check('#1642：照提示词建出来的站没有 quote 页，顶栏按钮指的�
   assert.ok(pages.includes('gallery'), `桩没照提示词出页（gallery 不在）：${pages.join(' ')}`);
   assert.ok(!pages.includes('quote'), `有 quote 页：${pages.join(' ')}`);
   const nav = JSON.parse(fs.readFileSync(path.join(R4p.work, 'site', 'zh', 'navigation.json'), 'utf8'));
-  const href = nav.header.cta.href;
+  const href = nav.header.buttons[0].href;
   assert.strictEqual(href, '/contact', `按钮 ${href}`);
   assert.ok(pages.includes(href.replace(/^\//, '')), `${href} 不在 ${pages.join(' ')}`);
 });

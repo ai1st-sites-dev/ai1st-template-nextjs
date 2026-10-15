@@ -1593,8 +1593,10 @@ async function main() {
         additionalContext,
         sitePrimaryKeyword: (targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }) || {}).keyword || '',
         // #1779 —— 按钮的 href 可以是电话 / 邮箱引用（不是一页）⟹ 关键词页的 CTA 没有一页可指，当没有。
-        ctaHref: (content.navigation && content.navigation.header && content.navigation.header.cta
-          && typeof content.navigation.header.cta.href === 'string' && content.navigation.header.cta.href) || '',
+        // #1787 —— 主按钮 = `header.buttons` 的第 1 颗；0 颗 ⟹ 当没有。
+        ctaHref: (content.navigation && content.navigation.header && Array.isArray(content.navigation.header.buttons)
+          && content.navigation.header.buttons[0] && typeof content.navigation.header.buttons[0].href === 'string'
+          && content.navigation.header.buttons[0].href) || '',
       });
       for (const r of results) {
         if (r.ok) kwOk.push(r);
@@ -1890,7 +1892,8 @@ function buildSecondaryContent({ content, locale, book, industry, disabledBlocks
     header: {
       ...nav.header,
       links: (nav.header.links || []).map(relabel),
-      cta: { ...nav.header.cta, label: filled(t.ctaLabel) ? t.ctaLabel : nav.header.cta.label },
+      // #1787 —— 主按钮（第 1 颗）的字换成这种语言的；其余几颗（建站只写 1 颗）原样。
+      buttons: (nav.header.buttons || []).map((b, i) => (i === 0 && filled(t.ctaLabel) ? { ...b, label: t.ctaLabel } : b)),
     },
     footer: {
       ...nav.footer,
@@ -2166,7 +2169,7 @@ function getDemoConfig(siteId, siteUrl) {
           { label: 'About', href: '/about' },
           { label: 'Services', href: '/services' },
         ],
-        cta: { label: 'Get a Quote', href: '/contact' }, // #1636：只改 href（没有 quote 页了），label 留着
+        buttons: [{ label: 'Get a Quote', href: '/contact' }], // #1636：只改 href（没有 quote 页了），label 留着；#1787：按钮是列表
       },
       footer: {
         description: 'Demo Company — Your trusted local business.',
@@ -2986,7 +2989,8 @@ ${FACTS_ONLY_FROM_FORM_RULE}
             .filter(p => p.navLabel && p.slug !== ctaPage)
             .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
         ],
-        cta: { label: ai.navigation.ctaLabel, href: ctaSlug }
+        // #1787 —— 顶栏按钮是一个列表（0–3 颗）；新站写 1 颗主按钮。
+        buttons: [{ label: ai.navigation.ctaLabel, href: ctaSlug }]
       },
       footer: {
         description: ai.navigation.footerDescription,
@@ -3689,7 +3693,7 @@ async function generateKeywordPages(opts) {
     titleSpec = 'max 60 chars',
     // #1549 重开 —— meta description 的长度说法（§description-fit.js descriptionSpec，按主语言）。默认值也从那里取，不另写数字。
     descriptionSpec: descSpec = descriptionSpec('en'),
-    // #1601 —— 站的行动按钮落点（navigation.header.cta.href），关键词页的 CTA 指它（§keywordPagePrompt）。
+    // #1601 —— 站的行动按钮落点（主按钮 = navigation.header.buttons[0].href，#1787），关键词页的 CTA 指它（§keywordPagePrompt）。
     ctaHref = '',
     // #1346 —— 后台关掉的块。关键词页有它**自己**那份写死的块清单（`keyword-page-options.js`），关掉的块要从那里剔掉。
     disabledBlocks = [],

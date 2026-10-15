@@ -30,8 +30,8 @@
 //   块里的：块 `data` 任意深度上带 `href` 键的对象（#1526 —— 原来只认 `kind === "link"` 的槽位，按钮列表等
 //   整层看不见，理由在 §blockLinks）。块类型要在块清单里（`blocks/<块>/manifest.json`）。
 //   新加一个链接槽、一个按钮列表都不用改这里。
-//   `navigation.json` 里的：`topbar.link`（一句话公告的链接，= header 的 topbar.message）与 `header.cta`（顶栏按钮，
-//   = header 的 ctaPrimary）。这两处的字不住在页面里，住在 navigation.json —— 那两个位置写在 §NAV_LINKS，
+//   `navigation.json` 里的：`topbar.link`（一句话公告的链接，= header 的 topbar.message）与 `header.buttons`（顶栏按钮，
+//   = header 的 buttons，#1787）。这几处的字不住在页面里，住在 navigation.json —— 那几个位置写在 §NAV_LINKS，
 //   `link-href.test.js` 盯着它跟 header 的 manifest 对得上。
 //
 // ── 老数据：只拦「这一次新写进去的」────────────────────────────────────────────────────────────
@@ -57,11 +57,11 @@ const BLOCK_ANCHOR = /^#[^\s#\u0000-\u001f\u007f]+$/;
 /** `navigation.json` 里老板的链接住在哪几个键上（对应哪个块的哪个槽位）。 */
 // 📌 #1425（T3）删过 `topbar.link`（公告条那个区随旧库退役，链接不再画）；#1528 它又画到页面上了（派生成 header 的
 //    `topbar.message.href`，shell-data.js §topbarMessage）⟹ 加回来。`slot` 是个对象槽，`field` 是它 shape 里那一格。
-// #1529：`key` 是任意深度的路径；`list: true` ⟹ 那个位置是一串链接（每一项都查）。后面两行（ctaSecondary / legal）是老板 #1529 起能写、构建派生进外壳的。
+// #1529：`key` 是任意深度的路径；`list: true` ⟹ 那个位置是一串链接（每一项都查）。`legal` 是老板 #1529 起能写、构建派生进外壳的。
+// #1787：顶栏按钮从两个单槽（主 / 次按钮）换成一个列表 `header.buttons`。
 const NAV_LINKS = [
   { key: ['topbar', 'link'], block: 'header', slot: 'topbar', field: 'message', where: 'the announcement at the top of the header' },
-  { key: ['header', 'cta'], block: 'header', slot: 'ctaPrimary', where: 'the header' },  // #1425：派生成 header 的 ctaPrimary（shell-data.js）
-  { key: ['header', 'ctaSecondary'], block: 'header', slot: 'ctaSecondary', where: 'the second header button' },
+  { key: ['header', 'buttons'], list: true, block: 'header', slot: 'buttons', where: 'the header buttons' },  // 派生成 header 的 buttons（shell-data.js）
   { key: ['footer', 'legal'], list: true, block: 'footer', slot: 'legal', where: 'the footer legal links' },
 ];
 
@@ -187,7 +187,7 @@ function linkRejection(kind, next, before) {
     // 不截的话后半句「能填什么」会被截掉，老板只看到「不收」看不到该怎么改。
     const cut = (v, n) => (v.length > n ? `${v.slice(0, n)}…` : v);
     const shown = cut(l.href, 60);
-    // 点名：老板在编辑器里看得见的是按钮上那行字和块的名字，不是 `ctaPrimary` 这种键名。
+    // 点名：老板在编辑器里看得见的是按钮上那行字和块的名字，不是 `buttons` 这种键名。
     const what = typeof l.label === 'string' && l.label.trim() ? `The link "${cut(l.label.trim(), 40)}"` : 'A link';
     // 列表里的那一项说第几个（#1526）：同一个列表里按钮字可以重名、也可以没有。
     const which = l.item ? ` (item ${l.item})` : '';

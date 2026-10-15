@@ -22,8 +22,8 @@
 //   headerOptions / footerOptions → site/theme.json 的 regionOptions.header / .footer（#1738：底色 + 旋钮，一个对象；
 //                                空对象 = 删掉那个键）
 //   logoUrl                    → site/brand.json 的 logoUrl（#1759；空串 = 删掉，顶栏画名字）
-//   headerCta / headerCtaSecondary → <语言>/navigation.json 的 header.cta / header.ctaSecondary（#1759，`{label, href}`；
-//                                主按钮两格都不许空，次按钮两格都空 = 删掉那个键、只填一格 = 拒收）
+//   headerButtons              → <语言>/navigation.json 的 header.buttons（#1787，`[{label, href}]`，0–3 颗；
+//                                每颗名字和链接都不许空，判据在 `header-buttons.js` §headerButtonsProblem）
 // 🔴 那张表是唯一的一份：读、写、往返守卫都照它走。少一行 ⟹ 那个字段改了不落盘，守卫点名它
 //    （`scripts/editor-root.test.js` ①）。
 //
@@ -42,6 +42,7 @@ const { regionOptionsProblems, cleanRegionOptions } = require('./region-options'
 
 const { ROOT_FIELDS } = require('./editor-root-fields');
 const { isButtonRef } = require('./item-sources');
+const { headerButtonsProblem } = require('./header-buttons');
 
 /** 老板在编辑器里可能收到的拒收码。worker 把它原样换成状态栏那句话（`blocks_task.go`）。 */
 const REFUSED = 11;
@@ -61,7 +62,6 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const LOCALE_SLOT = '{locale}';
 const BRAND_FIELDS = ['brandName', 'email', 'phone', 'address'];
 const REGION_OPTION_FIELDS = ['headerOptions', 'footerOptions'];
-const BUTTON_FIELDS = ['headerCta', 'headerCtaSecondary'];
 
 /**
  * 这个站的默认语言：判据同构建（`sync-config.js` 那段）—— 没有 `site_meta.json` 是扁平老站，默认语言 `en`；
@@ -123,11 +123,8 @@ function buttonOf(v) {
   return { label: typeof o.label === 'string' ? o.label : '', href };
 }
 
-/** #1779 —— 按钮 href 是不是空的：字符串去空白后为空；引用不算空。 */
-const hrefEmpty = (href) => typeof href === 'string' && !href.trim();
-
 /**
- * #1759 —— 顶栏右边两颗按钮的现值（这种语言的 `navigation.json`）。次按钮没有 ⟹ 两格都是空串（编辑器那头就是「没有」）。
+ * #1787 —— 顶栏按钮的现值（这种语言的 `navigation.json` 的 `header.buttons`）。没写 / 不是数组 ⟹ 空列表（编辑器那头就是「没有按钮」）。
  * navigation.json 不在 / 读不出 ⟹ 一个都不回（同 §readBrandValues：不回空值去盖构建时那份）。
  */
 function readHeaderButtons(localeDir) {
@@ -138,7 +135,7 @@ function readHeaderButtons(localeDir) {
     return {};
   }
   const h = isObj(nav) && isObj(nav.header) ? nav.header : {};
-  return { headerCta: buttonOf(h.cta), headerCtaSecondary: buttonOf(h.ctaSecondary) };
+  return { headerButtons: (Array.isArray(h.buttons) ? h.buttons : []).map(buttonOf) };
 }
 
 /**
@@ -194,24 +191,18 @@ function checkShape(root, layouts) {
     if (field in root && typeof root[field] !== 'string') bad(`${field} 必须是字符串：${JSON.stringify(root[field])}`);
   }
   if ('brandName' in root && !root.brandName.trim()) refuse('The website name can\'t be empty. Nothing was changed.');
-  // #1759 —— logo：一个地址（空串 = 删掉）。顶栏两颗按钮：`{label, href}`，label 是字符串（链接能不能用由 §commitWrites 那道
-  //    链接判据说，同页面块的按钮）。#1779 —— href 是字符串，或电话 / 邮箱引用（§isButtonRef：源不认识、多余的键都拒）。
+  // #1759 —— logo：一个地址（空串 = 删掉）。#1787 —— 顶栏按钮：`[{label, href}]`，label 是字符串（链接能不能用由 §commitWrites
+  //    那道链接判据说，同页面块的按钮）；href 是字符串，或电话 / 邮箱引用（#1779，§isButtonRef：源不认识、多余的键都拒）。
   if ('logoUrl' in root && typeof root.logoUrl !== 'string') bad(`logoUrl 必须是字符串：${JSON.stringify(root.logoUrl)}`);
-  for (const field of BUTTON_FIELDS) {
-    if (!(field in root)) continue;
-    const v = root[field];
-    if (!isObj(v) || Object.keys(v).some((k) => k !== 'label' && k !== 'href') || typeof v.label !== 'string' || (typeof v.href !== 'string' && !isButtonRef(v.href))) {
-      bad(`${field} 必须是 {label: string, href: string | {source: "phone" | "email"}}：${JSON.stringify(v)}`);
+  if ('headerButtons' in root) {
+    const list = root.headerButtons;
+    const okItem = (v) => isObj(v) && !Object.keys(v).some((k) => k !== 'label' && k !== 'href') && typeof v.label === 'string'
+      && (typeof v.href === 'string' || isButtonRef(v.href));
+    if (!Array.isArray(list) || !list.every(okItem)) {
+      bad(`headerButtons 必须是 [{label: string, href: string | {source: "phone" | "email"}}]：${JSON.stringify(list)}`);
     }
-  }
-  if ('headerCta' in root && (!root.headerCta.label.trim() || hrefEmpty(root.headerCta.href))) {
-    refuse('The main button in the header needs both a name and a link. Nothing was changed.');
-  }
-  if ('headerCtaSecondary' in root) {
-    const { label, href } = root.headerCtaSecondary;
-    if (!label.trim() !== hrefEmpty(href)) {
-      refuse('The second button in the header needs both a name and a link. To remove it, clear both. Nothing was changed.');
-    }
+    const problem = headerButtonsProblem(list);
+    if (problem) refuse(`${problem} Nothing was changed.`);
   }
 }
 
@@ -301,11 +292,9 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       if (empty && isObj(entry.doc[key[0]]) && !Object.keys(entry.doc[key[0]]).length) delete entry.doc[key[0]];
       continue;
     }
-    if (BUTTON_FIELDS.includes(f.field)) {
-      // #1759 —— 次按钮两格都空 = 删掉 `header.ctaSecondary` 那个键（主按钮两格空已在 §checkShape 拒了）。
-      const label = v.label.trim();
-      const href = typeof v.href === 'string' ? v.href.trim() : { ...v.href };
-      setAt(entry.doc, key, label || !hrefEmpty(href) ? { label, href } : null);
+    if (f.field === 'headerButtons') {
+      // #1787 —— 整份列表换（顺序就是老板排的顺序）；空列表照写（= 不要按钮）。两头空白去掉。
+      setAt(entry.doc, key, v.map((b) => ({ label: b.label.trim(), href: typeof b.href === 'string' ? b.href.trim() : { ...b.href } })));
       continue;
     }
     if (f.field === 'logoUrl') { setAt(entry.doc, key, v.trim() ? v.trim() : null); continue; }

@@ -117,6 +117,7 @@ import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-
 import { designAiRounds, designAiWater } from '../../../scripts/lib/design-ai-rounds.js';
 import { seedProps, fillFields, fillBatches, pathOfName, realGoogleRating, type SeedContext } from '../../../scripts/lib/block-placeholders.js';
 import { siteFactsFrom } from '../../../scripts/lib/contact-facts.js';
+import { MAX_HEADER_BUTTONS, headerButtonsProblem } from '../../../scripts/lib/header-buttons.js';
 import { localeUrl } from '@/lib/config';
 import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
@@ -885,12 +886,12 @@ type RootProps = {
   phone?: string;
   email?: string;
   address?: string;
-  /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、两颗按钮（这种语言的 `navigation.json`）、菜单（`nav-editor.js` 面板那一份）。
+  /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、按钮（这种语言的 `navigation.json`）、菜单（`nav-editor.js` 面板那一份）。
    *  都没有右栏字段：只在顶栏的 Design 面板 Content 页里改（§HeaderContent）。 */
   logoUrl?: string;
-  /** #1779 —— `href` 是地址，或电话 / 邮箱引用（`{source: "phone"}`，按钮弹窗选 Phone / Email 时存的那种）。 */
-  headerCta?: HeaderButtonValue;
-  headerCtaSecondary?: HeaderButtonValue;
+  /** #1787 —— 顶栏按钮 0–3 颗，第 1 颗是主按钮（`header-buttons.js`）。#1779 —— `href` 是地址，或电话 / 邮箱引用
+   *  （`{source: "phone"}`，按钮弹窗选 Phone / Email 时存的那种）。 */
+  headerButtons?: HeaderButtonValue[];
   navMenu?: NavPanel;
   children?: ReactNode;
 };
@@ -948,10 +949,10 @@ function withBusinessInfo(site: SiteData, locale: string, p: RootProps): SiteDat
 
 /**
  * #1759 —— 顶栏 Content 页的现值画到画布上：顶栏 / 页脚是构建时烤进 `regions.*.dataByLocale` 的（`lib/shell-data.js`），
- * 这里照 `nav-editor.js` §liveShellData 换上菜单（跟构建同一条规则，`lib/nav-menu.js`）、两颗按钮和 logo。没带的那一样原样。
+ * 这里照 `nav-editor.js` §liveShellData 换上菜单（跟构建同一条规则，`lib/nav-menu.js`）、按钮和 logo。没带的那一样原样。
  */
-function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'logoUrl' | 'headerCta' | 'headerCtaSecondary' | 'navMenu'>): SiteData {
-  if (p.logoUrl === undefined && !p.headerCta && !p.headerCtaSecondary && !p.navMenu) return site;
+function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'logoUrl' | 'headerButtons' | 'navMenu'>): SiteData {
+  if (p.logoUrl === undefined && !p.headerButtons && !p.navMenu) return site;
   const key = locale || site.defaultLocale;
   const hb = site.regions.header.dataByLocale || {};
   const fb = site.regions.footer.dataByLocale || {};
@@ -991,11 +992,11 @@ function withForms(site: SiteData, locale: string, forms: EditorFormChoice[]): S
 
 /** root 的画法：外壳 + 把面板里的 Business info 交给画布上的块（§LiveSiteContext）。 */
 function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: ShellOverride; children?: ReactNode }) {
-  const { brandName, phone, email, address, logoUrl, headerCta, headerCtaSecondary, navMenu } = props;
+  const { brandName, phone, email, address, logoUrl, headerButtons, navMenu } = props;
   const { canvasForms } = useContext(FormsContext);
   const live = useMemo(
-    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address }), locale, { logoUrl, headerCta, headerCtaSecondary, navMenu }), locale, canvasForms),
-    [site, locale, brandName, phone, email, address, logoUrl, headerCta, headerCtaSecondary, navMenu, canvasForms],
+    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address }), locale, { logoUrl, headerButtons, navMenu }), locale, canvasForms),
+    [site, locale, brandName, phone, email, address, logoUrl, headerButtons, navMenu, canvasForms],
   );
   return (
     <LiveSiteContext.Provider value={live}>
@@ -1028,8 +1029,7 @@ const ROOT_SAVE_LABELS: Record<string, string> = {
   layout: `Website settings · ${ROOT_FIELD_LABELS.layout}`,
   // #1759 —— 顶栏 Content 页（票正文做什么 5：跟页面块存盘记录同一种写法）。菜单那一句不在这里（它不是 root 字段，§saveFields 补）。
   logoUrl: 'Header · Logo',
-  headerCta: 'Header · Main button',
-  headerCtaSecondary: 'Header · Second button',
+  headerButtons: 'Header · Buttons',
 };
 /** #1759 —— 菜单改了（别的页的 navLabel / navOrder，或这一页的那两格）时记录里那一句。 */
 const NAV_SAVE_LABEL = 'Header · Navigation links';
@@ -1085,11 +1085,12 @@ function openRoot(built: PuckLikeData['root'], sent: unknown, locale: string, na
   if ((!sent || typeof sent !== 'object' || Array.isArray(sent)) && !navMenu) return built;
   const v = (sent && typeof sent === 'object' && !Array.isArray(sent) ? sent : {}) as Record<string, unknown>;
   const str = (k: string) => (typeof v[k] === 'string' ? { [k]: v[k] as string } : {});
-  // #1738 —— 底色 + 旋钮是对象：只收对象（形状由站里 `region-options.js` 清洗过）。#1759：两颗按钮同（`{label, href}`，rootToPuck 再收一遍形状）。
+  // #1738 —— 底色 + 旋钮是对象：只收对象（形状由站里 `region-options.js` 清洗过）。#1787：按钮是数组（每项 `{label, href}`，rootToPuck 再收一遍形状）。
   const obj = (k: string) => (v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { [k]: v[k] as Record<string, unknown> } : {});
+  const arr = (k: string) => (Array.isArray(v[k]) ? { [k]: v[k] as unknown[] } : {});
   const got = {
     ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...obj('headerOptions'), ...obj('footerOptions'), ...str('brandName'), ...str('phone'), ...str('email'), ...str('address'),
-    ...str('logoUrl'), ...obj('headerCta'), ...obj('headerCtaSecondary'), ...(navMenu ? { navMenu } : {}),
+    ...str('logoUrl'), ...arr('headerButtons'), ...(navMenu ? { navMenu } : {}),
   };
   if (!Object.keys(got).length) return built;
   return { ...built, props: rootToPuck({ ...built.props, ...got } as never) };
@@ -2338,8 +2339,6 @@ function asButtonValue(v: unknown): HeaderButtonValue {
   const href = typeof o.href === 'string' ? o.href : isButtonRef(o.href) ? o.href : '';
   return { label: typeof o.label === 'string' ? o.label : '', href };
 }
-/** #1779 —— 按钮 href 是空的：字符串去空白后为空；引用不算空（写盘那一侧 `editor-root.js` §hrefEmpty 同一条）。 */
-const hrefEmpty = (href: HeaderButtonValue['href']) => typeof href === 'string' && !href.trim();
 /** #1779 —— 按钮指向哪一页（算菜单里扣掉哪一页）：引用不指向任何一页。 */
 const pageHrefOf = (href: HeaderButtonValue['href']) => (typeof href === 'string' ? href.trim() : '');
 
@@ -2348,14 +2347,8 @@ function headerContentProblem(p: Record<string, unknown>): string {
   if (typeof p.brandName === 'string' && !p.brandName.trim()) return 'The website name can\'t be empty.';
   const menu = navMenuProblem(p.navMenu as NavPanel | undefined);
   if (menu) return menu;
-  if (p.headerCta) {
-    const b = asButtonValue(p.headerCta);
-    if (!b.label.trim() || hrefEmpty(b.href)) return 'The main button needs both a name and a link.';
-  }
-  if (p.headerCtaSecondary) {
-    const b = asButtonValue(p.headerCtaSecondary);
-    if (!b.label.trim() !== hrefEmpty(b.href)) return 'The second button needs both a name and a link. To remove it, clear both.';
-  }
+  // #1787 —— 按钮：同写盘那一侧一个函数（`header-buttons.js` §headerButtonsProblem）。
+  if (Array.isArray(p.headerButtons)) return headerButtonsProblem(p.headerButtons);
   return '';
 }
 
@@ -2369,30 +2362,35 @@ const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #
  *   · Website name —— Website settings 面板里那一格的同一个值（`brandName`）。
  *   · Navigation links —— 菜单是从页面推出来的：列表、拖动、显示 / 隐藏的规矩全在 `nav-editor.js`。按钮指向的那一页不列，下面一句灰字点名它；
  *     拖动抄 §StringListControl 的形态（只有把手可拖，输入框里能用鼠标选字）。首页一行：能改名，不能拖、不能隐藏。
- *   · Buttons —— 主按钮 / 次按钮。#1779 起每颗是 #1755 的按钮控件（`ButtonEditor`，同画布上点它开的弹窗）：Link Type 四类
- *     （没有 Page section，§REGION_LINK_TYPES）+ Button label；选 Phone / Email 存的是引用 `{source: "phone"}`（构建时展开）。
+ *   · Buttons —— #1787：0–3 颗的列表，第 1 颗是主按钮（样子按位置定：实心 · 描边 · 文字链接样）。一行一颗：⋮⋮ 拖动 · 名字 · ✎ Edit · 🗑；
+ *     底下 + Add button，到 3 颗变灰。✎ Edit / + Add button 开的是画布上点那颗开的同一个按钮弹窗（§DesignPopover 的序号那一支，
+ *     同一个事务）：#1755 的按钮控件，Link Type 四类（没有 Page section，§REGION_LINK_TYPES）+ Button label；
+ *     选 Phone / Email 存的是引用 `{source: "phone"}`（构建时展开）。
  *   每个字段外面一层 `data-editor-content-field`（同块的 Content 页：Edit content 落光标、#1743 撤销键判据、e2e 都靠它）。
  */
 function HeaderContent({ props, ui, site, locale }: { props: Record<string, unknown>; ui: EditorUi; site: SiteData; locale: string }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const menu = props.navMenu as NavPanel | undefined;
-  const cta = asButtonValue(props.headerCta);
-  const sec = asButtonValue(props.headerCtaSecondary);
-  const ctaHref = pageHrefOf(cta.href);
+  const buttons = Array.isArray(props.headerButtons) ? (props.headerButtons as unknown[]).map(asButtonValue) : null;
+  const [btnDrag, setBtnDrag] = useState<number | null>(null);
+  // 主按钮 = 第 1 颗：它指向的那一页不进菜单（同构建，`derive-site.js` 的 ctaSlug）。
+  const ctaHref = buttons && buttons[0] ? pageHrefOf(buttons[0].href) : '';
   const rows = menu ? panelRows(menu, ctaHref) : [];
   const shownCount = rows.filter((r) => r.shown).length;
   const btnPage = menu ? buttonPage(menu, ctaHref) : null;
   const set = (patch: Partial<RootProps>) => ui.changeHeader(patch);
   const setMenu = (next: NavPanel) => set({ navMenu: next });
-  // #1779 —— 每颗按钮是 #1755 那一套按钮控件（同画布上点它开的弹窗），Link Type 只列四类（§REGION_LINK_TYPES）。
-  const button = (which: 'headerCta' | 'headerCtaSecondary', label: string, v: HeaderButtonValue, hint: string) => (
-    <div data-editor-header-button={which === 'headerCta' ? 'main' : 'second'} style={{ marginBottom: 12 }}>
-      <div style={{ ...SUB_LABEL, marginBottom: 2 }}>{label}</div>
-      <p style={HEADER_SUB}>{hint}</p>
-      <ButtonEditor item={v} types={REGION_LINK_TYPES} site={site} locale={locale}
-        onChange={(next) => set({ [which]: asButtonValue(next) })} />
-    </div>
-  );
+  // #1787 —— 按钮列表：改的是 root 的 `headerButtons`（同一个事务）；✎ Edit / + Add button 开画布上点那颗开的同一个按钮弹窗。
+  const setButtons = (next: HeaderButtonValue[]) => set({ headerButtons: next });
+  const editButton = (i: number) => ui.openDesign(REGION_DESIGN_ID.header, 'button', String(i));
+  const moveButton = (from: number, to: number) => {
+    if (!buttons || from === to) return;
+    const next = buttons.slice();
+    const [x] = next.splice(from, 1);
+    next.splice(to, 0, x);
+    setButtons(next);
+  };
+  const full = !!buttons && buttons.length >= MAX_HEADER_BUTTONS;
   return (
     <>
       {typeof props.logoUrl === 'string' && (
@@ -2445,11 +2443,31 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
           )}
         </div>
       )}
-      {props.headerCta !== undefined && (
-        <div data-editor-content-field="buttons" style={{ marginBottom: 8 }}>
+      {buttons && (
+        <div data-editor-content-field="buttons" data-editor-header-buttons="" style={{ marginBottom: 8 }}>
           <FieldLabel label="Buttons" el="div" />
-          {button('headerCta', 'Main button', cta, 'Needs both a text and a link.')}
-          {button('headerCtaSecondary', 'Second button', sec, 'Leave both empty for no second button.')}
+          <p style={HEADER_SUB}>The first one is the main button. You can also click a button on the page.</p>
+          {buttons.map((b, i) => (
+            <div key={i} data-editor-header-button-row={i}
+              onDragOver={(e) => { if (btnDrag !== null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+              onDrop={(e) => { e.preventDefault(); if (btnDrag !== null) moveButton(btnDrag, i); setBtnDrag(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, opacity: btnDrag === i ? 0.5 : 1 }}>
+              <span data-editor-header-button-handle="" draggable={buttons.length > 1} aria-hidden="true" title={buttons.length > 1 ? 'Drag to reorder' : undefined}
+                onDragStart={(e) => { setBtnDrag(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }}
+                onDragEnd={() => setBtnDrag(null)}
+                style={{ width: 18, cursor: buttons.length > 1 ? 'grab' : 'default', color: buttons.length > 1 ? '#98a2b3' : 'transparent', userSelect: 'none' }}>⋮⋮</span>
+              <span data-editor-header-button-text={i} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, color: b.label.trim() ? '#101828' : '#98a2b3' }}>
+                {b.label.trim() || 'No name yet'}
+              </span>
+              <button type="button" data-editor-header-button-edit={i} onClick={() => editButton(i)} style={HEADER_ROW_BTN}>✎ Edit</button>
+              <button type="button" data-editor-header-button-remove={i} aria-label={`Remove button ${i + 1}`} title="Remove"
+                onClick={() => setButtons(buttons.filter((_, j) => j !== i))} style={HEADER_ROW_BTN}>🗑</button>
+            </div>
+          ))}
+          <button type="button" data-editor-header-button-add="" disabled={full}
+            onClick={() => { const next = [...buttons, { label: '', href: '' }]; setButtons(next); editButton(next.length - 1); }}
+            style={{ ...HEADER_ROW_BTN, ...(full ? { opacity: 0.4, cursor: 'default' } : {}) }}>+ Add button</button>
+          {full && <p data-editor-header-button-max="" style={{ ...HEADER_SUB, marginTop: 6 }}>{`Up to ${MAX_HEADER_BUTTONS} buttons`}</p>}
         </div>
       )}
     </>
@@ -2773,15 +2791,17 @@ function DesignPopover({ doc }: { doc: Document }) {
   // #1755 —— 按钮弹窗：画布上点了一颗按钮（InlineEdit §onClick → `openDesign(id, 'button', 'ctas.1')`）。改的是这一块那一列里的那一项，
   //    每一下经 §changeDesign 整列换掉（不记历史、画布当场变）；Done / Cancel、点外面 / Esc / 撤销键 = Cancel，全跟 Design 面板同一套。
   //    判据取 `designStart`（跟 `design` 同一次 setState 里定），不取 `tab`：`tab` 要等下面那个 effect 才跟上，第一帧会画成 Layout。
-  // #1779 —— 顶栏的按钮（画布上点它，InlineEdit §onClick → `openRegionButton`）：改的是 root 上那一颗（`start.focus` = `headerCta` /
-  //    `headerCtaSecondary`），每一下经 §changeHeader（同顶栏 Content 页那两颗），Link Type 只给四类（§REGION_LINK_TYPES）。
+  // #1779 / #1787 —— 顶栏的按钮（画布上点它，InlineEdit §onClick → `openRegionButton`；或 Content 页那一行的 ✎ Edit）：改的是 root
+  //    `headerButtons` 里的那一颗（`start.focus` = 它的下标），每一下经 §changeHeader 整列换掉，Link Type 只给四类（§REGION_LINK_TYPES）。
   //    Done 走顶栏面板那条（§doneDesign：§headerContentProblem 不过 ⟹ 弹窗留着，下面那一行说为什么）。
   let buttonBody: ReactNode = null;
   if (start && start.tab === 'button' && region === 'header' && rootProps) {
-    const field = start.focus === 'headerCtaSecondary' ? 'headerCtaSecondary' : 'headerCta';
+    const list = Array.isArray(rootProps.headerButtons) ? (rootProps.headerButtons as unknown[]).map(asButtonValue) : [];
+    const index = /^\d+$/.test(start.focus || '') ? Number(start.focus) : -1;
+    if (!list[index]) return null;
     buttonBody = (
-      <ButtonEditor item={asButtonValue(rootProps[field])} types={REGION_LINK_TYPES} site={api.site} locale={api.locale}
-        onChange={(next) => ui.changeHeader({ [field]: asButtonValue(next) })} />
+      <ButtonEditor item={list[index]} types={REGION_LINK_TYPES} site={api.site} locale={api.locale}
+        onChange={(next) => { const nl = list.slice(); nl[index] = asButtonValue(next); ui.changeHeader({ headerButtons: nl }); }} />
     );
   } else if (start && start.tab === 'button' && item) {
     const m = /^(.*)\.(\d+)$/.exec(start.focus || '');

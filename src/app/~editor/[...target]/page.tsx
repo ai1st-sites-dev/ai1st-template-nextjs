@@ -74,15 +74,17 @@ function trustedOrigin(leadApi: string): string {
   }
 }
 
-/** #1759 —— 构建这一份里的顶栏两颗按钮 + 菜单（面板那一份的形状，`nav-editor.js` §navMenuToPanel）。 */
+/** #1759 —— 构建这一份里的顶栏按钮（#1787：`header.buttons`，0–3 颗）+ 菜单（面板那一份的形状，`nav-editor.js` §navMenuToPanel）。 */
 // #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`）：原样带进编辑器（按钮弹窗认它），别的形状当空。
-function headerContent(nav: { header?: { cta?: { label?: string; href?: unknown }; ctaSecondary?: { label?: string; href?: unknown } } }, pages: unknown[], locale: string) {
+function headerContent(nav: { header?: { buttons?: unknown } }, pages: unknown[], locale: string) {
   const btn = (b?: { label?: string; href?: unknown }) => ({
     label: typeof b?.label === 'string' ? b.label : '',
     href: typeof b?.href === 'string' ? b.href : isButtonRef(b?.href) ? { ...b.href } : '',
   });
+  const list = Array.isArray(nav.header?.buttons) ? (nav.header.buttons as unknown[]) : [];
+  const headerButtons = list.filter((b): b is { label?: string; href?: unknown } => !!b && typeof b === 'object' && !Array.isArray(b)).map(btn);
   const navMenu = navMenuToPanel(navMenuOf(pages), locale);
-  return { headerCta: btn(nav.header?.cta), headerCtaSecondary: btn(nav.header?.ctaSecondary), ...(navMenu ? { navMenu } : {}) };
+  return { headerButtons, ...(navMenu ? { navMenu } : {}) };
 }
 
 export default async function EditorPage({ params }: { params: Promise<{ target: string[] }> }) {

@@ -37,7 +37,7 @@ function ctaSlugOf(ctaHref) {
  * @param {object} a
  * @param {string} a.homeLabel   §homeLabelOf 的结果
  * @param {{ slug: string, navLabel?: string }[]} a.regular  普通页，已按 `navOrder` 排好
- * @param {string} a.ctaSlug     顶栏主按钮指向的那一页（§ctaSlugOf 的结果；构建那头是 `header.cta.href.replace(/^\//, '')`）
+ * @param {string} a.ctaSlug     顶栏主按钮指向的那一页（§ctaSlugOf 的结果；构建那头是 `header.buttons[0].href.replace(/^\//, '')`，#1787）
  * @returns {{ header: { label: string, href: string }[], footer: { label: string, href: string }[] }}
  */
 function menuLinks({ homeLabel, regular, ctaSlug }) {
