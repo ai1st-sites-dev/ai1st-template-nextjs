@@ -596,7 +596,9 @@ const DEMO_CONTENT = {
   // topbar 开的预设画（手机上折进抽屉）；按钮填满 3 颗（#1787），992–1199 宽第 3 颗不出 ——
   // 那几条断点行为单格页上才看得见。`options` 里不写旋钮、也不写 topbar（#1468 起它归预设管）：初值来自形态名（= 预设名），
   // 写了就会压过每个预设自己那一份。
-  // 🔴 `topbar` 底下那三份 list 是嵌套的，守卫 (c) 只看顶层 list 槽，所以 3 个社交链接够用（票正文）。
+  // 🔴 `topbar` 底下那两份 list 是嵌套的，守卫 (c) 只看顶层 list 槽。
+  // #1785 —— 社交图标挪到顶层槽 `social`（同 footer 写成引用，从 DEMO_SITE.brand.socialLinks 那 6 条展开）：
+  //    原来那 3 条手写在 `topbar.social` 里，只有 topbar 开的预设画得出来；现在每个预设都画（放哪由版式定）。
   'header': {
     logo: imageUrl('brand-logo'),
     brandName: SITE,
@@ -628,12 +630,8 @@ const DEMO_CONTENT = {
         { label: 'Sign in', href: '/account/sign-in' },
         { label: 'Create account', href: '/account/new' },
       ],
-      social: [
-        { label: 'Facebook', href: 'https://facebook.com/', icon: 'facebook' },
-        { label: 'Instagram', href: 'https://instagram.com/', icon: 'instagram' },
-        { label: 'Google reviews', href: 'https://google.com/maps', icon: 'google' },
-      ],
     },
+    social: { source: 'social' },
     // #1476 —— 颜色槽：`null` = 没填（浅底 `bg-body`，跟改前逐字相同）。键得在：演示包要求每个槽都有一项
     // （§demoDataFor 缺槽就抛）；深底 / 渐变由单格页的 `?bg=` 和色板给。
     bg: null,

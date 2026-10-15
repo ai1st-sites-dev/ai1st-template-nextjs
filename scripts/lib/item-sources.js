@@ -80,6 +80,25 @@ function contactFact(kind, ref, ctx) {
 // （`facebook` / `instagram` / `google` / `yelp` / `linkedin` / `whatsapp` / `tiktok` / `youtube` 都在 1.13.1 里）；
 // 查不到的由 footer 自己落回 `link-45deg`（它今天的兜底，`icons.js` §BLOCK_ICONS 带着这个名字）。
 const SOCIAL_LABELS = { linkedin: 'LinkedIn', tiktok: 'TikTok', youtube: 'YouTube', whatsapp: 'WhatsApp', twitter: 'X', x: 'X' };
+// #1785 —— 图标名跟平台名不同的那几个：Bootstrap Icons 里 `x` 是关闭叉，X（原 Twitter）的标是 `twitter-x`。
+const SOCIAL_ICONS = { x: 'twitter-x', twitter: 'twitter-x' };
+/**
+ * #1785 —— 编辑器 Website settings 里 Social links 那一组能选的平台（顺序 = 下拉的顺序，叫法照 Chris 2026-10-14 定稿）。
+ * 存的是 `platform` 那个键；读的时候别的平台名照旧认（建站 AI 写过的老数据），只是编辑器下拉里不列。
+ */
+const SOCIAL_PLATFORMS = [
+  { platform: 'facebook', label: 'Facebook' },
+  { platform: 'instagram', label: 'Instagram' },
+  { platform: 'google', label: 'Google' },
+  { platform: 'x', label: 'X' },
+  { platform: 'linkedin', label: 'LinkedIn' },
+  { platform: 'youtube', label: 'YouTube' },
+  { platform: 'tiktok', label: 'TikTok' },
+  { platform: 'whatsapp', label: 'WhatsApp' },
+  { platform: 'yelp', label: 'Yelp' },
+];
+/** #1785 —— 一个平台名画哪个图标（顶栏、页脚、编辑器的图标清单都问它）。 */
+const socialIcon = (platform) => SOCIAL_ICONS[platform] || platform;
 
 /** `brand.socialLinks` 的两种存法（数组 `[{platform, url}]` / 对象 `{platform: url}`，config.ts）→ `[[platform, url]]`。 */
 function socialPairs(links) {
@@ -180,7 +199,7 @@ const SOURCES = {
       return out;
     },
   },
-  // footer 的 `social`：`brand.socialLinks` → `[{label, href, icon}]`，顺序同存的那一份；没有网址的那一条不带。
+  // footer 的 `social`（#1785 起 header 也接）：`brand.socialLinks` → `[{label, href, icon}]`，顺序同存的那一份；没有网址的那一条不带。
   social: {
     params: {},
     prompt: '{source: "social"}',
@@ -189,7 +208,7 @@ const SOURCES = {
         .filter(([platform, url]) => platform && url)
         .map(([platform, url]) => {
           const key = platform.toLowerCase();
-          return { label: SOCIAL_LABELS[key] || platform.charAt(0).toUpperCase() + platform.slice(1), href: url, icon: key };
+          return { label: SOCIAL_LABELS[key] || platform.charAt(0).toUpperCase() + platform.slice(1), href: url, icon: socialIcon(key) };
         });
     },
   },
@@ -199,6 +218,8 @@ const SOURCES = {
 const BLOCK_SLOTS = {
   'features': { items: ['services', 'pages'] },
   'footer': { contact: ['brand'], social: ['social'] },
+  // #1785 —— 顶栏的社交图标（`shell-data.js` 只在站里真填了社交链接时写这个引用）。
+  'header': { social: ['social'] },
 };
 
 /**
@@ -480,7 +501,7 @@ function describeRef(ref) {
 }
 
 module.exports = {
-  SOURCES, BLOCK_SLOTS, ITEM_SLOTS, BUTTON_SOURCES, SOURCED_KEY, SERVICE_ICON_ALIASES,
+  SOURCES, BLOCK_SLOTS, ITEM_SLOTS, BUTTON_SOURCES, SOCIAL_PLATFORMS, socialIcon, socialPairs, SOURCED_KEY, SERVICE_ICON_ALIASES,
   BUTTON_REF_PROMPT, REGION_REF_PROMPTS,
   isSourceRef, isButtonRef, sourcesFor, refProblems, refProblemsAt, contactRefProblems, expandRef, resolveItemSources, blocksUseSource, promptAlternatives, describeRef,
 };

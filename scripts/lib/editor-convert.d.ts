@@ -70,6 +70,8 @@ export interface RootValues {
   /** #1787 —— 顶栏按钮 0–3 颗；#1779 —— href 可以是电话 / 邮箱引用（同 `src/lib/types/config.ts` 的 ContactRef） */
   headerButtons?: import('./header-buttons').HeaderButtonValue[];
   navMenu?: import('./nav-editor').NavPanel;
+  /** #1785 —— Website settings 的 Social links（`brand.json` 的 `socialLinks`，一律数组） */
+  socialLinks?: { platform: string; url: string }[];
 }
 export function rootToPuck(values: RootValues): Record<string, unknown>;
 export function puckRootChanges(args: {

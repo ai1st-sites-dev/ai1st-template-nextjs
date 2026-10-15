@@ -44,7 +44,8 @@ const { regionOptionsProblems, cleanRegionOptions, effectiveRegionKnobs } = requ
 
 const { ROOT_FIELDS } = require('./editor-root-fields');
 const { topbarLinksOf, topbarLinksProblem } = require('./topbar-links');
-const { isButtonRef } = require('./item-sources');
+const { isButtonRef, socialPairs } = require('./item-sources');
+const { hrefAllowed } = require('./href-allowed');
 const { headerButtonsProblem } = require('./header-buttons');
 
 /** 老板在编辑器里可能收到的拒收码。worker 把它原样换成状态栏那句话（`blocks_task.go`）。 */
@@ -65,6 +66,10 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const LOCALE_SLOT = '{locale}';
 const BRAND_FIELDS = ['brandName', 'email', 'phone', 'address'];
 const REGION_OPTION_FIELDS = ['headerOptions', 'footerOptions'];
+/** #1785 —— 一个站最多几条社交链接（面板那头也按它停「+ Add」；写盘这头再挡一次）。 */
+const MAX_SOCIAL_LINKS = 12;
+/** #1785 —— 平台名的形状（同 Bootstrap Icons 的图标名：小写字母、数字、连字符）。 */
+const SOCIAL_PLATFORM_RE = /^[a-z0-9-]{1,30}$/;
 
 /**
  * 这个站的默认语言：判据同构建（`sync-config.js` 那段）—— 没有 `site_meta.json` 是扁平老站，默认语言 `en`；
@@ -165,7 +170,9 @@ function readBrandValues(siteDir, locale) {
   }
   const loc = Array.isArray(brand.locations) && isObj(brand.locations[0]) ? brand.locations[0] : {};
   // #1759 —— logo 也住在 brand.json（顶栏读的就是它，`shell-data.js`）。
-  return { brandName, email: str(brand.email), phone: str(loc.phone), address: str(loc.address), logoUrl: str(brand.logoUrl) };
+  // #1785 —— 社交链接：两种老形状（数组 / 对象）都读成数组 `[{platform, url}]`（同 item-sources.js §socialPairs）。
+  const socialLinks = socialPairs(brand.socialLinks).map(([platform, url]) => ({ platform: platform.toLowerCase(), url }));
+  return { brandName, email: str(brand.email), phone: str(loc.phone), address: str(loc.address), logoUrl: str(brand.logoUrl), socialLinks };
 }
 
 /** 形状检查：这一份 root 里只许有分派表里的字段，每个的类型对。 */
@@ -198,6 +205,19 @@ function checkShape(root, layouts) {
   // #1759 —— logo：一个地址（空串 = 删掉）。#1787 —— 顶栏按钮：`[{label, href}]`，label 是字符串（链接能不能用由 §commitWrites
   //    那道链接判据说，同页面块的按钮）；href 是字符串，或电话 / 邮箱引用（#1779，§isButtonRef：源不认识、多余的键都拒）。
   if ('logoUrl' in root && typeof root.logoUrl !== 'string') bad(`logoUrl 必须是字符串：${JSON.stringify(root.logoUrl)}`);
+  // #1785 —— 社交链接：`[{platform, url}]`；平台名是图标名那种形状；网址空的那一行写盘时去掉，不空就得是网址（https://…）。
+  if ('socialLinks' in root) {
+    const v = root.socialLinks;
+    if (!Array.isArray(v) || v.some((l) => !isObj(l) || Object.keys(l).some((k) => k !== 'platform' && k !== 'url')
+      || typeof l.platform !== 'string' || !SOCIAL_PLATFORM_RE.test(l.platform) || typeof l.url !== 'string')) {
+      bad(`socialLinks 必须是 [{platform, url}]（platform 是小写的平台名）：${JSON.stringify(v)}`);
+    }
+    if (v.length > MAX_SOCIAL_LINKS) refuse(`A website can have at most ${MAX_SOCIAL_LINKS} social links. Nothing was changed.`);
+    const badUrl = v.find((l) => l.url.trim() && !(/^https?:\/\//i.test(l.url.trim()) && hrefAllowed(l.url.trim())));
+    if (badUrl) {
+      refuse(`The social link "${badUrl.url.trim().slice(0, 60)}" is not a web address. Use a full address that starts with https://. Nothing was changed.`);
+    }
+  }
   if ('headerButtons' in root) {
     const list = root.headerButtons;
     const okItem = (v) => isObj(v) && !Object.keys(v).some((k) => k !== 'label' && k !== 'href') && typeof v.label === 'string'
@@ -331,6 +351,12 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       continue;
     }
     if (f.field === 'logoUrl') { setAt(entry.doc, key, v.trim() ? v.trim() : null); continue; }
+    if (f.field === 'socialLinks') {
+      // #1785 —— 网址空的那一行不存；一条都不剩 = 删掉这个键（顶栏 / 页脚按「没有」处理）。一律写成数组。
+      const rows = v.map((l) => ({ platform: l.platform, url: l.url.trim() })).filter((l) => l.url);
+      setAt(entry.doc, key, rows.length ? rows : null);
+      continue;
+    }
     setAt(entry.doc, key, BRAND_FIELDS.includes(f.field) && f.field !== 'brandName' && !v.trim() ? null : v);
   }
 

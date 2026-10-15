@@ -14,8 +14,12 @@
 // 🔴 联系方式 / 社交链接写成引用，不抄值（Chris 2026-09-30 #1506）：`topbar.contact` 每项是
 //    `{source: …}`，页脚的 `contact` / `social` 是整槽引用 —— 渲染前由 `resolveItemSources` 展开
 //    （`src/lib/sections/item-sources.ts`，跟页面块同一个入口）。
-// 🔴 派生不到的维度不造数据（PM 裁定）：`columns.areas` · `form` · `topbar.links` / `topbar.social` 一律不写，
+// 🔴 派生不到的维度不造数据（PM 裁定）：`columns.areas` · `form` · `topbar.links` 一律不写，
 //    块按预设默认画或留空。不许编内容填进去（三处的理由在 #1529 正文「不做」）。
+// 📌 #1785 —— 社交链接从这张名单里拿出来了（PM 2026-10-14 裁定）：老板现在能在编辑器 Website settings 里填
+//    （`brand.json` 的 `socialLinks`），它不再是「派生不到的维度」。顶栏写成整槽引用 `header.social = {source: 'social'}`
+//    （顶条 / 按钮左边 / logo 对面 / 抽屉画在哪由 `blocks/header/Section.tsx` 按版式定），**只在站里真有一条带网址的
+//    社交链接时写**（没有就不写这个键，不写空数组占位）—— 旧裁定真正要防的「凭空造数据」那一半照旧成立。
 //    navigation.json 里**本来就有**的两格照搬：`footer.description` → `tagline`、`footer.copyright` →
 //    `copyright`（旧页脚画的是 `© 年份 {copyright}`，这里拼成同一句）。
 // 📌 #1529：老板能写进 navigation.json 的两格（AI 改站那条路，`navigation-owned.js` 把门），**写了才派生，没写就不进 data**：
@@ -36,6 +40,7 @@ const { localizeHref } = require('./nav-menu');
 const { topbarContact } = require('./topbar-links');
 const { isKeywordPage } = require('./keyword-service');
 const { keywordFooterColumns, serviceIdOfKeywordPath } = require('./keyword-pages');
+const { socialPairs } = require('./item-sources');
 const { headerButtonsData } = require('./header-buttons');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -111,6 +116,8 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   header.topbar = { contact: topbarContact(h.topbarLinks, loc) };
   const message = topbarMessage(n.topbar, loc);
   if (message) header.topbar = { message, ...header.topbar };
+  // #1785 —— 顶栏社交图标：站里有一条带网址的社交链接才写（同 item-sources.js §social 展开时的取舍）。
+  if (socialPairs(isObj(brand) ? brand.socialLinks : undefined).some(([platform, url]) => platform && url)) header.social = { source: 'social' };
 
   const columns = Array.isArray(f.columns) ? f.columns : [];
   const hasPage = new Set((Array.isArray(pages) ? pages : []).map((p) => p && p.slug));

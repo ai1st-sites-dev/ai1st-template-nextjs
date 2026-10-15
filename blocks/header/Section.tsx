@@ -102,6 +102,8 @@ export interface HeaderNewData {
   /** #1787 —— 0–3 颗，第 1 颗是主按钮。样子由构建按位置补好（`scripts/lib/header-buttons.js`：实心 · 描边 · 文字链接样）。 */
   buttons?: Cta[];
   topbar?: { message?: TopbarMessage; contact?: TopbarContact[]; links?: TopbarLink[]; social?: TopbarLink[] };
+  /** #1785 —— 社交图标（构建期写成 `{source: 'social'}`、渲染前展开，`scripts/lib/shell-data.js`）。画在哪由版式定（§socialPlace）。 */
+  social?: TopbarLink[];
   /** 底色（§文件头）。没填 = 浅底。 */
   bg?: BgValue;
   options?: HeaderOptions;
@@ -231,7 +233,8 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
       label: typeof rawMessage.label === 'string' && rawMessage.label ? rawMessage.label : undefined,
     }
     : null;
-  const social = topbar.social || [];
+  // #1785 —— 顶栏自己那一格优先；老数据（单格页演示、建站 AI 写在顶条里的）照旧认 `topbar.social`。
+  const social = data.social || topbar.social || [];
   const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
   const ctas = (Array.isArray(data.buttons) ? data.buttons : []).filter((c): c is Cta => !!c && typeof c === 'object' && !!c.label);
   const brand = data.brandName || '';
@@ -275,8 +278,8 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     </div>
   );
 
-  const socialIcons = (key: string, extra = '') => (social.length ? (
-    <div className={`d-flex align-items-center gap-3 ${extra}`} key={key} data-hdr-part={key}>
+  const socialIcons = (key: string, extra = '', display = 'd-flex') => (social.length ? (
+    <div className={`${display} align-items-center gap-3 ${extra}`} key={key} data-hdr-part={key}>
       {social.map((s, i) => (
         <SiteLink key={i} href={s.href} className={`${subTone} text-nowrap`} aria-label={s.label}>
           {icon(s.icon && iconTable[s.icon] ? s.icon : 'link-45deg')}
@@ -305,21 +308,27 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
 
   // ── 桌面（≥992）三格：`hdr-a` · `hdr-b` · `hdr-c`。每格放什么只由 menu 决定（logo 跟着 menu 走，
   //    纠正之后两者一定成立）；哪格落哪一栏、logo=right 换栏在 block.css。
+  // #1785 —— 社交图标放哪（Chris 2026-10-14 图册定稿）：开了 topbar ⟹ 只在顶条里（`bar-social`），主行不画；
+  //    menu=below ⟹ logo 对面那一格；其余 ⟹ 按钮左边，只有 beside 在菜单和图标之间画一条竖线（别的版式菜单不挨着图标）。
+  //    按钮左边那种 992–1199 不画（`d-xl-flex`：一行放不下，图册里 992 宽 3 颗按钮加图标撑出 119px）；手机在抽屉最下面一排。
+  const besideCtas = (divider: boolean) => (hasTopbar ? null
+    // 竖线左边那 1.5rem 是 `ps-6`（Webpixels 的间距刻度：4 = 1rem、6 = 1.5rem，不是 Bootstrap 的那一套）。
+    : socialIcons('social', divider ? ['border-start', lineTone, 'ps-6'].filter(Boolean).join(' ') : '', 'd-none d-xl-flex'));
   const cells: Record<'a' | 'b' | 'c', ReactNode> = { a: null, b: null, c: null };
   if (menu === 'beside') {
     cells.a = brandLink();
-    cells.c = <>{navList(nav, 'nav')}{ctaButtons('ctas')}</>;
+    cells.c = <>{navList(nav, 'nav')}{besideCtas(true)}{ctaButtons('ctas')}</>;
   } else if (menu === 'center') {
     cells.a = brandLink();
     cells.b = navList(nav, 'nav');
-    cells.c = ctaButtons('ctas');
+    cells.c = <>{besideCtas(false)}{ctaButtons('ctas')}</>;
   } else if (menu === 'left') {
     // #1788 —— 菜单不切两半：整条菜单在左、logo 正中、社交（有才出）+ 按钮在右。
     cells.a = navList(nav, 'nav');
     cells.b = brandLink();
-    cells.c = <>{socialIcons('social')}{ctaButtons('ctas')}</>;
+    cells.c = <>{besideCtas(false)}{ctaButtons('ctas')}</>;
   } else {
-    cells.a = socialIcons('social');
+    cells.a = hasTopbar ? null : socialIcons('social');
     cells.b = brandLink();
     cells.c = ctaButtons('ctas');
   }
@@ -460,6 +469,8 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
             </div>
           ) : null}
           {drawerContact}
+          {/* #1785 —— 没开 topbar 时社交图标也在抽屉最下面一排（开了的话在 drawerContact 里，同一份 markup）。 */}
+          {!hasTopbar && social.length ? <div className={`border-top ${lineTone} pt-4`}>{socialIcons('drawer-social')}</div> : null}
         </div>
       </div>
     </header>

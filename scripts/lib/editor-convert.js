@@ -693,6 +693,11 @@ function rootToPuck(values) {
   // #1780 —— 顶栏上面那一行的链接列表（`[{label, href}]`，href 可以是电话 / 邮箱引用；站里读出来时没写过的已经补成默认两项）。
   if (Array.isArray(values.headerTopbar)) out.headerTopbar = clone(values.headerTopbar);
   if (isPlainObject(values.navMenu)) out.navMenu = clone(values.navMenu);
+  // #1785 —— Social links（`brand.json` 的 `socialLinks`，读进来已经是数组 `[{platform, url}]`）。
+  if (Array.isArray(values.socialLinks)) {
+    out.socialLinks = values.socialLinks.filter(isPlainObject)
+      .map((l) => ({ platform: typeof l.platform === 'string' ? l.platform : '', url: typeof l.url === 'string' ? l.url : '' }));
+  }
   return out;
 }
 

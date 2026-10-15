@@ -596,5 +596,40 @@ console.log('⑩ 顶栏按钮 / logo（#1759 · #1787）');
     '第 2 颗按钮链接是 javascript: ⟹ exit 11、一句给老板的话（点名那颗按钮）、什么都没写', `${s1.status} ${s1.stdout}`);
 }
 
+// ══ ⑪ #1785 Social links：一律写成数组、网址空的那一行不存、全空 = 删键、坏网址拒收、两种老形状都读成数组 ══════
+console.log('⑪ Social links（#1785）');
+{
+  freshSite();
+  const site = path.join(TEMPLATE, 'site');
+  const brandFile = path.join(site, 'brand.json');
+  const brandOf = () => JSON.parse(fs.readFileSync(brandFile, 'utf-8'));
+  const b0 = brandOf();
+  // 老形状（对象）读成数组
+  fs.writeFileSync(brandFile, JSON.stringify({ ...b0, socialLinks: { Facebook: 'https://facebook.com/a', yelp: 'https://yelp.com/b' } }, null, 2) + '\n');
+  check(JSON.stringify(readRoot('en').socialLinks) === JSON.stringify([{ platform: 'facebook', url: 'https://facebook.com/a' }, { platform: 'yelp', url: 'https://yelp.com/b' }]),
+    '老形状 {platform: url} ⟹ 读回数组、平台名小写', JSON.stringify(readRoot('en').socialLinks));
+  // 写：数组、去掉网址空的那一行、去首尾空格、顺序照面板
+  let r = tryWrite({ socialLinks: [{ platform: 'instagram', url: ' https://instagram.com/n ' }, { platform: 'facebook', url: '' }, { platform: 'x', url: 'https://x.com/n' }] }, 'en');
+  check(!r.code && JSON.stringify(brandOf().socialLinks) === JSON.stringify([{ platform: 'instagram', url: 'https://instagram.com/n' }, { platform: 'x', url: 'https://x.com/n' }]),
+    '写成数组：网址空的那一行不存、去首尾空格、顺序照面板', `${JSON.stringify(r)} ${JSON.stringify(brandOf().socialLinks)}`);
+  const rest = (b) => { const c = { ...b }; delete c.socialLinks; return JSON.stringify(c); };
+  check(rest(brandOf()) === rest(b0), 'brand.json 别的键一个字节不动');
+  // 坏网址 / 坏形状
+  let before = snapshot(site);
+  r = tryWrite({ socialLinks: [{ platform: 'facebook', url: 'javascript:alert(1)' }] }, 'en');
+  check(r.code === editorRoot.REFUSED && /not a web address/.test(r.message) && changedFiles(before, snapshot(site)).length === 0, '网址是 javascript: ⟹ 拒、一句给老板的话、什么都没写', r.message);
+  r = tryWrite({ socialLinks: [{ platform: 'facebook', url: 'facebook.com/n' }] }, 'en');
+  check(r.code === editorRoot.REFUSED && changedFiles(before, snapshot(site)).length === 0, '没写协议 ⟹ 拒（面板离开那一格会补 https://，这里不替它猜）', r.message);
+  r = tryWrite({ socialLinks: [{ platform: 'Face Book', url: 'https://facebook.com/n' }] }, 'en');
+  check(r.code === 5, '平台名不是小写图标名那种形状 ⟹ 形状不对（5）', JSON.stringify(r));
+  r = tryWrite({ socialLinks: [{ platform: 'facebook', url: 'https://facebook.com/n', label: 'x' }] }, 'en');
+  check(r.code === 5, '多一个键 ⟹ 形状不对（5）', JSON.stringify(r));
+  r = tryWrite({ socialLinks: Array.from({ length: 13 }, (_, i) => ({ platform: 'facebook', url: `https://facebook.com/${i}` })) }, 'en');
+  check(r.code === editorRoot.REFUSED && /at most 12/.test(r.message), '13 条 ⟹ 拒（最多 12）', r.message);
+  // 全删 = 删键
+  r = tryWrite({ socialLinks: [] }, 'en');
+  check(!r.code && !('socialLinks' in brandOf()), '一条都不剩 ⟹ brand.json 里没有 socialLinks 这个键', JSON.stringify(brandOf().socialLinks));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

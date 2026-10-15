@@ -277,5 +277,25 @@ console.log('── ③d 顶栏按钮的 href 写成电话 / 邮箱引用（#177
   }
 }
 
+console.log('── ③e 顶栏社交图标（#1785）：站里有带网址的社交链接才写 header.social（整槽引用），展开后顺序同存的那一份、X 画 twitter-x');
+{
+  const { resolveItemSources } = require('./item-sources');
+  const withBrand = (socialLinks) => shellDataFor({ nav: NAV, brand: { ...BRAND, socialLinks }, brandName: 'x', services: [], pages: [], year: 2026 });
+  const two = [{ platform: 'instagram', url: 'https://instagram.com/n' }, { platform: 'x', url: 'https://x.com/n' }, { platform: 'facebook', url: 'https://facebook.com/n' }];
+  const d2 = withBrand(two);
+  check(JSON.stringify(d2.header.social) === JSON.stringify({ source: 'social' }), `有社交链接 ⟹ header.social 是整槽引用（读到 ${JSON.stringify(d2.header.social)}）`);
+  const [h] = resolveItemSources([{ type: 'header', data: d2.header }], { brand: { ...BRAND, socialLinks: two }, log: () => {} });
+  const got = (h.data.social || []).map((x) => `${x.icon} ${x.href}`);
+  check(JSON.stringify(got) === JSON.stringify(['instagram https://instagram.com/n', 'twitter-x https://x.com/n', 'facebook https://facebook.com/n']),
+    `展开：顺序同存的那一份，X 的图标是 twitter-x（不是关闭叉 x）：${JSON.stringify(got)}`);
+  const [f] = resolveItemSources([{ type: 'footer', data: d2.footer }], { brand: { ...BRAND, socialLinks: two }, log: () => {} });
+  check(JSON.stringify((f.data.social || []).map((x) => x.icon)) === JSON.stringify(['instagram', 'twitter-x', 'facebook']), '页脚同一份、同一个顺序、同一套图标');
+  for (const [name, v] of [['没有这个键', undefined], ['空数组', []], ['空对象', {}], ['只有一条没网址的', [{ platform: 'facebook', url: '  ' }]]]) {
+    check(!('social' in withBrand(v).header), `社交链接${name} ⟹ header 没有 social 这个键（不写空数组占位）`);
+  }
+  check(JSON.stringify(withBrand({ facebook: 'https://facebook.com/x' }).header.social) === JSON.stringify({ source: 'social' }), '老形状（对象 {platform: url}）也认');
+  check(!('social' in d2.header.topbar), 'topbar 里照旧不写 social（顶条里画不画由组件按版式定，数据只有 header.social 一份）');
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

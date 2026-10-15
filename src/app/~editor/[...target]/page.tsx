@@ -44,7 +44,7 @@ import { navMenuToPanel } from '../../../../scripts/lib/nav-editor.js';
 import { topbarLinksOf } from '../../../../scripts/lib/topbar-links.js';
 import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
 import { seedProps } from '../../../../scripts/lib/block-placeholders.js';
-import { isButtonRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
+import { isButtonRef, itemSourceContext, resolveItemSources, socialPairs } from '@/lib/sections/item-sources';
 import type { IconTable } from '@/components/InlineIcon';
 
 
@@ -150,6 +150,8 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
         address: site.brand.locations?.[0]?.address ?? '',
         // #1759 —— 顶栏 Content 页：logo、两颗按钮（这种语言的 navigation.json）、菜单（这种语言的页，判据同构建 —— `editor-nav.js`）。
         logoUrl: site.brand.logoUrl ?? '',
+        // #1785 —— Social links：读法同站里 `editor-root.js` §readBrandValues（两种老形状都读成数组、平台名小写）。
+        socialLinks: socialPairs(site.brand.socialLinks).map(([platform, url]) => ({ platform: platform.toLowerCase(), url })),
         ...headerContent(getNavigation(site, locale), pagesByLocale[locale] || [], locale),
       }),
     },

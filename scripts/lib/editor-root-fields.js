@@ -37,6 +37,8 @@ const ROOT_FIELDS = [
   { field: 'logoUrl', scope: 'site', file: 'brand.json', key: ['logoUrl'] },
   { field: 'headerButtons', scope: 'locale', file: 'navigation.json', key: ['header', 'buttons'] },
   { field: 'headerTopbar', scope: 'locale', file: 'navigation.json', key: ['header', 'topbarLinks'] },
+  // #1785 —— Website settings 的 Social links：整站一份，一律写成数组 `[{platform, url}]`（空了 = 删掉这个键）。
+  { field: 'socialLinks', scope: 'site', file: 'brand.json', key: ['socialLinks'] },
 ];
 
 module.exports = { ROOT_FIELDS };

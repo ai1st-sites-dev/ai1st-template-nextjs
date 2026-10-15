@@ -112,7 +112,7 @@ import { MAX_TOPBAR_LINKS, isContactRef, linkKindOf, topbarLinksProblem } from '
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type BusinessContact, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { placeholdersFor } from '@/components/BlockLeadForm';
-import { describeRef, isButtonRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
+import { SOCIAL_PLATFORMS, describeRef, isButtonRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
 import { designAiRounds, designAiWater } from '../../../scripts/lib/design-ai-rounds.js';
@@ -125,6 +125,7 @@ import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-med
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, itemListAt, itemImageOf, runItemImage, useItemImageState, clearItemImageNote, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField, ImageUrlControl } from './ImageField';
 import { ButtonEditor, ButtonLinkEnvContext, REGION_LINK_TYPES, buttonHrefField, contactText } from './ButtonLink';
+import { externalUrl } from '../../../scripts/lib/button-link.js';
 import {
   navMenuToPanel, panelRows, buttonPage, moveShown, setShown, setLabel, navMenuProblem, navMenuChanges, applyPageNav, liveShellData,
   type NavPanel, type NavChange,
@@ -390,6 +391,76 @@ function StringListControl({ label, value, onChange, readOnly }: { label: string
     </div>
   );
 }
+
+/** #1785 —— Social links 的一行。 */
+type SocialLink = { platform: string; url: string };
+/** #1785 —— 面板最多几行（写盘那一侧 `editor-root.js` §MAX_SOCIAL_LINKS 同一个数，再挡一次）。 */
+const MAX_SOCIAL_LINKS = 12;
+const asSocialLinks = (v: unknown): SocialLink[] => (Array.isArray(v) ? v : [])
+  .filter((l): l is Record<string, unknown> => !!l && typeof l === 'object' && !Array.isArray(l))
+  .map((l) => ({ platform: typeof l.platform === 'string' ? l.platform : '', url: typeof l.url === 'string' ? l.url : '' }));
+
+/**
+ * #1785 —— Website settings 里的 Social links：一行一条（平台下拉 + 网址），能加、删、拖把手排序（同 §StringListControl）。
+ *   值是 `brand.json` 的 `socialLinks`（`[{platform, url}]`，`editor-root.js` 读写）。网址空的那一行照样留在面板上，写盘时不存。
+ *   离开网址那一格补协议（同按钮弹窗的 External link，`button-link.js` §externalUrl）。
+ *   平台下拉只列 §SOCIAL_PLATFORMS；老数据里别的平台名照旧显示成它自己那一项，不悄悄换掉。
+ */
+function SocialLinksControl({ value, onChange, readOnly }: { value: unknown; onChange: (v: SocialLink[]) => void; readOnly?: boolean }) {
+  const list = asSocialLinks(value);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const set = (i: number, patch: Partial<SocialLink>) => onChange(list.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const move = (from: number, to: number) => {
+    if (from === to) return;
+    const next = list.slice();
+    const [x] = next.splice(from, 1);
+    next.splice(to, 0, x);
+    onChange(next);
+  };
+  const unused = SOCIAL_PLATFORMS.find((p) => !list.some((l) => l.platform === p.platform)) || SOCIAL_PLATFORMS[0];
+  const small = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } as const;
+  return (
+    <div data-editor-social-links="">
+      <strong style={{ fontSize: 14 }}>Social links</strong>
+      <p style={{ ...NOTE_STYLE, marginTop: 4, marginBottom: 8 }}>Shown as icons in the header and footer of every page. Leave this empty for no icons.</p>
+      {list.map((l, i) => (
+        <div key={i} data-editor-social-row={i}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+          onDrop={(e) => { e.preventDefault(); if (dragFrom !== null && !readOnly) move(dragFrom, i); setDragFrom(null); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, opacity: dragFrom === i ? 0.5 : 1 }}>
+          <span data-editor-social-handle="" draggable={!readOnly} aria-hidden="true" title="Drag to reorder"
+            onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }}
+            onDragEnd={() => setDragFrom(null)}
+            style={{ cursor: readOnly ? 'default' : 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none' }}>⋮⋮</span>
+          <select data-editor-social-platform={i} aria-label={`Social link ${i + 1} platform`} value={l.platform} disabled={readOnly}
+            onChange={(e) => set(i, { platform: e.target.value })} style={{ ...INPUT_STYLE, width: 'auto', flex: '0 0 auto', background: '#fff' }}>
+            {SOCIAL_PLATFORMS.map((p) => <option key={p.platform} value={p.platform}>{p.label}</option>)}
+            {!SOCIAL_PLATFORMS.some((p) => p.platform === l.platform) && <option value={l.platform}>{l.platform}</option>}
+          </select>
+          <input data-editor-social-url={i} type="text" value={l.url} readOnly={readOnly} placeholder="https://…" aria-label={`Social link ${i + 1} address`}
+            onChange={(e) => set(i, { url: e.target.value })}
+            onBlur={(e) => { const v = externalUrl(e.target.value); if (v !== e.target.value) set(i, { url: v }); }}
+            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }} />
+          {!readOnly && (
+            <button type="button" data-editor-social-remove={i} aria-label={`Remove social link ${i + 1}`} title="Remove"
+              onClick={() => onChange(list.filter((_, j) => j !== i))} style={small}>✕</button>
+          )}
+        </div>
+      ))}
+      {!readOnly && list.length < MAX_SOCIAL_LINKS && (
+        <button type="button" data-editor-social-add="" onClick={() => onChange([...list, { platform: unused.platform, url: '' }])} style={small}>+ Add social link</button>
+      )}
+    </div>
+  );
+}
+
+const SOCIAL_LINKS_FIELD: Field = {
+  type: 'custom',
+  label: 'Social links',
+  render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: SocialLink[]) => void; readOnly?: boolean }) => (
+    <SocialLinksControl value={value} onChange={onChange} readOnly={readOnly} />
+  ),
+} as unknown as Field;
 
 function stringListField(label: string): Field {
   return {
@@ -897,6 +968,8 @@ type RootProps = {
   /** #1780 —— 顶栏上面那一行的链接列表（这种语言的 `navigation.json` 的 `header.topbarLinks`，规则在 `topbar-links.js`）。
    *  只在顶栏 Content 页的 Top bar 段和画布上点那一项开的链接弹窗里改。 */
   headerTopbar?: TopbarItem[];
+  /** #1785 —— Website settings 的 Social links（`brand.json` 的 `socialLinks`）。 */
+  socialLinks?: SocialLink[];
   children?: ReactNode;
 };
 /** #1780 —— 顶栏上面那一行的一项：`href` 是字符串或电话 / 邮箱引用（同按钮）。 */
@@ -925,8 +998,8 @@ const BUSINESS_INFO_HEADING: Field = {
 
 /** 构建时那份站点数据，Business info 换成面板里的现值（没带的那一样原样）。名字只换这种语言那一格。 */
 function withBusinessInfo(site: SiteData, locale: string, p: RootProps): SiteData {
-  const { brandName, phone, email, address } = p;
-  if ([brandName, phone, email, address].every((v) => typeof v !== 'string')) return site;
+  const { brandName, phone, email, address, socialLinks } = p;
+  if ([brandName, phone, email, address].every((v) => typeof v !== 'string') && !Array.isArray(socialLinks)) return site;
   const brand = { ...site.brand };
   let regions = site.regions;
   if (typeof brandName === 'string') {
@@ -949,6 +1022,22 @@ function withBusinessInfo(site: SiteData, locale: string, p: RootProps): SiteDat
     if (typeof address === 'string') first.address = address;
     locations[0] = first;
     brand.locations = locations;
+  }
+  // #1785 —— Social links：画布当场跟着变。页脚的 `social` 本来就是引用（构建时总写）；顶栏那个引用构建时只在有数据时写
+  //    （`shell-data.js`）⟹ 这里按面板现值补上 / 去掉，跟构建同一个判据（有一条带网址的）。
+  if (Array.isArray(socialLinks)) {
+    const rows = socialLinks.filter((l) => l.platform && l.url.trim()).map((l) => ({ platform: l.platform, url: l.url.trim() }));
+    brand.socialLinks = rows;
+    regions = { ...regions };
+    const byLocale = regions.header.dataByLocale || {};
+    const next: typeof byLocale = {};
+    for (const [loc, cur] of Object.entries(byLocale)) {
+      if (!cur || typeof cur !== 'object') { next[loc] = cur; continue; }
+      const h = { ...(cur as Record<string, unknown>) };
+      if (rows.length) h.social = { source: 'social' }; else delete h.social;
+      next[loc] = h as never;
+    }
+    regions.header = { ...regions.header, dataByLocale: next };
   }
   return { ...site, brand, regions };
 }
@@ -998,11 +1087,11 @@ function withForms(site: SiteData, locale: string, forms: EditorFormChoice[]): S
 
 /** root 的画法：外壳 + 把面板里的 Business info 交给画布上的块（§LiveSiteContext）。 */
 function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: ShellOverride; children?: ReactNode }) {
-  const { brandName, phone, email, address, logoUrl, headerButtons, navMenu, headerTopbar } = props;
+  const { brandName, phone, email, address, socialLinks, logoUrl, headerButtons, navMenu, headerTopbar } = props;
   const { canvasForms } = useContext(FormsContext);
   const live = useMemo(
-    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address }), locale, { logoUrl, headerButtons, navMenu, headerTopbar }), locale, canvasForms),
-    [site, locale, brandName, phone, email, address, logoUrl, headerButtons, navMenu, headerTopbar, canvasForms],
+    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address, socialLinks }), locale, { logoUrl, headerButtons, navMenu, headerTopbar }), locale, canvasForms),
+    [site, locale, brandName, phone, email, address, socialLinks, logoUrl, headerButtons, navMenu, headerTopbar, canvasForms],
   );
   return (
     <LiveSiteContext.Provider value={live}>
@@ -1035,6 +1124,8 @@ const ROOT_SAVE_LABELS: Record<string, string> = {
   layout: `Website settings · ${ROOT_FIELD_LABELS.layout}`,
   // #1759 —— 顶栏 Content 页（票正文做什么 5：跟页面块存盘记录同一种写法）。菜单那一句不在这里（它不是 root 字段，§saveFields 补）。
   logoUrl: 'Header · Logo',
+  // #1785 —— 它在 Website settings 面板里改，跟同面板那几样一样带面板名（#1776 立的规矩；logoUrl 不带是因为它在顶栏 Content 页改）。
+  socialLinks: 'Website settings · Social links',
   headerButtons: 'Header · Buttons',
   headerTopbar: 'Header · Top bar',
 };
@@ -1051,6 +1142,8 @@ function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
     phone: { type: 'text', label: BUSINESS_INFO_LABELS.phone },
     email: { type: 'text', label: BUSINESS_INFO_LABELS.email },
     address: { type: 'text', label: BUSINESS_INFO_LABELS.address },
+    // #1785 —— Business info 下面一组 Social links（#1776 把这个面板改名为 Website settings；组名按它落地后的说法再对）。
+    socialLinks: SOCIAL_LINKS_FIELD,
     layout: { type: 'select', label: ROOT_FIELD_LABELS.layout, options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
   };
   const layoutOf = (id: unknown) => schema.root.layouts.find((l) => l.id === id);
@@ -1098,6 +1191,8 @@ function openRoot(built: PuckLikeData['root'], sent: unknown, locale: string, na
   const got = {
     ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...obj('headerOptions'), ...obj('footerOptions'), ...str('brandName'), ...str('phone'), ...str('email'), ...str('address'),
     ...str('logoUrl'), ...arr('headerButtons'), ...arr('headerTopbar'), ...(navMenu ? { navMenu } : {}),
+    // #1785 —— Social links 是数组（站里 `editor-root.js` §readBrandValues 读成 `[{platform, url}]`；rootToPuck 再收一遍形状）。
+    ...(Array.isArray(v.socialLinks) ? { socialLinks: v.socialLinks } : {}),
   };
   if (!Object.keys(got).length) return built;
   return { ...built, props: rootToPuck({ ...built.props, ...got } as never) };

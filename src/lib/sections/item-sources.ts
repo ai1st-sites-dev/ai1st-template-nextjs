@@ -38,6 +38,10 @@ export const describeRef = impl.describeRef as (ref: unknown) => string;
 export const BUTTON_SOURCES = impl.BUTTON_SOURCES as string[];
 // #1779 —— 按钮的 href 是不是一个合法的电话 / 邮箱引用（顶栏两颗按钮在编辑器里读写都问它）。
 export const isButtonRef = impl.isButtonRef as (v: unknown) => v is ContactRef;
+/** #1785 —— Website settings 里 Social links 能选的平台（顺序、叫法都在 item-sources.js 那一处）。 */
+export const SOCIAL_PLATFORMS = impl.SOCIAL_PLATFORMS as { platform: string; label: string }[];
+/** #1785 —— `brand.socialLinks` 两种存法都读成 `[platform, url]` 对（同构建、同站里 `editor-root.js` 那一份）。 */
+export const socialPairs = impl.socialPairs as (links: unknown) => [string, string][];
 
 /** 把一页里写成引用的列表槽展开成条目（别的块原样返回）。 */
 export function resolveItemSources(blocks: BlockConfig[], ctx: ItemSourceContext): BlockConfig[] {

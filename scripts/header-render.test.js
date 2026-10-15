@@ -150,12 +150,20 @@ console.log('\n#1788 logo-center 的三格');
   check(labels.length >= 4, `夹具菜单至少 4 项才量得出「没切两半」（${labels.length}）`);
   check((grid.match(/<ul class="navbar-nav/g) || []).length === 1 && (cellA.match(/<ul class="navbar-nav/g) || []).length === 1,
     '桌面三格里只有一个菜单 ul，在 a 格');
+  {
+    const t = render('logo-center', withOpts({ topbar: true }));
+    const main = t.slice(t.indexOf('class="hdr-a '), t.indexOf('</nav>', t.indexOf('class="hdr-c ')));
+    check(!main.includes('data-hdr-part="social"') && t.includes('data-hdr-part="bar-social"'),
+      'logo-center + topbar：社交只在顶条里，主行 0 个（#1785 PM r3 裁定第 2 条）');
+  }
   check(labels.every((l) => cellA.includes(`>${l}<`)) && !labels.some((l) => cellC.includes(`>${l}<`)), `a 格装着全部 ${labels.length} 项菜单，c 格一项都没有`);
   check(cellB.includes('hdr-brand') && !cellA.includes('hdr-brand') && !cellC.includes('hdr-brand'), 'logo 在 b 格（正中那一栏）');
   const ctaLabels = (DEMO.buttons || []).filter((x) => x && x.label).map((x) => x.label); // #1787 起按钮是 header.buttons 一份列表
   check(ctaLabels.length > 0 && ctaLabels.every((l) => cellC.includes(`>${l}<`)) && !ctaLabels.some((l) => cellA.includes(`>${l}<`)),
     `c 格装着按钮（${ctaLabels.join(' · ')}），a 格没有`);
-  check(cellC.includes('data-hdr-part="social"') === ((DEMO.topbar && DEMO.topbar.social || []).length > 0), 'c 格的社交：夹具有才出');
+  const demoSocial = DEMO.social || (DEMO.topbar && DEMO.topbar.social) || []; // #1785 起顶栏社交读顶层 `social`，跟 Section.tsx 同一个来源
+  check(demoSocial.length > 0, `夹具有社交链接才量得出「c 格出社交」（${demoSocial.length}）`);
+  check(cellC.includes('data-hdr-part="social"'), 'c 格的社交：没开 topbar 时在按钮左边（#1785 PM r3 裁定第 2 条：走 besideCtas(false)）');
   check(attr(h, 'data-logo') === 'center' && attr(h, 'data-menu') === 'left' && (attr(h, 'class') || '').includes('hdr-menu-left'), 'data-logo=center · data-menu=left · 根上 hdr-menu-left');
 }
 
@@ -212,7 +220,8 @@ console.log('\n④ 紧凑条与抽屉');
         `${n}：抽屉顺序 = 菜单 → 按钮 → 联系信息（公告 → 电话等）→ 链接 → 社交`, parts.join(' → '));
       check(drawer.includes(`href="${phoneHref}"`), `${n}：抽屉里的电话可拨`);
     } else {
-      check(JSON.stringify(parts) === JSON.stringify(['drawer-nav', 'drawer-cta']), `${n}：抽屉里没有联系信息段（只有菜单 + 按钮）`, parts.join(' → '));
+      // #1785 —— 没开 topbar 时社交图标也在抽屉最下面一排（演示站有社交链接）；联系信息段照旧没有。
+      check(JSON.stringify(parts) === JSON.stringify(['drawer-nav', 'drawer-cta', 'drawer-social']), `${n}：抽屉里没有联系信息段（菜单 + 按钮，最下面一排社交图标）`, parts.join(' → '));
     }
     // #1787 —— 抽屉：3 颗全出（topbar 开时也全出），按老板的顺序竖排、主按钮在最上；每颗的 data-hdr-cta 是它的下标。
     const o = order(ctaBox);
@@ -355,7 +364,8 @@ console.log('\n⑦ 一句话公告（topbar.message）');
   const s2 = mutate('hasTopbar && (message || contact.length', 'hasTopbar && (contact.length');
   if (!s2) bad('反向对照没改到源码（锚点找不到）');
   else {
-    const only = withMsg({ text: MSG }); only.topbar.contact = []; only.topbar.links = []; only.topbar.social = [];
+    // #1785 —— 社交图标住在顶层 `social`（演示数据从那儿来）⟹ 构造「只有公告」要连它一起清空。
+    const only = withMsg({ text: MSG }); only.topbar.contact = []; only.topbar.links = []; only.topbar.social = []; only.social = [];
     check(render('topbar', only).includes('data-hdr-part="drawer-message"'), '只有公告时抽屉里照样有它');
     check(!render('topbar', only, loadSection(s2)).includes('data-hdr-part="drawer-message"'), '反向对照②：抽屉的门不看 message ⟹ 那一格读得出差别');
   }

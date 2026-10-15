@@ -36,6 +36,12 @@
       "maxItems": 3,
       "shape": "[{label, href, style: \"solid\" | \"outline\" | \"link\"}]"
     },
+    "social": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{label, href, icon?}]"
+    },
     "topbar": {
       "kind": "object",
       "required": false,
