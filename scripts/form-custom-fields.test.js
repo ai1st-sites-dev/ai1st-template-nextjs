@@ -442,7 +442,7 @@ console.log('\n── 提交（happy-dom）');
       check(!s.q('[data-editor-form-done]') && !btns.includes('Done') && JSON.stringify(blue) === '["Add field"]' && btns.includes('Cancel'),
         `⑥ Add field 页：没有 Done，主按钮只有一颗、叫 Add field，旁边是 Cancel（按钮：${JSON.stringify(btns)} · 主按钮：${JSON.stringify(blue)}）`);
       const types = [...s.host.querySelectorAll('[data-editor-form-custom-type] option')].map((o) => `${o.value}=${o.textContent}`);
-      check(types.includes('field:service=Service list (pick one of your services)') && !types.some((t) => /^field:(name|phone|email|message)=/.test(t)),
+      check(types.includes('field:service=Service list') && !types.some((t) => /^field:(name|phone|email|message)=/.test(t)),
         `⑥ Type 里只多出表单还没有的自带字段，写成人话（${JSON.stringify(types.filter((t) => t.startsWith('field:')))}）`);
       // Cancel ⟹ 回列表、行数不变
       await s.type('[data-editor-form-custom-label]', 'Thrown away');
@@ -478,6 +478,50 @@ console.log('\n── 提交（happy-dom）');
       const wtypes = [...w.host.querySelectorAll('[data-editor-form-custom-type] option')].map((o) => o.value);
       check(!wtypes.some((t) => t.startsWith('field:')), '⑥ 改一个自定义字段时 Type 里没有自带字段（自定义字段不能变成自带字段）');
       await w.unmount();
+    }
+
+    // ⑦ #1815 —— Type 下拉分两组：Your own question（六种）/ Preset fields（表单还没有的自带字段）；哪一组为空就整组不画。
+    {
+      const groups = (m) => [...m.host.querySelectorAll('[data-editor-form-custom-type] optgroup')].map((g) => ({
+        label: g.getAttribute('label'), opts: [...g.querySelectorAll('option')].map((o) => o.textContent),
+      }));
+      const SIX = ['One line', 'Multiple lines', 'Dropdown', 'Checkboxes', 'Radio buttons', 'Date'];
+      // 验收 1：Name · Phone · Email、没有 Message ⟹ 两组，第二组 Message、Service list，没有括号
+      const a = await mount({ ...clone(DEF), fields: ['name', 'phone', 'email'] });
+      await a.click('[data-editor-form-page="fields"]');
+      await a.click('[data-editor-form-add-open]');
+      const ga = groups(a);
+      const allOpts = [...a.host.querySelectorAll('[data-editor-form-custom-type] option')].map((o) => o.textContent);
+      check(JSON.stringify(ga) === JSON.stringify([{ label: 'Your own question', opts: SIX }, { label: 'Preset fields', opts: ['Message', 'Service list'] }])
+        && allOpts.length === 8 && !allOpts.some((t) => /[()]/.test(t)),
+      `⑦ 缺 message 的表单：两组、Preset fields = Message · Service list、没有一项带括号（${JSON.stringify(ga)}）`);
+      // 验收 2：选 Message ⟹ 灰字换成它那句
+      await a.pick('[data-editor-form-custom-type]', 'field:message');
+      check(a.host.textContent.includes('The visitor’s main message. It becomes the conversation in Conversations.'), '⑦ 选 Message ⟹ 说明读「The visitor’s main message. It becomes the conversation in Conversations.」');
+      await a.unmount();
+      // 验收 3：五个自带字段都在 ⟹ 只有 Your own question 一组
+      const b = await mount({ ...clone(DEF), fields: ['name', 'phone', 'email', 'message', 'service'] });
+      await b.click('[data-editor-form-page="fields"]');
+      await b.click('[data-editor-form-add-open]');
+      const gb = groups(b);
+      check(JSON.stringify(gb) === JSON.stringify([{ label: 'Your own question', opts: SIX }]), `⑦ 五个自带字段都在 ⟹ Preset fields 整组不出（${JSON.stringify(gb)}）`);
+      await b.unmount();
+      // 自定义字段到上限 ⟹ 只有 Preset fields 一组
+      const ten = { ...clone(DEF), fields: [...DEF.fields], labels: {} };
+      for (let i = 0; i < sf.MAX_CUSTOM_FIELDS; i += 1) { ten.fields.push({ id: `q${i}`, type: 'text' }); ten.labels[`q${i}`] = `Q${i}`; }
+      const c = await mount(ten);
+      await c.click('[data-editor-form-page="fields"]');
+      await c.click('[data-editor-form-add-open]');
+      const gc = groups(c);
+      check(JSON.stringify(gc) === JSON.stringify([{ label: 'Preset fields', opts: ['Service list'] }]), `⑦ 自定义字段到 ${sf.MAX_CUSTOM_FIELDS} 个 ⟹ Your own question 整组不出（${JSON.stringify(gc)}）`);
+      await c.unmount();
+      // Edit field ⟹ 只有 Your own question 一组（没有空的 Preset fields 标题）
+      const e = await mount({ ...clone(DEF), fields: [...DEF.fields, { id: 'car', type: 'text' }], labels: { car: 'What car?' } });
+      await e.click('[data-editor-form-page="fields"]');
+      await e.click('[data-editor-form-field-edit="car"]');
+      const ge = groups(e);
+      check(JSON.stringify(ge) === JSON.stringify([{ label: 'Your own question', opts: SIX }]), `⑦ Edit field ⟹ 只有 Your own question，没有空的 Preset fields（${JSON.stringify(ge)}）`);
+      await e.unmount();
     }
   } catch (e) {
     bad(`编辑器弹窗那一段抛了：${e.stack || e.message}`);

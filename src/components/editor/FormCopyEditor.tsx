@@ -70,8 +70,8 @@ const BUILTIN_TYPES: Record<FormField, { label: string; help: string }> = {
   name: { label: 'Name', help: 'The visitor’s name.' },
   phone: { label: 'Phone', help: 'The visitor’s phone number.' },
   email: { label: 'Email', help: 'The visitor’s email address.' },
-  message: { label: 'Message (long text)', help: 'A longer message from the visitor.' },
-  service: { label: 'Service list (pick one of your services)', help: 'Visitors pick one of the services on your website.' },
+  message: { label: 'Message', help: 'The visitor’s main message. It becomes the conversation in Conversations.' },
+  service: { label: 'Service list', help: 'Visitors pick one of the services on your website.' },
 };
 /** #1770 —— Add field 页手上的一项选项。 */
 type DraftOption = { id: string; label: string };
@@ -535,8 +535,17 @@ export function FormCopyDialog({ form, business, fieldNames, onCancel, onDone }:
           <select data-editor-form-custom-type="" value={b ? `field:${b}` : draft.type}
             onChange={(e) => pickType(e.target.value)}
             style={{ width: '100%', padding: 8, border: '1px solid #d0d5dd', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, background: '#fff' }}>
-            {customChoices.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            {builtinChoices.map((f) => <option key={f} value={`field:${f}`}>{BUILTIN_TYPES[f].label}</option>)}
+            {/* #1815 —— 分两组；哪一组没有候选就整组不画（空 <optgroup> 浏览器照样画组名）。 */}
+            {customChoices.length > 0 && (
+              <optgroup label="Your own question">
+                {customChoices.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </optgroup>
+            )}
+            {builtinChoices.length > 0 && (
+              <optgroup label="Preset fields">
+                {builtinChoices.map((f) => <option key={f} value={`field:${f}`}>{BUILTIN_TYPES[f].label}</option>)}
+              </optgroup>
+            )}
           </select>
           <span style={HELP}>{b ? BUILTIN_TYPES[b].help : type.help}</span>
         </label>
