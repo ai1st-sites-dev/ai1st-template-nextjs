@@ -54,8 +54,14 @@ function regionOptionsProblems(region, v) {
   return out;
 }
 
-/** 只留合法的那几格（底色归一化成 §normalizeBg 的形状）；不是对象 ⟹ `{}`。 */
-function cleanRegionOptions(region, v) {
+/**
+ * 只留合法的那几格（底色归一化成 §normalizeBg 的形状）；不是对象 ⟹ `{}`。
+ * 🔴 #1788 —— 给了 `shape`（构建那一侧，§readRegionOptions）时，耦合里**第二个旋钮**存着值域外的字符串（顶栏 menu：被删掉的旧值、
+ *    手写坏的）不丢，而是就地纠正成它该是的那个值（`header-knobs.js` §normalizeKnobs：跟第一个旋钮走，logo=center ⟹ left）。
+ *    丢掉的话它就落回形态那个预设（形态 stacked ⟹ below），外壳和编辑器的 Customize 都读这一份，两边一起错。
+ *    纠正成合法值写进这一份，编辑器以后存盘写回的也是合法值（写盘那一侧 §regionOptionsProblems 照旧拒收值域外的）。
+ */
+function cleanRegionOptions(region, v, shape) {
   const s = spec(region);
   if (!s || !isObj(v)) return {};
   const out = {};
@@ -65,13 +71,20 @@ function cleanRegionOptions(region, v) {
     else if (knob) { if (knob.values.includes(val)) out[k] = val; }
     else if (s.booleans.includes(k) && typeof val === 'boolean') out[k] = val;
   }
+  const second = s.coupling && s.knobs.find((x) => x.name === s.coupling[1]);
+  if (shape !== undefined && second && typeof v[second.name] === 'string' && !second.values.includes(v[second.name])) {
+    out[second.name] = effectiveRegionKnobs(region, shape, { ...out, [second.name]: v[second.name] })[second.name];
+  }
   return out;
 }
 
-/** `theme.json` 解析后的那个对象 → `{ header, footer }`，各是清洗过的一份（没写 = `{}`）。 */
-function readRegionOptions(themeMeta) {
+/**
+ * `theme.json` 解析后的那个对象 → `{ header, footer }`，各是清洗过的一份（没写 = `{}`）。
+ * `shapes` = 各区实际用的形态（`{ header: 'stacked', … }`）—— 纠正值域外的耦合旋钮要用（§cleanRegionOptions）。
+ */
+function readRegionOptions(themeMeta, shapes = {}) {
   const raw = isObj(themeMeta) && isObj(themeMeta.regionOptions) ? themeMeta.regionOptions : {};
-  return Object.fromEntries(REGIONS.map((r) => [r, cleanRegionOptions(r, raw[r])]));
+  return Object.fromEntries(REGIONS.map((r) => [r, cleanRegionOptions(r, raw[r], isObj(shapes) ? shapes[r] : undefined)]));
 }
 
 /**
@@ -143,7 +156,7 @@ function regionKnobChange(region, shape, opts, key, value) {
 
 /**
  * Customize 页出哪几个旋钮：去掉「单凭它就认得出是哪个预设」的那一个（页脚的 `layout`：三个预设三个值，它就是预设本身，
- * 在 Layout 页选）。顶栏的 logo / menu 都不是（七个预设里重复），全出。按谓词算，不写名单。
+ * 在 Layout 页选）。顶栏的 logo / menu 都不是（各预设里重复），全出。按谓词算，不写名单。
  */
 function customizeKnobNames(region) {
   const s = spec(region);

@@ -12,17 +12,20 @@
 //     `name` 是显示名，`shape` 是形态目录名（header 两者同名，hero 不同名）。#1468：预设 `options` 里写了的布尔
 //     「归预设管」（header 的 topbar）—— 判「是哪个预设」连它一起比；没有预设写的（icons）不参与；
 //   · 耦合（可选，header 有、hero 可以没有）：顶层 `knobCoupling: [甲, 乙]` —— 这两个旋钮的组合**必须在某个
-//     预设里出现过**，否则不成立。header 是 `["logo", "menu"]`：logo=center 只能配 split / gathered / below，
+//     预设里出现过**，否则不成立。header 是 `["logo", "menu"]`：logo=center 只能配 left / below（#1788），
 //     logo=left / right 只能配 beside / center（#1468，Chris 2026-09-28）。
-//     🔴 **没有任何预设用过的取值，耦合上按该旋钮的默认值（`default`，没写就是 `values[0]` —— #1481）算**（#1468）：七个预设里没有一个
+//     🔴 **没有任何预设用过的取值，耦合上按该旋钮的默认值（`default`，没写就是 `values[0]` —— #1481）算**（#1468）：六个预设里没有一个
 //     logo=right，不这么算的话 logo=right 跟什么都「没出现过」、一律被纠正走。header 的 logo 默认是 left ⟹
-//     logo=right 跟 left 配同一组 menu，让步时也从第一个 logo=left 的预设取值（logo=right + split ⟹ beside）。
+//     logo=right 跟 left 配同一组 menu，让步时也从第一个 logo=left 的预设取值（logo=right + left ⟹ beside）。
 //   认不出的形状一律读成「没有」（空数组 / null），不抛：admin 那一页不该因为一个块写错了就整页倒下。
 //
 // 🔴 纠正时**谁让步**看刚拧的是哪一个（跟图册 `build.py` §constrain 同一套）：拧了乙 ⟹ 甲跟着改；
 //    其余情况（拧了甲、或者不知道拧了谁 —— Section 渲染时就是这样）⟹ 乙跟着改。改成的值取「第一个
 //    与保留方值相同的预设」里那个值：logo=center + menu=beside ⟹ 第一个 logo=center 的预设是
-//    logo-center-split ⟹ menu=split（#1462 验收 3）。
+//    logo-center ⟹ menu=left（#1462 验收 3，#1788 起）。
+// 🔴 耦合里**第二个旋钮存着值域外的值**（header 的 menu：被删掉的旧值、手写坏的）⟹ 不落回形态那个预设，而是跟第一个
+//    旋钮走 —— 取「第一个与它同值的预设」里那个值（#1788：logo=center ⟹ left，其余 ⟹ beside）。落回形态预设的话，
+//    形态 stacked + 存着旧的 menu 就会画成 below，跟存的人想要的「logo 居中、菜单一整条」差得最远。
 //
 // 🔴 这份逻辑在 dashboard 里有一份 TS 抄写（`dashboard/src/pages/admin/catalogKnobs.ts`）：admin
 //    是另一个构建，引不到模板里的文件。两份都只吃 manifest 给的数据，改算法要两边一起改。
@@ -86,8 +89,10 @@ function presetForShape(presets, shape) {
 function normalizeKnobs(values, { knobs, presets, coupling, changed, base } = {}) {
   const fallback = base || (presets[0] ? { ...presets[0].knobs } : {});
   const out = {};
+  const unknown = new Set();
   for (const k of knobs) {
     const v = values && values[k.name];
+    if (!k.values.includes(v) && v !== undefined) unknown.add(k.name);
     out[k.name] = k.values.includes(v) ? v : (k.values.includes(fallback[k.name]) ? fallback[k.name] : knobDefault(k));
   }
   if (coupling) {
@@ -99,6 +104,11 @@ function normalizeKnobs(values, { knobs, presets, coupling, changed, base } = {}
       const k = knobs.find((x) => x.name === name);
       return k ? knobDefault(k) : v;
     };
+    // 第二个旋钮存着值域外的值 ⟹ 跟第一个旋钮走（文件头 🔴，#1788）。
+    if (unknown.has(b)) {
+      const donor = presets.find((p) => p.knobs[a] === as(a));
+      if (donor && donor.knobs[b] !== undefined) out[b] = donor.knobs[b];
+    }
     const holds = presets.some((p) => p.knobs[a] === as(a) && p.knobs[b] === as(b));
     if (!holds) {
       const keep = changed === b ? b : a;

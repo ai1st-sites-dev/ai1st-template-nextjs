@@ -36,8 +36,8 @@ const ctx = { knobs, presets, coupling };
 console.log('① 从 manifest 读出来的东西');
 check(eq(knobs, [
   { name: 'logo', values: ['left', 'center', 'right'] },
-  { name: 'menu', values: ['beside', 'center', 'split', 'gathered', 'below'] },
-]), '旋钮 = logo（left · center · right）· menu（beside · center · split · gathered · below），顺序即工具栏顺序', JSON.stringify(knobs));
+  { name: 'menu', values: ['beside', 'center', 'left', 'below'] },
+]), '旋钮 = logo（left · center · right）· menu（beside · center · left · below），顺序即工具栏顺序', JSON.stringify(knobs));
 check(!knobs.some((k) => k.name === 'topbar'), 'topbar 不再是旋钮');
 check(eq(coupling, ['logo', 'menu']), 'knobCoupling = [logo, menu]');
 check(h.knobsOf({ slots: { options: { shape: '{icons: bool}' } } }).length === 0, '只有布尔开关的块 ⟹ 0 个旋钮（开关不是旋钮）');
@@ -60,23 +60,34 @@ check(eq(h.presetBooleans(presets, 'topbar'), { topbar: true }) && eq(h.presetBo
 console.log('\n② 纠正（工具栏：拧了谁谁不让步 · 验收 6）');
 const turn = (from, name, value) => h.normalizeKnobs({ ...from, [name]: value }, { ...ctx, changed: name, base: from });
 const LB = { logo: 'left', menu: 'beside' };
-check(eq(turn(LB, 'logo', 'center'), { logo: 'center', menu: 'split' }), '拧 logo=center（menu 原是 beside）⟹ menu 被纠正成 split');
-check(eq(turn({ logo: 'center', menu: 'split' }, 'menu', 'below'), { logo: 'center', menu: 'below' }), '拧 menu=below（logo 已是 center）⟹ 不动');
+check(eq(turn(LB, 'logo', 'center'), { logo: 'center', menu: 'left' }), '拧 logo=center（menu 原是 beside）⟹ menu 被纠正成 left');
+check(eq(turn({ logo: 'center', menu: 'left' }, 'menu', 'below'), { logo: 'center', menu: 'below' }), '拧 menu=below（logo 已是 center）⟹ 不动');
 check(eq(turn(LB, 'menu', 'below'), { logo: 'center', menu: 'below' }), '拧 menu=below（logo 原是 left）⟹ logo 变 center');
 check(eq(turn({ logo: 'right', menu: 'center' }, 'menu', 'below'), { logo: 'center', menu: 'below' }), '拧 menu=below（logo 原是 right）⟹ logo 变 center');
-check(eq(turn({ logo: 'center', menu: 'split' }, 'logo', 'right'), { logo: 'right', menu: 'beside' }), '拧 logo=right（menu 原是 split）⟹ menu 变 beside');
+check(eq(turn({ logo: 'center', menu: 'left' }, 'logo', 'right'), { logo: 'right', menu: 'beside' }), '拧 logo=right（menu 原是 left）⟹ menu 变 beside');
 check(eq(turn({ logo: 'center', menu: 'below' }, 'logo', 'right'), { logo: 'right', menu: 'beside' }), '拧 logo=right（menu 原是 below）⟹ menu 变 beside');
 check(eq(turn({ logo: 'left', menu: 'center' }, 'logo', 'right'), { logo: 'right', menu: 'center' }), '拧 logo=right（menu 原是 center）⟹ 成立，不动');
 check(eq(turn(LB, 'logo', 'right'), { logo: 'right', menu: 'beside' }), '拧 logo=right（menu 原是 beside）⟹ 成立，不动');
 check(eq(turn({ logo: 'center', menu: 'below' }, 'logo', 'left'), { logo: 'left', menu: 'beside' }), '拧 logo=left（menu 原是 below）⟹ beside');
-check(eq(turn({ logo: 'center', menu: 'split' }, 'menu', 'beside').logo, 'left'), '拧 menu=beside（logo 原是 center）⟹ logo 让步成 left');
-check(eq(h.normalizeKnobs({ logo: 'center', menu: 'beside' }, ctx).menu, 'split'), '不知道拧了谁（Section 渲染）⟹ logo 为准');
-check(eq(h.normalizeKnobs({ logo: 'right', menu: 'gathered' }, ctx), { logo: 'right', menu: 'beside' }), '不知道拧了谁 + logo=right + gathered ⟹ beside（logo 为准）');
-check(h.normalizeKnobs({ logo: 'nope', menu: 'x' }, { ...ctx, base: { logo: 'center', menu: 'below' } }).menu === 'below', '值域外的值落回 base');
+check(eq(turn({ logo: 'center', menu: 'left' }, 'menu', 'beside').logo, 'left'), '拧 menu=beside（logo 原是 center）⟹ logo 让步成 left');
+check(eq(h.normalizeKnobs({ logo: 'center', menu: 'beside' }, ctx).menu, 'left'), '不知道拧了谁（Section 渲染）⟹ logo 为准');
+check(eq(h.normalizeKnobs({ logo: 'left', menu: 'left' }, ctx).menu, 'beside'), 'logo=left + menu=left ⟹ beside（#1788：left 只配 logo=center）');
+check(eq(h.normalizeKnobs({ logo: 'right', menu: 'left' }, ctx), { logo: 'right', menu: 'beside' }), '不知道拧了谁 + logo=right + left ⟹ beside（logo 为准）');
+check(h.normalizeKnobs({ logo: 'nope', menu: 'center' }, { ...ctx, base: { logo: 'center', menu: 'below' } }).logo === 'center', 'logo 值域外 ⟹ 落回 base');
+// #1788 —— menu 存着值域外的值（被删掉的 split / gathered、手写坏的）⟹ 跟 logo 走：logo=center ⟹ left，其余 ⟹ beside。
+//    不落回 base：形态 stacked（base 是 center/below）+ 旧的 gathered ⟹ left，不是 below。
+for (const old of ['split', 'gathered', 'x']) {
+  const stackedBase = { logo: 'center', menu: 'below' };
+  check(eq(h.normalizeKnobs({ ...stackedBase, menu: old }, { ...ctx, base: stackedBase }), { logo: 'center', menu: 'left' }), `形态 stacked + menu=${old} ⟹ center/left（不是 base 的 below）`);
+  check(eq(h.normalizeKnobs({ logo: 'left', menu: old }, { ...ctx, base: { logo: 'left', menu: 'center' } }), { logo: 'left', menu: 'beside' }), `logo=left + menu=${old} ⟹ beside（不是 base 的 center）`);
+  check(eq(h.normalizeKnobs({ logo: 'right', menu: old }, ctx), { logo: 'right', menu: 'beside' }), `logo=right + menu=${old} ⟹ beside`);
+}
+check(h.normalizeKnobs({ logo: 'nope', menu: 'x' }, { ...ctx, base: { logo: 'center', menu: 'below' } }).menu === 'left', '两个都值域外 ⟹ logo 落回 base 的 center，menu 跟它走 ⟹ left');
+check(h.normalizeKnobs({ logo: 'center' }, { ...ctx, base: { logo: 'center', menu: 'below' } }).menu === 'below', 'menu 没给（不是值域外）⟹ 照旧落回 base');
 // 穷举：两个旋钮所有组合 × 每一种「拧了谁」，结果都成立（logo=right 按 left 算），被拧的那个不被改。
 {
   let n = 0; const broken = [];
-  const okPair = (r) => (r.logo === 'center' ? ['split', 'gathered', 'below'] : ['beside', 'center']).includes(r.menu);
+  const okPair = (r) => (r.logo === 'center' ? ['left', 'below'] : ['beside', 'center']).includes(r.menu);
   for (const logo of knobs[0].values) for (const menu of knobs[1].values) {
     for (const changed of [undefined, 'logo', 'menu']) {
       const r = h.normalizeKnobs({ logo, menu }, { ...ctx, changed });
@@ -85,15 +96,15 @@ check(h.normalizeKnobs({ logo: 'nope', menu: 'x' }, { ...ctx, base: { logo: 'cen
       if (changed && r[changed] !== { logo, menu }[changed]) broken.push(`${changed} 被改了`);
     }
   }
-  check(n === 45 && broken.length === 0, `穷举 ${n} 种输入：纠正后 logo∈{left,right} 配 beside|center、logo=center 配 split|gathered|below，被拧的那个旋钮不被改`, broken.slice(0, 4).join(' · '));
+  check(n === 36 && broken.length === 0, `穷举 ${n} 种输入：纠正后 logo∈{left,right} 配 beside|center、logo=center 配 left|below，被拧的那个旋钮不被改`, broken.slice(0, 4).join(' · '));
 }
 // 反向对照 ①：不给耦合 ⟹ logo=center + menu=beside 原样留着（证明上面那几格靠的是 coupling，不是巧合）。
 check(h.normalizeKnobs({ logo: 'center', menu: 'beside' }, { knobs, presets, coupling: null }).menu === 'beside', '反向对照：不给 knobCoupling ⟹ 不纠正');
 // 反向对照 ②：「没有预设用过的取值按默认值算」这条是承重的 —— 把 logo 的默认挪成 center，logo=right 就按 center 配，
-// 拧到 logo=right + beside 会被纠正成 split。
+// 拧到 logo=right + beside 会被纠正成 left。
 {
   const k2 = [{ name: 'logo', values: ['center', 'left', 'right'] }, knobs[1]];
-  check(h.normalizeKnobs({ logo: 'right', menu: 'beside' }, { knobs: k2, presets, coupling, changed: 'logo' }).menu === 'split',
+  check(h.normalizeKnobs({ logo: 'right', menu: 'beside' }, { knobs: k2, presets, coupling, changed: 'logo' }).menu === 'left',
     '反向对照：logo 的默认换成 center ⟹ logo=right + beside 被纠正走（上面 logo=right 那几格靠的是这条规则）');
 }
 
@@ -102,9 +113,9 @@ for (const p of presets) check(h.presetOf({ ...p.knobs, ...p.options }, ctx) ===
 check(h.presetOf({ logo: 'left', menu: 'beside' }, ctx) === 'logo-left', 'topbar 没写 = 关 ⟹ logo-left');
 check(h.presetOf({ logo: 'left', menu: 'beside', topbar: true }, ctx) === 'topbar', 'logo-left 上打开 topbar ⟹ topbar（验收 5）');
 check(h.presetOf({ logo: 'left', menu: 'beside', topbar: false, icons: true }, ctx) === 'logo-left', '打开 icons ⟹ 预设名不变（验收 5）');
-check(h.presetOf({ logo: 'center', menu: 'split', topbar: true }, ctx) === 'custom', 'center/split + topbar ⟹ custom');
+check(h.presetOf({ logo: 'center', menu: 'left', topbar: true }, ctx) === 'custom', 'center/left + topbar ⟹ custom');
 check(h.presetOf({ logo: 'right', menu: 'beside' }, ctx) === 'custom', 'logo=right ⟹ custom（没有预设在右）');
-check(new Set(presets.map((p) => `${p.knobs.logo}|${p.knobs.menu}|${p.options.topbar}`)).size === presets.length, '7 个预设的组合（旋钮 + topbar）两两不同');
+check(new Set(presets.map((p) => `${p.knobs.logo}|${p.knobs.menu}|${p.options.topbar}`)).size === presets.length, '6 个预设的组合（旋钮 + topbar）两两不同');
 // 反向对照：认预设时不看 topbar ⟹ topbar 会被认成 logo-left（先声明的那个）。
 {
   const blind = presets.map((p) => ({ ...p, options: undefined }));

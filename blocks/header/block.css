@@ -1,6 +1,6 @@
-/* header · 旋钮派生的排版（#1462）—— 七个预设共用这一份
+/* header · 旋钮派生的排版（#1462）—— 六个预设共用这一份
 
-   Section 在根上挂三个类：`hdr-logo-<left|center|right>` · `hdr-menu-<beside|center|split|gathered|below>` ·
+   Section 在根上挂三个类：`hdr-logo-<left|center|right>` · `hdr-menu-<beside|center|left|below>` ·
    `hdr-topbar-<on|off>`（#1468）。桌面那三格（`.hdr-a` / `.hdr-b` / `.hdr-c`）里各放
    什么由 Section 按 menu 决定；这里只管三件工具类表达不了的事：网格列宽、每格落哪一栏、992 起才出现的
    那几段（顶条 / 三格网格 / 菜单下沉那一行）。
@@ -81,16 +81,6 @@
   [data-block="header"].hdr-menu-center .navbar > .hdr-grid {
     grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   }
-
-  /* menu=gathered：跟 split 同一份 DOM，三栏都是 auto、整组居中（Bootstrap 的 `.navbar > .container-lg
-     { justify-content: space-between }` 会把三栏撑到两边，这里压回 center —— 做图册时踩到的坑 2）。 */
-  [data-block="header"].hdr-menu-gathered .navbar > .hdr-grid {
-    grid-template-columns: auto auto auto;
-    justify-content: center !important;
-    column-gap: 2.5rem;
-  }
-  [data-block="header"].hdr-menu-gathered .hdr-grid > .hdr-a { justify-self: end; }
-  [data-block="header"].hdr-menu-gathered .hdr-grid > .hdr-c { justify-self: start; }
 }
 
 /* #1476 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的弱化文字（顶条联系信息、抽屉里那一段）挂 `hdr-muted-on-deep`。

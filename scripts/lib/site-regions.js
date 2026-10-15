@@ -152,7 +152,7 @@ function resolveSiteRegionLayout(siteDir, pending) {
   });
   // #1738 —— 老板在编辑器里给顶栏 / 页脚选的底色 + 旋钮（`theme.json` 的 `regionOptions`，形状与清洗在 `region-options.js`）。
   //    只在存了东西时挂 `options` 这个键：没存过的站产物一个字节不变。外壳在渲染时叠进 data（`SiteShell.tsx`）。
-  const options = readRegionOptions(readThemeMeta(siteDir));
+  const options = readRegionOptions(readThemeMeta(siteDir), { header: regions.header && regions.header.shape, footer: regions.footer && regions.footer.shape });
   for (const r of ['header', 'footer']) if (regions[r] && Object.keys(options[r]).length) regions[r].options = options[r];
   return { regions, structureThemeId, explicitRegionLayout };
 }

@@ -50,15 +50,14 @@
       "shape": "{preset?: string, logo, menu, topbar: bool, icons: bool, sticky: bool}",
       "knobs": [
         { "name": "logo", "values": ["left", "center", "right"] },
-        { "name": "menu", "values": ["beside", "center", "split", "gathered", "below"] }
+        { "name": "menu", "values": ["beside", "center", "left", "below"] }
       ]
     }
   },
   "presets": [
     { "name": "logo-left", "shape": "logo-left", "knobs": { "logo": "left", "menu": "beside" }, "options": { "topbar": false } },
     { "name": "menu-center", "shape": "menu-center", "knobs": { "logo": "left", "menu": "center" }, "options": { "topbar": false } },
-    { "name": "logo-center-split", "shape": "logo-center-split", "knobs": { "logo": "center", "menu": "split" }, "options": { "topbar": false } },
-    { "name": "logo-center-gathered", "shape": "logo-center-gathered", "knobs": { "logo": "center", "menu": "gathered" }, "options": { "topbar": false } },
+    { "name": "logo-center", "shape": "logo-center", "knobs": { "logo": "center", "menu": "left" }, "options": { "topbar": false } },
     { "name": "topbar", "shape": "topbar", "knobs": { "logo": "left", "menu": "beside" }, "options": { "topbar": true } },
     { "name": "stacked", "shape": "stacked", "knobs": { "logo": "center", "menu": "below" }, "options": { "topbar": false } },
     { "name": "topbar-stacked", "shape": "topbar-stacked", "knobs": { "logo": "center", "menu": "below" }, "options": { "topbar": true } }

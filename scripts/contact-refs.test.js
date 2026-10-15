@@ -30,7 +30,7 @@
  *   + 没有引用的块原样返回同一个对象（良构的块一个字节不变）
  *   #1520 ① 页头顶条「字面项 + 引用 href」：校验报一条、渲染不崩 ② 阳性对照：整项引用 / 完整字面项照旧
  *         ③ 有邮箱、零门店：email 引用照常画 ④ 写了 location 而那一家不在：email 仍不画
- *         ⑤ 顶条 contact 本身是坏形状：7 个预设都不崩（r2）⑥ 报文分「没有 label」/「label 不是字符串」（r2）
+ *         ⑤ 顶条 contact 本身是坏形状：6 个预设都不崩（r2）⑥ 报文分「没有 label」/「label 不是字符串」（r2）
  *
  * 🔴 每一段带反向对照（同一进程、单变量），证明判据真会红。
  */
@@ -378,11 +378,11 @@ console.log('\n── #1520 ④ 写了 location 而那一家不在：email 仍�
   check(near.length === 1 && near[0].href === 'mailto:hello@x.example' && logs.length === 0, `反向对照：location 0（那一家在）⟹ 画（${JSON.stringify(near)}）`);
 }
 
-console.log('\n── #1520 ⑤ 顶条 contact 本身是坏形状（不是数组 / 数组里有 null）：7 个预设都不崩（r2，QA1）');
+console.log('\n── #1520 ⑤ 顶条 contact 本身是坏形状（不是数组 / 数组里有 null）：每个预设都不崩（r2，QA1）');
 {
   // 改前（#1506）`contact` 只在 topbar 开着时才被碰到；#1520 r1 把取值挪到了门外，关着的 5 个预设也开始碰它。
   // 这几种形状 validateSite 不报，所以渲染端自己得挡住。
-  const SHAPES = ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'stacked', 'topbar', 'topbar-stacked'];
+  const SHAPES = ['logo-left', 'menu-center', 'logo-center', 'stacked', 'topbar', 'topbar-stacked'];
   const BAD = {
     '对象': { icon: 'telephone', text: 'Call us', href: 'tel:1' },
     '字符串': 'Call us',

@@ -146,7 +146,7 @@ function resolveRegionShapes(chosen) {
  * 生成池成员时,这套主题的顶栏用哪种结构 —— 纯轮换(`index`)。
  *
  * 📌 #1425（T3）:以前这里还有一条「浅底首屏不许配透明浮层」的让开规则(连同 `heroTitleSurvivesHeaderScrim`
- *    和遮罩浓度那两个常数)。新 header 的 7 个预设里没有透明浮层 ⟹ 那条规则守的形态不存在了,整段删掉。
+ *    和遮罩浓度那两个常数)。新 header 的预设(#1462 时 7 个,#1788 起 6 个)里没有透明浮层 ⟹ 那条规则守的形态不存在了,整段删掉。
  *
  * @returns {{variant: string, wanted: string, why: null}}
  */

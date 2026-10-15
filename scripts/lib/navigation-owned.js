@@ -216,10 +216,10 @@ const VARIANTS_BY_REGION = new Proxy({}, {
 
 const PAGE_READS = [
   {
-    // #1787 —— 顶栏按钮（0–3 颗）。7 个预设的桌面那格都画，手机抽屉里也全出（`blocks/header/Section.tsx` 的 ctas / drawer-cta）。
+    // #1787 —— 顶栏按钮（0–3 颗）。每个预设的桌面那格都画，手机抽屉里也全出（`blocks/header/Section.tsx` 的 ctas / drawer-cta）。
     key: 'header.buttons',
     region: 'header',
-    renderedBy: ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'topbar', 'stacked', 'topbar-stacked'],
+    renderedBy: ['logo-left', 'menu-center', 'logo-center', 'topbar', 'stacked', 'topbar-stacked'],
     // 派生到了块的哪个槽（`lib/shell-data.js`）—— 测试按它往 data 里找值。
     slot: 'buttons',
     what: 'the buttons at the top of every page',

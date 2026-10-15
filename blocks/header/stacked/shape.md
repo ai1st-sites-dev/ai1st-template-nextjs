@@ -1,5 +1,5 @@
 ---
-order: 5
+order: 4
 summary: "FlyonUI #4 · 上层：社交 · logo 正中 · CTA · 下层：菜单居中"
 needs:
   - topbar

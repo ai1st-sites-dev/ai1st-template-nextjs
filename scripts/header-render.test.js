@@ -81,32 +81,31 @@ const attr = (html, name) => { const m = html.match(new RegExp(`<header[^>]*\\s$
 // #1514：抽屉改成 Bootstrap Collapse，服务端 HTML 里一直有它（藏是 `.collapse` 的事）⟹ 量抽屉不再需要改初值重载。
 C = loadSection();
 
-// 定稿表（#1462 票正文「七个预设」那张；#1468 起 menu 的 right 叫 beside、topbar 是布尔 —— 这里写成根上读到的 on / off）。
+// 定稿表（#1462 票正文「七个预设」那张，#1788 起六个 —— 切两半的 split / gathered 换成一个 logo-center；#1468 起 menu 的 right 叫 beside、topbar 是布尔 —— 这里写成根上读到的 on / off）。
 const TABLE = [
   ['logo-left', 'left', 'beside', 'off'],
   ['menu-center', 'left', 'center', 'off'],
-  ['logo-center-split', 'center', 'split', 'off'],
-  ['logo-center-gathered', 'center', 'gathered', 'off'],
+  ['logo-center', 'center', 'left', 'off'],
   ['topbar', 'left', 'beside', 'on'],
   ['stacked', 'center', 'below', 'off'],
   ['topbar-stacked', 'center', 'below', 'on'],
 ];
 const NAMES = TABLE.map((r) => r[0]);
 
-// ══ ① 验收 1：目录集合 == 7 个预设名；manifest presets 与定稿表逐字相同；没有「形态名 → 布局」表 ════
+// ══ ① 验收 1：目录集合 == 6 个预设名；manifest presets 与定稿表逐字相同；没有「形态名 → 布局」表 ════
 console.log('① 目录集合 · manifest presets · 形态表退役');
 {
   const dirs = fs.readdirSync(BLOCK_DIR, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   const want = [...NAMES].sort();
-  check(JSON.stringify(dirs) === JSON.stringify(want), `blocks/header/ 的目录集合 == 7 个预设名`, `读到 ${dirs.join(' · ')}`);
-  check(!dirs.includes('stacked-topbar') && !dirs.includes('stacked-centered'), '旧名 stacked-topbar / stacked-centered 不在');
+  check(JSON.stringify(dirs) === JSON.stringify(want), `blocks/header/ 的目录集合 == 6 个预设名`, `读到 ${dirs.join(' · ')}`);
+  check(!['stacked-topbar', 'stacked-centered', 'logo-center-split', 'logo-center-gathered'].some((d) => dirs.includes(d)), '旧名 stacked-topbar / stacked-centered / logo-center-split / logo-center-gathered 不在');
   // 形状：顶层 presets = [{ name, shape, knobs, options }]，旋钮声明在 slots.options.knobs（#1468 起 topbar 在 options）。
   const got = (MANIFEST.presets || []).map((p) => [p.name, p.knobs && p.knobs.logo, p.knobs && p.knobs.menu, p.options && (p.options.topbar ? 'on' : 'off')]);
-  check(JSON.stringify(got) === JSON.stringify(TABLE), 'manifest.presets 7 条与定稿表逐字相同（含顺序）', JSON.stringify(got));
+  check(JSON.stringify(got) === JSON.stringify(TABLE), 'manifest.presets 6 条与定稿表逐字相同（含顺序）', JSON.stringify(got));
   check((MANIFEST.presets || []).every((p) => Object.keys(p).sort().join() === 'knobs,name,options,shape' && p.shape === p.name
     && Object.keys(p.knobs).sort().join() === 'logo,menu' && typeof p.options.topbar === 'boolean'), '每条预设是 { name, shape, knobs:{logo,menu}, options:{topbar} }，shape = 目录名 = name');
   const knobDecl = ((MANIFEST.slots.options || {}).knobs || []).map((k) => `${k.name}:${k.values.join('|')}`);
-  check(JSON.stringify(knobDecl) === JSON.stringify(['logo:left|center|right', 'menu:beside|center|split|gathered|below']),
+  check(JSON.stringify(knobDecl) === JSON.stringify(['logo:left|center|right', 'menu:beside|center|left|below']),
     'slots.options.knobs 声明两个旋钮（#1468 值域）、顺序 = 控件顺序', JSON.stringify(knobDecl));
   // 行为判据（PM r2 裁定 ②）：Section 不导出、也不声明一张「形态名 → 布局」的表 —— 去掉注释之后没有 SHAPES。
   const code = ORIGINAL.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -114,11 +113,11 @@ console.log('① 目录集合 · manifest presets · 形态表退役');
   check(!NAMES.some((n) => code.includes(`'${n}'`) && n !== 'logo-left'), 'Section.tsx 的代码里除默认 logo-left 外没有写死任何预设名（布局只由旋钮派生）');
 }
 
-// ══ ② 验收 2：7 个预设 HTML 两两不同；每个预设的旋钮值 + topbar 与表一致 ══════════════════════════════
-console.log('\n② 7 个预设两两不同 · 旋钮读数');
+// ══ ② 验收 2：6 个预设 HTML 两两不同；每个预设的旋钮值 + topbar 与表一致 ══════════════════════════════
+console.log('\n② 6 个预设两两不同 · 旋钮读数');
 {
   const htmls = NAMES.map((n) => render(n, clone(DEMO)));
-  check(new Set(htmls).size === 7, `同一份夹具下 7 个预设的 HTML 两两不同（${new Set(htmls).size} 种）`);
+  check(new Set(htmls).size === NAMES.length, `同一份夹具下 ${NAMES.length} 个预设的 HTML 两两不同（${new Set(htmls).size} 种）`);
   TABLE.forEach(([n, logo, menu, topbar], i) => {
     const h = htmls[i];
     const read = [attr(h, 'data-logo'), attr(h, 'data-menu'), attr(h, 'data-topbar'), attr(h, 'data-preset')];
@@ -131,25 +130,57 @@ console.log('\n② 7 个预设两两不同 · 旋钮读数');
   if (!s) bad('反向对照没改到源码（锚点找不到）');
   else {
     const Cb = loadSection(s);
-    const h = render('logo-center-split', clone(DEMO), Cb);
-    check(!(attr(h, 'class') || '').includes('hdr-menu-split'), '反向对照：拿掉 hdr-menu-* ⟹ 上面「根上的三个派生类」那格会红');
+    const h = render('logo-center', clone(DEMO), Cb);
+    check(!(attr(h, 'class') || '').includes('hdr-menu-left'), '反向对照：拿掉 hdr-menu-* ⟹ 上面「根上的三个派生类」那格会红');
     C = loadSection();
   }
 }
 
-// ══ ③ 验收 3：Section 自己纠正 logo=center + menu=beside ⟹ menu=split ══════════════════════════
+// ══ #1788：logo-center 三格 —— a = 整条菜单、b = logo、c = 社交 + 按钮；只有一个菜单 ul，装着全部菜单项 ════════════
+console.log('\n#1788 logo-center 的三格');
+{
+  const h = render('logo-center', clone(DEMO));
+  const at = (cls) => h.indexOf(`class="${cls} `);
+  const [a, b, c] = ['hdr-a', 'hdr-b', 'hdr-c'].map(at);
+  const end = h.indexOf('</nav>', c);
+  check(a > 0 && a < b && b < c && c < end, '三格都在、顺序 a · b · c');
+  const cellA = h.slice(a, b); const cellB = h.slice(b, c); const cellC = h.slice(c, end);
+  const grid = h.slice(a, end);
+  const labels = (DEMO.nav || []).map((n) => n.label);
+  check(labels.length >= 4, `夹具菜单至少 4 项才量得出「没切两半」（${labels.length}）`);
+  check((grid.match(/<ul class="navbar-nav/g) || []).length === 1 && (cellA.match(/<ul class="navbar-nav/g) || []).length === 1,
+    '桌面三格里只有一个菜单 ul，在 a 格');
+  check(labels.every((l) => cellA.includes(`>${l}<`)) && !labels.some((l) => cellC.includes(`>${l}<`)), `a 格装着全部 ${labels.length} 项菜单，c 格一项都没有`);
+  check(cellB.includes('hdr-brand') && !cellA.includes('hdr-brand') && !cellC.includes('hdr-brand'), 'logo 在 b 格（正中那一栏）');
+  const ctaLabels = (DEMO.buttons || []).filter((x) => x && x.label).map((x) => x.label); // #1787 起按钮是 header.buttons 一份列表
+  check(ctaLabels.length > 0 && ctaLabels.every((l) => cellC.includes(`>${l}<`)) && !ctaLabels.some((l) => cellA.includes(`>${l}<`)),
+    `c 格装着按钮（${ctaLabels.join(' · ')}），a 格没有`);
+  check(cellC.includes('data-hdr-part="social"') === ((DEMO.topbar && DEMO.topbar.social || []).length > 0), 'c 格的社交：夹具有才出');
+  check(attr(h, 'data-logo') === 'center' && attr(h, 'data-menu') === 'left' && (attr(h, 'class') || '').includes('hdr-menu-left'), 'data-logo=center · data-menu=left · 根上 hdr-menu-left');
+}
+
+// ══ ③ 验收 3：Section 自己纠正 logo=center + menu=beside ⟹ menu=left ══════════════════════════
 console.log('\n③ 旋钮纠正 · topbar 开关（Section 那一次）');
 {
   const h = render('logo-left', withOpts({ logo: 'center', menu: 'beside' }));
-  check(attr(h, 'data-menu') === 'split' && attr(h, 'data-logo') === 'center', 'logo=center + menu=beside ⟹ 落地 logo=center、menu=split', `读到 ${attr(h, 'data-logo')}/${attr(h, 'data-menu')}`);
-  const h2 = render('logo-left', withOpts({ logo: 'left', menu: 'gathered' }));
-  check(attr(h2, 'data-menu') === 'beside', 'logo=left + menu=gathered ⟹ menu=beside（logo 为准）');
-  const h2r = render('logo-left', withOpts({ logo: 'right', menu: 'split' }));
-  check(attr(h2r, 'data-logo') === 'right' && attr(h2r, 'data-menu') === 'beside', 'logo=right + menu=split ⟹ logo=right、menu=beside（#1468 验收 6）');
-  const h3 = render('menu-center', withOpts({ logo: 'center', menu: 'split', topbar: true }));
-  check(attr(h3, 'data-preset') === 'custom' && attr(h3, 'data-topbar') === 'on', 'center/split + topbar 开 跟任何预设都对不上 ⟹ data-preset=custom');
+  check(attr(h, 'data-menu') === 'left' && attr(h, 'data-logo') === 'center', 'logo=center + menu=beside ⟹ 落地 logo=center、menu=left', `读到 ${attr(h, 'data-logo')}/${attr(h, 'data-menu')}`);
+  const h2 = render('logo-left', withOpts({ logo: 'left', menu: 'left' }));
+  check(attr(h2, 'data-menu') === 'beside', 'logo=left + menu=left ⟹ menu=beside（logo 为准）');
+  const h2r = render('logo-left', withOpts({ logo: 'right', menu: 'left' }));
+  check(attr(h2r, 'data-logo') === 'right' && attr(h2r, 'data-menu') === 'beside', 'logo=right + menu=left ⟹ logo=right、menu=beside（#1468 验收 6）');
+  const h3 = render('menu-center', withOpts({ logo: 'center', menu: 'left', topbar: true }));
+  check(attr(h3, 'data-preset') === 'custom' && attr(h3, 'data-topbar') === 'on', 'center/left + topbar 开 跟任何预设都对不上 ⟹ data-preset=custom');
   check(attr(render('no-such-preset', clone(DEMO)), 'data-preset') === 'logo-left', '认不出的形态名落回 logo-left');
   check(attr(render('topbar', withOpts({ logo: 'sideways' })), 'data-logo') === 'left', '值域外的旋钮值落回该预设的值');
+  // #1788 —— 存着被删掉的旧值（split / gathered）⟹ 跟 logo 走：logo=center ⟹ 画成 left（跟选 left 一字不差），logo=left ⟹ beside。
+  for (const old of ['gathered', 'split']) {
+    for (const shape of ['logo-center', 'stacked']) {
+      const got = render(shape, withOpts({ logo: 'center', menu: old }));
+      const want = render(shape, withOpts({ logo: 'center', menu: 'left' }));
+      check(attr(got, 'data-menu') === 'left' && got === want, `${shape} + logo=center + menu=${old} ⟹ 跟选 left 的 HTML 一字不差（data-menu=${attr(got, 'data-menu')}）`);
+    }
+    check(attr(render('menu-center', withOpts({ menu: old })), 'data-menu') === 'beside', `menu-center（logo=left）+ menu=${old} ⟹ beside`);
+  }
   // #1468：topbar 没写 ⟹ 跟形态（= 预设）走；写了布尔就按写的；预设名连它一起判，icons 不参与。
   const t1 = render('topbar', withOpts({ topbar: false }));
   check(attr(t1, 'data-topbar') === 'off' && attr(t1, 'data-preset') === 'logo-left' && !t1.includes('hdr-topbar border-bottom'),
@@ -252,7 +283,7 @@ console.log('\n⑤ 图标是内联 SVG');
   const off = render('logo-left', clone(DEMO));
   check(!DEMO.nav.some((it) => off.includes(`data-icon="${it.icon}"`)), '不勾 icons：菜单项旁没有图标');
   const all = NAMES.map((n) => render(n, withOpts({ icons: true }))).join('');
-  check(!/class="[^"]*\bbi\b/.test(all) && !/\bbi-[a-z]/.test(all), '7 个预设（勾 icons）的 HTML 里没有一个 `bi` / `bi-*` 类');
+  check(!/class="[^"]*\bbi\b/.test(all) && !/\bbi-[a-z]/.test(all), '6 个预设（勾 icons）的 HTML 里没有一个 `bi` / `bi-*` 类');
   // 名字查不到 ⟹ 不画，而且 `show: icon` 那一项退回有字（不能变成看不见的链接）。
   const ghost = withOpts({ icons: true }); ghost.nav = [{ label: 'Ghost', href: '/g', icon: 'no-such-icon-xyz', show: 'icon' }];
   const g = render('logo-left', ghost);

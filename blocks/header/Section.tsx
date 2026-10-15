@@ -8,8 +8,8 @@
 //    `SiteShell` 渲染，data 是构建期从 navigation.json + brand.json 派生的那一份（`scripts/lib/shell-data.js`，
 //    #1425 T3），形态取主题选择单 `shapes.header`。单格页 `/__catalog` 直接传 data。
 //
-// 🔴 **一份 markup + 两个旋钮 + 一个归预设管的开关 + 七个预设**（#1462 → #1468，Chris 2026-09-28 图册）。
-//    旋钮 `logo`（left | center | right）· `menu`（beside | center | split | gathered | below），声明在 manifest 的
+// 🔴 **一份 markup + 两个旋钮 + 一个归预设管的开关 + 六个预设**（#1462 → #1468，Chris 2026-09-28 图册；#1788 七 → 六）。
+//    旋钮 `logo`（left | center | right）· `menu`（beside | center | left | below），声明在 manifest 的
 //    `slots.options.knobs`；`topbar` 是布尔开关（顶条放什么是内容，旋钮只管有没有），跟 icons 并排。
 //    预设是「旋钮 + topbar」组合起的名，表在顶层 `presets`（`{ name, shape, knobs, options: { topbar } }`，header 的
 //    name 与形态目录名 shape 相同）。形态名只决定**初值**：`options` 里写了旋钮 / topbar 就按写的画
@@ -72,7 +72,7 @@ type Show = 'text' | 'icon' | 'both';
 type CtaStyle = 'solid' | 'outline' | 'link';
 
 export type Logo = 'left' | 'center' | 'right';
-export type Menu = 'beside' | 'center' | 'split' | 'gathered' | 'below';
+export type Menu = 'beside' | 'center' | 'left' | 'below';
 
 export interface NavItem { label: string; href: string; icon?: string; show?: Show }
 /** `at`（#1787）：它在老板那份 `header.buttons` 里的下标（0 = 主按钮）—— 编辑器画布上点它开那一颗的弹窗（`data-hdr-cta`）。 */
@@ -115,7 +115,7 @@ export const DEFAULT_PRESET = 'logo-left';
 
 /**
  * 形态名（= 预设名）给初值，`options` 里写着的旋钮 / topbar 盖上去，再纠正一次。形态名不认识就落回 `logo-left`。
- * 🔴 纠正时不知道「刚拧的是哪个」⟹ logo 为准（header-knobs.js 文件头）：logo=center + menu=beside ⟹ split。
+ * 🔴 纠正时不知道「刚拧的是哪个」⟹ logo 为准（header-knobs.js 文件头）：logo=center + menu=beside ⟹ left。
  */
 export function resolveKnobs(shape: string | undefined, options: HeaderOptions = {}): { knobs: HeaderKnobs; topbar: boolean; preset: string; shape: string } {
   const hit = (shape && presetForShape(PRESETS, shape)) || presetForShape(PRESETS, DEFAULT_PRESET);
@@ -210,7 +210,6 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const onBrand = tone === 'brand';
   const right = logo === 'right';
   const nav = Array.isArray(data.nav) ? data.nav : [];
-  const half = Math.ceil(nav.length / 2);
   const topbar = data.topbar || {};
   // #1520：`href` 不是字符串（半截的引用写法 `{icon, text, href: {source: "phone"}}`，校验会报）⟹ 按没有链接画 ——
   // 不拿对象去调 `startsWith`（下面 `phone` 那一行），也不把它塞进 `<SiteLink href>`（画出来是 `[object Object]`）。
@@ -311,10 +310,11 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     cells.a = brandLink();
     cells.b = navList(nav, 'nav');
     cells.c = ctaButtons('ctas');
-  } else if (menu === 'split' || menu === 'gathered') {
-    cells.a = navList(nav.slice(0, half), 'navA');
+  } else if (menu === 'left') {
+    // #1788 —— 菜单不切两半：整条菜单在左、logo 正中、社交（有才出）+ 按钮在右。
+    cells.a = navList(nav, 'nav');
     cells.b = brandLink();
-    cells.c = <>{navList(nav.slice(half), 'navB')}{ctaButtons('ctas')}</>;
+    cells.c = <>{socialIcons('social')}{ctaButtons('ctas')}</>;
   } else {
     cells.a = socialIcons('social');
     cells.b = brandLink();

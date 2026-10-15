@@ -56,7 +56,7 @@ if (!HEADER_SHAPES.length || !FOOTER_SHAPES.length) {
 
 // 📌 #1425（T3）—— 这里原来是 ① ②：`public/shapes.css` 里开 `.header__scrim` 遮罩的规则必须同时带
 //    `[data-shape="transparent-overlay"]` 与 `[data-over-hero="true"]`（含阳性对照）。透明浮层顶栏与它的遮罩
-//    随旧 header 删了（新 header 7 个预设里没有它，`SiteShell` 的 overHero 也删了）。
+//    随旧 header 删了（新 header 的预设里（#1462 时 7 个，#1788 起 6 个）没有它，`SiteShell` 的 overHero 也删了）。
 
 // ── ③ 清单外的值必须落回默认，而且**返回值恒在清单里**（它会原样落进 DOM 的 data-shape）───────
 {

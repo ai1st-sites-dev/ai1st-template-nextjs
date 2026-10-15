@@ -61,6 +61,17 @@ console.log('① region-options.js');
     { shape: 'topbar', options: { bg: '#111111', icons: true } }), '选预设：形态换掉、旋钮和归预设管的开关清掉，底色和 icons 留着');
   check(same(ro.customizeKnobNames('header'), ['logo', 'menu']) && same(ro.customizeKnobNames('footer'), ['brand', 'form']),
     'Customize 页：顶栏 logo / menu；页脚 brand / form（layout 就是预设本身）');
+  // #1788 —— 构建那一侧（给了形态）：menu 存着值域外的字符串（被删掉的 split / gathered、手写坏的）⟹ 就地纠正成跟 logo 走的那个值，不丢。
+  for (const old of ['gathered', 'split', 'x']) {
+    check(same(ro.cleanRegionOptions('header', { menu: old }, 'stacked'), { menu: 'left' }), `形态 stacked（logo=center）+ menu=${old} ⟹ left（不丢、不落回 stacked 的 below）`);
+    check(same(ro.cleanRegionOptions('header', { menu: old }, 'logo-left'), { menu: 'beside' }), `形态 logo-left + menu=${old} ⟹ beside`);
+    check(same(ro.cleanRegionOptions('header', { logo: 'center', menu: old }, 'logo-left'), { logo: 'center', menu: 'left' }), `存着 logo=center + menu=${old}（形态 logo-left）⟹ 跟存着的 logo 走 ⟹ left`);
+  }
+  check(same(ro.readRegionOptions({ regionOptions: { header: { menu: 'gathered', bg: '#0F172A' } } }, { header: 'stacked' }).header, { bg: '#0f172a', menu: 'left' }),
+    'readRegionOptions 把形态递下去 ⟹ stacked + gathered ⟹ left（底色照旧归一化）');
+  // 反向对照：不给形态（写盘那一侧的清洗）⟹ 照旧丢掉；写盘本身由 regionOptionsProblems 拒收值域外的值。
+  check(same(ro.cleanRegionOptions('header', { menu: 'gathered' }), {}) && ro.regionOptionsProblems('header', { menu: 'gathered' }).length === 1,
+    '反向对照：不给形态 ⟹ 值域外的 menu 照旧丢掉；写盘照旧拒收');
 }
 
 // ══ ② 验收 5：编辑器写的 theme.json → 真构建 → 跟编辑器读到的一致 ══════════════════════════════════
@@ -122,12 +133,12 @@ console.log('② 验收 5：编辑器存的 theme.json → 构建 → 跟编辑�
 const WORK = makeTemplate();
 {
   editorSave(WORK, {
-    headerShape: 'logo-center-split', headerOptions: { bg: '#0f172a', menu: 'below', logo: 'center', icons: true },
+    headerShape: 'logo-center', headerOptions: { bg: '#0f172a', menu: 'below', logo: 'center', icons: true },
     footerShape: 'columns', footerOptions: { bg: 'brand', brand: 'right', form: 'teaser' },
   });
   const theme = JSON.parse(fs.readFileSync(path.join(WORK, 'site', 'theme.json'), 'utf8'));
   check(same(theme.regionOptions, { header: { bg: '#0f172a', menu: 'below', logo: 'center', icons: true }, footer: { bg: 'brand', brand: 'right', form: 'teaser' } })
-    && same(theme.regionLayout, { header: 'logo-center-split', footer: 'columns' }),
+    && same(theme.regionLayout, { header: 'logo-center', footer: 'columns' }),
     '写盘：theme.json 里是 regionLayout + regionOptions 两段', JSON.stringify({ regionLayout: theme.regionLayout, regionOptions: theme.regionOptions }));
   const regions = build(WORK);
   const seen = editorSees(WORK);
@@ -135,7 +146,7 @@ const WORK = makeTemplate();
   check(!h.length, `顶栏：构建出来的形态 / 底色 / 旋钮 / 生效的预设（${ro.regionPresetName('header', seen.headerShape, seen.headerOptions)}）跟编辑器读到的一致`, h.join(' · '));
   const f = regionProblems(regions, seen, 'footer');
   check(!f.length, `页脚：同上（${ro.regionPresetName('footer', seen.footerShape, seen.footerOptions)}）`, f.join(' · '));
-  check(regions.header.options && regions.header.options.menu === 'below' && regions.header.shape === 'logo-center-split',
+  check(regions.header.options && regions.header.options.menu === 'below' && regions.header.shape === 'logo-center',
     '顶栏真的是存进去的那一组（不是两边都读空、空等于空）', JSON.stringify(regions.header.options));
 
   // 清空：底色 + 旋钮交一个空对象 ⟹ theme.json 里那一段删掉，构建出来没有 options 键。
@@ -144,6 +155,19 @@ const WORK = makeTemplate();
   const regions2 = build(WORK);
   check(!('regionOptions' in theme2) && !('options' in regions2.header) && !('options' in regions2.footer),
     '交空对象 ⟹ theme.json 没有 regionOptions、构建产物没有 options 键', JSON.stringify({ t: theme2.regionOptions, h: regions2.header.options }));
+
+  // #1788 —— 老站 theme.json 里手写 / 残留的 menu=gathered（写盘那条路发不出它，直接写文件）：真构建出来是 left，编辑器读到的也是 left。
+  {
+    const tp = path.join(WORK, 'site', 'theme.json');
+    const t = JSON.parse(fs.readFileSync(tp, 'utf8'));
+    fs.writeFileSync(tp, `${JSON.stringify({ ...t, regionLayout: { ...(t.regionLayout || {}), header: 'stacked' }, regionOptions: { header: { menu: 'gathered' } } }, null, 2)}\n`);
+    const r3 = build(WORK);
+    const seen3 = editorSees(WORK);
+    check(r3.header.shape === 'stacked' && same(r3.header.options, { menu: 'left' }) && same(seen3.headerOptions, { menu: 'left' })
+      && ro.regionPresetName('header', 'stacked', seen3.headerOptions) === 'logo-center',
+      '手写 stacked + menu=gathered ⟹ 构建产物和编辑器都读成 menu=left，生效的预设是 logo-center',
+      JSON.stringify({ shape: r3.header.shape, built: r3.header.options, editor: seen3.headerOptions }));
+  }
 
   // 反向：构建那一侧不读 regionOptions（被改过的 site-regions.js）⟹ 上面那一格红。
   editorSave(WORK, { headerOptions: { bg: '#0f172a', menu: 'below', logo: 'center' } });

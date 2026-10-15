@@ -242,7 +242,7 @@ console.log('\n── ⑦ 行业组表：不重不漏，位子数 == 池子大�
 
 // 📌 #1425（T3）—— 这里原来是 ⑧「透明浮层只给深底首屏；判据里那个遮罩浓度跟组件里的一致」：读 `public/base.css` 的
 //    `.header__scrim` 渐变跟 `region-layout.js` 的 `HEADER_SCRIM_MID_ALPHA` 比，再拿 `heroTitleSurvivesHeaderScrim` 逐套判浮层主题
-//    （含浅底表的反向对照）。新 header 的 7 个预设里没有透明浮层，遮罩、那两个常数和那个函数随旧 header 一起删了。
+//    （含浅底表的反向对照）。新 header 的预设（#1462 时 7 个，#1788 起 6 个）里没有透明浮层，遮罩、那两个常数和那个函数随旧 header 一起删了。
 
 // 📌 ⑨ 删了（#1341）—— 这里原来是「hero 的两条轴：池里存的是内容结构，画法只在表里」（#1065）。
 //
@@ -645,7 +645,7 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
 
 // ══ ⑪b #1462 —— header 的选择单写的是**预设名**，两套脚手架主题各戴一个不同的 ══════════════════
 //
-// #1462 把 header 的形态换成 7 个预设（旋钮组合起的名，`blocks/header/manifest.json` 的 `presets`）。
+// #1462 把 header 的形态换成 7 个预设（#1788 起 6 个，旋钮组合起的名，`blocks/header/manifest.json` 的 `presets`）。
 // 上面 ⑪ 只问「那个名字在 shapes.css 里有没有规则」—— 而预设文件夹的 shape.css 只有一条锚点规则，
 // 任何一个文件夹名都答「有」；这一格问的是更窄的那句：**名字 ∈ 预设表**，且 ember-12 / azure-29 两套
 // 戴的不是同一个（两套一样 ⟹ 换主题时顶栏不变，脚手架期「能测换主题」那个目的就落空了，#1317）。
@@ -656,7 +656,7 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
   const poolRaw = JSON.parse(fs.readFileSync(path.join(NEXT, 'scripts', 'theme-pool.json'), 'utf-8'));
   const presetNames = (JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'header', 'manifest.json'), 'utf-8')).presets || [])
     .map((p) => p.name);
-  if (presetNames.length !== 7) bad(`⑪b header 的 manifest 读到 ${presetNames.length} 个预设 —— 应当是 7 个（分母不对，下面那两句说明不了什么）`);
+  if (presetNames.length !== 6) bad(`⑪b header 的 manifest 读到 ${presetNames.length} 个预设 —— 应当是 6 个（分母不对，下面那两句说明不了什么）`);
   const themeOf = (id) => (Array.isArray(poolRaw) ? poolRaw.find((t) => t && t.id === id) : poolRaw[id]);
   const judge9 = (entries) => {
     const out = [];
