@@ -201,7 +201,10 @@ const BLOCK_SLOTS = {
   'footer': { contact: ['brand'], social: ['social'] },
 };
 
-/** #1506 —— 哪个块的哪份列表里**每一项**可以整项写成引用（路径用 `.` 分层）。展开成 `{icon, text, href?}`；值不存在的那一项去掉。 */
+/**
+ * #1506 —— 哪个块的哪份列表里**每一项**可以整项写成引用（路径用 `.` 分层）。展开成 `{icon, text, href?}`；值不存在的那一项去掉。
+ * #1780 —— 整项引用可以多带 `label`（非空就当显示的字）和 `at`（原样带过去），见 §resolveItemSlots。
+ */
 const ITEM_SLOTS = {
   'header': { 'topbar.contact': ['phone', 'email', 'address'] },
 };
@@ -329,7 +332,14 @@ function contactRefProblems(type, data) {
   for (const [dotted, allowed] of Object.entries(rows)) {
     const list = getPath(data, dotted);
     if (!Array.isArray(list)) continue;
-    list.forEach((it, i) => { if (isObj(it) && 'source' in it) out.push(...refProblemsAt(`${dotted}[${i}]`, allowed, it)); });
+    list.forEach((it, i) => {
+      if (!isObj(it) || !('source' in it)) return;
+      // #1780 —— 整项引用可以多带 `label`（显示的字，空 = 号码 / 邮箱本身）和 `at`（它在老板那份列表里的下标），都不算引用的参数。
+      const { label, at, ...ref } = it;
+      if (label !== undefined && typeof label !== 'string') out.push(`"${dotted}[${i}].label" 只能是字符串（显示的字）`);
+      if (at !== undefined && !(Number.isInteger(at) && at >= 0)) out.push(`"${dotted}[${i}].at" 只能是非负整数`);
+      out.push(...refProblemsAt(`${dotted}[${i}]`, allowed, ref));
+    });
   }
   return out;
 }
@@ -387,8 +397,13 @@ function resolveItemSlots(type, data, ctx) {
     for (const it of list) {
       if (!isSourceRef(it)) { next.push(it); continue; }
       const def = allowed.includes(it.source) ? SOURCES[it.source] : null;
-      const f = def && def.fact ? def.fact(it, ctx) : null;
-      if (f) next.push(f); else logMissing(ctx, type, `${dotted} 里的 ${JSON.stringify(it)}`);
+      // #1780 —— `label`（非空）换掉展开出来的字（顶栏上面那一行：「Call us」而不是号码本身）；链接、图标照旧。
+      //    `at`（老板列表里的下标，`topbar-links.js`）原样带过去：编辑器画布靠它把点到的那一项对回列表。
+      const { label, at, ...ref } = it;
+      const f = def && def.fact ? def.fact(ref, ctx) : null;
+      const text = typeof label === 'string' ? label.trim() : '';
+      if (f) next.push({ ...f, ...(text ? { text } : {}), ...(at !== undefined ? { at } : {}) });
+      else logMissing(ctx, type, `${dotted} 里的 ${JSON.stringify(it)}`);
     }
     out = setPath(out, dotted, next);
   }

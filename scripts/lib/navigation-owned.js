@@ -601,6 +601,8 @@ const NAV_SHAPE = {
       fields: {
         links: { kind: 'array', of: NAV_LINK },
         buttons: { kind: 'array', of: HEADER_BUTTON, max: MAX_HEADER_BUTTONS },
+        // #1780 —— 顶栏上面那一行：每项跟顶栏按钮同一个形状（href 是字符串或电话 / 邮箱引用）。
+        topbarLinks: { kind: 'array', optional: true, of: HEADER_BUTTON },
       },
     },
     footer: {

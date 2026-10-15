@@ -77,7 +77,8 @@ export type Menu = 'beside' | 'center' | 'left' | 'below';
 export interface NavItem { label: string; href: string; icon?: string; show?: Show }
 /** `at`（#1787）：它在老板那份 `header.buttons` 里的下标（0 = 主按钮）—— 编辑器画布上点它开那一颗的弹窗（`data-hdr-cta`）。 */
 export interface Cta { label: string; href: string; style?: CtaStyle; at?: number }
-export interface TopbarContact { icon?: string; text: string; href?: string }
+/** `at`（#1780）：它在老板那份 `topbarLinks` 列表里的下标 —— 编辑器画布上点它开那一项的链接弹窗（`data-editor-region-link`）。 */
+export interface TopbarContact { icon?: string; text: string; href?: string; at?: number }
 export interface TopbarLink { label: string; href: string; icon?: string }
 /** 一句话公告（#1528）。`href` 写了就是链接：带 `label` ⟹ 句子照常、后面跟一个写着 label 的链接（老公告条的画法）；
  *  不带 ⟹ 整句是链接。没写 `href` 就是纯文字。 */
@@ -218,6 +219,8 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const contact = (Array.isArray(topbar.contact) ? topbar.contact : [])
     .filter((c) => c && typeof c === 'object')
     .map((c) => (typeof c.href === 'string' ? c : { ...c, href: undefined }));
+  // #1780 —— 顶栏上面那一行的每一项：编辑器画布上点它 ⟹ 开那一项的链接弹窗（编辑器的 InlineEdit 认这个属性，拦掉导航）；真网站上照常拨号 / 发信。
+  const regionLink = (c: TopbarContact) => (Number.isInteger(c.at) && (c.at as number) >= 0 ? { 'data-editor-region-link': `topbar.${c.at}` } : {});
   const links = topbar.links || [];
   // #1528 —— 一句话公告：`text` 不是非空字符串就当没写（不画、也不留空壳）；`href` / `label` 同理，不是字符串就当没有。
   const rawMessage = topbar.message;
@@ -350,7 +353,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
       {contact.length ? (
         <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`} data-hdr-part="drawer-info">
           {contact.map((c, i) => (
-            <li key={i} className="d-flex align-items-center gap-2">
+            <li key={i} className="d-flex align-items-center gap-2" {...regionLink(c)}>
               {icon(c.icon)}
               {c.href ? <SiteLink href={c.href} className={`${subTone} text-decoration-none`}>{c.text}</SiteLink> : <span>{c.text}</span>}
             </li>
@@ -382,7 +385,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
             <div className={`d-flex align-items-center gap-5 ${mutedTone}`}>
               {messageLine('bar-message')}
               {contact.map((c, i) => (
-                <span key={i} className="d-inline-flex align-items-center gap-2 text-nowrap">
+                <span key={i} className="d-inline-flex align-items-center gap-2 text-nowrap" {...regionLink(c)}>
                   {icon(c.icon)}
                   {c.href ? <SiteLink href={c.href} className={subTone}>{c.text}</SiteLink> : c.text}
                 </span>

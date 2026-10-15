@@ -19,7 +19,9 @@
 //   `region-options.js`），整份换。空对象 = 删掉那个键（回到主题 / 预设的默认）。预设本身仍是 headerShape / footerShape 那两行。
 //   #1759 —— 顶栏 Content 页：logoUrl（`brand.json`，整站一份，空串 = 删掉，顶栏画名字）· headerButtons（#1787：这种语言的
 //   `navigation.json` 的 `header.buttons`，值是 `[{label, href}]`，0–3 颗，规则在 `header-buttons.js`）。
-//   🔴 navigation.json 只许钉这一个键：`navigation-owned.js` 那道门守的是 AI 聊天那条路，编辑器这条路不经过它 ——
+//   #1780 —— headerTopbar（这种语言的 `navigation.json` 的 `header.topbarLinks`）：顶栏上面那一行的链接列表 `[{label, href}]`，
+//   `href` 是字符串或电话 / 邮箱引用；规则（默认值、能不能存、怎么画）全在 `topbar-links.js`。
+//   🔴 navigation.json 只许钉这两个键：`navigation-owned.js` 那道门守的是 AI 聊天那条路，编辑器这条路不经过它 ——
 //      别的键（菜单、页脚）在这张表里一行都不许有（菜单是从页面推出来的，`lib/editor-nav.js`）。
 
 const ROOT_FIELDS = [
@@ -34,6 +36,7 @@ const ROOT_FIELDS = [
   { field: 'address', scope: 'site', file: 'brand.json', key: ['locations', 0, 'address'] },
   { field: 'logoUrl', scope: 'site', file: 'brand.json', key: ['logoUrl'] },
   { field: 'headerButtons', scope: 'locale', file: 'navigation.json', key: ['header', 'buttons'] },
+  { field: 'headerTopbar', scope: 'locale', file: 'navigation.json', key: ['header', 'topbarLinks'] },
 ];
 
 module.exports = { ROOT_FIELDS };

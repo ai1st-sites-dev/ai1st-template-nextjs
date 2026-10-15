@@ -24,6 +24,8 @@
 //   logoUrl                    → site/brand.json 的 logoUrl（#1759；空串 = 删掉，顶栏画名字）
 //   headerButtons              → <语言>/navigation.json 的 header.buttons（#1787，`[{label, href}]`，0–3 颗；
 //                                每颗名字和链接都不许空，判据在 `header-buttons.js` §headerButtonsProblem）
+//   headerTopbar               → <语言>/navigation.json 的 header.topbarLinks（#1780，`[{label, href}]`；没写过读成电话 + 邮箱两项，
+//                                能不能存由 `topbar-links.js` §topbarLinksProblem 说）
 // 🔴 那张表是唯一的一份：读、写、往返守卫都照它走。少一行 ⟹ 那个字段改了不落盘，守卫点名它
 //    （`scripts/editor-root.test.js` ①）。
 //
@@ -38,9 +40,10 @@ const path = require('path');
 const pageLayoutLib = require('./page-layout');
 const siteRegions = require('./site-regions');
 const { pickableShapesOf } = require('../region-layout');
-const { regionOptionsProblems, cleanRegionOptions } = require('./region-options');
+const { regionOptionsProblems, cleanRegionOptions, effectiveRegionKnobs } = require('./region-options');
 
 const { ROOT_FIELDS } = require('./editor-root-fields');
+const { topbarLinksOf, topbarLinksProblem } = require('./topbar-links');
 const { isButtonRef } = require('./item-sources');
 const { headerButtonsProblem } = require('./header-buttons');
 
@@ -135,7 +138,8 @@ function readHeaderButtons(localeDir) {
     return {};
   }
   const h = isObj(nav) && isObj(nav.header) ? nav.header : {};
-  return { headerButtons: (Array.isArray(h.buttons) ? h.buttons : []).map(buttonOf) };
+  // #1780 —— 顶栏上面那一行：没写过 ⟹ 今天的样子（电话 + 邮箱），编辑器那头显示的就是页面上画的那两项。
+  return { headerButtons: (Array.isArray(h.buttons) ? h.buttons : []).map(buttonOf), headerTopbar: topbarLinksOf(h.topbarLinks) };
 }
 
 /**
@@ -204,6 +208,29 @@ function checkShape(root, layouts) {
     const problem = headerButtonsProblem(list);
     if (problem) refuse(`${problem} Nothing was changed.`);
   }
+  // #1780 —— 顶栏上面那一行：`[{label, href}]`，`href` 是字符串或电话 / 邮箱引用；能不能存跟编辑器 Done 同一句（`topbar-links.js`）。
+  if ('headerTopbar' in root) {
+    const v = root.headerTopbar;
+    const okItem = (it) => isObj(it) && Object.keys(it).every((k) => k === 'label' || k === 'href') && typeof it.label === 'string'
+      && (typeof it.href === 'string' || isButtonRef(it.href));
+    if (!Array.isArray(v) || !v.every(okItem)) {
+      bad(`headerTopbar 必须是 [{label: string, href: string | {source: "phone" | "email", location?}}]：${JSON.stringify(v)}`);
+    }
+    // 能不能存（至少一项 · 最多三项 …）要看存完以后的版式带不带这一行 ⟹ 在 §planRootWrite 里判（§topbarRefusal）。
+  }
+}
+
+/**
+ * #1780 —— 顶栏上面那一行能不能存：跟编辑器 Done（EditorApp §headerContentProblem）同一个判据、同一句话。
+ * 「带不带这一行」按**存完以后**的顶栏算：这一笔改了形态 / 旋钮就用这一笔的，没改就用盘上的现值（§readRootValues 同一个来源）。
+ */
+function topbarRefusal(root, siteDir) {
+  if (!('headerTopbar' in root)) return;
+  const saved = siteRegions.resolveSiteRegionLayout(siteDir).regions.header;
+  const shape = 'headerShape' in root ? root.headerShape : saved.shape;
+  const opts = 'headerOptions' in root ? root.headerOptions : saved.options || {};
+  const why = topbarLinksProblem(root.headerTopbar, effectiveRegionKnobs('header', shape, opts).topbar === true);
+  if (why) refuse(/Nothing was changed\.$/.test(why) ? why : `${why} Nothing was changed.`);
 }
 
 /**
@@ -244,6 +271,7 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
   const layouts = pageLayoutLib.loadLayouts(layoutsDir);
   checkShape(root, layouts);
   if (Object.keys(root).length === 0) return [];
+  topbarRefusal(root, siteDir);
 
   // ── 写完以后是什么样 ─────────────────────────────────────────────────────────────────────────
   const current = pageLayoutLib.resolveSiteLayout(siteDir, layoutsDir);
@@ -295,6 +323,11 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
     if (f.field === 'headerButtons') {
       // #1787 —— 整份列表换（顺序就是老板排的顺序）；空列表照写（= 不要按钮）。两头空白去掉。
       setAt(entry.doc, key, v.map((b) => ({ label: b.label.trim(), href: typeof b.href === 'string' ? b.href.trim() : { ...b.href } })));
+      continue;
+    }
+    if (f.field === 'headerTopbar') {
+      // #1780 —— 两头空白去掉；引用原样（形状已在 §checkShape 判过）。
+      setAt(entry.doc, key, v.map((it) => ({ label: it.label.trim(), href: typeof it.href === 'string' ? it.href.trim() : { ...it.href } })));
       continue;
     }
     if (f.field === 'logoUrl') { setAt(entry.doc, key, v.trim() ? v.trim() : null); continue; }

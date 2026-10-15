@@ -41,6 +41,7 @@ import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.j
 import { editorPages } from '../../../../scripts/lib/editor-pages.js';
 import { navMenuOf } from '../../../../scripts/lib/editor-nav.js';
 import { navMenuToPanel } from '../../../../scripts/lib/nav-editor.js';
+import { topbarLinksOf } from '../../../../scripts/lib/topbar-links.js';
 import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
 import { seedProps } from '../../../../scripts/lib/block-placeholders.js';
 import { isButtonRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
@@ -74,9 +75,9 @@ function trustedOrigin(leadApi: string): string {
   }
 }
 
-/** #1759 —— 构建这一份里的顶栏按钮（#1787：`header.buttons`，0–3 颗）+ 菜单（面板那一份的形状，`nav-editor.js` §navMenuToPanel）。 */
+/** #1759 —— 构建这一份里的顶栏按钮（#1787：`header.buttons`，0–3 颗）+ 菜单（面板那一份的形状，`nav-editor.js` §navMenuToPanel）；#1780 加顶栏上面那一行的链接列表。 */
 // #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`）：原样带进编辑器（按钮弹窗认它），别的形状当空。
-function headerContent(nav: { header?: { buttons?: unknown } }, pages: unknown[], locale: string) {
+function headerContent(nav: { header?: { buttons?: unknown; topbarLinks?: unknown } }, pages: unknown[], locale: string) {
   const btn = (b?: { label?: string; href?: unknown }) => ({
     label: typeof b?.label === 'string' ? b.label : '',
     href: typeof b?.href === 'string' ? b.href : isButtonRef(b?.href) ? { ...b.href } : '',
@@ -84,7 +85,7 @@ function headerContent(nav: { header?: { buttons?: unknown } }, pages: unknown[]
   const list = Array.isArray(nav.header?.buttons) ? (nav.header.buttons as unknown[]) : [];
   const headerButtons = list.filter((b): b is { label?: string; href?: unknown } => !!b && typeof b === 'object' && !Array.isArray(b)).map(btn);
   const navMenu = navMenuToPanel(navMenuOf(pages), locale);
-  return { headerButtons, ...(navMenu ? { navMenu } : {}) };
+  return { headerButtons, headerTopbar: topbarLinksOf(nav.header?.topbarLinks), ...(navMenu ? { navMenu } : {}) };
 }
 
 export default async function EditorPage({ params }: { params: Promise<{ target: string[] }> }) {

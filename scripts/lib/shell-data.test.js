@@ -54,7 +54,9 @@ check(JSON.stringify(d.footer.columns.services) === JSON.stringify([{ label: 'Br
   `服务栏：有详情页去详情页、没有就落到服务页那一节、没 id 的不要（读到 ${JSON.stringify(d.footer.columns.services)}）`);
 
 console.log('── ② 联系方式 / 社交是引用，不是抄进来的值（Chris 2026-09-30 #1506）');
-check(JSON.stringify(d.header.topbar.contact) === JSON.stringify([{ source: 'phone' }, { source: 'email' }]), 'header.topbar.contact 是 phone / email 两个引用');
+// #1780 —— 没写 `header.topbarLinks` ⟹ 默认那两项；每项带 `at`（在老板列表里的下标，编辑器画布靠它对回那一项）。
+const DEFAULT_CONTACT = [{ source: 'phone', at: 0 }, { source: 'email', at: 1 }];
+check(JSON.stringify(d.header.topbar.contact) === JSON.stringify(DEFAULT_CONTACT), 'header.topbar.contact 是 phone / email 两个引用');
 check(JSON.stringify(d.footer.contact) === JSON.stringify({ source: 'brand' }) && JSON.stringify(d.footer.social) === JSON.stringify({ source: 'social' }), 'footer.contact / social 是整槽引用');
 const flat = JSON.stringify(d);
 check(!flat.includes('416-555-0000') && !flat.includes('hi@example.com') && !flat.includes('facebook.com'),
@@ -92,7 +94,7 @@ console.log('── ③b 老公告条那句话接回 header.topbar.message（#15
   check(zh && zh.href === '/zh/hours', `副语言那一份链接加 /zh 前缀（读到 ${zh && zh.href}）`);
   for (const [name, tb] of [['没有 topbar', undefined], ['topbar 是字符串', 'hello'], ['message / link 都空', { message: '  ', link: { label: '', href: '' } }], ['只有 label 没有地址', { message: '', link: { label: 'x', href: '' } }]]) {
     const t = msgOf(tb);
-    check(!('message' in t) && JSON.stringify(t) === JSON.stringify({ contact: [{ source: 'phone' }, { source: 'email' }] }),
+    check(!('message' in t) && JSON.stringify(t) === JSON.stringify({ contact: DEFAULT_CONTACT }),
       `${name} ⟹ 不写这一格，topbar 跟改前逐字相同（读到 ${JSON.stringify(t)}）`);
   }
 }

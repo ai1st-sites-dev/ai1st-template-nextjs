@@ -108,6 +108,7 @@ import {
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import { customizeKnobNames, effectiveRegionKnobs, regionKnobChange, regionPresetName, regionPresetPick } from '../../../scripts/lib/region-options.js';
+import { MAX_TOPBAR_LINKS, isContactRef, linkKindOf, topbarLinksProblem } from '../../../scripts/lib/topbar-links.js';
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type BusinessContact, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { placeholdersFor } from '@/components/BlockLeadForm';
@@ -123,7 +124,7 @@ import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, itemListAt, itemImageOf, runItemImage, useItemImageState, clearItemImageNote, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField, ImageUrlControl } from './ImageField';
-import { ButtonEditor, ButtonLinkEnvContext, REGION_LINK_TYPES, buttonHrefField } from './ButtonLink';
+import { ButtonEditor, ButtonLinkEnvContext, REGION_LINK_TYPES, buttonHrefField, contactText } from './ButtonLink';
 import {
   navMenuToPanel, panelRows, buttonPage, moveShown, setShown, setLabel, navMenuProblem, navMenuChanges, applyPageNav, liveShellData,
   type NavPanel, type NavChange,
@@ -893,8 +894,13 @@ type RootProps = {
    *  （`{source: "phone"}`，按钮弹窗选 Phone / Email 时存的那种）。 */
   headerButtons?: HeaderButtonValue[];
   navMenu?: NavPanel;
+  /** #1780 —— 顶栏上面那一行的链接列表（这种语言的 `navigation.json` 的 `header.topbarLinks`，规则在 `topbar-links.js`）。
+   *  只在顶栏 Content 页的 Top bar 段和画布上点那一项开的链接弹窗里改。 */
+  headerTopbar?: TopbarItem[];
   children?: ReactNode;
 };
+/** #1780 —— 顶栏上面那一行的一项：`href` 是字符串或电话 / 邮箱引用（同按钮）。 */
+type TopbarItem = { label: string; href: unknown };
 
 /** #1681 —— Page 面板「Business info」四样（`site/brand.json`）的字段名。存盘记录写成 `Website settings · Phone`（#1776 起组名叫 Name & contact）。 */
 const BUSINESS_INFO_LABELS: Record<string, string> = {
@@ -951,8 +957,8 @@ function withBusinessInfo(site: SiteData, locale: string, p: RootProps): SiteDat
  * #1759 —— 顶栏 Content 页的现值画到画布上：顶栏 / 页脚是构建时烤进 `regions.*.dataByLocale` 的（`lib/shell-data.js`），
  * 这里照 `nav-editor.js` §liveShellData 换上菜单（跟构建同一条规则，`lib/nav-menu.js`）、按钮和 logo。没带的那一样原样。
  */
-function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'logoUrl' | 'headerButtons' | 'navMenu'>): SiteData {
-  if (p.logoUrl === undefined && !p.headerButtons && !p.navMenu) return site;
+function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'logoUrl' | 'headerButtons' | 'navMenu' | 'headerTopbar'>): SiteData {
+  if (p.logoUrl === undefined && !p.headerButtons && !p.navMenu && !p.headerTopbar) return site;
   const key = locale || site.defaultLocale;
   const hb = site.regions.header.dataByLocale || {};
   const fb = site.regions.footer.dataByLocale || {};
@@ -992,11 +998,11 @@ function withForms(site: SiteData, locale: string, forms: EditorFormChoice[]): S
 
 /** root 的画法：外壳 + 把面板里的 Business info 交给画布上的块（§LiveSiteContext）。 */
 function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: ShellOverride; children?: ReactNode }) {
-  const { brandName, phone, email, address, logoUrl, headerButtons, navMenu } = props;
+  const { brandName, phone, email, address, logoUrl, headerButtons, navMenu, headerTopbar } = props;
   const { canvasForms } = useContext(FormsContext);
   const live = useMemo(
-    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address }), locale, { logoUrl, headerButtons, navMenu }), locale, canvasForms),
-    [site, locale, brandName, phone, email, address, logoUrl, headerButtons, navMenu, canvasForms],
+    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address }), locale, { logoUrl, headerButtons, navMenu, headerTopbar }), locale, canvasForms),
+    [site, locale, brandName, phone, email, address, logoUrl, headerButtons, navMenu, headerTopbar, canvasForms],
   );
   return (
     <LiveSiteContext.Provider value={live}>
@@ -1030,6 +1036,7 @@ const ROOT_SAVE_LABELS: Record<string, string> = {
   // #1759 —— 顶栏 Content 页（票正文做什么 5：跟页面块存盘记录同一种写法）。菜单那一句不在这里（它不是 root 字段，§saveFields 补）。
   logoUrl: 'Header · Logo',
   headerButtons: 'Header · Buttons',
+  headerTopbar: 'Header · Top bar',
 };
 /** #1759 —— 菜单改了（别的页的 navLabel / navOrder，或这一页的那两格）时记录里那一句。 */
 const NAV_SAVE_LABEL = 'Header · Navigation links';
@@ -1090,7 +1097,7 @@ function openRoot(built: PuckLikeData['root'], sent: unknown, locale: string, na
   const arr = (k: string) => (Array.isArray(v[k]) ? { [k]: v[k] as unknown[] } : {});
   const got = {
     ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...obj('headerOptions'), ...obj('footerOptions'), ...str('brandName'), ...str('phone'), ...str('email'), ...str('address'),
-    ...str('logoUrl'), ...arr('headerButtons'), ...(navMenu ? { navMenu } : {}),
+    ...str('logoUrl'), ...arr('headerButtons'), ...arr('headerTopbar'), ...(navMenu ? { navMenu } : {}),
   };
   if (!Object.keys(got).length) return built;
   return { ...built, props: rootToPuck({ ...built.props, ...got } as never) };
@@ -2349,15 +2356,59 @@ function headerContentProblem(p: Record<string, unknown>): string {
   const menu = navMenuProblem(p.navMenu as NavPanel | undefined);
   if (menu) return menu;
   // #1787 —— 按钮：同写盘那一侧一个函数（`header-buttons.js` §headerButtonsProblem）。
-  if (Array.isArray(p.headerButtons)) return headerButtonsProblem(p.headerButtons);
+  if (Array.isArray(p.headerButtons)) {
+    const why = headerButtonsProblem(p.headerButtons);
+    if (why) return why;
+  }
+  // #1780 —— 顶栏上面那一行：只在当前版式带 top bar 时判（不带时那一段不出、那一行不画）。写盘那一侧用同一个开关再判一次（`editor-root.js` §topbarRefusal）。
+  if (Array.isArray(p.headerTopbar)) {
+    const why = topbarLinksProblem(p.headerTopbar, headerHasTopbar(p));
+    if (why) return why;
+  }
   return '';
 }
 
+/** #1780 —— 顶栏现在这一版（形态 + 存下的旋钮，面板里的现值）带不带上面那一行。 */
+function headerHasTopbar(p: Record<string, unknown>): boolean {
+  return effectiveRegionKnobs('header', String(p.headerShape || ''), asOptions(p.headerOptions)).topbar === true;
+}
+
 const HEADER_SUB: CSSProperties = { margin: '4px 0 8px', fontSize: 12, lineHeight: 1.4, color: '#667085' };
+
+/**
+ * #1780 —— 顶栏上面那一行的一项在面板 / 弹窗里显示成什么：label；空的电话 / 邮箱显示号码 / 邮箱本身（`live` = Business info 换成面板现值的站点数据，
+ * 画布按它画）。本店那个还没填 ⟹ 说清楚是空的（这一项在页面上不画）。
+ */
+function topbarItemText(it: TopbarItem, live: SiteData): string {
+  const label = typeof it.label === 'string' ? it.label.trim() : '';
+  if (label) return label;
+  const h = it.href;
+  if (h && typeof h === 'object' && !Array.isArray(h)) {
+    const src = (h as { source?: unknown }).source;
+    if (src === 'phone' || src === 'email') {
+      return contactText(src, h, live) || `${LINK_SOURCE_LABELS[src]} · not set yet`;
+    }
+  }
+  const sh = typeof h === 'string' ? h.trim() : '';
+  if (/^tel:/i.test(sh)) return sh.slice(4) || 'Phone';
+  if (/^mailto:/i.test(sh)) return sh.slice(7) || 'Email';
+  return sh && sh !== 'https://' ? sh : 'New link';
+}
+/**
+ * #1780 —— 链接弹窗里 Link label 空着时显示的那一个（只有电话 / 邮箱那两类有；其余类型要有字）。'' = 没有。
+ *   引用的本店电话 / 邮箱还没填 ⟹ 也是 ''：那一项在页面上不画（§topbarContact），没有「空着显示什么」可说（r4 PM）。
+ */
+function topbarLabelFallback(it: TopbarItem, live: SiteData): string {
+  const kind = linkKindOf(it.href);
+  if (kind === 'other') return '';
+  if (isContactRef(it.href)) return contactText(kind as 'phone' | 'email', it.href, live);
+  return topbarItemText({ ...it, label: '' }, live);
+}
 const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap', fontFamily: 'inherit' };
 
 /**
- * #1759 —— 顶栏 Design 面板的 Content 页（票正文做什么 3）：Logo · Website name · Navigation links · Buttons。
+ * #1759 —— 顶栏 Design 面板的 Content 页（票正文做什么 3）：Logo · Website name · Navigation links · Buttons；#1780 起最上面多一段 Top bar
+ *   （只在当前版式带上面那一行时出，见下面 `topbar` 那几行）。
  *   改的全是 root 上的值（`changeHeader`），跟 Layout / Customize 两页同一个事务：画布当场跟着变（§withHeaderContent），Done 存一笔、Cancel 全退回。
  *   · Logo —— 同右栏图片格的 Change（`ImageUrlControl`，选图弹窗同一个 `pickImage`）；写 `brand.json` 的 `logoUrl`。
  *   · Website name —— Website settings 面板里那一格的同一个值（`brandName`）。
@@ -2371,6 +2422,7 @@ const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #
  */
 function HeaderContent({ props, ui, site, locale }: { props: Record<string, unknown>; ui: EditorUi; site: SiteData; locale: string }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [topDrag, setTopDrag] = useState<number | null>(null);
   const menu = props.navMenu as NavPanel | undefined;
   const buttons = Array.isArray(props.headerButtons) ? (props.headerButtons as unknown[]).map(asButtonValue) : null;
   const [btnDrag, setBtnDrag] = useState<number | null>(null);
@@ -2392,8 +2444,48 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
     setButtons(next);
   };
   const full = !!buttons && buttons.length >= MAX_HEADER_BUTTONS;
+  // #1780 —— Top bar：只在当前版式带上面那一行时出（§headerHasTopbar）。改的是 root 的 `headerTopbar`（同一个事务）；
+  //   ✎ Edit / + Add link 开的是画布上点那一项开的同一个链接弹窗（§DesignPopover 的 `topbar.<下标>` 那一支）。
+  const topbar = Array.isArray(props.headerTopbar) ? (props.headerTopbar as TopbarItem[]) : null;
+  const live = withBusinessInfo(site, locale, props as RootProps);
+  const setTopbar = (next: TopbarItem[]) => set({ headerTopbar: next });
+  const editTopbar = (i: number) => ui.openDesign(REGION_DESIGN_ID.header, 'button', `topbar.${i}`);
+  const moveTopbar = (from: number, to: number) => {
+    if (!topbar || from === to) return;
+    const next = topbar.slice();
+    const [x] = next.splice(from, 1);
+    next.splice(to, 0, x);
+    setTopbar(next);
+  };
   return (
     <>
+      {topbar && headerHasTopbar(props) && (
+        <div data-editor-content-field="headerTopbar" data-editor-header-topbar="" style={{ marginBottom: 16 }}>
+          <FieldLabel label="Top bar" el="div" />
+          <p style={HEADER_SUB}>The line above the header. You can also click a link in it on the page.</p>
+          {topbar.map((it, i) => (
+            <div key={i} data-editor-header-topbar-row={i}
+              onDragOver={(e) => { if (topDrag !== null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+              onDrop={(e) => { e.preventDefault(); if (topDrag !== null) moveTopbar(topDrag, i); setTopDrag(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, opacity: topDrag === i ? 0.5 : 1 }}>
+              <span data-editor-header-topbar-handle="" draggable={topbar.length > 1} aria-hidden="true" title={topbar.length > 1 ? 'Drag to reorder' : undefined}
+                onDragStart={(e) => { setTopDrag(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }}
+                onDragEnd={() => setTopDrag(null)}
+                style={{ width: 18, cursor: topbar.length > 1 ? 'grab' : 'default', color: topbar.length > 1 ? '#98a2b3' : 'transparent', userSelect: 'none' }}>⋮⋮</span>
+              <span data-editor-header-topbar-text={i} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, color: '#101828' }}>
+                {topbarItemText(it, live)}
+              </span>
+              <button type="button" data-editor-header-topbar-edit={i} onClick={() => editTopbar(i)} style={HEADER_ROW_BTN}>✎ Edit</button>
+              <button type="button" data-editor-header-topbar-remove={i} aria-label={`Remove link ${i + 1}`} title="Remove"
+                onClick={() => setTopbar(topbar.filter((_, j) => j !== i))} style={HEADER_ROW_BTN}>🗑</button>
+            </div>
+          ))}
+          <button type="button" data-editor-header-topbar-add="" disabled={topbar.length >= MAX_TOPBAR_LINKS}
+            title={topbar.length >= MAX_TOPBAR_LINKS ? `The top bar can have at most ${MAX_TOPBAR_LINKS} links.` : undefined}
+            onClick={() => { const next = [...topbar, { label: '', href: 'https://' }]; setTopbar(next); editTopbar(next.length - 1); }}
+            style={{ ...HEADER_ROW_BTN, ...(topbar.length >= MAX_TOPBAR_LINKS ? { opacity: 0.4, cursor: 'default' } : {}) }}>+ Add link</button>
+        </div>
+      )}
       {typeof props.logoUrl === 'string' && (
         <div data-editor-content-field="logoUrl" style={{ marginBottom: 16 }}>
           <ImageUrlControl label="Logo" optional value={props.logoUrl} onChange={(v) => set({ logoUrl: typeof v === 'string' ? v : '' })} />
@@ -2797,7 +2889,9 @@ function DesignPopover({ doc }: { doc: Document }) {
   //    `headerButtons` 里的那一颗（`start.focus` = 它的下标），每一下经 §changeHeader 整列换掉，Link Type 只给四类（§REGION_LINK_TYPES）。
   //    Done 走顶栏面板那条（§doneDesign：§headerContentProblem 不过 ⟹ 弹窗留着，下面那一行说为什么）。
   let buttonBody: ReactNode = null;
-  if (start && start.tab === 'button' && region === 'header' && rootProps) {
+  // #1780 —— `topbar.<下标>` 是顶栏上面那一行的一项，归下面它自己那一支（标题 / 那一行的字不同），不落进按钮这一支。
+  const topbarAt = start && start.tab === 'button' && region === 'header' && rootProps ? /^topbar\.(\d+)$/.exec(start.focus || '') : null;
+  if (start && start.tab === 'button' && region === 'header' && rootProps && !topbarAt) {
     const list = Array.isArray(rootProps.headerButtons) ? (rootProps.headerButtons as unknown[]).map(asButtonValue) : [];
     const index = /^\d+$/.test(start.focus || '') ? Number(start.focus) : -1;
     if (!list[index]) return null;
@@ -2828,6 +2922,39 @@ function DesignPopover({ doc }: { doc: Document }) {
         <div data-editor-button-title="" style={{ padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>Button</div>
         <div data-editor-button-body="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
           {buttonBody}
+        </div>
+        {ui.designError ? (
+          <p data-editor-design-error="" role="alert" style={{ margin: 0, padding: '8px 12px 0', fontSize: 13, color: '#b42318' }}>{ui.designError}</p>
+        ) : null}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
+          <button type="button" data-editor-design-cancel="" onClick={() => ui.cancelDesign()}
+            style={{ ...POPOVER_BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
+          <button type="button" data-editor-design-done="" onClick={() => ui.doneDesign()}
+            style={{ ...POPOVER_BTN, border: 0, background: '#1d4ed8', color: '#fff' }}>Done</button>
+        </div>
+      </div>,
+      doc.body,
+    );
+  }
+  // #1780 —— 顶栏上面那一行的一项（画布上点它 / Content 页 Top bar 段的 ✎ Edit · + Add link）：同一个按钮控件（Link Type 四选一 + Link label；
+  //    没有 Page section，同顶栏两颗按钮 §REGION_LINK_TYPES —— 顶栏画在每一页上，「这一页的某一块」到别的页就指空，写盘也拒，r4 PM），
+  //    改的是 root 的 `headerTopbar[下标]`（§changeHeader，不记历史）。跟顶栏面板同一个事务：Done 一笔（§doneDesign 照 §headerContentProblem 判，
+  //    被拒就留着、下面那行说为什么）、Cancel 全退 —— 从 Content 页进来时那几页改过的也一起。
+  if (topbarAt && rootProps) {
+    const index = Number(topbarAt[1]);
+    const list = Array.isArray(rootProps.headerTopbar) ? (rootProps.headerTopbar as TopbarItem[]) : [];
+    const cur = list[index];
+    if (!cur || typeof cur !== 'object') return null;
+    const live = withBusinessInfo(api.site, api.locale, rootProps as RootProps);
+    const fallback = topbarLabelFallback(cur, live);
+    return createPortal(
+      <div ref={boxRef} data-editor-popover="" data-editor-button-dialog="" data-editor-topbar-dialog="" data-editor-popover-for={id} data-editor-button-for={start!.focus} role="dialog" aria-label="Link"
+        onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
+        {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
+        <div data-editor-button-title="" style={{ padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>{`Top bar · Link ${index + 1}`}</div>
+        <div data-editor-button-body="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
+          <ButtonEditor item={cur as unknown as Record<string, unknown>} types={REGION_LINK_TYPES} site={api.site} locale={api.locale} labelText="Link label" labelHint={fallback || undefined}
+            onChange={(next) => { const nl = list.slice(); nl[index] = { label: typeof next.label === 'string' ? next.label : '', href: next.href }; ui.changeHeader({ headerTopbar: nl }); }} />
         </div>
         {ui.designError ? (
           <p data-editor-design-error="" role="alert" style={{ margin: 0, padding: '8px 12px 0', fontSize: 13, color: '#b42318' }}>{ui.designError}</p>
@@ -4219,7 +4346,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const noteItem: InlineApi['noteItem'] = (n) => { aiNotesRef.current = recordItemNote(aiNotesRef.current, n); };
   // #1755 —— 画布上点了一颗按钮：开按钮弹窗（§DesignPopover 的 `button` 那一支）。
   const openButton: InlineApi['openButton'] = (id, slot, index) => openDesign(id, 'button', `${slot}.${index}`);
-  // #1779 —— 画布上点了顶栏的按钮：开按钮弹窗，事务是顶栏 Design 面板那一个（§DesignPopover 区那一支的 `button`；Done 照样过 §headerContentProblem）。
+  // #1779 —— 画布上点了顶栏里能改的一样东西：开按钮弹窗，事务是顶栏 Design 面板那一个（§DesignPopover 区那一支的 `button`；Done 照样过 §headerContentProblem）。
+  //    `field` 是顶栏按钮在 root `headerButtons` 里的下标（#1787，`"0"` = 主按钮），或 #1780 顶栏上面那一行的一项 `topbar.<下标>`。
   const openRegionButton: InlineApi['openRegionButton'] = (region, field) => openDesign(REGION_DESIGN_ID[region], 'button', field);
   const inlineApi: InlineApi = { locked, regenerating, dialogOpen: ui.dialogOpen, locale, page, site, components: componentsByType, setFreeze, rewrite, noteAi, noteItem, pickImage, regenerateImage, saveNow, openButton, openRegionButton };
 

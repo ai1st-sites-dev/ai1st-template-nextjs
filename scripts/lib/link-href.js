@@ -63,6 +63,8 @@ const NAV_LINKS = [
   { key: ['topbar', 'link'], block: 'header', slot: 'topbar', field: 'message', where: 'the announcement at the top of the header' },
   { key: ['header', 'buttons'], list: true, block: 'header', slot: 'buttons', where: 'the header buttons' },  // 派生成 header 的 buttons（shell-data.js）
   { key: ['footer', 'legal'], list: true, block: 'footer', slot: 'legal', where: 'the footer legal links' },
+  // #1780 —— 顶栏上面那一行（派生成 header 的 `topbar.contact`，`topbar-links.js`）。引用写法的那几项 `href` 不是字符串，不归这里判。
+  { key: ['header', 'topbarLinks'], list: true, block: 'header', slot: 'topbar', where: 'the top bar' },
 ];
 
 let nameCache = null;

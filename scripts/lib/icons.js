@@ -68,7 +68,8 @@ function iconNamesIn(value, out = new Set()) {
  * 且 `icons.test.js` 会逐个核「组件里写的字面名都在这张表里」。
  */
 const BLOCK_ICONS = {
-  'header': ['list', 'x-lg', 'telephone', 'link-45deg'],
+  // #1780 —— 顶栏上面那一行的三类图标都常备（电话 / 信封 / 链接）：老板在编辑器里新加一项，画布不用等重建就画得出图标。
+  'header': ['list', 'x-lg', 'telephone', 'envelope', 'link-45deg'],
   'footer': ['telephone', 'geo-alt', 'clock', 'envelope', 'link-45deg'],
   // #1475 —— 按钮的箭头（`arrow: true`）。项目的图标来自数据（`items[].icon`），由 §iconNamesIn 收，不写在这里。
   //    #1527 —— 条目小清单（`items[].bullets`）每行的勾号，同 pricing。

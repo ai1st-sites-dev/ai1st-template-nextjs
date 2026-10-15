@@ -96,8 +96,9 @@ export type InlineApi = {
   openButton: (id: string, slot: string, index: number) => void;
   /**
    * #1779 —— 画布上点了外壳区（顶栏 / 页脚，不是 Puck 的块）里的一样东西：开按钮弹窗，改的是 root 上的 `field`。
-   * 今天只有顶栏的按钮（#1787：`field` 是它在 root `headerButtons` 里的下标，`"0"` = 主按钮）；#1780 顶上那一行的链接复用这一条
-   * （PM 2026-10-14：钩子只挂一套）。
+   * 顶栏的按钮（#1787：`field` 是它在 root `headerButtons` 里的下标，`"0"` = 主按钮）；#1780 顶栏上面那一行的一项是 `topbar.<下标>`
+   * （改 root 的 `headerTopbar` 那一项）。钩子只挂这一套（PM 2026-10-14）：元素上的 `data-editor-region-button` 就是这个 `field`，
+   * 由 §scan 按 §regionFieldOf 写上。
    */
   openRegionButton: (region: 'header' | 'footer', field: string) => void;
 };
@@ -160,6 +161,17 @@ function hintFor(why: string, sourcedRef: unknown, isImage = false): string {
 
 /** #1713 —— 画布上这个 `data-slot` 是不是一张图（inline 清单里 `image: true` 那一条；去掉序号再比）。 */
 /** #1755 —— `el` 是不是按钮列表里的一颗（`data-item="ctas.1"`，那一列在 schema 里标了 `button: true`）。登记那两遍用同一个判据。 */
+/**
+ * #1779 / #1780 —— 顶栏里一样能改的东西在 root 上对应哪一格（§InlineApi.openRegionButton 的 `field`；'' = 不认）。
+ * 按钮按 `data-hdr-cta`（#1787：它在 `headerButtons` 里的下标，按数据认、不按位置）；上面那一行的一项按 `data-editor-region-link`（`topbar.<下标>`）。
+ */
+function regionFieldOf(el: Element): string {
+  const cta = el.getAttribute('data-hdr-cta') || '';
+  if (/^\d+$/.test(cta)) return cta;
+  const link = el.getAttribute('data-editor-region-link') || '';
+  return /^topbar\.\d+$/.test(link) ? link : '';
+}
+
 function buttonItem(el: Element | null, component: EditorComponent | undefined): boolean {
   const m = el ? /^(.*)\.\d+$/.exec(el.getAttribute('data-item') || '') : null;
   return !!m && !!component && component.fields.some((f) => f.button && f.slot === m[1]);
@@ -384,10 +396,11 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       //    它在 `headerButtons` 里的下标），这里整颗登记成收得到鼠标（同块的按钮：悬停只有外面一圈虚线、点哪儿都开按钮弹窗，§onClick）。
       //    `data-editor-region-button` 的值就是那个下标；拖动换了顺序时 React 可能原样复用元素 ⟹ 每遍都对一次。
       //    Design 面板缩略图里画的那几份不算（同 EditorApp §regionEl）。
-      for (const el of Array.from(doc.querySelectorAll('[data-block="header"] [data-hdr-cta]')) as HTMLElement[]) {
+      //    #1780 —— 顶栏上面那一行的每一项（`data-editor-region-link="topbar.<下标>"`）同一条路登记。
+      for (const el of Array.from(doc.querySelectorAll('[data-block="header"] [data-hdr-cta], [data-block="header"] [data-editor-region-link]')) as HTMLElement[]) {
         if (el.closest('[data-editor-popover]')) continue;
-        const field = el.getAttribute('data-hdr-cta') || '';
-        if (!/^\d+$/.test(field)) continue;
+        const field = regionFieldOf(el);
+        if (!field) continue;
         if (el.getAttribute('data-editor-region-button') !== field) el.setAttribute('data-editor-region-button', field);
         if (seen.has(el)) continue;
         seen.add(el);
@@ -477,7 +490,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
       if (barRef.current && barRef.current.contains(t)) return;
       // #1700 —— Design 弹层里的点击归弹层自己（缩略图里的字不是画布上的字）。
       if (t.closest('[data-editor-popover]')) return;
-      // #1779 —— 点到顶栏的按钮：开按钮弹窗（改 root 上那一颗），不导航。下标按点下去那一刻的 `data-hdr-cta` 认（同 §scan）。
+      // #1779 —— 点到顶栏里能改的一样东西（按钮 · #1780 上面那一行的电话 / 邮箱 / 链接）：开按钮弹窗，不导航（真网站上照常拨号 / 发信）。
+      //    字段按点下去那一刻的元素认（§regionFieldOf，同 §scan）。
       const rb = t.closest('[data-editor-region-button]') as HTMLElement | null;
       if (rb) {
         e.preventDefault();
@@ -485,8 +499,8 @@ export function InlineEditLayer({ doc }: { doc: Document }) {
         typingRef.current?.end(true);
         setNote('');
         setActive(null);
-        if (!apiRef.current || apiRef.current.locked) return;
-        const field = rb.getAttribute('data-hdr-cta') || '';
+        const field = regionFieldOf(rb);
+        if (!field || !apiRef.current || apiRef.current.locked) return;
         // 排在点外面那一下的 Cancel 后面（同下面块的按钮那一支）：顶栏的 Design 面板开着时先收它、再开弹窗。
         doc.defaultView!.setTimeout(() => apiRef.current?.openRegionButton('header', field), 0);
         return;

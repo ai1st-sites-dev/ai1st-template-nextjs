@@ -33,6 +33,7 @@
 
 const { hrefAllowed } = require('./href-allowed');
 const { localizeHref } = require('./nav-menu');
+const { topbarContact } = require('./topbar-links');
 const { isKeywordPage } = require('./keyword-service');
 const { keywordFooterColumns, serviceIdOfKeywordPath } = require('./keyword-pages');
 const { headerButtonsData } = require('./header-buttons');
@@ -106,7 +107,8 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   //    跟页面块的按钮同一条路），站内地址按语言加前缀。
   header.buttons = headerButtonsData(h.buttons, loc);
   // 只有带 topbar 的预设才画这一条；值不存在的那一项展开时自己去掉（item-sources.js §ITEM_SLOTS）。
-  header.topbar = { contact: [{ source: 'phone' }, { source: 'email' }] };
+  // #1780 —— 从老板那份列表（`header.topbarLinks`）派生；没写过 = 电话 + 邮箱（今天的样子），规则在 `topbar-links.js`。
+  header.topbar = { contact: topbarContact(h.topbarLinks, loc) };
   const message = topbarMessage(n.topbar, loc);
   if (message) header.topbar = { message, ...header.topbar };
 

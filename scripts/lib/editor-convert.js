@@ -690,6 +690,8 @@ function rootToPuck(values) {
       label: typeof b.label === 'string' ? b.label : '', href: typeof b.href === 'string' ? b.href : isButtonRef(b.href) ? { ...b.href } : '',
     }));
   }
+  // #1780 —— 顶栏上面那一行的链接列表（`[{label, href}]`，href 可以是电话 / 邮箱引用；站里读出来时没写过的已经补成默认两项）。
+  if (Array.isArray(values.headerTopbar)) out.headerTopbar = clone(values.headerTopbar);
   if (isPlainObject(values.navMenu)) out.navMenu = clone(values.navMenu);
   return out;
 }

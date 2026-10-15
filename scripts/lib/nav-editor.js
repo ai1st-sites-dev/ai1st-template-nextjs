@@ -1,7 +1,7 @@
 'use strict';
 
-// nav-editor.js —— 编辑器顶栏 Content 页的「Navigation links」在浏览器那一侧的全部算法（#1759）。纯函数，只 require 两份零依赖的库
-// （`nav-menu.js` 菜单规则、`header-buttons.js` 顶栏按钮规则（#1787）），所以编辑器页（客户端）能直接 import，`editor-nav.test.js` 也能逐条量。
+// nav-editor.js —— 编辑器顶栏 Content 页的「Navigation links」在浏览器那一侧的全部算法（#1759）。纯函数，只 require 三份零依赖的库
+// （`nav-menu.js` 菜单规则、`header-buttons.js` 顶栏按钮规则（#1787）、`topbar-links.js` 顶栏上面那一行（#1780）），所以编辑器页（客户端）能直接 import，`editor-nav.test.js` 也能逐条量。
 //
 // 面板里那一份（存在 Puck root 的 `navMenu` 里，跟别的外壳字段同一个事务：Design 面板 Done / Cancel、撤销、自动存）：
 //   { home: { label, title }, items: [{ slug, title, label, shown, order? }] }
@@ -19,6 +19,7 @@
 
 const { menuLinks, homeLabelOf, ctaSlugOf, localizeHref } = require('./nav-menu');
 const { headerButtonsData } = require('./header-buttons');
+const { topbarContact } = require('./topbar-links');
 
 /** 跟写盘那一侧（`lib/editor-nav.js` §NAV_LABEL_MAX）同一个数。 */
 const NAV_LABEL_MAX = 40;
@@ -144,10 +145,11 @@ function applyPageNav(json, change) {
 }
 
 /**
- * 画布预览：构建烤进来的顶栏 / 页脚 data（`shell-data.js` 那一份）换上面板里的现值 —— 菜单（同构建一条规则，§menuLinks）、按钮、logo。
+ * 画布预览：构建烤进来的顶栏 / 页脚 data（`shell-data.js` 那一份）换上面板里的现值 —— 菜单（同构建一条规则，§menuLinks）、按钮、logo、
+ *   顶栏上面那一行的链接（#1780）。
  * 按钮跟构建同一个函数（`header-buttons.js` §headerButtonsData，#1787）。没带的那一样原样。
  * @param {{ header: object, footer: object }} data  这种语言构建那一份（`regions.<区>.dataByLocale[语言]`）
- * @param {object} p  面板现值：{ navMenu?, headerButtons?, logoUrl? }
+ * @param {object} p  面板现值：{ navMenu?, headerButtons?, logoUrl?, headerTopbar? }
  */
 function liveShellData(data, p, locale, defaultLocale) {
   const loc = (href) => localizeHref(href, locale, defaultLocale);
@@ -157,6 +159,11 @@ function liveShellData(data, p, locale, defaultLocale) {
     if (p.logoUrl.trim()) { header.logo = p.logoUrl.trim(); footer.logo = p.logoUrl.trim(); } else { delete header.logo; delete footer.logo; }
   }
   if (Array.isArray(p.headerButtons)) header.buttons = headerButtonsData(p.headerButtons, loc);
+  // #1780 —— 顶栏上面那一行：同构建一条规则（`topbar-links.js` §topbarContact），引用照旧由 SiteShell 展开。
+  if (Array.isArray(p.headerTopbar)) {
+    const tb = isObj(header.topbar) ? header.topbar : {};
+    header.topbar = { ...tb, contact: topbarContact(p.headerTopbar, loc) };
+  }
   if (isObj(p.navMenu) && Array.isArray(p.navMenu.items)) {
     const m = p.navMenu;
     // 主按钮 = 第 1 颗（#1787）：它指向的那一页不进顶栏菜单（同构建，`derive-site.js` 的 ctaSlug）。

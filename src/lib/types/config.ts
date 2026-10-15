@@ -101,6 +101,9 @@ export interface NavigationConfig {
     // #1529 —— 下面 footer 的 `legal` 是可选的：写了才派生进外壳 data（`scripts/lib/shell-data.js`），没写的站一个字节不变。
     // #1787 —— 顶栏按钮：0–3 颗，第 1 颗是主按钮（实心）、第 2 颗描边、第 3 颗文字链接样 —— 样子按位置定，不另存。
     buttons: HeaderButton[];
+    // #1780 —— 顶栏上面那一行（topbar 预设）：每项跟顶栏按钮同一个声明（§HeaderButton —— 地址字符串或电话 / 邮箱引用）。
+    //   没写 = 电话 + 邮箱两项（今天的样子）。只派生进 header 的 `topbar.contact`（`scripts/lib/topbar-links.js`），带 topbar 的两个预设才画。
+    topbarLinks?: HeaderButton[];
   };
   footer: {
     description: string;

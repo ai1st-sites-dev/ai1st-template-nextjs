@@ -40,7 +40,7 @@ export const ButtonLinkEnvContext = createContext<{
 } | null>(null);
 
 /** 这颗按钮的 `{source: "phone" | "email"}` 构建出来是哪个号码 / 邮箱（同一个展开函数，`item-sources.js` §contactFact）。空 = 那一格没填。 */
-function contactText(kind: 'phone' | 'email', ref: unknown, site: SiteData): string {
+export function contactText(kind: 'phone' | 'email', ref: unknown, site: SiteData): string {
   const src = (SOURCES as Record<string, { fact?: (r: unknown, c: unknown) => { text?: string } | null }>)[kind];
   const fact = src && src.fact ? src.fact({ source: kind, ...(ref && typeof ref === 'object' ? ref : {}) }, { brand: site.brand }) : null;
   return (fact && fact.text) || '';
@@ -214,17 +214,22 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale, type
   );
 }
 
-/** 一颗按钮整份：Link Type + 那一格 + Button label。弹窗用它；`item` 是 `{label, href, …}`，`onChange` 交回换了 `label` / `href` 的整项（别的键原样）。 */
-export function ButtonEditor({ item, onChange, readOnly, site, locale, types }: {
+/**
+ * 一颗按钮整份：Link Type + 那一格 + Button label。弹窗用它；`item` 是 `{label, href, …}`，`onChange` 交回换了 `label` / `href` 的整项（别的键原样）。
+ * #1780 —— 顶栏上面那一行的一项也用它（`labelText` = 「Link label」，`labelHint` = 空着时显示什么）。
+ */
+export function ButtonEditor({ item, onChange, readOnly, site, locale, types, labelText = 'Button label', labelHint }: {
   item: Record<string, unknown>; onChange: (next: Record<string, unknown>) => void; readOnly?: boolean; site: SiteData; locale: string; types?: readonly LinkType[];
+  labelText?: string; labelHint?: string;
 }) {
   return (
     <div data-editor-button-editor="">
       <ButtonLinkFields value={item.href} onChange={(href) => onChange(withButton(item, { href }))} readOnly={readOnly} site={site} locale={locale} types={types} />
       <div style={ROW}>
-        <label style={LABEL}>Button label</label>
-        <input data-editor-button-label="" type="text" aria-label="Button label" value={typeof item.label === 'string' ? item.label : ''} readOnly={readOnly}
-          onChange={(e) => onChange(withButton(item, { label: e.target.value }))} style={INPUT} />
+        <label style={LABEL}>{labelText}</label>
+        <input data-editor-button-label="" type="text" aria-label={labelText} value={typeof item.label === 'string' ? item.label : ''} readOnly={readOnly}
+          placeholder={labelHint} onChange={(e) => onChange(withButton(item, { label: e.target.value }))} style={INPUT} />
+        {labelHint ? <p data-editor-button-label-hint="" style={HINT}>{`Leave it empty to show ${labelHint}.`}</p> : null}
       </div>
     </div>
   );
