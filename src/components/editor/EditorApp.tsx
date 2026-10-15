@@ -107,7 +107,8 @@ import {
 } from '../../../scripts/lib/editor-convert.js';
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
-import { customizeKnobNames, effectiveRegionKnobs, regionKnobChange, regionPresetName, regionPresetPick } from '../../../scripts/lib/region-options.js';
+import { customizeGroups, customizeKnobNames, effectiveRegionKnobs, regionKnobChange, regionPresetName, regionPresetPick } from '../../../scripts/lib/region-options.js';
+import { resolveBrandLogo } from '../../../scripts/lib/brand-logo.js';
 import { MAX_TOPBAR_LINKS, isContactRef, linkKindOf, topbarLinksProblem } from '../../../scripts/lib/topbar-links.js';
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type BusinessContact, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
@@ -265,7 +266,7 @@ function KnobControls({ f, value, onChange, readOnly }: { f: EditorField; value:
     <>
       {(f.knobs || []).map((k) => (
         <div key={k.name} data-editor-knob={k.name}>
-          <div style={SUB_LABEL}>{k.name.charAt(0).toUpperCase() + k.name.slice(1)}</div>
+          <div style={SUB_LABEL}>{k.label || k.name.charAt(0).toUpperCase() + k.name.slice(1)}</div>
           <div style={CTRL_ROW}>
             {k.values.map((val) => (
               <button key={val} type="button" disabled={readOnly} style={chip(current[k.name] === val)} data-editor-knob-value={val}
@@ -3098,20 +3099,40 @@ function DesignPopover({ doc }: { doc: Document }) {
         onSent={(t) => setAiSession((x) => ({ ...x, sent: [...x.sent, t] }))} />
     );
     if (region === 'header') content = <HeaderContent props={rootProps} ui={ui} site={site} locale={api.locale} />;
+    // #1784 —— 页脚缩略图的 logo 跟顶栏此刻那份 `logoType` / `logoSize` 走（同画布上的外壳）。
+    const headerOpts = asOptions(rootProps[REGION_ROOT.header.options]);
     thumb = (p) => {
       const pick = regionPresetPick(region, p.name, opts);
-      return <ShellRegion site={site} locale={api.locale} region={region} shape={pick ? pick.shape : p.shape} options={pick ? pick.options : opts} />;
+      return <ShellRegion site={site} locale={api.locale} region={region} shape={pick ? pick.shape : p.shape} options={pick ? pick.options : opts}
+        headerOptions={headerOpts} />;
     };
     const { bg: bgValue, ...knobOpts } = opts;
-    const knobV = { ...knobOpts, ...effectiveRegionKnobs(region, shape, opts) };
+    const knobV: Record<string, unknown> = { ...knobOpts, ...effectiveRegionKnobs(region, shape, opts) };
+    // #1784 —— 顶栏的 logoType 没存时亮哪一格跟画布同一条判据（图里自带店名 image / 否则 text，`brand-logo.js`）；logoSize 没存亮 m。
+    //   「自带店名吗」读画布上那份顶栏 data（Content 页刚换的 logo 也算进去，`nav-editor.js` §liveShellData）。
+    if (region === 'header') {
+      const hd = (withHeaderContent(site, api.locale, { logoUrl: typeof rootProps.logoUrl === 'string' ? rootProps.logoUrl : undefined }).regions.header.dataByLocale || {})[api.locale || site.defaultLocale] as
+        { logo?: string; logoHasWordmark?: boolean } | undefined;
+      const bl = resolveBrandLogo(opts, { hasLogo: !!(hd && hd.logo), hasWordmark: !!(hd && hd.logoHasWordmark === true) });
+      knobV.logoType = bl.chosen;
+      knobV.logoSize = bl.size;
+    }
     const shown = customizeKnobNames(region);
-    const knobField = { ...f, knobs: (f.knobs || []).filter((x) => shown.includes(x.name)) } as EditorField;
+    const allKnobs = (f.knobs || []).filter((x) => shown.includes(x.name));
+    // #1784 —— 按 manifest 的 `toolbarGroups` 一组一组画（顶栏：位置 / 菜单 / 顶条 → Logo / Logo size → 图标），同一个 §KnobControls。
+    const groupField = (g: string[]) => ({
+      ...f,
+      knobs: allKnobs.filter((x) => g.includes(x.name)),
+      booleans: (f.booleans || []).filter((b) => g.includes(`bool:${b}`)),
+    }) as EditorField;
     customize = (
       <>
-        <KnobControls f={knobField} value={knobV} onChange={(v) => {
-          const key = Object.keys(v).find((x) => v[x] !== knobV[x]);
-          if (key) ui.changeDesign(key, v[key]);
-        }} />
+        {customizeGroups(region).map((g) => (
+          <KnobControls key={g.join(' ')} f={groupField(g)} value={knobV} onChange={(v) => {
+            const key = Object.keys(v).find((x) => v[x] !== knobV[x]);
+            if (key) ui.changeDesign(key, v[key]);
+          }} />
+        ))}
         {spec.bg ? (
           <div data-editor-design-bg="">
             <div style={SUB_LABEL}>Background</div>

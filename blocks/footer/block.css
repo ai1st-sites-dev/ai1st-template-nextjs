@@ -35,3 +35,16 @@
 
 /* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字挂 `ftr-muted-on-dark`（跟 `text-body-secondary` 同一个位置换掉）。
    它的颜色（白 .92）全站只有一条：`scripts/lib/site-css.js` §ON_DEEP_MUTED（#1477）。 */
+
+/* logo 位置画什么、多大（#1784）：跟顶栏同一份旋钮、同一张尺寸表（`blocks/header/block.css` 末段；判据 `scripts/lib/brand-logo.js`）。
+   Section 在 `.ftr-brand` 上挂 `data-logo-type` / `data-logo-size`。992 以下同样封顶：图 44px、店名 1.25rem。 */
+[data-block="footer"] .ftr-brand .ftr-logo-img { height: var(--ftr-logo-h, 40px); max-width: none; }
+[data-block="footer"] .ftr-brand .ftr-logo-text { font-size: var(--ftr-logo-fs, 1.25rem); }
+[data-block="footer"] .ftr-brand[data-logo-size="s"] { --ftr-logo-h: 28px; --ftr-logo-fs: 1rem; }
+[data-block="footer"] .ftr-brand[data-logo-size="m"] { --ftr-logo-h: 40px; --ftr-logo-fs: 1.25rem; }
+[data-block="footer"] .ftr-brand[data-logo-size="l"] { --ftr-logo-h: 52px; --ftr-logo-fs: 1.5rem; }
+[data-block="footer"] .ftr-brand[data-logo-size="xl"] { --ftr-logo-h: 64px; --ftr-logo-fs: 1.875rem; }
+@media (max-width: 991.98px) {
+  [data-block="footer"] .ftr-brand .ftr-logo-img { height: min(var(--ftr-logo-h, 40px), 44px); }
+  [data-block="footer"] .ftr-brand .ftr-logo-text { font-size: min(var(--ftr-logo-fs, 1.25rem), 1.25rem); }
+}

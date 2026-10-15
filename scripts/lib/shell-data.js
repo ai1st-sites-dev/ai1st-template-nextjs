@@ -101,11 +101,14 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   const h = isObj(n.header) ? n.header : {};
   const f = isObj(n.footer) ? n.footer : {};
   const logo = isObj(brand) ? str(brand.logoUrl) : '';
+  // #1784 —— 那张图里自带店名吗：顶栏 / 页脚的 logoType 没存时据它定默认（`brand-logo.js`）。只在有图时带。
+  const wordmark = !!logo && isObj(brand) && brand.logoHasWordmark === true;
   const name = str(brandName);
   const notes = [];
 
   const header = {};
   if (logo) header.logo = logo;
+  if (wordmark) header.logoHasWordmark = true;
   if (name) header.brandName = name;
   header.nav = links(h.links, loc);
   // #1787 —— 顶栏按钮：画不出的那一颗不进 data；电话 / 邮箱引用原样交下去（`SiteShell` 渲染前 `resolveItemSources` 展开，
@@ -129,6 +132,7 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
 
   const footer = {};
   if (logo) footer.logo = logo;
+  if (wordmark) footer.logoHasWordmark = true;
   if (name) footer.brandName = name;
   if (str(f.description)) footer.tagline = str(f.description);
   footer.nav = links(columns[0] && columns[0].links, loc);

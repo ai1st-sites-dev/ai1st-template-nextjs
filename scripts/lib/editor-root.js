@@ -350,7 +350,15 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       setAt(entry.doc, key, v.map((it) => ({ label: it.label.trim(), href: typeof it.href === 'string' ? it.href.trim() : { ...it.href } })));
       continue;
     }
-    if (f.field === 'logoUrl') { setAt(entry.doc, key, v.trim() ? v.trim() : null); continue; }
+    if (f.field === 'logoUrl') {
+      // #1784 —— 写进一张**新的、非空的** logo ⟹ 一并置 `logoHasWordmark: true`（同 `create-site.js` 建站时那条：老板自己传的，当它自带店名）。
+      //   logo 没变（每次存盘这一格都原样带着）⟹ 不碰它，AI 图标那张的 false 仍是 false；清空 ⟹ 也不碰（没图本来就照店名画）。
+      const url = v.trim();
+      const was = isObj(entry.doc) && typeof entry.doc.logoUrl === 'string' ? entry.doc.logoUrl.trim() : '';
+      setAt(entry.doc, key, url || null);
+      if (url && url !== was) entry.doc.logoHasWordmark = true;
+      continue;
+    }
     if (f.field === 'socialLinks') {
       // #1785 —— 网址空的那一行不存；一条都不剩 = 删掉这个键（顶栏 / 页脚按「没有」处理）。一律写成数组。
       const rows = v.map((l) => ({ platform: l.platform, url: l.url.trim() })).filter((l) => l.url);

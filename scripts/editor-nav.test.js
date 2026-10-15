@@ -339,6 +339,15 @@ console.log('⑤ nav-editor（面板动作 · 存盘差 · 预览 == 构建）')
   check(JSON.stringify(live3.header.buttons) === JSON.stringify(base.header.buttons), '没带 headerButtons ⟹ 构建那份按钮原样', JSON.stringify(live3.header));
   const live4 = navEditor.liveShellData(base, { headerButtons: [] }, 'en', 'en');
   check(JSON.stringify(live4.header.buttons) === '[]', '带了空列表 ⟹ 0 颗（老板删光了）', JSON.stringify(live4.header));
+  // #1784 —— 画布上换了一张新 logo ⟹ 当它自带店名（同存盘那条规矩）；logo 没变 ⟹ 构建那份的 logoHasWordmark 原样；清空 ⟹ 一起去掉。
+  check(live.header.logoHasWordmark === true && live.footer.logoHasWordmark === true, '#1784：换了新 logo ⟹ 两个区 logoHasWordmark=true', JSON.stringify(live));
+  const same = navEditor.liveShellData(base, { logoUrl: '/old.png' }, 'en', 'en');
+  check(!('logoHasWordmark' in same.header) && !('logoHasWordmark' in same.footer), '#1784：logo 没变（AI 图标那张）⟹ 不置真', JSON.stringify(same));
+  const kept = navEditor.liveShellData({ header: { ...base.header, logoHasWordmark: true }, footer: { ...base.footer, logoHasWordmark: true } }, { logoUrl: '/old.png' }, 'en', 'en');
+  check(kept.header.logoHasWordmark === true, '#1784：logo 没变、构建那份是 true ⟹ 仍是 true');
+  // 清空那格要喂一份「构建那份是 true」的底稿 —— 喂 base（本来就没有这个键）时，删不删它都绿。
+  const cleared = navEditor.liveShellData({ header: { ...base.header, logoHasWordmark: true }, footer: { ...base.footer, logoHasWordmark: true } }, { logoUrl: '' }, 'en', 'en');
+  check(!('logoHasWordmark' in cleared.header) && !('logoHasWordmark' in cleared.footer), '#1784：logo 清空 ⟹ logoHasWordmark 一起去掉', JSON.stringify(cleared));
 }
 
 // ══ ⑥ 首页没写 navLabel 的老站（#1759 QA3 退回）：面板首页那一格跟构建同一条兜底 ═══════════════════════════

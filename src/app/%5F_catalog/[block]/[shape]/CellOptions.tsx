@@ -99,9 +99,12 @@ export default function CellOptions({
     setKnobs((k) => normalizeKnobs({ ...k, [name]: value }, { knobs: knobDefs, presets, coupling, changed: name, base: k }) as Record<string, string>);
   };
   const pick = (p: Preset) => {
-    const next: Record<string, string> = {};
-    for (const k of knobDefs) next[k.name] = p.knobs[k.name];
-    setKnobs(next);
+    // #1784 —— 预设只设它写到的旋钮；没有预设写到的（顶栏 logoType / logoSize）留着。
+    setKnobs((cur) => {
+      const next: Record<string, string> = { ...cur };
+      for (const k of knobDefs) if (p.knobs[k.name] !== undefined) next[k.name] = p.knobs[k.name];
+      return next;
+    });
     setOpts((o) => ({ ...o, ...(presetBooleans(presets, p.name) || {}) }));
   };
 

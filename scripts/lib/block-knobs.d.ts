@@ -1,8 +1,10 @@
 // #1463 —— `block-knobs.js` 的类型（编辑器 / hero 的 Section 是 TypeScript）。
-export interface Knob { name: string; values: string[]; default?: string; maxItems?: Record<string, Record<string, number>> }
+export interface Knob { name: string; values: string[]; default?: string; label?: string; maxItems?: Record<string, Record<string, number>> }
 export interface Preset { name: string; shape: string; knobs: Record<string, string>; options?: Record<string, boolean>; colors?: Record<string, unknown>; parts?: string[] }
 type ManifestLike = { slots?: Record<string, unknown>; presets?: unknown; parts?: unknown } | null | undefined;
 export function knobsOf(manifest: ManifestLike): Knob[];
+/** #1784 —— 归预设管的旋钮：有预设写到的那几个（没有预设写到的不比、不清）。 */
+export function presetKnobsOf(manifest: ManifestLike): Knob[];
 /** #1481 —— 没写值时取哪一个：`default`（在取值里才算），否则 `values[0]`。 */
 export function knobDefault(k: { values: string[]; default?: string } | null | undefined): string | undefined;
 /** #1481 —— 词表子字段没写值时取哪一个：槽的 `choiceDefaults[sub]`，否则词表第一项。 */

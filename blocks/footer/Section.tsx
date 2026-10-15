@@ -54,6 +54,7 @@ import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '..
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 // #1506 —— 电话 → `tel:`、邮箱 → `mailto:` 只有一份（contact 与引用展开 `scripts/lib/item-sources.js` 用的也是它）。
 import { mailtoHref, telHref } from '../../scripts/lib/contact-facts.js';
+import { resolveBrandLogo } from '../../scripts/lib/brand-logo.js';
 
 export type Layout = 'row' | 'stacked' | 'columns';
 export type BrandSide = 'left' | 'right';
@@ -81,6 +82,8 @@ export interface FooterOptions {
 
 export interface FooterNewData {
   logo?: string;
+  /** #1784 —— 同顶栏：那张 logo 图里自带店名吗（`shell-data.js` 派生）。 */
+  logoHasWordmark?: boolean;
   brandName?: string;
   tagline?: string;
   nav?: FooterLink[];
@@ -134,9 +137,14 @@ interface Props {
    * 这个块是浏览器端组件，站点内容读不到；以前它自己 import `@/lib/config`。不传 ⟹ 表单用内置默认字段、没有服务下拉。
    */
   leadForm?: { services: { id: string; name: string }[]; siteId: string; leadApi: string; forms: SiteFormConfig[] };
+  /**
+   * #1784 —— 顶栏那份 options 里的 `logoType` / `logoSize`（`scripts/lib/brand-logo.js`）：页脚的 logo 跟顶栏同一种、同一档，
+   * 不单独设。由 `SiteShell` 递进来；不传 ⟹ 跟没存一样（有图 image、m）。
+   */
+  logoOptions?: { logoType?: unknown; logoSize?: unknown };
 }
 
-export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = 'en', homeHref = '/', leadForm }: Props) {
+export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = 'en', homeHref = '/', leadForm, logoOptions }: Props) {
   const opts = data.options || {};
   const titles = columnTitles(locale);
   const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
@@ -155,6 +163,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const legal = list(data.legal);
   const contact = data.contact || {};
   const brand = data.brandName || '';
+  const brandLogo = resolveBrandLogo(logoOptions, { hasLogo: !!data.logo, hasWordmark: data.logoHasWordmark === true });
   const copyright = data.copyright || `© ${new Date().getFullYear()} ${brand}`;
   const formMode = knobs.form === 'teaser' || knobs.form === 'full' ? knobs.form : null;
   const formId = data.form && typeof data.form.id === 'string' && data.form.id ? data.form.id : undefined;
@@ -173,12 +182,16 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   // `wrap`：只有 `columns` 传 true（#1524）。品牌列在 768 起是 `col-md-4`（768 宽 ~256px），`text-nowrap` 的长店名
   // 按构造画出列外；`brand=right` 时列是 `align-items-end`，画出去的方向是屏幕右边 ⟹ 整页横向滚动（768 / 800 / 820
   // 实测 scrollWidth 793 / 815 / 828）。放开之后只在放不下时才折行，放得下的宽度上一个像素都不变。
-  const brandMark = (big = false, wrap = false) => (
+  // #1784 —— 图和店名二选一、大小四档，跟顶栏同一份（`logoOptions`）；`stacked` 原来那一档大字（fs-4）取消。
+  //    只出图时 `alt` 写店名。图高 / 字号在 block.css 按 `data-logo-size` 定。
+  const brandMark = (wrap = false) => (
     // `flex-shrink-0`：row 一行里它是 flex 项，被挤的时候盒子缩、`text-nowrap` 的店名照样画出去，
     // 压到旁边的链接上（820 实测：reverse 时一直画到页脚外面）。
-    <SiteLink className={`d-inline-flex flex-shrink-0 align-items-center gap-2 text-decoration-none ${headTone}`} href={homeHref} data-footer-part="brand">
-      {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto" /> : null}
-      <span className={`fw-semibold ${big ? 'fs-4' : 'fs-5'} ${wrap ? '' : 'text-nowrap'}`}>{brand}</span>
+    <SiteLink className={`ftr-brand d-inline-flex flex-shrink-0 align-items-center gap-2 text-decoration-none ${headTone}`} href={homeHref} data-footer-part="brand"
+      data-logo-type={brandLogo.type} data-logo-size={brandLogo.size}>
+      {brandLogo.type === 'image'
+        ? <img src={data.logo} alt={brand} className="ftr-logo-img w-auto" />
+        : <span className={`ftr-logo-text fw-semibold ${wrap ? '' : 'text-nowrap'}`}>{brand}</span>}
     </SiteLink>
   );
 
@@ -254,7 +267,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   // 各段 `mb-8`，菜单 `fs-5`，版权 `text-sm text-muted`。竖排、居中 ⟹ reverse 没有意义，不翻主容器。
   const stackedBody = () => (
     <div className="d-flex flex-column align-items-center text-center" data-footer-main="">
-      <div className="mb-6">{brandMark(true)}</div>
+      <div className="mb-6">{brandMark()}</div>
       {tagline('mx-auto mb-8')}
       {nav.length ? <nav className="mb-8" aria-label="Footer">{linkRow(nav, 'justify-content-center fs-5')}</nav> : null}
       {socialIcons('justify-content-center mb-8')}
@@ -333,7 +346,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const columnsBody = () => (
     <div className={`row gy-10 ${reverse ? mainReverse : ''}`} data-footer-main="">
       <div className={`col-12 col-md-4 d-flex flex-column gap-4 ${reverse ? 'align-items-end text-end' : 'align-items-start'}`} data-footer-col="brand">
-        {brandMark(false, true)}
+        {brandMark(true)}
         {tagline()}
         {/* 联系信息每个排布都在（本地 SEO 资产）：联系列不出（`columns.contact` 不是 true）时，
             电话 / 地址 / 营业时间挂到品牌列里，不让这个排布整个没有联系方式。 */}

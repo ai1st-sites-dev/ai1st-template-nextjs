@@ -43,7 +43,7 @@ export interface EditorField {
   /** color：预设渐变（#1477，`contrast.js` §GRADIENT_SWATCHES 的副本；#1698 起有跟主题走的名字） */
   gradients?: (string | { stops: string[]; angle: number })[];
   /** options：旋钮（顺序 = 控件顺序）、布尔修饰、预设 */
-  knobs?: { name: string; values: string[]; default?: string }[];
+  knobs?: { name: string; values: string[]; default?: string; label?: string }[];
   booleans?: string[];
   presets?: { name: string; shape: string; knobs: Record<string, string>; colors?: Record<string, unknown>; parts?: string[] }[];
   /** #1483 —— 归预设管的颜色槽（有预设在 `colors` 里写了的那几个）；没有带颜色预设的块是 []。 */

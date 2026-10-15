@@ -53,10 +53,12 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{preset?: string, logo, menu, topbar: bool, icons: bool, sticky: bool}",
+      "shape": "{preset?: string, logo, menu, logoType, logoSize, topbar: bool, icons: bool, sticky: bool}",
       "knobs": [
-        { "name": "logo", "values": ["left", "center", "right"] },
-        { "name": "menu", "values": ["beside", "center", "left", "below"] }
+        { "name": "logo", "values": ["left", "center", "right"], "label": "Logo position" },
+        { "name": "menu", "values": ["beside", "center", "left", "below"] },
+        { "name": "logoType", "values": ["text", "image"], "label": "Logo" },
+        { "name": "logoSize", "values": ["s", "m", "l", "xl"], "default": "m", "label": "Logo size" }
       ]
     }
   },
@@ -76,6 +78,7 @@
   },
   "toolbarGroups": [
     ["logo", "menu", "bool:topbar", "bool:sticky"],
+    ["logoType", "logoSize"],
     ["color:bg"],
     ["bool:icons"]
   ]

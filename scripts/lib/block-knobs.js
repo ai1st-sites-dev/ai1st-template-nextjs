@@ -61,6 +61,19 @@ function presetsOf(manifest) {
   return Array.isArray(manifest && manifest.presets) ? manifest.presets : [];
 }
 
+/**
+ * 归预设管的旋钮（#1784）：有预设在 `knobs` 里写到的那几个，按 `slots.options.knobs` 的声明顺序。
+ * **没有任何预设写到的旋钮不归预设管**（顶栏的 logoType / logoSize）：判「是哪个预设」不比它、点预设不清它 ——
+ * 跟布尔分「归预设管（topbar）/ 不归（icons）」同一个办法（§presetBooleansOf）。`header-knobs.js` §presetKnobNamesOf 同一判据。
+ */
+function presetKnobsOf(manifest) {
+  const written = new Set();
+  for (const p of presetsOf(manifest)) {
+    if (p && p.knobs && typeof p.knobs === 'object' && !Array.isArray(p.knobs)) for (const key of Object.keys(p.knobs)) written.add(key);
+  }
+  return knobsOf(manifest).filter((k) => written.has(k.name));
+}
+
 /** `options.shape` 那串里的布尔修饰名（`"{reverse: bool}"` → `['reverse']`）。 */
 function booleanOptionsOf(manifest) {
   const s = manifest && manifest.slots && manifest.slots.options && manifest.slots.options.shape;
@@ -226,7 +239,7 @@ function effectivePresetBooleans(manifest, shape, options) {
  * （§partFilled），跟带颜色的一起先判；调用方不带部件 ⟹ 带部件的预设永远对不上。
  */
 function presetFor(manifest, values) {
-  const knobs = knobsOf(manifest);
+  const knobs = presetKnobsOf(manifest);   // 不归预设管的旋钮不比（#1784）
   const bools = presetBooleansOf(manifest);
   const v = values || {};
   const layoutMatches = (p) => knobs.every((k) => p.knobs[k.name] === v[k.name])
@@ -254,7 +267,8 @@ function presetNameFor(manifest, values) {
  * manifest 自己这份声明对不对（给 `block-manifest.js` 的校验与守卫用）。回字符串数组，空 = 对。
  *   · 旋钮名不重复、每个至少两个取值、取值不重复
  *   · 预设名、预设形态不重复；预设的 `shape` 必须是这个块真有的形态目录
- *   · 预设给**每一个**旋钮都写了合法取值（少写一个，「这组旋钮是哪个预设」就判不准）
+ *   · 预设给**每一个归预设管的**旋钮都写了合法取值（少写一个，「这组旋钮是哪个预设」就判不准）。#1784：没有任何预设
+ *     写到的旋钮不归预设管（§presetKnobsOf），预设一个都不写它是合法的；但只要有一个预设写了，每个预设都要写
  *   · 预设的 `options`（#1468）：键必须是 `options.shape` 里声明的 `: bool`、值只能是 true / false；
  *     有预设写了某个布尔，每个预设都要写
  *   · 两个预设的组合（旋钮 + 归预设管的布尔 + 颜色，#1483）不许一样（一样的话点哪个都显示成先声明的那个）
@@ -275,6 +289,7 @@ function knobDeclarationProblems(manifest) {
     if (k.default !== undefined && !k.values.includes(k.default)) out.push(`旋钮 "${k.name}" 的 default 是 ${JSON.stringify(k.default)} —— 只能是 ${k.values.join(' / ')}`);
   }
   if (presets.length && !knobs.length) out.push('写了 presets 却没有 slots.options.knobs —— 预设设的就是旋钮');
+  const owned = presetKnobsOf(manifest);
   const pNames = new Set();
   const pShapes = new Set();
   const combos = new Map();
@@ -291,7 +306,7 @@ function knobDeclarationProblems(manifest) {
       pShapes.add(p.shape);
       if (shapes.size && !shapes.has(p.shape)) out.push(`预设 "${p.name}" 的形态 "${p.shape}" 不是这个块的形态目录`);
     }
-    for (const k of knobs) {
+    for (const k of owned) {
       const v = p.knobs ? p.knobs[k.name] : undefined;
       if (!k.values.includes(v)) out.push(`预设 "${p.name}" 的旋钮 "${k.name}" 是 ${JSON.stringify(v)} —— 只能是 ${k.values.join(' / ')}`);
     }
@@ -323,7 +338,7 @@ function knobDeclarationProblems(manifest) {
       if (!topParts.includes(x)) out.push(`预设 "${p.name}" 的 parts 写了 "${x}" —— 它不在这个块顶层的 parts 里（${topParts.join(' / ') || '一个都没有'}）`);
       else if (!slotSpecs[x] || !partFilled(slotSpecs[x].demo)) out.push(`预设 "${p.name}" 的 parts 写了 "${x}"，但 slots.${x} 没有 demo —— 点这个预设时拿它填空的部件`);
     }
-    const combo = knobs.map((k) => (p.knobs || {})[k.name]).concat(bools.map((b) => String(pOpts[b])))
+    const combo = owned.map((k) => (p.knobs || {})[k.name]).concat(bools.map((b) => String(pOpts[b])))
       .concat(Object.keys(pColors).sort().map((key) => `${key}=${colorKey(pColors[key])}`))
       .concat(pParts.slice().sort().map((x) => `part=${x}`)).join('|');
     if (combos.has(combo)) out.push(`预设 "${p.name}" 跟 "${combos.get(combo)}" 的组合（旋钮${bools.length ? ' + ' + bools.join(' / ') : ''}${Object.keys(pColors).length ? ' + 颜色' : ''}${pParts.length ? ' + 部件' : ''}）一模一样`);
@@ -407,7 +422,7 @@ function arrangeToolbar(present, groups) {
 }
 
 module.exports = {
-  knobsOf, knobDefault, choiceDefault, presetsOf, booleanOptionsOf, presetBooleansOf, effectiveKnobs, effectivePresetBooleans, presetFor, presetNameFor,
+  knobsOf, knobDefault, choiceDefault, presetsOf, presetKnobsOf, booleanOptionsOf, presetBooleansOf, effectiveKnobs, effectivePresetBooleans, presetFor, presetNameFor,
   knobDeclarationProblems, colorSlotsOf, presetColorSlotsOf, presetColors, presetClickProps,
   partFilled, presetPartsOf, presetPartDemosOf, presetPartFills,
   toolbarControlsOf, toolbarGroupsOf, arrangeToolbar,

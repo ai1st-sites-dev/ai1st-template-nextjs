@@ -189,7 +189,8 @@ function fieldsOf(manifest) {
         control: 'options',
         subs: [],
         // #1481 —— 带上 `default`：顺序只管展示，没写值时侧栏亮哪一格看它（block-knobs.js §knobDefault）。
-        knobs: knobsOf(manifest).map((k) => ({ name: k.name, values: k.values.slice(), default: knobDefault(k) })),
+        // #1784 —— 写了 `label` 就带上（面板上那一行的标题；顶栏 logo 位置那个叫 Logo position，跟 Logo / Logo size 分得开）。
+        knobs: knobsOf(manifest).map((k) => ({ name: k.name, values: k.values.slice(), default: knobDefault(k), ...(typeof k.label === 'string' && k.label ? { label: k.label } : {}) })),
         booleans: booleanOptionsOf(manifest),
         // #1483 —— 预设带的颜色（Rainbow）+ 归预设管的颜色槽：点预设时编辑器按 block-knobs.js §presetColors 同一条规则
         //    设上 / 恢复这几个颜色字段。没有带颜色预设的块 `colorSlots` 是 []，侧栏的行为一字不变。

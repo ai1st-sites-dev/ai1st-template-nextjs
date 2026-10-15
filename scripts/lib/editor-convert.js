@@ -32,7 +32,7 @@ const ITEM_ORIG = '__orig';
 const { isSourceRef, isButtonRef } = require('./item-sources');
 // #1676 —— 记录里「换成了哪个预设」跟面板上亮哪个预设用同一个判法（§panelPreset）。
 const { presetFor, knobDefault } = require('./block-knobs');
-const { effectiveRegionKnobs } = require('./region-options');
+const { effectiveRegionKnobs, regionFreeKnobNames, regionKnobLabel } = require('./region-options');
 
 // 页面上有、而这个站的组件清单里没有的块（区块库删掉了它的类型，老页面 JSON 里还留着）。
 // 构建对它只打一行 `Unknown block type` 就跳过（`SectionRenderer`），编辑器也不许因为它打不开 ——
@@ -1141,7 +1141,8 @@ const REGION_OF_OPTIONS = { headerOptions: 'header', footerOptions: 'footer' };
 function regionOptionSegments(name, region, shapeBefore, shapeAfter, before, after, shapeChanged) {
   const a = isPlainObject(before) ? before : {};
   const b = isPlainObject(after) ? after : {};
-  const cap = (k) => k.charAt(0).toUpperCase() + k.slice(1);
+  // #1784 —— 名字跟面板同一份（manifest 的 `label`：Logo position / Logo / Logo size），没写 label 的照旧首字母大写。
+  const cap = (k) => regionKnobLabel(region, k);
   const out = [];
   if (!deepEqual(a.bg, b.bg)) out.push(`${name} · Background${b.bg === undefined ? ' → (default)' : ''}`);
   const effA = effectiveRegionKnobs(region, shapeBefore, a);
@@ -1149,6 +1150,12 @@ function regionOptionSegments(name, region, shapeBefore, shapeAfter, before, aft
   for (const k of Object.keys(effB)) {
     if (shapeChanged || deepEqual(effA[k], effB[k])) continue;
     out.push(`${name} · ${cap(k)} → ${typeof effB[k] === 'boolean' ? (effB[k] ? 'on' : 'off') : effB[k]}`);
+  }
+  // #1784 —— 不归预设管的旋钮（顶栏 logoType / logoSize）：不在生效值里（它没有预设给的底），比存下的那一格；换预设也不清它，
+  //   所以 shapeChanged 时照样说。
+  for (const k of regionFreeKnobNames(region)) {
+    if (a[k] === b[k] || typeof b[k] !== 'string') continue;
+    out.push(`${name} · ${cap(k)} → ${b[k]}`);
   }
   // 不归预设管的开关（顶栏 `icons`）：没存 = 关（块自己的默认，`blocks/header/Section.tsx` 的 `icons = false`）。
   for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])]) {

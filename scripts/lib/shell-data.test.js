@@ -47,6 +47,14 @@ check(JSON.stringify(d.header.nav) === JSON.stringify([{ label: 'Home', href: '/
   `header.links → nav，label 空的那一项去掉（读到 ${JSON.stringify(d.header.nav)}）`);
 check(JSON.stringify(d.header.buttons) === JSON.stringify([{ label: 'Get a Quote', href: '/quote', style: 'solid', at: 0 }]), `header.buttons → buttons，第 1 颗实心（读到 ${JSON.stringify(d.header.buttons)}）`);
 check(d.header.logo === '/logo.svg' && d.footer.logo === '/logo.svg', 'brand.logoUrl → 两个区的 logo');
+// #1784 —— brand.logoHasWordmark → 两个区的 logoHasWordmark（logoType 没存时的默认据它）；只在为真、而且有图时带。
+check(!('logoHasWordmark' in d.header) && !('logoHasWordmark' in d.footer), '#1784：brand 没写 logoHasWordmark ⟹ 两个区都没有这一格');
+const dw = shellDataFor({ nav: NAV, brand: { ...BRAND, logoHasWordmark: true }, brandName: 'N', services: SERVICES, pages: PAGES, year: 2026 });
+check(dw.header.logoHasWordmark === true && dw.footer.logoHasWordmark === true, '#1784：logoHasWordmark=true ⟹ 两个区都带 true');
+const df = shellDataFor({ nav: NAV, brand: { ...BRAND, logoHasWordmark: false }, brandName: 'N', services: SERVICES, pages: PAGES, year: 2026 });
+check(!('logoHasWordmark' in df.header) && !('logoHasWordmark' in df.footer), '#1784：logoHasWordmark=false（AI 图标 logo）⟹ 不带');
+const dn = shellDataFor({ nav: NAV, brand: { ...BRAND, logoUrl: '', logoHasWordmark: true }, brandName: 'N', services: SERVICES, pages: PAGES, year: 2026 });
+check(!('logoHasWordmark' in dn.header) && !('logo' in dn.header), '#1784：没有图 ⟹ 不带（没图本来就照店名画）');
 check(d.header.brandName === 'Northside Auto Care' && d.footer.brandName === 'Northside Auto Care', '生意名 → 两个区的 brandName');
 check(JSON.stringify(d.footer.nav) === JSON.stringify(NAV.footer.columns[0].links), 'footer.columns[0].links → footer.nav');
 check(d.footer.tagline === NAV.footer.description, 'footer.description → tagline');

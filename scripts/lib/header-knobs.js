@@ -11,6 +11,9 @@
 //   · 预设：顶层 `presets: [{ name, shape, knobs: { <旋钮>: <值>, … }, options?: { <布尔>: true | false } }]`。
 //     `name` 是显示名，`shape` 是形态目录名（header 两者同名，hero 不同名）。#1468：预设 `options` 里写了的布尔
 //     「归预设管」（header 的 topbar）—— 判「是哪个预设」连它一起比；没有预设写的（icons）不参与；
+//   · 🔴 #1784：**旋钮也按同一个办法分两类** —— 有预设在 `knobs` 里写到的归预设管；**没有任何预设写到的不归**
+//     （header 的 logoType / logoSize）。不归的那几个：判「是哪个预设」不比它、纠正时不碰它（不在耦合里）、
+//     点预设时不清掉它（`region-options.js` §regionPresetPick）。判据只有 §presetKnobNamesOf 一处；
 //   · 耦合（可选，header 有、hero 可以没有）：顶层 `knobCoupling: [甲, 乙]` —— 这两个旋钮的组合**必须在某个
 //     预设里出现过**，否则不成立。header 是 `["logo", "menu"]`：logo=center 只能配 left / below（#1788），
 //     logo=left / right 只能配 beside / center（#1468，Chris 2026-09-28）。
@@ -40,7 +43,11 @@ function knobsOf(manifest) {
   const list = opt && Array.isArray(opt.knobs) ? opt.knobs : [];
   return list
     .filter((k) => k && isStr(k.name) && Array.isArray(k.values) && k.values.length && k.values.every(isStr))
-    .map((k) => (isStr(k.default) && k.values.includes(k.default) ? { name: k.name, values: [...k.values], default: k.default } : { name: k.name, values: [...k.values] }));
+    .map((k) => ({
+      name: k.name, values: [...k.values],
+      ...(isStr(k.default) && k.values.includes(k.default) ? { default: k.default } : {}),
+      ...(isStr(k.label) ? { label: k.label } : {}),   // #1784：面板上的名字（Logo position / Logo / Logo size）
+    }));
 }
 
 /** manifest → `[{ name, shape, knobs }]`；写坏的项跳过（可选的额外字段原样留着，消费端不认就不看）。 */
@@ -58,6 +65,13 @@ function couplingOf(manifest) {
 function presetKnobs(presets, name) {
   const p = presets.find((x) => x.name === name);
   return p ? { ...p.knobs } : null;
+}
+
+/** 归预设管的旋钮（#1784）：有预设在 `knobs` 里写到的那几个旋钮名，按第一次出现的顺序。没写到的旋钮不归预设管（文件头）。 */
+function presetKnobNamesOf(presets) {
+  const out = [];
+  for (const p of presets) for (const key of Object.keys(p.knobs)) if (!out.includes(key)) out.push(key);
+  return out;
 }
 
 /** 归预设管的布尔（#1468）：有预设在 `options` 里写了的那几个键，按第一次出现的顺序。 */
@@ -88,10 +102,14 @@ function presetForShape(presets, shape) {
  */
 function normalizeKnobs(values, { knobs, presets, coupling, changed, base } = {}) {
   const fallback = base || (presets[0] ? { ...presets[0].knobs } : {});
+  const owned = presetKnobNamesOf(presets);
   const out = {};
   const unknown = new Set();
   for (const k of knobs) {
     const v = values && values[k.name];
+    // #1784 —— 不归预设管的旋钮：合法就原样带着，不合法 / 没写就不出现（不替它编一个默认 —— logoType 的默认看 brand，`brand-logo.js`）。
+    // 🔴 要排在下面那行前面：它们不在耦合里，不该进 #1788 的「值域外 ⟹ 跟第一个旋钮走」。
+    if (!owned.includes(k.name)) { if (k.values.includes(v)) out[k.name] = v; continue; }
     if (!k.values.includes(v) && v !== undefined) unknown.add(k.name);
     out[k.name] = k.values.includes(v) ? v : (k.values.includes(fallback[k.name]) ? fallback[k.name] : knobDefault(k));
   }
@@ -126,11 +144,12 @@ function normalizeKnobs(values, { knobs, presets, coupling, changed, base } = {}
  */
 function presetOf(values, { knobs, presets }) {
   const bools = presetBooleansOf(presets);
-  const hit = presets.find((p) => knobs.every((k) => p.knobs[k.name] === values[k.name])
+  const owned = presetKnobNamesOf(presets);   // 不归预设管的旋钮（#1784，logoType / logoSize）不比
+  const hit = presets.find((p) => knobs.every((k) => !owned.includes(k.name) || p.knobs[k.name] === values[k.name])
     && bools.every((b) => !!(p.options && p.options[b] === true) === (values[b] === true)));
   return hit ? hit.name : 'custom';
 }
 
 module.exports = {
-  knobsOf, presetsOf, couplingOf, presetKnobs, presetBooleansOf, presetBooleans, presetForShape, normalizeKnobs, presetOf,
+  knobsOf, presetsOf, couplingOf, presetKnobs, presetKnobNamesOf, presetBooleansOf, presetBooleans, presetForShape, normalizeKnobs, presetOf,
 };

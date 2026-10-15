@@ -417,13 +417,21 @@ console.log('⑪ #1723 画布条目条：删 / 上移 / 下移 各记一条，�
   const hOpts = ro.regionKnobChange('header', hShape, {}, 'menu', 'below');
   const effBefore = ro.effectiveRegionKnobs('header', hShape, {});
   const effAfter = ro.effectiveRegionKnobs('header', hShape, hOpts);
-  const want = Object.keys(effAfter).filter((k) => effAfter[k] !== effBefore[k]).map((k) => `${HO} · ${k.charAt(0).toUpperCase() + k.slice(1)} → ${effAfter[k]}`).join('; ');
+  const want = Object.keys(effAfter).filter((k) => effAfter[k] !== effBefore[k]).map((k) => `${HO} · ${ro.regionKnobLabel('header', k)} → ${effAfter[k]}`).join('; ');
   eq(want.includes(`${HO} · Menu → below`), true, '顶栏 menu → below 真改了 menu（造数自检）');
   eq(say({ headerOptions: hOpts }, { headerShape: hShape }), want, '顶栏 menu → below：只说生效值变了的那几格');
   // 不归预设管的开关（icons）：勾上 / 取消
   eq(say({ headerOptions: ro.regionKnobChange('header', hShape, {}, 'icons', true) }, { headerShape: hShape }), `${HO} · Icons → on`, '顶栏勾上 icons');
   eq(say({ headerOptions: {} }, { headerShape: hShape, headerOptions: { icons: true } }), `${HO} · Icons → off`, '顶栏取消 icons（键删掉 = 关）');
   eq(say({ headerOptions: {} }, { headerShape: hShape, headerOptions: { bg: '#0f172a' } }), `${HO} · Background → (default)`, '顶栏底色改回默认');
+  // #1784 —— 名字跟面板同一份 label：logo 位置那个叫 Logo position（耦合纠正把它一起动了，上面 want 里就有它）。
+  eq(want.includes(`${HO} · Logo position → center`), true, '#1784：顶栏 logo 位置那个旋钮在记录里叫 Logo position');
+  // #1784 —— 不进预设的旋钮：只说拧了的那一个，名字是 label；换预设的同一笔里照样说（它不归预设管）。
+  eq(say({ headerOptions: ro.regionKnobChange('header', hShape, {}, 'logoSize', 'xl') }, { headerShape: hShape }), `${HO} · Logo size → xl`, '#1784：拧 logoSize');
+  eq(say({ headerOptions: { logoType: 'text', logoSize: 'xl' } }, { headerShape: hShape, headerOptions: { logoSize: 'xl' } }), `${HO} · Logo → text`, '#1784：拧 logoType，没动的 logoSize 不报');
+  const pickL = ro.regionPresetPick('header', 'topbar', { logoType: 'image', logoSize: 's' });
+  eq(say({ headerShape: pickL.shape, headerOptions: pickL.options }, { headerShape: '', headerOptions: { logoType: 'image', logoSize: 's' } }),
+    `${rootLabels.headerShape} → ${pickL.shape}`, '#1784：选预设 ⟹ logoType / logoSize 留着、不报');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

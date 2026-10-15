@@ -156,7 +156,12 @@ function liveShellData(data, p, locale, defaultLocale) {
   const header = isObj(data.header) ? { ...data.header } : {};
   const footer = isObj(data.footer) ? { ...data.footer } : {};
   if (typeof p.logoUrl === 'string') {
-    if (p.logoUrl.trim()) { header.logo = p.logoUrl.trim(); footer.logo = p.logoUrl.trim(); } else { delete header.logo; delete footer.logo; }
+    const url = p.logoUrl.trim();
+    // #1784 —— 换成了一张新的图 ⟹ 当它自带店名（跟存盘同一条规矩，`editor-root.js` 写 logoUrl 那段）；图没变 ⟹ 构建那份原样；清空 ⟹ 一起去掉。
+    const fresh = !!url && url !== header.logo;
+    for (const d of [header, footer]) {
+      if (url) { d.logo = url; if (fresh) d.logoHasWordmark = true; } else { delete d.logo; delete d.logoHasWordmark; }
+    }
   }
   if (Array.isArray(p.headerButtons)) header.buttons = headerButtonsData(p.headerButtons, loc);
   // #1780 —— 顶栏上面那一行：同构建一条规则（`topbar-links.js` §topbarContact），引用照旧由 SiteShell 展开。

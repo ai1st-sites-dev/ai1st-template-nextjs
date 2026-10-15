@@ -5,7 +5,7 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // 形状（跟编辑器 root 上的 `headerOptions` / `footerOptions` 是同一个对象，分派表 `editor-root-fields.js`）：
-//   regionOptions.header = { bg?, logo?, menu?, topbar?, icons? }
+//   regionOptions.header = { bg?, logo?, menu?, logoType?, logoSize?, topbar?, icons? }
 //   regionOptions.footer = { bg?, layout?, brand?, form? }
 // 键的名单一个都不写在这里：旋钮 / 布尔从块自己的 manifest 现取（`slots.options.knobs` / `slots.options.shape` 里的
 // `: bool`），底色是 `slots.bg`（值的形状归 `contrast.js` §normalizeBg）。预设（= 形态）不在这里 —— 它是
@@ -18,8 +18,8 @@
 // 🔴 两边各写一份就会分叉：编辑器说 Logo center，站上画成 left，而两边都不会红。
 
 const { normalizeBg } = require('./contrast');
-const { knobsOf, presetsOf, couplingOf, presetForShape, presetBooleansOf, normalizeKnobs, presetOf } = require('./header-knobs');
-const { booleanOptionsOf } = require('./block-knobs');
+const { knobsOf, presetsOf, couplingOf, presetForShape, presetKnobNamesOf, presetBooleansOf, normalizeKnobs, presetOf } = require('./header-knobs');
+const { booleanOptionsOf, toolbarGroupsOf, arrangeToolbar } = require('./block-knobs');
 const headerManifest = require('../../blocks/header/manifest.json');
 const footerManifest = require('../../blocks/footer/manifest.json');
 
@@ -32,7 +32,12 @@ function spec(region) {
   const m = MANIFESTS[region];
   if (!m) return null;
   const presets = presetsOf(m);
-  return { manifest: m, knobs: knobsOf(m), booleans: booleanOptionsOf(m), presets, coupling: couplingOf(m), owned: presetBooleansOf(presets) };
+  const knobs = knobsOf(m);
+  const ownedKnobs = presetKnobNamesOf(presets);
+  // #1784 —— 旋钮分两类（`header-knobs.js` 文件头）：`layout` = 有预设写到的（logo / menu），`free` = 没有任何预设写到的
+  //   （logoType / logoSize）—— 后者点预设不清、不进纠正、不参与「是哪个预设」，拧它只写它自己。
+  return { manifest: m, knobs, layout: knobs.filter((k) => ownedKnobs.includes(k.name)), free: knobs.filter((k) => !ownedKnobs.includes(k.name)),
+    booleans: booleanOptionsOf(m), presets, coupling: couplingOf(m), owned: presetBooleansOf(presets) };
 }
 
 /**
@@ -103,6 +108,8 @@ function applyRegionOptions(data, opts) {
 /**
  * 实际生效的旋钮 + 归预设管的布尔：形态（= 预设）给底，存下的那几格盖上去，再纠正一次 —— 跟两个块的 Section §resolveKnobs
  * 同一条路（同一份 `header-knobs.js`）。
+ * 🔴 #1784：只有归预设管的旋钮（`spec().layout`）。不归的那几个（顶栏 logoType / logoSize）没有「预设给的底」，默认也不是一个
+ *    固定值（logoType 看 `brand.logoHasWordmark`，`brand-logo.js`）—— 这里填一个值进去，拧 logo 时就会被一起存下、把默认钉死。
  */
 function effectiveRegionKnobs(region, shape, opts) {
   const s = spec(region);
@@ -110,8 +117,8 @@ function effectiveRegionKnobs(region, shape, opts) {
   const hit = presetForShape(s.presets, shape) || s.presets[0] || null;
   const base = hit ? { ...hit.knobs } : {};
   const o = isObj(opts) ? opts : {};
-  const given = Object.fromEntries(s.knobs.filter((k) => o[k.name] !== undefined).map((k) => [k.name, o[k.name]]));
-  const knobs = normalizeKnobs({ ...base, ...given }, { knobs: s.knobs, presets: s.presets, coupling: s.coupling, base });
+  const given = Object.fromEntries(s.layout.filter((k) => o[k.name] !== undefined).map((k) => [k.name, o[k.name]]));
+  const knobs = normalizeKnobs({ ...base, ...given }, { knobs: s.layout, presets: s.presets, coupling: s.coupling, base });
   const bools = Object.fromEntries(s.owned.map((b) => [b, typeof o[b] === 'boolean' ? o[b] : !!(hit && hit.options && hit.options[b] === true)]));
   return { ...knobs, ...bools };
 }
@@ -124,7 +131,8 @@ function regionPresetName(region, shape, opts) {
 }
 
 /**
- * Layout 页点了一个预设：形态换成它，存下的旋钮和归预设管的布尔清掉（= 照那个预设画）；底色和别的布尔（`icons`）留着。
+ * Layout 页点了一个预设：形态换成它，存下的旋钮和归预设管的布尔清掉（= 照那个预设画）；底色、别的布尔（`icons`）和
+ * 不归预设管的旋钮（#1784：logoType / logoSize）留着。
  * 跟页面块点预设同一个意思（`block-knobs.js` §presetClickProps：排法整组换成预设的，颜色以外的不动）。
  * @returns {{ shape: string, options: object } | null}  名字对不上任何预设 ⟹ null
  */
@@ -133,7 +141,7 @@ function regionPresetPick(region, name, opts) {
   const p = s ? s.presets.find((x) => x.name === name) : null;
   if (!p) return null;
   const out = { ...(isObj(opts) ? opts : {}) };
-  for (const k of s.knobs) delete out[k.name];
+  for (const k of s.layout) delete out[k.name];
   for (const b of s.owned) delete out[b];
   return { shape: p.shape, options: out };
 }
@@ -147,10 +155,13 @@ function regionKnobChange(region, shape, opts, key, value) {
   const out = { ...(isObj(opts) ? opts : {}) };
   if (!s) return out;
   if (s.booleans.includes(key)) { out[key] = value === true; return out; }
-  if (!s.knobs.some((k) => k.name === key)) return out;
+  // #1784 —— 不归预设管的旋钮：只写它自己，不纠正别的（它不在耦合里）。
+  const free = s.free.find((k) => k.name === key);
+  if (free) { if (free.values.includes(value)) out[key] = value; return out; }
+  if (!s.layout.some((k) => k.name === key)) return out;
   const cur = effectiveRegionKnobs(region, shape, opts);
-  const knobs = normalizeKnobs({ ...cur, [key]: value }, { knobs: s.knobs, presets: s.presets, coupling: s.coupling, changed: key, base: cur });
-  for (const k of s.knobs) out[k.name] = knobs[k.name];
+  const knobs = normalizeKnobs({ ...cur, [key]: value }, { knobs: s.layout, presets: s.presets, coupling: s.coupling, changed: key, base: cur });
+  for (const k of s.layout) out[k.name] = knobs[k.name];
   return out;
 }
 
@@ -166,7 +177,38 @@ function customizeKnobNames(region) {
     .map((k) => k.name);
 }
 
+/** #1784 —— 不归预设管的旋钮名（没有任何预设写到的，顶栏 logoType / logoSize），manifest 声明顺序。存盘记录按存下的值比它们（`editor-convert.js`）。 */
+function regionFreeKnobNames(region) {
+  const s = spec(region);
+  return s ? s.free.map((k) => k.name) : [];
+}
+
+/**
+ * #1784 —— Customize 页的控件按 manifest 的 `toolbarGroups` 分组排（旋钮写名字、开关写 `bool:<名>`，同工具条那套 token；
+ * 底色另画在最后，不在这里）。顶栏：`[logo, menu, bool:topbar, bool:sticky]` · `[logoType, logoSize]` · `[bool:icons]`
+ * —— 正文「两行放在 topbar 后面」。没写分组 ⟹ 一组，旋钮 → 开关（改前的次序）。
+ */
+function customizeGroups(region) {
+  const s = spec(region);
+  if (!s) return [];
+  const present = [...customizeKnobNames(region), ...s.booleans.map((b) => `bool:${b}`)];
+  return arrangeToolbar(present, toolbarGroupsOf(s.manifest));
+}
+
+/**
+ * #1784 —— 一个旋钮 / 开关在面板和存盘记录里叫什么：manifest 写了 `label` 就用它（顶栏 logo 位置那个叫 Logo position，
+ * 跟 Logo / Logo size 分得开），没写就是名字首字母大写（改前的写法）。面板（`EditorApp.tsx` §KnobControls）和记录
+ * （`editor-convert.js` §regionOptionSegments）读同一份声明。
+ */
+function regionKnobLabel(region, key) {
+  const m = MANIFESTS[region];
+  const opt = m && m.slots && m.slots.options ? m.slots.options : {};
+  const hit = (Array.isArray(opt.knobs) ? opt.knobs : []).find((k) => k && k.name === key);
+  return hit && typeof hit.label === 'string' && hit.label ? hit.label : key.charAt(0).toUpperCase() + key.slice(1);
+}
+
 module.exports = {
+  regionFreeKnobNames, customizeGroups, regionKnobLabel,
   REGIONS, regionOptionsProblems, cleanRegionOptions, readRegionOptions, applyRegionOptions,
   effectiveRegionKnobs, regionPresetName, regionPresetPick, regionKnobChange, customizeKnobNames,
 };

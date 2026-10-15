@@ -72,12 +72,13 @@ function shellBlockData(site: SiteData, region: 'header' | 'footer', locale: str
  * #1738 —— 只画一个区（顶栏或页脚），data 走跟下面整页外壳同一条路（§shellBlockData）。编辑器 Design 面板 Layout 页的缩略图用它：
  * 格子里是「选这个预设之后顶栏会长成的样子」，形态和旋钮由调用方给。
  */
-export function ShellRegion({ site, locale, region, shape, options }: { site: SiteData; locale: string; region: 'header' | 'footer'; shape: string; options?: Record<string, unknown> }) {
+export function ShellRegion({ site, locale, region, shape, options, headerOptions }: { site: SiteData; locale: string; region: 'header' | 'footer'; shape: string; options?: Record<string, unknown>; headerOptions?: Record<string, unknown> }) {
   const homeHref = locale === site.defaultLocale ? '/' : `/${locale}`;
   const data = shellBlockData(site, region, locale, options);
   // #1786 —— 缩略图只在编辑器里画 ⟹ 顶栏一律不吸（`editorCanvas`）。
   if (region === 'header') return <Header shape={shape} data={data as HeaderNewData} homeHref={homeHref} iconTable={shellIconTable(site, 'header', locale)} editorCanvas />;
-  return <Footer shape={shape} locale={locale} homeHref={homeHref} data={data as FooterNewData} iconTable={shellIconTable(site, 'footer', locale)} leadForm={footerLeadFormOf(site, locale)} />;
+  return <Footer shape={shape} locale={locale} homeHref={homeHref} data={data as FooterNewData} iconTable={shellIconTable(site, 'footer', locale)} leadForm={footerLeadFormOf(site, locale)}
+    logoOptions={headerOptions ?? site.regions.header.options} />;
 }
 
 /** #1665 —— 页脚是浏览器端组件，读不到站点内容：它表单要的东西在这里取好递下去（服务下拉的选项 + 提交地址 / 站 / 表单库）。
@@ -108,6 +109,8 @@ export default function SiteShell({ site, locale, page, shell, notFound, childre
   const headerData = shellBlockData(site, 'header', locale, shell?.headerOptions);
   const footerData = shellBlockData(site, 'footer', locale, shell?.footerOptions);
   const footerLeadForm = footerLeadFormOf(site, locale);
+  // #1784 —— 页脚的 logo 跟顶栏那份 `logoType` / `logoSize` 走（`scripts/lib/brand-logo.js`）。
+  const headerLogoOptions = (headerData.options || {}) as Record<string, unknown>;
 
   return (
     <>
@@ -147,7 +150,7 @@ export default function SiteShell({ site, locale, page, shell, notFound, childre
             // 同时把那个常量改掉，两处必须一起动。
             return <Footer key={region} shape={repeatVariants[region] || shell?.footerShape || siteRegions.footer.shape}
               locale={locale} homeHref={homeHref}
-              data={footerData as FooterNewData} iconTable={shellIconTable(site, 'footer', locale)} leadForm={footerLeadForm} />;
+              data={footerData as FooterNewData} iconTable={shellIconTable(site, 'footer', locale)} leadForm={footerLeadForm} logoOptions={headerLogoOptions} />;
           default:
             // 构建期的 schema 已经把不认识的区拦掉了（scripts/lib/page-layout.js）。这一支是为了
             // 「万一」也不静默：什么都不画，但类型上说得清楚。

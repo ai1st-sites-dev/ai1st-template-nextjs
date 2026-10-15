@@ -481,5 +481,50 @@ console.log('\n⑨ slim-row / stacked 的服务链接区（#1739）');
   loadSection();
 }
 
+// ══ #1784：页脚的 logo 跟顶栏那份 logoType / logoSize（`logoOptions`）走 —— 三个排布各看一次 ══════════════════
+console.log('\n#1784 页脚 logo 跟顶栏同一种、同一档');
+{
+  const BRAND = base.brandName;
+  const brandOf = (h) => {
+    const m = h.match(/<a class="ftr-brand[^"]*"[^>]*>([\s\S]*?)<\/a>/);
+    if (!m) return null;
+    const open = m[0].slice(0, m[0].indexOf('>') + 1);
+    const a = (n) => { const x = open.match(new RegExp(`\\s${n}="([^"]*)"`)); return x ? x[1] : null; };
+    return { type: a('data-logo-type'), size: a('data-logo-size'), imgs: (m[1].match(/<img\b[^>]*>/g) || []), text: m[1].replace(/<[^>]+>/g, '') };
+  };
+  const rf = (shape, data, logoOptions, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: ICONS, logoOptions }));
+  for (const shape of PRESET_NAMES) {
+    for (const [type, size] of [['image', 's'], ['image', 'xl'], ['text', 'm'], ['text', 'l']]) {
+      const b = brandOf(rf(shape, base, { logoType: type, logoSize: size }));
+      const good = b && b.type === type && b.size === size && (type === 'image'
+        ? b.imgs.length === 1 && b.imgs[0].includes(`alt="${BRAND}"`) && b.text === ''
+        : b.imgs.length === 0 && b.text === BRAND);
+      check(good, `${shape} · 顶栏 ${type} · ${size} ⟹ 页脚同一种、同一档`, JSON.stringify(b));
+    }
+  }
+  // 默认跟顶栏同一条（`brand-logo.js`）：看 data.logoHasWordmark，不看有没有图。
+  const def = brandOf(rf('stacked', { ...base, logoHasWordmark: true }, undefined));
+  check(def && def.type === 'image' && def.size === 'm', '不传 logoOptions + 图里自带店名 ⟹ image · m', JSON.stringify(def));
+  const icon = brandOf(rf('stacked', { ...base, logoHasWordmark: false }, undefined));
+  check(icon && icon.type === 'text' && icon.imgs.length === 0 && icon.text === BRAND, '验收 0：有图但 logoHasWordmark=false ⟹ 页脚出店名、<img> 0 个', JSON.stringify(icon));
+  const noLogo = { ...base }; delete noLogo.logo;
+  const cleared = brandOf(rf('columns', noLogo, { logoType: 'image', logoSize: 'l' }));
+  check(cleared && cleared.type === 'text' && cleared.text === BRAND, '存着 image 但没图 ⟹ 出店名', JSON.stringify(cleared));
+  check(!/\bfs-4\b/.test(rf('stacked', noLogo, { logoType: 'text', logoSize: 's' })), 'stacked 原来那档大字（fs-4）取消，统一按 logoSize');
+  const css = fs.readFileSync(path.join(NEXT, 'blocks', 'footer', 'block.css'), 'utf-8');
+  const want = { s: ['28px', '1rem'], m: ['40px', '1.25rem'], l: ['52px', '1.5rem'], xl: ['64px', '1.875rem'] };
+  check(Object.entries(want).every(([sz, [h, fs_]]) => new RegExp(`\\.ftr-brand\\[data-logo-size="${sz}"\\]\\s*\\{\\s*--ftr-logo-h:\\s*${h};\\s*--ftr-logo-fs:\\s*${fs_.replace('.', '\\.')};`).test(css)),
+    'footer block.css 的尺寸表跟顶栏同一张（28/40/52/64px · 1/1.25/1.5/1.875rem）');
+  // 反向对照：页脚不读 logoOptions（只按有没有图）⟹ 上面 text 那几格读得出差别。
+  const src = fs.readFileSync(SECTION, 'utf-8');
+  const broken = src.replace('resolveBrandLogo(logoOptions, {', 'resolveBrandLogo(undefined, {');
+  if (broken === src) bad('反向对照没改到源码（锚点找不到）');
+  else {
+    const b = brandOf(rf('slim-row', { ...base, logoHasWordmark: true }, { logoType: 'text', logoSize: 'l' }, loadSection(broken).default));
+    check(b && b.type === 'image', '反向对照：页脚不读 logoOptions ⟹ text 那几格会红', JSON.stringify(b));
+    loadSection();
+  }
+}
+
 console.log(`\n${fail ? '🔴' : '✅'} footer-render: ${pass} 过 / ${fail} 不过`);
 process.exit(fail ? 1 : 0);

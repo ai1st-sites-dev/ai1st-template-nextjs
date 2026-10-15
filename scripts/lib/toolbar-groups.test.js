@@ -61,7 +61,8 @@ const AC2 = {
   features: 'presets | introPosition introAlign choice:introEyebrow.style count:introCtas introImage | itemsLayout itemsColumns itemsImage | itemStyle itemAlign itemIcon itemImage itemConnector | color:bg',
   footer: 'presets | layout brand | color:bg | form',
   gallery: 'presets | introPosition introAlign choice:introEyebrow.style | itemsLayout itemsColumns | itemShape itemCaption | color:bg',
-  header: 'presets | logo menu bool:topbar bool:sticky | color:bg | bool:icons',
+  // #1784 —— logoType / logoSize 是 knobs 里的旋钮（没有预设写到，不归预设管），admin 和单格页的工具条也画它们，自成一组。
+  header: 'presets | logo menu bool:topbar bool:sticky | logoType logoSize | color:bg | bool:icons',
   hero: 'presets | textAlign image form | color:bg | part:proof part:stats part:logos part:band | choice:eyebrow.style',
   logos: 'presets | introPosition introAlign choice:introEyebrow.style introSize | itemsLayout itemsColumns | itemStyle logoColor | color:bg',
   milestones: 'presets | blockImage | introPosition introAlign choice:introEyebrow.style count:introCtas introImage | statsColumns statSize | statStyle statAlign bool:statIcon | color:bg',

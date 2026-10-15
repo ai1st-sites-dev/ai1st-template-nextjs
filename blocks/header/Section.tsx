@@ -67,6 +67,7 @@ import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/
 import {
   couplingOf, knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf,
 } from '../../scripts/lib/header-knobs.js';
+import { resolveBrandLogo, type LogoSize, type LogoType } from '../../scripts/lib/brand-logo.js';
 
 type Show = 'text' | 'icon' | 'both';
 type CtaStyle = 'solid' | 'outline' | 'link';
@@ -93,10 +94,15 @@ export interface HeaderOptions {
   icons?: boolean;
   /** #1786 —— 往下滚时吸在页面顶上（§文件头）。不归预设管。 */
   sticky?: boolean;
+  /** #1784 —— 不归预设管的两个旋钮（`scripts/lib/brand-logo.js`）：没写 ⟹ 图里自带店名 image / 否则 text、大小 m。 */
+  logoType?: LogoType;
+  logoSize?: LogoSize;
 }
 
 export interface HeaderNewData {
   logo?: string;
+  /** #1784 —— 那张 logo 图里自带店名吗（`brand.logoHasWordmark`，构建派生进来，`shell-data.js`）：logoType 没存时据它定默认。 */
+  logoHasWordmark?: boolean;
   brandName?: string;
   nav?: NavItem[];
   /** #1787 —— 0–3 颗，第 1 颗是主按钮。样子由构建按位置补好（`scripts/lib/header-buttons.js`：实心 · 描边 · 文字链接样）。 */
@@ -238,6 +244,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
   const ctas = (Array.isArray(data.buttons) ? data.buttons : []).filter((c): c is Cta => !!c && typeof c === 'object' && !!c.label);
   const brand = data.brandName || '';
+  const brandLogo = resolveBrandLogo(opts, { hasLogo: !!data.logo, hasWordmark: data.logoHasWordmark === true });
 
   const linkTone = deep ? 'link-light' : '';
   const subTone = deep ? 'link-light' : 'link-secondary';
@@ -299,10 +306,14 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   // `compact` = 手机 / iPad 那一条：店名要让位给电话图标和汉堡 —— 可以收缩、可以换成两行，不许把后两个挤到
   // 下一行（QA2 #1462 r1：390 宽 topbar 预设整条折成两行，汉堡掉到第二行最左边；320 宽连 logo-left 也折）。
   // 店名不截断：生意名是这一条上最要紧的字。桌面那三格里仍是一行不收缩。
+  // #1784 —— 图和店名二选一（`logoType`），大小四档（`logoSize`）：只出图时 `alt` 写店名，读屏照样念得出是谁家；
+  //    图高 / 字号（含 992 以下的上限）在 block.css 按 `data-logo-size` 定。
   const brandLink = (compact = false) => (
-    <SiteLink className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${deep ? 'text-white' : 'text-heading'}`} href={homeHref}>
-      {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto flex-shrink-0" /> : null}
-      <span className={`fw-semibold ${compact ? 'text-wrap lh-sm' : 'text-nowrap'}`}>{brand}</span>
+    <SiteLink className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${deep ? 'text-white' : 'text-heading'}`} href={homeHref}
+      data-logo-type={brandLogo.type} data-logo-size={brandLogo.size}>
+      {brandLogo.type === 'image'
+        ? <img src={data.logo} alt={brand} className="hdr-logo-img w-auto flex-shrink-0" />
+        : <span className={`hdr-logo-text fw-semibold ${compact ? 'text-wrap lh-sm' : 'text-nowrap'}`}>{brand}</span>}
     </SiteLink>
   );
 
