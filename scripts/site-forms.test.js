@@ -374,12 +374,13 @@ console.log('── #1631 表单文案与占位符按语言');
     return { got: [...got], html };
   };
   const z = holders('zh');
-  const wantZh = ['姓名', '电话', '邮箱', '您需要什么服务？'];
-  check(wantZh.every((w) => z.got.includes(w)) && !z.got.some((g) => /^(Name|Phone|Email|What do you need\?)$/.test(g)),
-    'BlockLeadForm locale=zh：五个占位符（姓名 / 电话 / 邮箱 / 需求 ×2）都是中文，一个英文都没有', JSON.stringify(z.got));
+  // #1808 —— 留言那格读「留言」、服务那格读「您需要哪项服务？」：两格不再是同一个问题。
+  const wantZh = ['姓名', '电话', '邮箱', '留言', '您需要哪项服务？'];
+  check(wantZh.every((w) => z.got.includes(w)) && !z.got.some((g) => /^(Name|Phone|Email|Message|Which service\?)$/.test(g)),
+    'BlockLeadForm locale=zh：五个占位符（姓名 / 电话 / 邮箱 / 留言 / 服务）都是中文，一个英文都没有', JSON.stringify(z.got));
   check(/与我们联系/.test(z.html), 'zh：按钮字跟着表单库走（与我们联系）');
   const x = holders('xx');
-  check(['Name', 'Phone', 'Email', 'What do you need?'].every((w) => x.got.includes(w)), 'locale=xx（表里没有）：占位符回英文', JSON.stringify(x.got));
+  check(['Name', 'Phone', 'Email', 'Message', 'Which service?'].every((w) => x.got.includes(w)), 'locale=xx（表里没有）：占位符回英文', JSON.stringify(x.got));
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

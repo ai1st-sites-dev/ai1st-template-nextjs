@@ -1145,7 +1145,7 @@ const ESSENTIAL_TEXT_PROBE = () => {
       // list is closed the browser draws the CHOSEN option's words inside the `<select>`'s own box and
       // the rest nowhere on the page (only in the native list it opens), so `Range.getClientRects()`
       // over an option's text is empty for every option on every sheet — the reading said "no box of
-      // their own at all" about "What do you need?", which a visitor reads perfectly (measured on
+      // their own at all" about the picker's placeholder option, which a visitor reads perfectly (measured on
       // /allblocks.html: contact's service picker, 5 options × the two essential roots it sits in =
       // 10 reds, on a site nobody had themed). So: the chosen option is measured on the `<select>`'s
       // box — a sheet that hides or squeezes the picker is still named — and the others are exempt, with
