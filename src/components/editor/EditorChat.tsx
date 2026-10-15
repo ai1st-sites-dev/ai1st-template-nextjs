@@ -47,7 +47,8 @@ export interface AuditCard {
   rows: { dot: string; label: string; score: number; delta: string }[];
 }
 
-export interface ChatScope { page: string; locale?: string; blockId?: string; blockIndex?: number }
+// #1791 —— `region`：顶栏 / 页脚的面板 AI 页。这一轮只许改这种语言 navigation.json 的那一个键（`block-scope.js` §regionScopeRejection）。
+export interface ChatScope { page: string; locale?: string; blockId?: string; blockIndex?: number; region?: 'header' | 'footer' }
 
 export type Src = { at?: number; entry?: { id?: unknown; ref?: unknown } | null; shared?: string | null; locked?: boolean } | undefined;
 

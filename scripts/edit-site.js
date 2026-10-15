@@ -1310,7 +1310,10 @@ async function main() {
 
   // #1351 —— 这一轮被收窄到哪一个块。`null` = 没收窄，这条路跟本票之前逐字节一样。
   const scope = blockScope.scopeFromInput(input, siteShape.readSiteShape(siteDir));
-  if (scope) {
+  if (scope && scope.region) {
+    // #1791 —— 顶栏 / 页脚范围（面板 AI 页带进来的）。认不出的 region 也走这一支（每次写入都会被拒），不说成块。
+    emit('progress', { message: scope.region === 'header' || scope.region === 'footer' ? `Working on the ${scope.region}...` : 'Working on one part of the website...' });
+  } else if (scope) {
     emit('progress', { message: `Working on one block on ${scope.pagePath}...` });
   }
 

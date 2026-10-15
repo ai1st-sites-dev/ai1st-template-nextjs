@@ -32,6 +32,69 @@ function isTarget(entry, i, scope) {
   return entry.id === scope.blockId || entry.ref === scope.blockId;
 }
 
+// ── #1791 顶栏 / 页脚范围 ───────────────────────────────────────────────────────────────────────
+//
+// 面板上顶栏 / 页脚的 AI 页把 `region` 带进来，这一轮只许改这种语言 `navigation.json` 里**那一个键**
+// （`header` 或 `footer`）。判据跟块那一支同一个：拿磁盘上那份逐键比，别的键必须不变，越界整笔拒、磁盘不动。
+//
+// 📌 不在范围里的两样，拒绝句里说清去哪儿改（模型照这句回老板）：
+//    · 版式和颜色（`theme.json` 的 regionLayout / regionOptions）—— 聊天这条路本来就不许写 theme.json
+//      （`editable-files.js` 的 REJECT_REASON，#1087），在白名单那一关就拒了，到不了这里；
+//    · 网站名、logo、电话、邮箱、社交链接（`brand.json`）—— 整站的，改在 Website settings。
+// 📌 `navigation-owned.js` 那道门（构建会重写的菜单链接那几处）在 `writeRejection` 里、排在这一关前面，照旧。
+
+const REGION_KEYS = ['header', 'footer'];
+const REGION_NAME = { header: 'the header', footer: 'the footer' };
+
+/** 不计键序的深比较（JSON 里只有对象 / 数组 / 原值）。别的顶层键只是换了键序，不算动过它。 */
+function sameJson(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) return a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameJson(a[k], b[k]));
+}
+
+function regionScopeRejection(relPath, parsed, scope, readCurrent) {
+  const name = REGION_NAME[scope.region];
+  if (!name || !scope.navPath) {
+    // 认不出来的 region 不许当成「没收窄」放过去 —— scopeFromInput 不会造出这种范围，真来了就拒。
+    return 'Could not tell which part of the website this conversation is about, so nothing was written.';
+  }
+  if (relPath === 'brand.json') {
+    return `This conversation is about ${name}. The website name, logo and contact details are changed in `
+      + 'Website settings, not here. Nothing was written.';
+  }
+  if (relPath !== scope.navPath) {
+    return `This conversation is about ${name}. You may only change the "${scope.region}" part of `
+      + `${scope.navPath}, not ${relPath}. Nothing was written.`;
+  }
+  const currentRaw = readCurrent(relPath);
+  if (currentRaw === null) {
+    return `This conversation is about ${name}, so no new files can be created. Nothing was written.`;
+  }
+  let current;
+  try {
+    current = JSON.parse(currentRaw);
+  } catch (e) {
+    // 比不了必须走拒绝（同块那一支的理由）。
+    return `Could not read the current ${relPath} to check what changed, so nothing was written.`;
+  }
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  if (!isObj(parsed) || !isObj(current)) {
+    return `Could not tell what changed in ${relPath}, so nothing was written.`;
+  }
+  const names = new Set([...Object.keys(current), ...Object.keys(parsed)]);
+  const touched = [...names].filter((k) => k !== scope.region && !sameJson(current[k], parsed[k]));
+  if (touched.length) {
+    return `This conversation is about ${name}. That write also changes `
+      + `${touched.map((t) => `"${t}"`).join(', ')} in ${relPath}. Change only "${scope.region}". Nothing was written.`;
+  }
+  return null;
+}
+
 /**
  * blockScopeRejection —— 这次 write_file 越界了吗？越界回一句话（英文，模型读），没越界回 null。
  *
@@ -41,6 +104,9 @@ function isTarget(entry, i, scope) {
  * @param {function} readCurrent  (相对 site/ 的路径) → 字符串或 null
  */
 function blockScopeRejection(relPath, parsed, scope, readCurrent) {
+  // #1791 —— 🔴 region 一支必须排在下面那句 `!scope.pagePath` 之前：region 范围没有 pagePath，
+  //    落到那一句就是对每一个文件都回 null = 闸全开，而面板那一侧以为这一轮只改顶栏 / 页脚。
+  if (scope && scope.region) return regionScopeRejection(relPath, parsed, scope, readCurrent);
   if (!scope || !scope.pagePath) return null;
 
   // ── 第一问：写的是不是那一页 ──────────────────────────────────────────────────────────────────
@@ -144,6 +210,18 @@ function blockScopeRejection(relPath, parsed, scope, readCurrent) {
  */
 function scopeFromInput(input, siteShapeInfo) {
   if (!input || typeof input !== 'object') return null;
+  // #1791 —— 顶栏 / 页脚范围，排在下面那几个「回 null = 不收窄」之前。🔴 带了 region 却算不出范围
+  //    （值不认识、站的形状读不出来）不许退化成不收窄（那是闸全开），回一个认不出的范围，
+  //    让 regionScopeRejection 把每一次写入都拒掉 —— 跟块那一支「说不准就不收窄」的方向相反，
+  //    因为这里说不准的后果是「AI 照着一句改顶栏的话去改了首页」。
+  const region = input.region;
+  if (region !== undefined && region !== null && region !== '') {
+    const known = typeof region === 'string' && REGION_KEYS.includes(region);
+    if (!known || !siteShapeInfo) return { region: '?', navPath: '' };
+    const loc = typeof input.locale === 'string' && input.locale ? input.locale : '';
+    const pre = siteShapeInfo.flat ? '' : `${loc || siteShapeInfo.locales[0] || 'en'}/`;
+    return { region, navPath: `${pre}navigation.json` };
+  }
   const page = typeof input.page === 'string' ? input.page.trim() : '';
   if (!page) return null;
   const hasBlockId = typeof input.blockId === 'string' && input.blockId !== '';
@@ -166,4 +244,4 @@ function scopeFromInput(input, siteShapeInfo) {
   };
 }
 
-module.exports = { blockScopeRejection, scopeFromInput, rawBlocks };
+module.exports = { blockScopeRejection, scopeFromInput, rawBlocks, REGION_KEYS };

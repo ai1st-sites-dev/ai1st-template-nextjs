@@ -177,5 +177,86 @@ console.log('\n── ⑦ scopeFromInput：两种站形状各算一次');
   else bad(`该回 null 的没回 null: ${JSON.stringify(nulls)}`);
 }
 
+// ── #1791 顶栏 / 页脚范围（面板 AI 页）：只许改这种语言 navigation.json 的那一个键 ─────────────────
+// 🔴 同上面的规矩，每一格两向。另外专门量 PM 点名的那个放行方向：region 范围没有 pagePath，排在
+//    `!scope.pagePath` 那句之后的实现会对每个文件都回 null —— 那样的话 ②③④ 三格全红。
+{
+  const NAV = {
+    header: { cta: { label: 'Book now', href: '/contact' }, links: [{ label: 'Home', href: '/' }] },
+    footer: { tagline: 'Since 1990', columns: [{ title: 'Pages', links: [{ label: 'Home', href: '/' }] }] },
+  };
+  const navFiles = {
+    'en/navigation.json': JSON.stringify(NAV, null, 2),
+    'en/pages/home.json': JSON.stringify(PAGE, null, 2),
+    'brand.json': JSON.stringify({ name: 'Acme', phone: '555' }),
+  };
+  const nav = () => JSON.parse(JSON.stringify(NAV));
+  const shape = { flat: false, locales: ['en'] };
+  for (const [region, other] of [['header', 'footer'], ['footer', 'header']]) {
+    console.log(`\n── #1791 region=${region}`);
+    const scope = scopeFromInput({ page: 'home', locale: 'en', region }, shape);
+    if (scope && scope.region === region && scope.navPath === 'en/navigation.json' && !scope.pagePath) ok(`scopeFromInput ⟹ ${JSON.stringify(scope)}`);
+    else bad(`scopeFromInput 算错了: ${JSON.stringify(scope)}`);
+    const read = reader(navFiles);
+
+    // ① 改自己那个键 ⟹ 放行；一个字节没变也放行；别的键只换了键序 ⟹ 也放行（不是「动过」）
+    const mine = nav();
+    if (region === 'header') mine.header.cta.label = 'Get a quote'; else mine.footer.tagline = 'Since 1991';
+    const r1 = blockScopeRejection('en/navigation.json', mine, scope, read);
+    if (r1 === null) ok(`① 只改 ${region} ⟹ 放行`); else bad(`① 正常的改动被拒了: ${r1}`);
+    if (blockScopeRejection('en/navigation.json', nav(), scope, read) === null) ok('① 反向对照: 原样写回 ⟹ 放行');
+    else bad('① 原样写回被拒了');
+    const reordered = nav();
+    reordered[other] = Object.fromEntries(Object.entries(reordered[other]).reverse());
+    if (blockScopeRejection('en/navigation.json', reordered, scope, read) === null) ok(`① 反向对照: ${other} 只换了键序 ⟹ 放行`);
+    else bad(`① ${other} 只换了键序就被拒了`);
+
+    // ② 同一笔顺手改了另一个键 ⟹ 拒；顶层多出一个键 ⟹ 也拒
+    const both = nav();
+    if (region === 'header') { both.header.cta.label = 'Get a quote'; both.footer.tagline = 'x'; } else { both.footer.tagline = 'x'; both.header.cta.label = 'x'; }
+    const r2 = blockScopeRejection('en/navigation.json', both, scope, read);
+    if (r2 && r2.includes(`"${other}"`) && r2.includes('Nothing was written')) ok(`② 顺手改了 ${other} ⟹ 拒: ${r2}`);
+    else bad(`② 越界改 ${other} 没被拒: ${r2}`);
+    const extra = nav();
+    extra.announcement = { text: 'Sale' };
+    const r2b = blockScopeRejection('en/navigation.json', extra, scope, read);
+    if (r2b && r2b.includes('"announcement"')) ok('② 加一个新的顶层键 ⟹ 拒'); else bad(`② 新顶层键没被拒: ${r2b}`);
+
+    // ③ 写首页 ⟹ 拒（验收 7 那句「Change the hero headline」走的就是这一格）
+    const home = clone();
+    home.blocks[0].data.headline = 'Hello';
+    const r3 = blockScopeRejection('en/pages/home.json', home, scope, read);
+    if (r3 && r3.includes('Nothing was written') && r3.includes('en/navigation.json')) ok(`③ 写 pages/home.json ⟹ 拒: ${r3}`);
+    else bad(`③ 写首页没被拒: ${r3}`);
+    // 别的语言那份 navigation.json 也不是这一份
+    const r3b = blockScopeRejection('fr/navigation.json', mine, scope, read);
+    if (r3b && r3b.includes('Nothing was written')) ok('③ 写另一种语言的 navigation.json ⟹ 拒'); else bad(`③ 另一种语言的没被拒: ${r3b}`);
+
+    // ④ 写 brand.json ⟹ 拒，且那句话点名 Website settings
+    const r4 = blockScopeRejection('brand.json', { name: 'Acme 2', phone: '555' }, scope, read);
+    if (r4 && r4.includes('Website settings') && r4.includes('Nothing was written')) ok(`④ 写 brand.json ⟹ 拒: ${r4}`);
+    else bad(`④ brand.json 没被拒、或者没说 Website settings: ${r4}`);
+  }
+
+  console.log('\n── #1791 region 的失败方向是拒，不是放行');
+  // 带了 region 却算不出范围 ⟹ 每一次写入都拒（不许退化成不收窄 —— 那是闸全开）
+  const fallbacks = [
+    ['不认识的值', scopeFromInput({ page: 'home', region: 'sidebar' }, { flat: false, locales: ['en'] })],
+    ['站形状读不出来', scopeFromInput({ page: 'home', region: 'header' }, null)],
+    ['没带 page 也照样收窄', scopeFromInput({ region: 'header' }, { flat: false, locales: ['en'] })],
+  ];
+  for (const [name, sc] of fallbacks) {
+    const r = sc ? blockScopeRejection('en/navigation.json', JSON.parse(navFiles['en/navigation.json']), sc, reader(navFiles)) : null;
+    if (name === '没带 page 也照样收窄') {
+      if (sc && sc.region === 'header' && blockScopeRejection('en/pages/home.json', clone(), sc, reader(navFiles))) ok(`${name}: ${JSON.stringify(sc)} 拒写首页`);
+      else bad(`${name}: ${JSON.stringify(sc)}`);
+    } else if (sc && r) ok(`${name} ⟹ 每次写入都拒: ${r}`);
+    else bad(`${name} ⟹ 没收窄或放行了: ${JSON.stringify(sc)} / ${r}`);
+  }
+  // 扁平老站：navigation.json 在 site 根
+  const flat = scopeFromInput({ page: 'home', region: 'footer' }, { flat: true, locales: [] });
+  if (flat && flat.navPath === 'navigation.json') ok('扁平站 ⟹ navPath = navigation.json'); else bad(`扁平站算错: ${JSON.stringify(flat)}`);
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

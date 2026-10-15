@@ -1835,7 +1835,6 @@ function RegionBars({ doc }: { doc: Document }) {
 }
 
 function RegionBar({ doc, region }: { doc: Document; region: Region }) {
-  const dispatch = usePuck((s) => s.dispatch);
   const ui = useContext(EditorUiContext);
   const id = REGION_DESIGN_ID[region];
   const pos = useBlockBarPos(doc, id);
@@ -1849,10 +1848,12 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
     if (ui.design && ui.design !== id) ui.cancelDesign();
     ui.openDesign(id, 'content');
   };
-  // 同块的 AI Edit（§BlockBar）：开左栏的 AI 聊天、光标放进输入框。
+  // #1791 —— 同块的 AI Edit（§BlockBar）：打开面板的 AI 页（不再开左栏聊天，左栏开着就照旧开着），光标放进那一页的输入框。
+  //   上了锁（AI 正在改）不开，同 Design。
   const aiEdit = () => {
-    dispatch({ type: 'setUi', ui: { leftSideBarVisible: true, plugin: { current: AI_PLUGIN_NAME } } } as never);
-    whenFound(() => Array.from(document.querySelectorAll<HTMLTextAreaElement>('[data-editor-chat-input]:not(:disabled)')).find((el) => el.getClientRects().length > 0), (el) => el.focus());
+    if (ui.locked) return;
+    if (ui.design && ui.design !== id) ui.cancelDesign();
+    ui.openDesign(id, 'ai');
   };
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return createPortal(
@@ -1870,7 +1871,7 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
               <span style={BLOCKBAR_TEXT}>Edit content</span>
             </ActionBar.Action>
           )}
-          <ActionBar.Action label="AI Edit" onClick={aiEdit} data-editor-block-action="ai">
+          <ActionBar.Action label="AI Edit" onClick={aiEdit} disabled={ui.locked} data-editor-block-action="ai">
             {BLOCKBAR_ICON.ai}
             <span style={BLOCKBAR_TEXT}>AI Edit</span>
           </ActionBar.Action>
@@ -2485,20 +2486,21 @@ const AI_C = { border: '#e4e7ec', text: '#101828', sub: '#475467', faint: '#6670
  *   🔴 Enter 发送挂在 textarea 自己的原生 keydown 上：面板的 keydown 在面板那一层就被截住（§DesignPopover 的 stop），
  *      React 的 onKeyDown 挂在 portal 容器上，永远收不到（#1712 同一条）。
  */
-function DesignAi({ ui, item, rounds, sentAny, onSent }: {
+function DesignAi({ ui, label, scope, rounds, sentAny, onSent }: {
   ui: EditorUi;
-  item: { type: string; props: ItemProps };
+  /** 左下角那个名字（块的 label；#1791 顶栏 / 页脚是 Header / Footer）。 */
+  label: string;
+  /** 这一轮的范围：块的 §scopeOf，#1791 顶栏 / 页脚是 `{page, locale, region}`。发送那一刻才算（块刚存过、`_src` 才有）。 */
+  scope: () => ChatScope | null;
   rounds: { user: ChatRow; replies: ChatRow[] }[];
   /** 这一次打开以来从这一页发过没有：没发过的话 AI 在改的是别处发的那一句，这一页不说「AI is working…」。 */
   sentAny: boolean;
   onSent: (text: string) => void;
 }) {
-  const config = usePuck((s) => s.config);
   const [text, setText] = useState('');
   const [confirming, setConfirming] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const label = config.components[item.type]?.label || item.type;
   const chat = ui.chat;
   const working = (ui.chatPending || !!chat?.busy) && sentAny;
   const busy = ui.chatPending || !!chat?.busy || !!chat?.reverting;
@@ -2507,7 +2509,7 @@ function DesignAi({ ui, item, rounds, sentAny, onSent }: {
     if (!canSend) return;
     const t = text.trim();
     onSent(t);
-    ui.sendChat(t, scopeOf((item.props as { _src?: ChatSrc })._src, ui.page, ui.locale, ui.rawKey), true);
+    ui.sendChat(t, scope(), true);
     setText('');
   };
   const sendRef = useRef(send);
@@ -2865,7 +2867,14 @@ function DesignPopover({ doc }: { doc: Document }) {
     current = regionPresetName(region, shape, opts);
     readOnly = false;
     // #1759 —— 顶栏多一页 Content（logo · 名字 · 菜单 · 两颗按钮）；页脚照旧两页（正文「不做」）。
-    tabs = region === 'header' ? ['layout', 'customize', 'content'] : ['layout', 'customize'];
+    // #1791 —— 两边各多一页 AI（同页面块那一页，§DesignAi），这一轮的范围是 `{page, locale, region}`。
+    tabs = region === 'header' ? ['layout', 'customize', 'content', 'ai'] : ['layout', 'customize', 'ai'];
+    ai = (
+      <DesignAi ui={ui} label={region === 'header' ? 'Header' : 'Footer'}
+        scope={() => ({ page: ui.page, ...(ui.locale ? { locale: ui.locale } : {}), region })}
+        rounds={designAiRounds(ui.chat ? ui.chat.messages : [], aiSession.water, aiSession.sent)} sentAny={aiSession.sent.length > 0}
+        onSent={(t) => setAiSession((x) => ({ ...x, sent: [...x.sent, t] }))} />
+    );
     if (region === 'header') content = <HeaderContent props={rootProps} ui={ui} site={site} locale={api.locale} />;
     thumb = (p) => {
       const pick = regionPresetPick(region, p.name, opts);
@@ -2919,7 +2928,8 @@ function DesignPopover({ doc }: { doc: Document }) {
     // #1735 —— 这一块的内容字段（右栏那一份，去掉另两页已有的）。
     content = <DesignContent component={component} item={item as { type: string; props: ItemProps }} ui={ui} readOnly={locks} />;
     ai = (
-      <DesignAi ui={ui} item={item as { type: string; props: ItemProps }}
+      <DesignAi ui={ui} label={component.label || item.type}
+        scope={() => scopeOf((item.props as { _src?: ChatSrc })._src, ui.page, ui.locale, ui.rawKey)}
         rounds={designAiRounds(ui.chat ? ui.chat.messages : [], aiSession.water, aiSession.sent)} sentAny={aiSession.sent.length > 0}
         onSent={(t) => setAiSession((x) => ({ ...x, sent: [...x.sent, t] }))} />
     );
