@@ -251,7 +251,7 @@ async function mount(form, extra = {}) {
       check(p.on() === 'main', `打开在第一页（读到 ${p.on()}）`);
       check(p.q('[data-editor-form-title]').textContent === DEFAULT.name, `标题是表单名「${DEFAULT.name}」（读到「${p.q('[data-editor-form-title]').textContent}」）`);
       const rows = [...p.q('[data-editor-form-dialog]').querySelectorAll('[data-editor-form-section]')].map((e) => e.textContent.replace(/Edit$/, ''));
-      check(JSON.stringify(rows) === JSON.stringify(['Business contact information', 'Success message', 'Form fields']), `三行依次是联系方式 · 成功提示 · 表单字段（读到 ${JSON.stringify(rows)}）`);
+      check(JSON.stringify(rows) === JSON.stringify(['Contact information', 'Success message', 'Form fields']), `三行依次是联系方式 · 成功提示 · 表单字段（读到 ${JSON.stringify(rows)}）`);
       check(!!p.q('[data-editor-form-input="buttonText"]') && !!p.q('[data-editor-form-input="name"]') && !p.q('[data-editor-form-input="successMessage"]'),
         '第一页有 Submit button label、表单名两格，成功提示不在第一页');
       await p.go('success');

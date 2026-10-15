@@ -221,17 +221,17 @@ function siteWithNav(dir, locale) {
     const editorDir = path.join(REPO, 'templates', 'nextjs', 'src', 'components', 'editor');
     const field = fs.existsSync(editorDir) ? (() => {
       try {
-        return execFileSync('grep', ['-rIlF', 'Page layout (whole website)', editorDir], { encoding: 'utf-8' }).split('\n').filter(Boolean).length;
+        return execFileSync('grep', ['-rIlF', "layout: 'Page layout'", editorDir], { encoding: 'utf-8' }).split('\n').filter(Boolean).length;
       } catch (e) {
         return 0;
       }
     })() : 0;
     const sentence = howToChangePageLayout({ rootDir: NEXTJS }).sentence;
     const writer = fs.existsSync(path.join(REPO, 'templates', 'nextjs', 'scripts', 'write-editor-save.js'));
-    if (!/Page layout \(whole website\)/.test(sentence)) {
+    if (!/「Page layout」/.test(sentence)) {
       bad(`⑥ 页面编辑器能改布局了，而那句补救的话没把人指到它：${sentence}`);
     } else if (field === 0 || !writer) {
-      bad('⑥ 那句话把人指到页面编辑器的「Page layout (whole website)」，而编辑器里找不到这个字段 / 容器里没有'
+      bad('⑥ 那句话把人指到页面编辑器的「Page layout」，而编辑器里找不到这个字段 / 容器里没有'
         + ' write-editor-save.js —— 那句话现在是假的，回去改措辞');
     } else {
       ok(`⑥ 补救的话指到页面编辑器的「Page layout」，而那个字段真在编辑器里（${field} 个文件）、写它的脚本真在`);

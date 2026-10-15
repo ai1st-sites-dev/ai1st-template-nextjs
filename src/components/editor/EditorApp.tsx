@@ -420,7 +420,7 @@ function choiceField(label: string, choices: string[], fallback: string): Field 
 // ── #1506 —— 链接格：手填一个地址，或选「Business phone / Business email」（写成 `{source: "phone"}` 引用） ──────────
 //    引用在构建时（和画布上）从 brand.json 展开成 `tel:` / `mailto:`（`scripts/lib/item-sources.js`）——
 //    老板以后改电话，这个按钮跟着变。多门店时再选哪一家（`location` 是下标，第一家不写）。
-const LINK_SOURCE_LABELS: Record<string, string> = { phone: 'Business phone', email: 'Business email' };
+const LINK_SOURCE_LABELS: Record<string, string> = { phone: 'Contact phone', email: 'Contact email' };
 const CUSTOM_LINK = '';
 const INPUT_STYLE = { width: '100%', padding: '6px 8px', fontSize: 14, border: '1px solid #d0d5dd', borderRadius: 6, fontFamily: 'inherit' } as const;
 
@@ -895,7 +895,7 @@ type RootProps = {
   children?: ReactNode;
 };
 
-/** #1681 —— Page 面板「Business info」四样（`site/brand.json`）的字段名。存盘记录写成 `Business info · Phone`。 */
+/** #1681 —— Page 面板「Business info」四样（`site/brand.json`）的字段名。存盘记录写成 `Website settings · Phone`（#1776 起组名叫 Name & contact）。 */
 const BUSINESS_INFO_LABELS: Record<string, string> = {
   brandName: 'Website name',
   phone: 'Phone',
@@ -905,10 +905,10 @@ const BUSINESS_INFO_LABELS: Record<string, string> = {
 
 const BUSINESS_INFO_HEADING: Field = {
   type: 'custom',
-  label: 'Business info',
+  label: 'Name & contact',
   render: () => (
     <div data-editor-business-info>
-      <strong style={{ fontSize: 14 }}>Business info</strong>
+      <strong style={{ fontSize: 14 }}>Name & contact</strong>
       <p style={{ ...NOTE_STYLE, marginTop: 4 }}>
         Shown in the header, footer and contact buttons on every page. Phone, email and address are the same in every language.
       </p>
@@ -1015,16 +1015,17 @@ function RootShell({ site, locale, props, shell, children }: { site: SiteData; l
  */
 /** 外壳在存盘记录（§describeSave）里叫什么（#1454：老板在记录里读到的就是他点的那个东西）。#1738：顶栏 / 页脚写成 `Header · …` / `Footer · …`。 */
 const ROOT_FIELD_LABELS: Record<string, string> = {
-  layout: 'Page layout (whole website)',
+  layout: 'Page layout',
   headerShape: 'Header · Layout',
   footerShape: 'Footer · Layout',
   headerOptions: 'Header',
   footerOptions: 'Footer',
 };
-/** 存盘记录（§describeSave）用的那一份：外壳三样同面板，Business info 带上组名。 */
+/** 存盘记录（§describeSave）用的那一份：外壳三样同面板；#1776 —— 整站设置面板里的（联系方式四样 + 布局）带上面板名 `Website settings · `，顶栏 / 页脚那几样照旧。 */
 const ROOT_SAVE_LABELS: Record<string, string> = {
   ...ROOT_FIELD_LABELS,
-  ...Object.fromEntries(Object.entries(BUSINESS_INFO_LABELS).map(([k, v]) => [k, `Business info · ${v}`])),
+  ...Object.fromEntries(Object.entries(BUSINESS_INFO_LABELS).map(([k, v]) => [k, `Website settings · ${v}`])),
+  layout: `Website settings · ${ROOT_FIELD_LABELS.layout}`,
   // #1759 —— 顶栏 Content 页（票正文做什么 5：跟页面块存盘记录同一种写法）。菜单那一句不在这里（它不是 root 字段，§saveFields 补）。
   logoUrl: 'Header · Logo',
   headerCta: 'Header · Main button',
@@ -1047,6 +1048,8 @@ function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
   };
   const layoutOf = (id: unknown) => schema.root.layouts.find((l) => l.id === id);
   return {
+    // #1776 —— 什么都没选中时右栏标题（Puck 0.23 取 `config.root.label`，没有才是默认的 "Page"）；选中块时面包屑第一格也读它。
+    label: 'Website settings',
     fields,
     render: ({ children, layout, headerShape, footerShape, headerOptions, footerOptions, ...rest }: RootProps) => {
       const l = layoutOf(layout) || schema.root.layouts[0];
@@ -1481,7 +1484,7 @@ function SettingsRail() {
 }
 const EDITOR_PLUGINS = [
   { name: AI_PLUGIN_NAME, label: 'AI', icon: AI_ICON, render: AiChatPanel, mobilePanelHeight: 'toggle' as const },
-  { name: SETTINGS_PLUGIN_NAME, label: 'Settings', icon: SETTINGS_ICON, render: SettingsRail, desktopOnly: true },
+  { name: SETTINGS_PLUGIN_NAME, label: 'Website', icon: SETTINGS_ICON, render: SettingsRail, desktopOnly: true },
 ];
 // 打开编辑器默认就是 AI 这一格（不设的话 Puck 选第一格 Blocks，聊天就藏起来了）。只在 <Puck> 挂载那一次生效。
 // #1741 —— 画布满宽、按真实宽度排版，没有尺寸 / 缩放那一行（Chris 2026-10-12：要看 iPad / 手机去 Preview 里切）。
@@ -2342,7 +2345,7 @@ const pageHrefOf = (href: HeaderButtonValue['href']) => (typeof href === 'string
 
 /** #1759 —— 顶栏 Content 页有不能存的值时 Done 要说的那一句（'' = 能存）。写盘那一侧（`editor-root.js` / `editor-nav.js`）照样再判一次。 */
 function headerContentProblem(p: Record<string, unknown>): string {
-  if (typeof p.brandName === 'string' && !p.brandName.trim()) return 'The business name can\'t be empty.';
+  if (typeof p.brandName === 'string' && !p.brandName.trim()) return 'The website name can\'t be empty.';
   const menu = navMenuProblem(p.navMenu as NavPanel | undefined);
   if (menu) return menu;
   if (p.headerCta) {
@@ -2360,10 +2363,10 @@ const HEADER_SUB: CSSProperties = { margin: '4px 0 8px', fontSize: 12, lineHeigh
 const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap', fontFamily: 'inherit' };
 
 /**
- * #1759 —— 顶栏 Design 面板的 Content 页（票正文做什么 3）：Logo · Business name · Navigation links · Buttons。
+ * #1759 —— 顶栏 Design 面板的 Content 页（票正文做什么 3）：Logo · Website name · Navigation links · Buttons。
  *   改的全是 root 上的值（`changeHeader`），跟 Layout / Customize 两页同一个事务：画布当场跟着变（§withHeaderContent），Done 存一笔、Cancel 全退回。
  *   · Logo —— 同右栏图片格的 Change（`ImageUrlControl`，选图弹窗同一个 `pickImage`）；写 `brand.json` 的 `logoUrl`。
- *   · Business name —— Page 面板里那一格的同一个值（`brandName`）。
+ *   · Website name —— Website settings 面板里那一格的同一个值（`brandName`）。
  *   · Navigation links —— 菜单是从页面推出来的：列表、拖动、显示 / 隐藏的规矩全在 `nav-editor.js`。按钮指向的那一页不列，下面一句灰字点名它；
  *     拖动抄 §StringListControl 的形态（只有把手可拖，输入框里能用鼠标选字）。首页一行：能改名，不能拖、不能隐藏。
  *   · Buttons —— 主按钮 / 次按钮。#1779 起每颗是 #1755 的按钮控件（`ButtonEditor`，同画布上点它开的弹窗）：Link Type 四类
@@ -2399,7 +2402,7 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
       )}
       {typeof props.brandName === 'string' && (
         <div data-editor-content-field="brandName" style={{ marginBottom: 16 }}>
-          <FieldLabel label="Business name" el="div" />
+          <FieldLabel label="Website name" el="div" />
           <input data-editor-header-brand="" type="text" value={props.brandName} onChange={(e) => set({ brandName: e.target.value })} style={INPUT_STYLE} />
         </div>
       )}
@@ -4192,8 +4195,8 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
 
   // #1634 —— 「Edit this form」面板：Done ⟹ 这一笔表单文案等着交，马上存（跟停手自动存同一条路，§flushAutosave）。
   const formsCtx = { forms: formList, canvasForms, editForm: (id: string) => setFormEditing(id), locked };
-  // #1768 —— 弹窗的「Business contact information」页：读写的是 Puck root 的 phone / email / address —— Page 面板 Business info（#1681）
-  //   那三格，存盘照旧经 §puckRootChanges（整站一份、记录写 `Business info · Phone`），画布经 §RootShell 当场换。不另写一份。
+  // #1768 —— 弹窗的「Contact information」页：读写的是 Puck root 的 phone / email / address —— Page 面板 Business info（#1681）
+  //   那三格，存盘照旧经 §puckRootChanges（整站一份、记录写 `Website settings · Phone`），画布经 §RootShell 当场换。不另写一份。
   const businessNow = (): BusinessContact => {
     const g = puckForDesign();
     const p = g ? rootPropsOf(g) : {};
@@ -4211,7 +4214,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     (g.dispatch as unknown as (a: unknown) => void)({ type: 'replaceRoot', root: { ...root, props: { ...rootPropsOf(g), ...contact } }, recordHistory: !d });
   };
   const editingForm = formEditing ? formList.find((f) => f.id === formEditing) : undefined;
-  // #1755 r4 —— 按钮控件（弹窗 / Content 页 / 右栏）里「去 Settings → Business info 改」那一下，和它显示值用的那份站点数据。
+  // #1755 r4 —— 按钮控件（弹窗 / Content 页 / 右栏）里「去 Website → Name & contact 改」那一下，和它显示值用的那份站点数据。
   //   弹层开着 ⟹ 先 Done：这是弹窗自己给的动作，老板去改的正是这颗按钮要用的号码，当 Cancel 会把他刚选的 Link Type 一起退掉
   //   （PM 2026-10-14 定：「点外面 = Cancel」管的是意外离开，这一下不是）。Done 被拦下（顶栏那条）⟹ 面板留着、不跳。
   //   然后同竖栏 Settings（§SettingsRail）：清掉选中、打开右栏 —— 右栏显示的就是整站设置，Business info 滚进来。

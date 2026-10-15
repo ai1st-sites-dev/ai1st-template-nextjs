@@ -32,7 +32,7 @@ const chip = (on: boolean, off: boolean): CSSProperties => ({
  * #1755 r4 —— 编辑器递进来的两样（EditorApp 提供；不在编辑器里 = null，下面照构建时那份显示、不出指路）：
  *   · `liveSite`：构建时那份站点数据，Business info 换成 Page 面板里的现值（就是 EditorApp §withBusinessInfo，画布按它画）——
  *     弹窗里显示的号码 / 邮箱跟画布上那颗按钮同一份，老板刚在 Business info 里改了也对得上；
- *   · `openBusinessInfo`：「去 Settings → Business info 改」那一下 —— 弹窗开着就先 Done（存下来，不退），再打开右栏的 Business info。
+ *   · `openBusinessInfo`：「去 Website → Name & contact 改」那一下 —— 弹窗开着就先 Done（存下来，不退），再打开右栏的 Name & contact。
  */
 export const ButtonLinkEnvContext = createContext<{
   liveSite: (site: SiteData, locale: string, root: Record<string, unknown>) => SiteData;
@@ -159,9 +159,9 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale, type
     const attr = isPhone ? 'phone' : 'email';
     const prefix = isPhone ? 'tel:' : 'mailto:';
     // #1755 r4 —— Business 那一项把值本身写出来（这颗按钮构建出来会拨 / 会发的那个，多门店跟着下面选的那一家）；空的说清楚是空的。
-    const businessName = isPhone ? 'Business phone' : 'Business email';
+    const businessName = isPhone ? 'Contact phone' : 'Contact email';
     const known = contactText(type, business ? ref : null, live);
-    // 指路只在它为真时出：Settings → Business info 那一格 Phone 只管第一家（§withBusinessInfo 写 `locations[0]`），邮箱整站一份。
+    // 指路只在它为真时出：Website → Name & contact 那一格 Phone 只管第一家（§withBusinessInfo 写 `locations[0]`），邮箱整站一份。
     const fixable = !!env && !readOnly && business && (!isPhone || at === 0);
     cell = (
       <div style={ROW}>
@@ -182,7 +182,7 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale, type
           <p data-editor-button-business-hint="" style={HINT}>
             {known ? '' : `No ${isPhone ? 'phone number' : 'email address'} yet. `}
             <button type="button" data-editor-button-business-settings="" style={HINT_LINK} onClick={() => env!.openBusinessInfo()}>
-              {known ? 'Change it in Settings → Business info' : 'Add it in Settings → Business info'}
+              {known ? 'Change it in Website → Name & contact' : 'Add it in Website → Name & contact'}
             </button>
           </p>
         )}

@@ -60,7 +60,7 @@ const canWrite = (p) => writeRejection(p) === null;
     //    里 grep 命中 0，尺子校准 ThemeModal=3）。钉住它等于把「去某某地方改」这个假象钉在原地 ——
     //    跟 r2 治掉 navigation.json 那个 `regenerates` needle 是同一件事。现在钉承重的那半句。
     // 🔴 #1405 —— 从「还换不了」改成指向页面编辑器里那个真实存在的字段（本票之后它是 page-layout.json 的写入者）。
-    ['page-layout.json', 'Page layout (whole website)'],
+    ['page-layout.json', 'then "Page layout" in the panel'],
     // 📌 #1104 —— `navigation.json` **搬出这张表了**：它现在是有条件可写的（改顶部那个按钮放行，
     // 改菜单链接拒），判断和它的全部断言住在 `navigation-owned.test.js`。这里原来有两格钉着
     // 「no way to change those yet」——那句话本票之后是**假的**，钉着它等于把「老板改不了」钉在原地。
@@ -203,7 +203,7 @@ const canWrite = (p) => writeRejection(p) === null;
     { mustNot: 'It is auto-regenerated from page metadata.',
       why: 'SYSTEM_PROMPT 里那句「整份由页面元数据自动重建」又回来了 —— header.cta 恰恰不是' },
     // page-layout.json —— #1405 之后的真话：在页面编辑器里改（原来钉的是「没人改得了」，那句本票之后是假的）
-    { must: 'the owner changes it in the page editor: click "Settings" (the gear) in the bar on the left, then "Page layout (whole website)" in the panel that opens on the right',
+    { must: 'the owner changes it in the page editor: click "Website" (the gear) in the bar on the left, then "Page layout" in the panel that opens on the right',
       why: 'SYSTEM_PROMPT 没把老板指到页面编辑器 —— 模型会说布局换不了，而编辑器里就能换' },
     { mustNot: 'nothing in the product changes it today',
       why: 'SYSTEM_PROMPT 里「没人改得了 page-layout.json」又回来了 —— #1405 之后页面编辑器写它' },
@@ -666,7 +666,7 @@ const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigat
 }
 
 // ── ⑪ #1405 —— 给模型的那个名字在界面上真的存在 ──────────────────────────────────────────────
-// page-layout.json 的理由把老板指到「Page layout (whole website)」。它一改名，
+// page-layout.json 的理由把老板指到竖栏「Website」→「Page layout」（#1776 前是「Settings」→「Page layout (whole website)」）。它一改名，
 // 这句话就又成了指向一个不存在的地方（#1087 r3 治过的同一个病），所以拿界面源码当被审对象。
 {
   const fsx = require('fs');
@@ -674,12 +674,16 @@ const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigat
   const tpl = pathx.join(__dirname, '..', '..');
   const editorSrc = fsx.readFileSync(pathx.join(tpl, 'src', 'components', 'editor', 'EditorApp.tsx'), 'utf-8');
   const why = writeRejection('page-layout.json') || '';
-  const field = 'Page layout (whole website)';
+  const field = 'Page layout';
   // #1454 —— 外壳四样的字段名收进了 `ROOT_FIELD_LABELS`（存盘记录跟面板共用一份），root 字段的 label 从它取：
   // 那种写法也算「界面上真的是这几个字」，但要同时看到常量里是这句话、字段真的读这个常量。
   const inLabels = editorSrc.includes(`layout: '${field}'`) && editorSrc.includes('label: ROOT_FIELD_LABELS.layout');
   if (why.includes(field) && (editorSrc.includes(`label: '${field}'`) || inLabels)) ok(`⑪ 「${field}」是编辑器里那个 root 字段的原文`);
   else bad(`⑪ 理由里的「${field}」在 EditorApp.tsx 的 root 字段里找不到（或理由里没有它）`);
+  // #1776 —— 竖栏那一格也是理由里点名的地方（「Settings」改叫「Website」时这句话差点没跟上）。
+  const rail = 'Website';
+  if (why.includes(`click "${rail}" (the gear)`) && editorSrc.includes(`label: '${rail}', icon: SETTINGS_ICON`)) ok(`⑪ 竖栏「${rail}」是编辑器里那一格的原文`);
+  else bad(`⑪ 理由里的竖栏「${rail}」在 EditorApp.tsx 的竖栏里找不到（或理由里没有它）`);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

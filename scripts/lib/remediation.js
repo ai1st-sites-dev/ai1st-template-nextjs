@@ -132,7 +132,7 @@ function howToChangePageLayout(opts) {
     //    `remediation.test.js` ⑥ 钉的正是这件事：它数仓里有没有写入者，也数那个字段在不在编辑器里。
     // 📌 `viaProduct` 的意思没变：它只答「AI 聊天编辑器能不能写」（白名单），编辑器那条路写在句子里。
     viaProduct: can === false ? false : null,
-    sentence: `在网站编辑页（打开就是页面编辑器）点左边竖栏的齿轮「Settings」，在右侧打开的那一栏「Page layout (whole website)」里换一个`
+    sentence: `在网站编辑页（打开就是页面编辑器）点左边竖栏的齿轮「Website」，在右侧打开的那一栏「Page layout」里换一个`
       + `（库里有：${list}）；也可以手改这个站仓里的 site/page-layout.json（{"layoutId":"…"}；`
       + `这个文件不在就按 standard 走）。`,
   };

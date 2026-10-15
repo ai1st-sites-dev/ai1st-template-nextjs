@@ -1139,7 +1139,7 @@ above except brand.json lives under **{locale}/**.
 Everything else you may see under the site directory is owned elsewhere and **write_file will refuse it**:
 theme.json and theme.css (the theme picker in the dashboard), custom.css (generated from theme.json),
 site_meta.json (the site's id and languages, fixed when the site was created), page-layout.json (which page
-layout the site uses — the owner changes it in the page editor: click "Settings" (the gear) in the bar on the left, then "Page layout (whole website)" in the panel that opens on the right). Do not try to change the site's look by
+layout the site uses — the owner changes it in the page editor: click "Website" (the gear) in the bar on the left, then "Page layout" in the panel that opens on the right). Do not try to change the site's look by
 writing those — change colors and fonts in brand.json.
 
 ## Color Palette

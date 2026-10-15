@@ -1115,7 +1115,7 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
   return parts.length ? parts.join('; ') : 'Saved changes in the page editor.';
 }
 
-/** 外壳四样里是「选一项」的那几个：记录里带上选了哪一项（`Page layout (whole website) → standard`）。 */
+/** 外壳四样里是「选一项」的那几个：记录里带上选了哪一项（`Website settings · Page layout → standard`）。 */
 const ROOT_CHOICE_FIELDS = new Set(['layout', 'headerShape', 'footerShape']);
 /** #1759 —— 值是一个地址的那几格：记录里只说改了哪一格（`Header · Logo`），不把地址念出来。 */
 const ROOT_NAME_ONLY = new Set(['logoUrl']);

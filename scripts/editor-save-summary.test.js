@@ -212,13 +212,21 @@ eq(run({ root: { headerShape: 'topbar' } }), `${rootLabels.headerShape} → topb
 eq(run({ root: { footerShape: '' } }), `${rootLabels.footerShape} → (default)`, '把 Footer style 改回默认');
 eq(run({ json: edit((j) => { at(j, 'home-cta-0').data[barText.slot] = 'x'; }), root: { layout: 'standard' } }),
   `${B} · ${barText.label} · "x"; ${rootLabels.layout} → standard`, '页面 + 外壳同一笔');
-// #1681 —— Business info 四样是文字框：跟块文字同一个规矩（写新值），清空写 (empty)。字段名照 EditorApp.tsx 的 ROOT_SAVE_LABELS 形状。
-const biz = { phone: 'Business info · Phone', brandName: 'Business info · Website name', address: 'Business info · Address' };
-eq(run({ root: { phone: '647-555-0199' }, rootLabels: biz }), 'Business info · Phone · "647-555-0199"', '改电话：写新号码');
-eq(run({ root: { brandName: '港湾面包坊' }, rootLabels: biz }), 'Business info · Website name · "港湾面包坊"', '改名字（中文）');
-eq(run({ root: { phone: '' }, rootLabels: biz }), 'Business info · Phone · (empty)', '清空电话');
+// #1681 —— Business info 四样是文字框（#1776 起组名 Name & contact、记录前缀 Website settings）：跟块文字同一个规矩（写新值），清空写 (empty)。字段名照 EditorApp.tsx 的 ROOT_SAVE_LABELS 形状。
+const biz = { phone: 'Website settings · Phone', brandName: 'Website settings · Website name', address: 'Website settings · Address' };
+eq(run({ root: { phone: '647-555-0199' }, rootLabels: biz }), 'Website settings · Phone · "647-555-0199"', '改电话：写新号码');
+eq(run({ root: { brandName: '港湾面包坊' }, rootLabels: biz }), 'Website settings · Website name · "港湾面包坊"', '改名字（中文）');
+eq(run({ root: { phone: '' }, rootLabels: biz }), 'Website settings · Phone · (empty)', '清空电话');
+// #1776 —— 记录前缀住在 EditorApp.tsx 的 ROOT_SAVE_LABELS：联系方式四样 + 布局带「Website settings · 」，顶栏 / 页脚那几样不带。
+{
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src/components/editor/EditorApp.tsx'), 'utf8');
+  const blk = (src.match(/const ROOT_SAVE_LABELS[^=]*=\s*\{([\s\S]*?)\n\};/) || [])[1] || '';
+  eq(/\.\.\.ROOT_FIELD_LABELS,[\s\S]*`Website settings · \$\{v\}`[\s\S]*layout: `Website settings · \$\{ROOT_FIELD_LABELS\.layout\}`/.test(blk), true,
+    'ROOT_SAVE_LABELS：摊开 ROOT_FIELD_LABELS 之后，联系方式四样和 layout 都改写成 Website settings · …');
+  eq(/(headerShape|footerShape|headerOptions|footerOptions)\s*:/.test(blk), false, 'ROOT_SAVE_LABELS 不另写顶栏 / 页脚四样（它们照旧是 Header · … / Footer · …）');
+}
 eq(run({ root: { address: 'A'.repeat(50), layout: 'standard' }, rootLabels: { ...rootLabels, ...biz } }),
-  `${rootLabels.layout} → standard; Business info · Address · "${'A'.repeat(40)}…"`, '长地址截 40 个字 + 同一笔改版式（按 schema.root.fields 的顺序）');
+  `${rootLabels.layout} → standard; Website settings · Address · "${'A'.repeat(40)}…"`, '长地址截 40 个字 + 同一笔改版式（按 schema.root.fields 的顺序）');
 
 console.log('⑦ 共用块：按块库里那一块的类型取名');
 eq(run({ shared: { 'site-bar': { data: { [barText.slot]: 'x' }, was: {} } }, siteBlocks: { 'site-bar': { type: 'cta', data: {} } } }),

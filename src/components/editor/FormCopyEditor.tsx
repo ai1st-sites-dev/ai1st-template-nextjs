@@ -167,7 +167,7 @@ const CONTACT_LABEL: Record<ContactKey, string> = { phone: 'Phone', email: 'Emai
 // #1769 —— `custom:` 是 Add field 页：后面跟自定义字段的 id（改它）或空（新加一个）。
 type Page = 'main' | 'contact' | 'success' | 'fields' | `field:${FormField}` | `custom:${string}`;
 const PAGE_TITLE: Record<'contact' | 'success' | 'fields', string> = {
-  contact: 'Business contact information', success: 'Success message', fields: 'Form fields',
+  contact: 'Contact information', success: 'Success message', fields: 'Form fields',
 };
 
 /** 照 #1755 按钮弹窗（EditorApp §POPOVER / §POPOVER_BTN）：同宽、同圆角、同字号。 */

@@ -427,7 +427,7 @@ console.log('\n── #1520 ⑥ 校验报文：label 是别的类型时说「lab
 }
 
 // ══ AC7 编辑器 ════════════════════════════════════════════════════════════════════════════════════
-console.log('\n── AC7 编辑器：Link 那一格选 Business phone');
+console.log('\n── AC7 编辑器：Link 那一格选 Contact phone');
 let EditorApp; let schema; let convert;
 try {
   EditorApp = require(path.join(SRC, 'components', 'editor', 'EditorApp.tsx'));
@@ -449,8 +449,8 @@ globalThis.__BRAND__ = clone(BRAND);
   for (const type of ['blog', 'logos']) {
     const f = hrefField(type);
     const html = f && f.type === 'custom' ? renderToStaticMarkup(f.render({ value: '/x', onChange: () => {}, readOnly: false })) : '';
-    check(/<option value="phone">Business phone<\/option>/.test(html) && /<option value="email">Business email<\/option>/.test(html),
-      `${type}.introCta 那一格 Link 有「Business phone」「Business email」两个选项`, html.slice(0, 160));
+    check(/<option value="phone">Contact phone<\/option>/.test(html) && /<option value="email">Contact email<\/option>/.test(html),
+      `${type}.introCta 那一格 Link 有「Contact phone」「Contact email」两个选项`, html.slice(0, 160));
   }
   const comp = schema.components.find((c) => c.type === 'blog');
   const base = { ...clone(demo.DEMO_CONTENT['blog']), introCta: { label: 'Call us', href: '/contact', style: 'solid' } };
@@ -458,14 +458,14 @@ globalThis.__BRAND__ = clone(BRAND);
   let picked;
   const sel = find(tree(hrefField('blog'), props.introCta.href, (v) => { picked = v; }), (n) => n.type === 'select' && 'data-editor-link-mode' in n.props);
   sel.props.onChange({ target: { value: 'phone' } });
-  check(JSON.stringify(picked) === '{"source":"phone"}', `选 Business phone ⟹ onChange 收到 ${JSON.stringify(picked)}`);
+  check(JSON.stringify(picked) === '{"source":"phone"}', `选 Contact phone ⟹ onChange 收到 ${JSON.stringify(picked)}`);
   const saved = convert.dataFromProps(comp, base, { ...props, introCta: { ...props.introCta, href: picked } });
   check(JSON.stringify(saved.introCta.href) === '{"source":"phone"}', `存盘：页面 JSON 里 introCta.href 是 ${JSON.stringify(saved.introCta.href)}`);
-  // 重开：从存下去的那份再进 Puck，那一格显示的还是 Business phone（不是 [object Object]）。
+  // 重开：从存下去的那份再进 Puck，那一格显示的还是 Contact phone（不是 [object Object]）。
   const reopened = convert.fieldProps(comp, saved);
   const reHtml = renderToStaticMarkup(hrefField('blog').render({ value: reopened.introCta.href, onChange: () => {}, readOnly: false }));
-  check(/data-editor-link-source="phone"/.test(reHtml) && /<option value="phone" selected="">Business phone/.test(reHtml) && !/object Object/.test(reHtml),
-    '关掉再打开：那一格选中的还是 Business phone、没有 [object Object]');
+  check(/data-editor-link-source="phone"/.test(reHtml) && /<option value="phone" selected="">Contact phone/.test(reHtml) && !/object Object/.test(reHtml),
+    '关掉再打开：那一格选中的还是 Contact phone、没有 [object Object]');
   const twoLoc = renderToStaticMarkup(hrefField('blog').render({ value: { source: 'phone', location: 1 }, onChange: () => {}, readOnly: false }));
   check(/data-editor-link-location/.test(twoLoc) && /<option value="1" selected="">East/.test(twoLoc), '两家门店 ⟹ 多一格选哪一家（location 1 选中 East）');
   globalThis.__BRAND__ = { ...clone(BRAND), locations: [BRAND.locations[0]] };
