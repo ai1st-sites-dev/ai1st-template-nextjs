@@ -159,7 +159,7 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale, type
     const attr = isPhone ? 'phone' : 'email';
     const prefix = isPhone ? 'tel:' : 'mailto:';
     // #1755 r4 —— Business 那一项把值本身写出来（这颗按钮构建出来会拨 / 会发的那个，多门店跟着下面选的那一家）；空的说清楚是空的。
-    const businessName = isPhone ? 'Contact phone' : 'Contact email';
+    const businessName = isPhone ? 'Website phone' : 'Website email';
     const known = contactText(type, business ? ref : null, live);
     // 指路只在它为真时出：Website → Name & contact 那一格 Phone 只管第一家（§withBusinessInfo 写 `locations[0]`），邮箱整站一份。
     const fixable = !!env && !readOnly && business && (!isPhone || at === 0);

@@ -493,7 +493,7 @@ function choiceField(label: string, choices: string[], fallback: string): Field 
 // ── #1506 —— 链接格：手填一个地址，或选「Business phone / Business email」（写成 `{source: "phone"}` 引用） ──────────
 //    引用在构建时（和画布上）从 brand.json 展开成 `tel:` / `mailto:`（`scripts/lib/item-sources.js`）——
 //    老板以后改电话，这个按钮跟着变。多门店时再选哪一家（`location` 是下标，第一家不写）。
-const LINK_SOURCE_LABELS: Record<string, string> = { phone: 'Contact phone', email: 'Contact email' };
+const LINK_SOURCE_LABELS: Record<string, string> = { phone: 'Website phone', email: 'Website email' };
 const CUSTOM_LINK = '';
 const INPUT_STYLE = { width: '100%', padding: '6px 8px', fontSize: 14, border: '1px solid #d0d5dd', borderRadius: 6, fontFamily: 'inherit' } as const;
 
