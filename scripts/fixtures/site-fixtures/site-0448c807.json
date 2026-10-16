@@ -106,10 +106,12 @@
           "href": "/faq"
         }
       ],
-      "cta": {
-        "label": "Get a Free Quote",
-        "href": "/contact"
-      }
+      "buttons": [
+        {
+          "label": "Get a Free Quote",
+          "href": "/contact"
+        }
+      ]
     },
     "footer": {
       "description": "SparkleClean Pro provides professional Window Cleaning and House Cleaning services across Toronto, Ontario, delivering spotless results every time.",

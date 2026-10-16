@@ -1,0 +1,22 @@
+{
+  "brand.json": {
+    "socialLinks": [
+      { "platform": "facebook", "url": "https://facebook.com/harbourdentalstudio" },
+      { "platform": "instagram", "url": "https://instagram.com/harbourdentalstudio" },
+      { "platform": "google", "url": "https://g.page/r/harbourdentalstudio" }
+    ]
+  },
+  "en/navigation.json": {
+    "header": {
+      "topbarLinks": [
+        { "label": "Call us", "href": { "source": "phone" } },
+        { "label": "Services", "href": "/services" }
+      ]
+    }
+  },
+  "theme.json": {
+    "regionOptions": {
+      "header": { "topbar": true, "logoType": "text", "logoSize": 52 }
+    }
+  }
+}

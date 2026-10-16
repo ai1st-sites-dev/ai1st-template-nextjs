@@ -1,0 +1,10 @@
+{
+  "siteId": "site-3f8a2c61",
+  "siteUrl": "https://example.com",
+  "companyName": "Northside Auto Care",
+  "industry": "auto repair",
+  "location": "Toronto",
+  "language": "en",
+  "secondaryLocales": ["fr"],
+  "skipAI": true
+}

@@ -104,10 +104,12 @@
           "href": "/faq"
         }
       ],
-      "cta": {
-        "label": "Get in Touch",
-        "href": "/contact"
-      }
+      "buttons": [
+        {
+          "label": "Get in Touch",
+          "href": "/contact"
+        }
+      ]
     },
     "footer": {
       "description": "Petal & Bloom offers custom bouquets, wedding flowers, and funeral arrangements with same-day delivery across Toronto.",
@@ -808,7 +810,7 @@
             },
             {
               "imageUrl": "https://uploads.ai1stsite.dev/19960350-4037-4f04-88f7-0ecae83aa53f/84a6c906b_icon.png",
-              "alt": ""
+              "alt": "ai1st 6"
             }
           ]
         },
