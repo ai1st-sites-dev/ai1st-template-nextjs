@@ -915,6 +915,8 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       // 这个模块是纯函数，不自己碰文件系统（它也被测试直接调）。
       const writeCtx = {
         content: toolInput.content,
+        // #1813 —— 这一轮被收窄到哪儿（同一个值下面还递给 blockScopeRejection）。navigation.json 的拒绝句据它只说这一轮写得动的东西。
+        scope: blockScopeInfo,
         readCurrent: (p) => {
           const f = path.join(siteDir, p);
           return fs.existsSync(f) ? fs.readFileSync(f, 'utf-8') : null;

@@ -73,7 +73,16 @@ const { topLevelLinks } = require('./nav-menu');
  * 🔴 这两句话同样不许写死成散文：`rebuiltFromCode` 是 `sync-config.js` 里让它成为真话的那几句原文，
  *    由 `navigation-owned.test.js` 的 ⑭ 拿它跟真代码比 —— 哪天那段逻辑改了，这句话当场红。
  *    （同 `SIDE_EFFECTS[].coupling` 的做法，理由也一样。）
+ *
+ * ── `scoped` —— 这一轮被收窄到顶栏 / 页脚时换掉的那几句（#1813）─────────────────────────────────
+ * 页脚那一页的 AI 对话只许写 `footer`（#1791，`block-scope.js` §regionScopeRejection）。上面那两句补救话叫模型去改
+ * `header.links` —— 在那一轮里照做就撞那道闸，老板拿到的是两道互相指的门。有 `scoped[<区>]` 的项在那个范围下用它的
+ * `rebuiltFrom` / `remediation`（缺哪个用上面那个）；不带范围（页面级对话 = `scopeFromInput` 回 null）一个字节不变 ——
+ * 那条路上 AI 写得动 `header.links`，原句是对的、照做当场就改好了。
  */
+const MENU_NOT_HERE = 'The menu cannot be changed in this conversation, which is only about the footer: tell the owner '
+  + "to change it in the page editor, on the header's Content tab (Navigation links).";
+
 const OWNED = [
   // #1781 —— 菜单（`header.links`）从这张表里拿掉了：它是老板自己的一份列表，构建只在缺席时算一次、追加新页、去掉指向已删页的项
   //    （`nav-menu.js` §syncMenu）—— 写进去的会留着，不是「会被覆盖」。构建对它的那一句写仍在 derive-site.js 里，③ 照它核的是
@@ -84,6 +93,12 @@ const OWNED = [
     syncConfigWrite: 'header.knownPages',
     rebuiltFrom: "the site's pages — it only records which pages the build has seen, so a new page is added to the menu once",
     remediation: 'Leave it as it is. To add a link to the menu or take one out, change header.links instead.',
+    // #1813 —— 页脚那一页的对话里 header 一个字节都写不了（#1791 的范围闸），上面那句补救话在这里就是一道指向另一道门的门。
+    scoped: {
+      footer: {
+        remediation: `Leave it as it is. ${MENU_NOT_HERE}`,
+      },
+    },
     rebuiltFromCode: ['knownPages: [...known.filter((s) => now.has(s))', 'existingNav.header.knownPages = menu.knownPages'],
     read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.knownPages : undefined),
   },
@@ -97,6 +112,13 @@ const OWNED = [
     mirrorOf: (nav) => (isObj(nav) && isObj(nav.header) ? topLevelLinks(nav.header.links) : undefined),
     rebuiltFrom: 'the header menu (header.links) — the first footer column is always a copy of its top-level links (dropdown links are not copied)',
     remediation: 'To change those links, change header.links: the first footer column follows it on the next build.',
+    // #1813 —— 页脚那一页：不提 header.links（这一轮写它会被范围闸拒），指路到老板点得到的地方。
+    scoped: {
+      footer: {
+        rebuiltFrom: 'the header menu — the first footer column is always a copy of it',
+        remediation: `${MENU_NOT_HERE} The first footer column follows the menu on the next build.`,
+      },
+    },
     rebuiltFromCode: ['existingNav.footer.columns[0].links = navMenu.topLevelLinks(menu.links)'],
     read: (nav) => {
       if (!isObj(nav) || !isObj(nav.footer) || !Array.isArray(nav.footer.columns)) return undefined;
@@ -756,13 +778,33 @@ const NAVIGATION_EDITABLE_SUMMARY =
   + 'Write the complete file with everything else exactly as you read it.';
 
 /**
+ * #1813 —— 这一轮被收窄到顶栏 / 页脚（#1791）时，上面那段换成这一段：只列这一轮写得动的那几项（各项的说法是上面原文的子集），
+ * 不宣传这一轮注定会被范围闸拒的东西。页脚那一页不提菜单的键，指路到老板点得到的地方；顶栏那一页不提页脚那几项。
+ * `topbar`（公告条那一段文字）是 navigation.json 的另一个顶层键，两种范围下都写不了，所以两段都不列它。
+ */
+const SCOPED_EDITABLE_SUMMARY = {
+  footer: 'In this conversation you may change only the footer: the footer copyright, the footer description, the '
+    + 'footer column titles and the footer legal links (footer.legal — a list of {label, href}). '
+    + `${MENU_NOT_HERE} Write the complete file with everything else exactly as you read it.`,
+  header: 'In this conversation you may change only the header: the menu (header.links — a list of {label, href}; href is '
+    + 'an address or {"source": "phone"} / {"source": "email"}; the first footer column copies it on the next build) and the '
+    + 'header buttons (header.buttons — a list of 0 to 3 {label, href}; the first one is the main button). The footer is '
+    + 'changed in its own conversation, not in this one. Write the complete file with everything else exactly as you read it.',
+};
+
+/**
  * 这次对 navigation.json 的写入放不放行？
  *
  * @param {*} next    模型要写的那份（已经 JSON.parse 过）
  * @param {*} current 磁盘上现在那份（已经 JSON.parse 过）；`null` = 读不到
+ * @param {*} [scope] 这一轮的范围（`block-scope.js` §scopeFromInput 的返回值）。只认 `region` 是 header / footer 的那两种；
+ *                    缺省或别的形状 = 不收窄，返回的字符串跟 #1813 之前逐字相同
  * @returns {string|null} null = 放行；字符串 = 拒绝理由，原样回给模型
  */
-function navigationEditRejection(next, current) {
+function navigationEditRejection(next, current, scope) {
+  const region = scope && Object.prototype.hasOwnProperty.call(SCOPED_EDITABLE_SUMMARY, scope.region) ? scope.region : null;
+  const summary = region ? SCOPED_EDITABLE_SUMMARY[region] : NAVIGATION_EDITABLE_SUMMARY;
+
   // 🔴 读不到磁盘上那份 ⟹ 没法判"改的是哪几处"，方向必须是拒。放行的方向是"整份原样落盘"，
   //    也就是 #1087 关掉这条路要防的那件事。
   if (current === null || current === undefined) {
@@ -776,7 +818,7 @@ function navigationEditRejection(next, current) {
     return 'navigation.json does not have the shape the build needs on every build, so the site would '
       + 'stop building. Fix these and write the file again:\n'
       + problems.map((p) => `  - ${p}`).join('\n')
-      + `\n\nNothing was written. ${NAVIGATION_EDITABLE_SUMMARY}`;
+      + `\n\nNothing was written. ${summary}`;
   }
 
   const changed = buildOwnedChanges(next, current);
@@ -787,8 +829,11 @@ function navigationEditRejection(next, current) {
       + changed.map((c) => c.label).join(' and ')
       + ' — the build rebuilds that on every build, so what you wrote would be overwritten and the '
       + 'change would not stick:\n'
-      + changed.map((c) => `  - ${c.label}: rebuilt from ${c.rebuiltFrom}. ${c.remediation}`).join('\n')
-      + `\n\nNothing was written. ${NAVIGATION_EDITABLE_SUMMARY}`;
+      + changed.map((c) => {
+        const said = { ...c, ...((region && c.scoped && c.scoped[region]) || {}) };
+        return `  - ${c.label}: rebuilt from ${said.rebuiltFrom}. ${said.remediation}`;
+      }).join('\n')
+      + `\n\nNothing was written. ${summary}`;
   }
 
   return null;

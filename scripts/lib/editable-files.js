@@ -177,17 +177,20 @@ function navigationRejection(normalized, ctx) {
   } catch (e) {
     current = null;
   }
-  return navigationEditRejection(next, current);
+  // #1813 —— 这一轮的范围（`edit-site.js` 递的 `blockScopeInfo`）一起交下去：顶栏 / 页脚那一页的拒绝句只说那一轮写得动的东西。
+  return navigationEditRejection(next, current, ctx.scope);
 }
 
 /**
  * @param {string} relPath 相对 `site/` 的路径（`edit-site.js` 已经用 validatePath 挡掉 `..` 和绝对路径）
  * @param {{content?: string, readCurrent?: (relPath: string) => (string|null),
- *          readSiteShape?: () => ({flat: boolean, locales?: string[]}|null)}} [ctx]
+ *          readSiteShape?: () => ({flat: boolean, locales?: string[]}|null), scope?: object|null}} [ctx]
  *        · `content` + `readCurrent` —— 这次要写的内容 + 一个按路径读磁盘上那份的函数。
  *          **只有 navigation.json 用到它们**（见文件头「一道窄口子」）；没给就等于那个文件一律拒。
  *        · `readSiteShape` —— 这个站的内容住在 `<语言>/` 底下还是直接在 `site/`（#1109）。
  *          没给就等于不判这一维（见文件头「第二问」）。
+ *        · `scope` —— 这一轮的范围（`block-scope.js` §scopeFromInput，#1813）。只改 navigation.json 那句拒绝句怎么说，
+ *          不改放不放行；没给 = 不收窄。
  * @returns {string|null} null = 可以写；字符串 = 拒绝的理由，原样回给模型
  */
 /**

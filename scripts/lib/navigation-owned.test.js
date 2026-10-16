@@ -1759,5 +1759,90 @@ function flattenShape(shape, at = '', out = []) {
   } else problems.forEach((m) => bad(`⑲ ${m}`));
 }
 
+// ── ⑳ 这一轮被收窄到顶栏 / 页脚时，拒绝句只说这一轮写得动的东西（#1813）─────────────────────────────
+//
+// 页脚那一页的 AI 对话只许写 `footer`（#1791 的范围闸）。#1813 之前，往页脚第一列写被拒时那句话叫模型去改
+// `header.links`，模型照做又撞范围闸 —— 老板拿到两道互相指的门。范围走真入口（`writeRejection` 的 `ctx.scope`）、
+// 用真函数算（`scopeFromInput`），不手写范围对象：手写的对象跟 edit-site.js 真递下来的那个形状可以对不上而这里照样绿。
+// 🔴 夹具带 `header.buttons`（BASE 有）：缺了它所有写入先被形状那一关拒，量到的是另一件事。阴性对照：原样写回 ⟹ null。
+{
+  const { scopeFromInput } = require('./block-scope.js');
+  const SHAPE = { flat: false, locales: ['en'] };
+  const footer = scopeFromInput({ region: 'footer', locale: 'en' }, SHAPE);
+  const header = scopeFromInput({ region: 'header', locale: 'en' }, SHAPE);
+  const pageLevel = scopeFromInput({ page: 'home', locale: 'en' }, SHAPE);
+  const blockLevel = scopeFromInput({ page: 'home', blockId: 'hero-1', locale: 'en' }, SHAPE);
+  const scopedWrite = (next, scope) => writeRejection('en/navigation.json', {
+    content: JSON.stringify(next),
+    readCurrent: () => JSON.stringify(BASE),
+    scope,
+  });
+  const quickLinksAdd = (() => { const n = clone(BASE); n.footer.columns[0].links.push({ label: 'Blog', href: '/blog' }); return n; })();
+  const knownPages = (() => { const n = clone(BASE); n.header.knownPages = ['about']; return n; })();
+  const menuOnly = (() => { const n = clone(BASE); n.header.links.push({ label: 'Blog', href: '/blog' }); return n; })();
+  const problems = [];
+
+  if (!footer || footer.region !== 'footer' || !header || header.region !== 'header') problems.push(`[前提] scopeFromInput 没给出顶栏 / 页脚范围：${JSON.stringify({ footer, header })}`);
+  if (pageLevel !== null) problems.push(`[前提] 页面级对话应当不收窄（null），实际 ${JSON.stringify(pageLevel)}`);
+  for (const [name, scope] of [['页脚', footer], ['顶栏', header], ['不收窄', pageLevel]]) {
+    if (scopedWrite(clone(BASE), scope) !== null) problems.push(`[前提] 阴性对照：${name}范围下原样写回被拒了 —— 下面的读数都不作数`);
+  }
+
+  // 验收 1 —— 页脚范围下「给 Quick Links 加一项」：拒，全文不提 header.links，指路到顶栏的 Content 页。
+  const f1 = scopedWrite(quickLinksAdd, footer);
+  if (f1 === null) problems.push('[AC1] 页脚范围下往页脚第一列加一项 → 竟然放行了');
+  else {
+    if (f1.includes('header.links')) problems.push(`[AC1] 页脚范围下的拒绝句还在提 header.links（这一轮写它会撞范围闸）：${f1}`);
+    for (const needle of ["the header's Content tab", 'Navigation links', 'Nothing was written', 'footer copyright']) {
+      if (!f1.includes(needle)) problems.push(`[AC1] 页脚范围下的拒绝句里没有 "${needle}"：${f1}`);
+    }
+  }
+  // 同族那一项（header.knownPages）的补救话也一样。
+  const f2 = scopedWrite(knownPages, footer);
+  if (f2 === null || f2.includes('header.links') || !f2.includes("the header's Content tab")) problems.push(`[AC1] 页脚范围下改 header.knownPages：拒绝句该指路到顶栏 Content 页、不提 header.links，实际：${f2}`);
+
+  // 验收 3 —— 顶栏范围下不宣传页脚那几项。
+  for (const [name, next] of [['页脚第一列加一项', quickLinksAdd], ['改 header.knownPages', knownPages]]) {
+    const h = scopedWrite(next, header);
+    if (h === null) problems.push(`[AC3] 顶栏范围下${name} → 竟然放行了`);
+    else {
+      const hit = ['copyright', 'description', 'legal'].filter((w) => h.includes(w));
+      if (hit.length) problems.push(`[AC3] 顶栏范围下${name}：拒绝句还在提页脚的 ${hit.join(' / ')}：${h}`);
+      if (!h.includes('header.links')) problems.push(`[AC3] 顶栏范围下${name}：这一轮写得动菜单，拒绝句却没说 header.links：${h}`);
+    }
+  }
+
+  // 验收 2 —— 不带范围 / 页面级（null）/ 块级范围：跟没有第三参时逐字相同，而且还是原来那句（叫模型去改 header.links）。
+  const plain = navigationEditRejection(quickLinksAdd, clone(BASE));
+  for (const [name, scope] of [['ctx 不带 scope', undefined], ['页面级 null', pageLevel], ['块级范围', blockLevel]]) {
+    const r = scopedWrite(quickLinksAdd, scope);
+    if (r !== plain) problems.push(`[AC2] ${name}：拒绝句跟不带范围时不一样（这一条路 #1813 一个字都不该动）：${r}`);
+  }
+  if (!String(plain).includes('To change those links, change header.links')) problems.push(`[AC2] 不带范围时那句补救话变了：${plain}`);
+
+  // 验收 4 —— 页面级对话里只改 header.links：两道门都放行（这条路今天就能自己改好，#1813 不许把它降级）。
+  const n4 = scopedWrite(menuOnly, pageLevel);
+  const b4 = require('./block-scope.js').blockScopeRejection('en/navigation.json', menuOnly, pageLevel, () => JSON.stringify(BASE));
+  if (n4 !== null || b4 !== null) problems.push(`[AC4] 页面级对话里只改 header.links 应当两道门都放行，实际 navigation=${n4} · blockScope=${b4}`);
+
+  // 接线（静态那一半）：edit-site.js 真的把这一轮的范围挂进了 writeCtx。少了它，上面这些在真进程里一格都不生效。
+  const src = fs.readFileSync(path.join(__dirname, '..', 'edit-site.js'), 'utf-8');
+  if (!/const writeCtx = \{[\s\S]{0,400}?scope:\s*blockScopeInfo/.test(src)) problems.push('[AC4] edit-site.js 的 writeCtx 里没有 `scope: blockScopeInfo` —— 范围到不了拒绝句');
+
+  const CELLS = [
+    ['AC1', '页脚范围下往页脚第一列加一项 / 改 header.knownPages：拒，全文不提 header.links，指路到顶栏那一页的 Content（Navigation links）'],
+    ['AC2', '不带范围 / 页面级（null）/ 块级范围：拒绝句跟没有第三参时逐字相同，仍是原来那句「change header.links」'],
+    ['AC3', '顶栏范围下拒绝句不提页脚的 copyright / description / legal，照常说 header.links'],
+    ['AC4', '页面级对话里只改 header.links：navigationEditRejection 与 blockScopeRejection 都放行；edit-site.js 把范围挂进了 writeCtx'],
+  ];
+  const pre = problems.filter((m) => m.startsWith('[前提]'));
+  pre.forEach((m) => bad(`⑳ ${m}`));
+  for (const [tagName, what] of CELLS) {
+    const mine = problems.filter((m) => m.startsWith(`[${tagName}]`));
+    if (mine.length === 0 && pre.length === 0) ok(`⑳ ${tagName}（#1813）${what}`);
+    else mine.forEach((m) => bad(`⑳ ${m}`));
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);
