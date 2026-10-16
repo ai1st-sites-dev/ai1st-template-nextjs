@@ -90,6 +90,24 @@ function readOut(file) {
   return fs.existsSync(file) ? fs.readFileSync(file) : null;
 }
 
+// #1807 —— 派生会写回去的那几份**站点文件**（`site/` 下：各语言 navigation.json、custom.css），开头读到的是哪份字节
+//    （文件不在 = null）。§flush 在站点文件锁里拿盘上现在那份跟它比：不一样 = 派生读完之后、写盘之前别处（编辑器存盘 /
+//    AI 改站）改过这个文件 ⟹ **不写这一份**。写了就是拿开头那份旧内容盖掉别人刚存的那一笔（#1807 的病）。
+//    不写也不丢东西：那一笔自己提交之后 worker 会再派生一次（§settleCommittedWork → §refreshLivePreview），
+//    那一次读到的就是新内容。🔴 记的是**拿去 parse 的那同一份字节**，不是事后再读一遍 —— 两次读之间又是一个窗口。
+const readAtStart = new Map();
+function readSiteInput(file) {
+  const bytes = fs.readFileSync(file);
+  readAtStart.set(file, bytes);
+  return bytes.toString('utf-8');
+}
+function readSiteInputIfAny(file) {
+  let bytes = null;
+  try { bytes = fs.readFileSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  readAtStart.set(file, bytes);
+  return bytes === null ? null : bytes.toString('utf-8');
+}
+
 // ─── #1009 — THE CSS CONTRACTS ARE CHECKED HERE, AT EVERY BUILD ──────────────────────────────────
 //
 // 🔴 WHY IN THIS FILE AND NOT IN npm's `prebuild` HOOK. `prebuild` is what a person runs
@@ -696,7 +714,7 @@ for (const locale of locales) {
 
   // Auto-generate navigation per locale (preserves CTA from existing navigation.json)
   const navPath = path.join(localeDir, 'navigation.json');
-  const existingNav = JSON.parse(fs.readFileSync(navPath, 'utf-8'));
+  const existingNav = JSON.parse(readSiteInput(navPath));
 
   const nonHomePages = localePages.filter(p => p.slug !== 'home');
   // #1033 r2 —— 这个判断搬去了 lib/page-deps.js（那边算 <lastmod> 也要问同一件事），逐字未改。
@@ -1128,9 +1146,10 @@ function baseVarsForTweaks() {
   // 🔴 空的时候【删掉文件】，不是写一份 0 字节的进去：AC1 要求「tweaks 全为 0 的站与不带 tweaks 的
   // 站产物逐字节相同」，而这两条路只有在「都没有这个文件」时才真的收敛 —— 一个从没有过 tweaks 的站
   // 根本没有 site/custom.css，#1002 于是给它写那份占位注释；留一个 0 字节文件会走到另一支。
+  const customCssNow = readSiteInputIfAny(customCssPath);
   if (!css) {
-    if (fs.existsSync(customCssPath)) removeOut(customCssPath);
-  } else if (css !== (fs.existsSync(customCssPath) ? fs.readFileSync(customCssPath, 'utf-8') : '')) {
+    if (customCssNow !== null) removeOut(customCssPath);
+  } else if (css !== (customCssNow === null ? '' : customCssNow)) {
     writeOut(customCssPath, css);
   }
   const chose = Object.entries(absolute.chose).map(([k, v]) => `${k}=${v}`).join(' · ');
@@ -1284,9 +1303,21 @@ const siteCssDone = require('./lib/site-css.js').buildSiteCss({ brand: siteCssBr
 
 // ── #1666 §flush —— 校验全过了、site.css 也算完了，这才一次写盘 ───────────────────────────────────
 // 读的人（sync-config.js）拿 `ready` 的结果拼 config-data.ts；单独跑本文件时它就是最后一步。
-const ready = siteCssDone.then(() => {
+// #1807 —— 写盘在站点文件锁里（`lib/site-files-lock.js`，编辑器存盘 / AI 改站拿的是同一把），持锁只有写盘这一刻；
+//    开头读过的站点文件先比一次，别处改过的不写（§readAtStart）。
+const ready = siteCssDone.then(() => require('./lib/site-files-lock').withSiteFilesLock(() => {
   try {
     for (const [file, bytes] of pending) {
+      if (readAtStart.has(file)) {
+        let now = null;
+        try { now = fs.readFileSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+        const then = readAtStart.get(file);
+        if (now === null ? then !== null : (then === null || !now.equals(then))) {
+          console.log(`  #1807 ${path.relative(rootDir, file)} changed while this derive was running (an editor save or an AI edit) `
+            + '— not overwriting it; that change\'s own commit derives again');
+          continue;
+        }
+      }
       if (bytes === null) fs.rmSync(file, { force: true });
       else fs.writeFileSync(file, bytes);
     }
@@ -1294,10 +1325,11 @@ const ready = siteCssDone.then(() => {
     console.error(`🔴 派生文件写盘失败：${e && e.message}`);
     process.exit(1);
   }
+}).then(() => {
   return {
     siteId, leadApi, colorScheme, dir, defaultLocale, locales, brand, seoByLocale, servicesByLocale, formsByLocale,
     navigationByLocale, pagesByLocale, blogPostsByLocale, regions, pageLayout,
   };
-});
+}));
 
 module.exports = { ready };

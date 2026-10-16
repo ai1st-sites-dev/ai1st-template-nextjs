@@ -1520,7 +1520,7 @@ console.log('\n⑬ 图片取不到 ⟹ 一句人话，不是一段 JS 栈（#120
   // ── 反向对照（AC5 那一维）：把新加的那次回滚拿掉，上面四条必须红，而且红在**它该红的那一格** ──
   {
     const m = timeline('nofix', {
-      from: '            const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);',   // #1441 起是三参
+      from: '            const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));',   // #1441 起是三参；#1807 起包在站点文件锁里
       to:   '            const rb = { restored: [], removed: [], failed: [], kept: [] };',
     });
     if (m.anchorMissing) {

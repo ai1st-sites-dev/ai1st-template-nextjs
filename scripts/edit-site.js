@@ -59,6 +59,7 @@ const { createTextRelay } = require('./lib/text-relay');
 const { CTA_PAGE } = require('./lib/site-recipe');
 // #1489 —— 改了地址就重查一次坐标（contact 的地图），理由整段在那个文件头。
 const { refreshGeoAfterEdit } = require('./lib/geocode');
+const { withSiteFilesLock } = require('./lib/site-files-lock');
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 const { scrubRowImageUrls, scrubSiteBlocks } = require('./lib/row-image-urls');
 
@@ -1286,6 +1287,10 @@ slot or a list slot that is not a list is refused here too.
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+// #1807 —— 改站点文件的那几步（write_file · 替 AI 改写 · 回滚 · 提交）在站点文件锁里做（`lib/site-files-lock.js`）。
+//    拿不到锁照旧做（那几步各自的读后核对还在），只是记一行。
+const lockedSiteFiles = (fn) => withSiteFilesLock(fn, { onUnlocked: (why) => debug(`🔴 #1807 site-files lock not taken, doing this step without it: ${why}`) });
+
 async function main() {
   let input;
   try {
@@ -1474,7 +1479,7 @@ async function main() {
             // commit 里它进了 HEAD）。
             // ⟹ 顺序跟 #1102 那一支一样是承重的：**先退回去，再说那句话**；退不掉就改口，不硬说。
             // #1441 —— 带上 aiWrote：老板可能在这一轮里存在 AI 已经写成的文件上，那份不退、改口点名它（§keptFilesNote）。
-            const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
+            const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
             debug(`#1200 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
               + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
               + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
@@ -1519,7 +1524,10 @@ async function main() {
           ...(pageProgress && block.input.path ? { pageProgress: pageProgress(block.input.path) } : {}),
         });
 
-        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen, aiWrote);
+        // #1807 —— write_file 的「读后被别处改过没有」核对和落盘在站点文件锁里做（编辑器存盘拿的是同一把）：
+        //    #1420 那道核对与 writeFileSync 之间那个微秒级窗口从此是零。别的工具不写盘，不拿锁。
+        const runTool = () => executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen, aiWrote);
+        const result = block.name === 'write_file' ? await lockedSiteFiles(runTool) : runTool();
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
@@ -1557,7 +1565,7 @@ async function main() {
         detail: `Edit (${totalInputTokens} in / ${totalOutputTokens} out)`,
         duration: Date.now() - startTime,
       });
-      const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
+      const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
       debug(`#1420 gave up after ${staleWrites} stale writes; rollback: restored ${rb.restored.length}`
         + ` · removed ${rb.removed.length} · failed ${rb.failed.length} · kept ${rb.kept.length}`
         + `${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
@@ -1600,13 +1608,17 @@ async function main() {
           const snap = writeSnapshots.get(brandPath);
           const geo = await refreshGeoAfterEdit(brandPath, Buffer.isBuffer(snap) ? snap : null, {
             log: debug,
-            write: (p, bytes) => rewriteOnBehalfOfAi(p, bytes, aiWrote),
+            // #1807 —— 查坐标（网络）在锁外，只有写回那一刻进锁。
+            write: (p, bytes) => lockedSiteFiles(() => rewriteOnBehalfOfAi(p, bytes, aiWrote)),
           });
           debug(`Geocode after edit: ${geo}`);
         }
-        scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote);
-        scrubRowImagesAfterEdit(siteDir, writeSnapshots, aiWrote, input.uploadsDomain);
+        await lockedSiteFiles(() => {
+          scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote);
+          scrubRowImagesAfterEdit(siteDir, writeSnapshots, aiWrote, input.uploadsDomain);
+        });
         emit('progress', { message: 'Syncing changes to preview...' });
+        // 🔴 #1807 —— 这一句**不许**进站点文件锁：派生写盘那一刻自己要拿它（derive-site.js §flush），包在锁里就是自己等自己。
         try {
           execSync('node scripts/sync-config.js', {
             cwd: rootDir,
@@ -1669,10 +1681,12 @@ async function main() {
         emit('progress', { message: 'Saving changes...' });
         try {
           const commitMsg = 'Edit: ' + finalMessage.substring(0, 72).replace(/["`$\\]/g, '');
-          execSync(`git add -A && git commit -m "${commitMsg}"`, {
+          // #1807 —— `git add -A` 读的是工作树：编辑器存盘写到一半（写了文件、还没提交）时它会把那一半捞进这一笔。
+          //    在站点文件锁里做 ⟹ 编辑器那一笔的「写盘 + 提交」整段要么全在前、要么全在后。推送在锁外（不碰工作树）。
+          await lockedSiteFiles(() => execSync(`git add -A && git commit -m "${commitMsg}"`, {
             cwd: rootDir,
             stdio: ['pipe', 'pipe', 'pipe'],
-          });
+          }));
           commitHash = execSync('git rev-parse --short HEAD', { cwd: rootDir }).toString().trim();
           // #1164 —— 推送自己一个 try。它失败的意思是「本地存下了、GitHub 上没有」，跟 commit 失败
           // （什么都没存下）是两回事，处置也不同：这里不回滚、不报错误，只把这句话带到用户面前。
@@ -1728,7 +1742,7 @@ async function main() {
         // 「没有保存」这句话的真假取决于磁盘上还剩什么（下一次成功编辑的 `git add -A` 读的是磁盘），
         // 所以要么先让它成立、要么就别那么说。理由整段在 rollbackWrittenFiles 上面。
         // #1441 —— 带上 aiWrote（同 #1420 那一支）：AI 写成之后老板又存过的文件不退，否则连他那一笔一起退掉。
-        const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
+        const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
         debug(`#1102 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
           + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
           + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
@@ -1778,7 +1792,7 @@ async function main() {
       //    ⟹ 那份文件（连同 AI 那一处）已经在网站上了，这条路不重建也改变不了这一点。那时改口点名它（§keptFilesNote），
       //    不说「rolled back / still shows the previous version」；别的文件照样退回，它们没进过任何 commit。
       if (commitError) {
-        const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
+        const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
         debug(`#1192 rollback after a failed commit: restored ${rb.restored.length} · removed ${rb.removed.length}`
           + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
           + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);

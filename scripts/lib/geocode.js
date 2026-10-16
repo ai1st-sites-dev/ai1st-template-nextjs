@@ -142,7 +142,8 @@ async function refreshGeoAfterEdit(brandPath, before, opts = {}) {
   // `opts.write` —— 调用方（edit-site.js §rewriteOnBehalfOfAi）要在写的那一刻核对盘上还是不是 AI 写的那份，并把这一笔
   // 记进它的「AI 写过」台账（否则回滚认不出它）。回 false = 没写（查坐标那几秒里别处存过这个文件）。
   const bytes = `${JSON.stringify(now, null, 2)}\n`;
-  if (opts.write) return opts.write(brandPath, bytes) ? r : 'raced';
+  // #1807 —— `opts.write` 可以回 Promise（edit-site.js 在站点文件锁里写），所以 await。
+  if (opts.write) return (await opts.write(brandPath, bytes)) ? r : 'raced';
   fs.writeFileSync(brandPath, bytes);
   return r;
 }
