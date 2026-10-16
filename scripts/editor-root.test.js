@@ -589,7 +589,8 @@ console.log('⑩ 顶栏按钮 / logo（#1759 · #1787）');
   check(!r.code && JSON.parse(fs.readFileSync(path.join(site, 'brand.json'), 'utf-8')).logoUrl === '/images/my-logo.png', '换 logo ⟹ brand.json 的 logoUrl 是那张图');
   r = tryWrite({ logoUrl: '' }, 'en');
   check(!r.code && !('logoUrl' in JSON.parse(fs.readFileSync(path.join(site, 'brand.json'), 'utf-8'))), 'logo 清空 ⟹ logoUrl 这个键删掉（顶栏画名字）');
-  // #1784 验收 0 —— 写进一张新的、非空的 logo ⟹ 一并置 logoHasWordmark: true；logo 没动 / 清空 ⟹ 不碰它。
+  // #1784 r7 —— 写 logo 不碰 logoHasWordmark（r6 的「换上新图 ⟹ 置 true」已删：编辑器里换图只在 Logo 子页的 Image 下，
+  //   换的那一下把 headerOptions.logoType 存成 image，用不着这一格定默认）。logo 没动 / 换图 / 清空 ⟹ 都不碰它。
   //   起点照「AI 生成图标 logo 的站」手写：logoUrl='/logo.png' + logoHasWordmark=false（skipAI 站造不出这个状态，PM r3 裁定第 1 条）。
   const brandPath = path.join(site, 'brand.json');
   const brandOf = () => JSON.parse(fs.readFileSync(brandPath, 'utf-8'));
@@ -601,8 +602,8 @@ console.log('⑩ 顶栏按钮 / logo（#1759 · #1787）');
   r = tryWrite({ logoUrl: '/logo.png' }, 'en');
   check(!r.code && brandOf().logoHasWordmark === false, '#1784 验收 0：logoUrl 原样再写一遍（每次存盘都带着它）⟹ 仍是 false', JSON.stringify(brandOf()));
   r = tryWrite({ logoUrl: '/images/uploaded-logo.png' }, 'en');
-  check(!r.code && brandOf().logoHasWordmark === true && brandOf().logoUrl === '/images/uploaded-logo.png',
-    '#1784 验收 0：换一张新 logo ⟹ logoHasWordmark 读回 true', JSON.stringify(brandOf()));
+  check(!r.code && brandOf().logoHasWordmark === false && brandOf().logoUrl === '/images/uploaded-logo.png',
+    '#1784 r7：换一张新 logo ⟹ logoHasWordmark 不碰（false 仍是 false）', JSON.stringify(brandOf()));
   fs.writeFileSync(brandPath, `${JSON.stringify({ ...brandOf(), logoHasWordmark: false }, null, 2)}\n`);
   r = tryWrite({ logoUrl: '' }, 'en');
   check(!r.code && !('logoUrl' in brandOf()) && brandOf().logoHasWordmark === false, '#1784 验收 0：清空 logo ⟹ logoHasWordmark 不变（false 仍是 false）', JSON.stringify(brandOf()));

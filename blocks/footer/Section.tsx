@@ -184,13 +184,13 @@ function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, lo
   // `wrap`：只有 `columns` 传 true（#1524）。品牌列在 768 起是 `col-md-4`（768 宽 ~256px），`text-nowrap` 的长店名
   // 按构造画出列外；`brand=right` 时列是 `align-items-end`，画出去的方向是屏幕右边 ⟹ 整页横向滚动（768 / 800 / 820
   // 实测 scrollWidth 793 / 815 / 828）。放开之后只在放不下时才折行，放得下的宽度上一个像素都不变。
-  // #1784 —— 图和店名二选一、大小四档，跟顶栏同一份（`logoOptions`）；`stacked` 原来那一档大字（fs-4）取消。
-  //    只出图时 `alt` 写店名。图高 / 字号在 block.css 按 `data-logo-size` 定。
+  // #1784 —— 图和店名二选一、图高，跟顶栏同一份（`logoOptions`）；`stacked` 原来那一档大字（fs-4）取消。
+  //    只出图时 `alt` 写店名。r7 —— 图高（px）经 `--ftr-logo-h` 交给 block.css，店名字号写死在那儿。
   const brandMark = (wrap = false) => (
     // `flex-shrink-0`：row 一行里它是 flex 项，被挤的时候盒子缩、`text-nowrap` 的店名照样画出去，
     // 压到旁边的链接上（820 实测：reverse 时一直画到页脚外面）。
     <SiteLink className={`ftr-brand d-inline-flex flex-shrink-0 align-items-center gap-2 text-decoration-none ${headTone}`} href={homeHref} data-footer-part="brand"
-      data-logo-type={brandLogo.type} data-logo-size={brandLogo.size}>
+      data-logo-type={brandLogo.type} data-logo-size={brandLogo.size} style={{ ['--ftr-logo-h' as string]: `${brandLogo.size}px` }}>
       {brandLogo.type === 'image'
         ? <img src={data.logo} alt={brand} className="ftr-logo-img w-auto" />
         : <span className={`ftr-logo-text fw-semibold ${wrap ? '' : 'text-nowrap'}`}>{brand}</span>}

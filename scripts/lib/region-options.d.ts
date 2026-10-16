@@ -11,9 +11,12 @@ export function regionPresetName(region: string, shape: string, opts: RegionOpti
 export function regionPresetPick(region: string, name: string, opts: RegionOptions | undefined): { shape: string; options: RegionOptions } | null;
 export function regionKnobChange(region: string, shape: string, opts: RegionOptions | undefined, key: string, value: unknown): RegionOptions;
 export function customizeKnobNames(region: string): string[];
-/** #1784 —— 不归预设管的旋钮名（没有任何预设写到的）。 */
+/** #1784 —— 不归预设管的旋钮名（没有任何预设写到的）；#1784 r7 起后面接上数字范围的名字。 */
 export function regionFreeKnobNames(region: string): string[];
 /** #1784 —— Customize 页的控件分组（旋钮名 / `bool:<开关>`），按 manifest 的 `toolbarGroups`。 */
 export function customizeGroups(region: string): string[][];
 /** #1784 —— 旋钮 / 开关在面板和存盘记录里的名字（manifest 的 `label`，没写 = 名字首字母大写）。 */
 export function regionKnobLabel(region: string, key: string): string;
+/** #1784 r7 —— 这一区声明的数字范围（顶栏 logoSize：图高 px）。 */
+export interface RegionNumber { name: string; min: number; max: number; step: number; default: number; label?: string }
+export function regionNumbers(region: string): RegionNumber[];

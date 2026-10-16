@@ -427,10 +427,10 @@ console.log('⑪ #1723 画布条目条：删 / 上移 / 下移 各记一条，�
   // #1784 —— 名字跟面板同一份 label：logo 位置那个叫 Logo position（耦合纠正把它一起动了，上面 want 里就有它）。
   eq(want.includes(`${HO} · Logo position → center`), true, '#1784：顶栏 logo 位置那个旋钮在记录里叫 Logo position');
   // #1784 —— 不进预设的旋钮：只说拧了的那一个，名字是 label；换预设的同一笔里照样说（它不归预设管）。
-  eq(say({ headerOptions: ro.regionKnobChange('header', hShape, {}, 'logoSize', 'xl') }, { headerShape: hShape }), `${HO} · Logo size → xl`, '#1784：拧 logoSize');
-  eq(say({ headerOptions: { logoType: 'text', logoSize: 'xl' } }, { headerShape: hShape, headerOptions: { logoSize: 'xl' } }), `${HO} · Logo → text`, '#1784：拧 logoType，没动的 logoSize 不报');
-  const pickL = ro.regionPresetPick('header', 'topbar', { logoType: 'image', logoSize: 's' });
-  eq(say({ headerShape: pickL.shape, headerOptions: pickL.options }, { headerShape: '', headerOptions: { logoType: 'image', logoSize: 's' } }),
+  eq(say({ headerOptions: ro.regionKnobChange('header', hShape, {}, 'logoSize', 64) }, { headerShape: hShape }), `${HO} · Logo size → 64`, '#1784：拧 logoSize（r7：图高 px）');
+  eq(say({ headerOptions: { logoType: 'text', logoSize: 64 } }, { headerShape: hShape, headerOptions: { logoSize: 64 } }), `${HO} · Logo → text`, '#1784：拧 logoType，没动的 logoSize 不报');
+  const pickL = ro.regionPresetPick('header', 'topbar', { logoType: 'image', logoSize: 24 });
+  eq(say({ headerShape: pickL.shape, headerOptions: pickL.options }, { headerShape: '', headerOptions: { logoType: 'image', logoSize: 24 } }),
     `${rootLabels.headerShape} → ${pickL.shape}`, '#1784：选预设 ⟹ logoType / logoSize 留着、不报');
 }
 

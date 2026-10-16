@@ -78,10 +78,10 @@ function liveShellData(data, p, locale, defaultLocale) {
   const footer = isObj(data.footer) ? { ...data.footer } : {};
   if (typeof p.logoUrl === 'string') {
     const url = p.logoUrl.trim();
-    // #1784 —— 换成了一张新的图 ⟹ 当它自带店名（跟存盘同一条规矩，`editor-root.js` 写 logoUrl 那段）；图没变 ⟹ 构建那份原样；清空 ⟹ 一起去掉。
-    const fresh = !!url && url !== header.logo;
+    // 清空 ⟹ 连「图里自带店名吗」一起去掉（没图本来就照店名画）；换图 ⟹ 那一格照构建那份（存盘那一侧同样不碰它，`editor-root.js` 写 logoUrl 那段）。
+    //   #1784 r7 起编辑器里换图都在 Logo 子页的 Image 下，换的那一下就把 logoType 存成 image（`EditorApp.tsx` §LogoSubPage），用不着这一格定默认。
     for (const d of [header, footer]) {
-      if (url) { d.logo = url; if (fresh) d.logoHasWordmark = true; } else { delete d.logo; delete d.logoHasWordmark; }
+      if (url) d.logo = url; else { delete d.logo; delete d.logoHasWordmark; }
     }
   }
   if (Array.isArray(p.headerButtons)) header.buttons = headerButtonsData(p.headerButtons, loc);

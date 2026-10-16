@@ -5,10 +5,10 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // 形状（跟编辑器 root 上的 `headerOptions` / `footerOptions` 是同一个对象，分派表 `editor-root-fields.js`）：
-//   regionOptions.header = { bg?, logo?, menu?, logoType?, logoSize?, topbar?, icons? }
+//   regionOptions.header = { bg?, logo?, menu?, logoType?, logoSize?: number, topbar?, icons? }
 //   regionOptions.footer = { bg?, layout?, brand?, form? }
-// 键的名单一个都不写在这里：旋钮 / 布尔从块自己的 manifest 现取（`slots.options.knobs` / `slots.options.shape` 里的
-// `: bool`），底色是 `slots.bg`（值的形状归 `contrast.js` §normalizeBg）。预设（= 形态）不在这里 —— 它是
+// 键的名单一个都不写在这里：旋钮 / 布尔 / 数字范围从块自己的 manifest 现取（`slots.options.knobs` / `slots.options.shape` 里的
+// `: bool` / #1784 r7 的 `slots.options.numbers`），底色是 `slots.bg`（值的形状归 `contrast.js` §normalizeBg）。预设（= 形态）不在这里 —— 它是
 // `regionLayout.<区>`（`editor-root-fields.js` 的 headerShape / footerShape 那两行）。
 //
 // 三边读同一份函数（纯函数、不读文件，浏览器也能引）：
@@ -18,7 +18,7 @@
 // 🔴 两边各写一份就会分叉：编辑器说 Logo center，站上画成 left，而两边都不会红。
 
 const { normalizeBg } = require('./contrast');
-const { knobsOf, presetsOf, couplingOf, presetForShape, presetKnobNamesOf, presetBooleansOf, normalizeKnobs, presetOf } = require('./header-knobs');
+const { numbersOf, inRange, knobsOf, presetsOf, couplingOf, presetForShape, presetKnobNamesOf, presetBooleansOf, normalizeKnobs, presetOf } = require('./header-knobs');
 const { booleanOptionsOf, toolbarGroupsOf, arrangeToolbar } = require('./block-knobs');
 const headerManifest = require('../../blocks/header/manifest.json');
 const footerManifest = require('../../blocks/footer/manifest.json');
@@ -35,8 +35,9 @@ function spec(region) {
   const knobs = knobsOf(m);
   const ownedKnobs = presetKnobNamesOf(presets);
   // #1784 —— 旋钮分两类（`header-knobs.js` 文件头）：`layout` = 有预设写到的（logo / menu），`free` = 没有任何预设写到的
-  //   （logoType / logoSize）—— 后者点预设不清、不进纠正、不参与「是哪个预设」，拧它只写它自己。
-  return { manifest: m, knobs, layout: knobs.filter((k) => ownedKnobs.includes(k.name)), free: knobs.filter((k) => !ownedKnobs.includes(k.name)),
+  //   （logoType）—— 后者点预设不清、不进纠正、不参与「是哪个预设」，拧它只写它自己。
+  //   #1784 r7 —— `numbers` = 数字（顶栏 logoSize，图高 px）：同样不归预设管（预设只写旋钮和布尔），点预设不清。
+  return { manifest: m, knobs, numbers: numbersOf(m), layout: knobs.filter((k) => ownedKnobs.includes(k.name)), free: knobs.filter((k) => !ownedKnobs.includes(k.name)),
     booleans: booleanOptionsOf(m), presets, coupling: couplingOf(m), owned: presetBooleansOf(presets) };
 }
 
@@ -51,8 +52,10 @@ function regionOptionsProblems(region, v) {
   const out = [];
   for (const [k, val] of Object.entries(v)) {
     const knob = s.knobs.find((x) => x.name === k);
+    const range = s.numbers.find((x) => x.name === k);
     if (k === 'bg') { if (normalizeBg(val) === null) out.push(`${region}.bg 不是合法颜色：${JSON.stringify(val)}`); }
     else if (knob) { if (!knob.values.includes(val)) out.push(`${region}.${k} 只能是 ${knob.values.join(' / ')}：${JSON.stringify(val)}`); }
+    else if (range) { if (!inRange(range, val)) out.push(`${region}.${k} 只能是 ${range.min}–${range.max} 之间、步长 ${range.step} 的数：${JSON.stringify(val)}`); }
     else if (s.booleans.includes(k)) { if (typeof val !== 'boolean') out.push(`${region}.${k} 只能是 true / false：${JSON.stringify(val)}`); }
     else out.push(`${region} 的 options 里有不认识的键：${JSON.stringify(k)}`);
   }
@@ -72,8 +75,10 @@ function cleanRegionOptions(region, v, shape) {
   const out = {};
   for (const [k, val] of Object.entries(v)) {
     const knob = s.knobs.find((x) => x.name === k);
+    const range = s.numbers.find((x) => x.name === k);
     if (k === 'bg') { const bg = normalizeBg(val); if (bg !== null) out.bg = bg; }
     else if (knob) { if (knob.values.includes(val)) out[k] = val; }
+    else if (range) { if (inRange(range, val)) out[k] = val; }   // #1784 r7：r6 存下的 's' / 'm' 这类旧值在这里丢掉 ⟹ 落回默认
     else if (s.booleans.includes(k) && typeof val === 'boolean') out[k] = val;
   }
   const second = s.coupling && s.knobs.find((x) => x.name === s.coupling[1]);
@@ -132,7 +137,7 @@ function regionPresetName(region, shape, opts) {
 
 /**
  * Layout 页点了一个预设：形态换成它，存下的旋钮和归预设管的布尔清掉（= 照那个预设画）；底色、别的布尔（`icons`）和
- * 不归预设管的旋钮（#1784：logoType / logoSize）留着。
+ * 不归预设管的旋钮（#1784：logoType）和数字范围（logoSize）留着。
  * 跟页面块点预设同一个意思（`block-knobs.js` §presetClickProps：排法整组换成预设的，颜色以外的不动）。
  * @returns {{ shape: string, options: object } | null}  名字对不上任何预设 ⟹ null
  */
@@ -158,6 +163,9 @@ function regionKnobChange(region, shape, opts, key, value) {
   // #1784 —— 不归预设管的旋钮：只写它自己，不纠正别的（它不在耦合里）。
   const free = s.free.find((k) => k.name === key);
   if (free) { if (free.values.includes(value)) out[key] = value; return out; }
+  // #1784 r7 —— 数字范围（顶栏 logoSize）：同上，只写它自己；范围外的值不写。
+  const range = s.numbers.find((k) => k.name === key);
+  if (range) { if (inRange(range, value)) out[key] = value; return out; }
   if (!s.layout.some((k) => k.name === key)) return out;
   const cur = effectiveRegionKnobs(region, shape, opts);
   const knobs = normalizeKnobs({ ...cur, [key]: value }, { knobs: s.layout, presets: s.presets, coupling: s.coupling, changed: key, base: cur });
@@ -168,25 +176,37 @@ function regionKnobChange(region, shape, opts, key, value) {
 /**
  * Customize 页出哪几个旋钮：去掉「单凭它就认得出是哪个预设」的那一个（页脚的 `layout`：三个预设三个值，它就是预设本身，
  * 在 Layout 页选）。顶栏的 logo / menu 都不是（各预设里重复），全出。按谓词算，不写名单。
+ * 🔴 #1784 r7 —— 不归预设管的旋钮（顶栏 logoType）也不出：Customize 只管排版，logo 画什么在 Content 页的 Logo 子页里改
+ *    （Chris 2026-10-15：「分到了两块去了」）。它仍在 manifest 的旋钮表里 —— admin 图册照旧拿它出那一排单选、点预设照旧不清它。
  */
 function customizeKnobNames(region) {
   const s = spec(region);
   if (!s) return [];
   return s.knobs
+    .filter((k) => !s.free.includes(k))
     .filter((k) => !(s.presets.length > 1 && new Set(s.presets.map((p) => p.knobs[k.name])).size === s.presets.length))
     .map((k) => k.name);
 }
 
-/** #1784 —— 不归预设管的旋钮名（没有任何预设写到的，顶栏 logoType / logoSize），manifest 声明顺序。存盘记录按存下的值比它们（`editor-convert.js`）。 */
+/**
+ * #1784 —— 不归预设管的旋钮名（没有任何预设写到的，顶栏 logoType），manifest 声明顺序；#1784 r7 起后面接上数字范围（logoSize）。
+ * 存盘记录按存下的值比它们（`editor-convert.js`）。
+ */
 function regionFreeKnobNames(region) {
   const s = spec(region);
-  return s ? s.free.map((k) => k.name) : [];
+  return s ? [...s.free.map((k) => k.name), ...s.numbers.map((r) => r.name)] : [];
+}
+
+/** #1784 r7 —— 这一区声明的数字范围（`header-knobs.js` §numbersOf）；Logo 子页的 Scale 滑杆读它的 min / max / step / default。 */
+function regionNumbers(region) {
+  const s = spec(region);
+  return s ? s.numbers.map((r) => ({ ...r })) : [];
 }
 
 /**
  * #1784 —— Customize 页的控件按 manifest 的 `toolbarGroups` 分组排（旋钮写名字、开关写 `bool:<名>`，同工具条那套 token；
- * 底色另画在最后，不在这里）。顶栏：`[logo, menu, bool:topbar, bool:sticky]` · `[logoType, logoSize]` · `[bool:icons]`
- * —— 正文「两行放在 topbar 后面」。没写分组 ⟹ 一组，旋钮 → 开关（改前的次序）。
+ * 底色另画在最后，不在这里）。顶栏：`[logo, menu, bool:topbar, bool:sticky]` · `[bool:icons]`
+ * （#1784 r7 起 logoType 不在 Customize，见 §customizeKnobNames）。没写分组 ⟹ 一组，旋钮 → 开关（改前的次序）。
  */
 function customizeGroups(region) {
   const s = spec(region);
@@ -203,12 +223,12 @@ function customizeGroups(region) {
 function regionKnobLabel(region, key) {
   const m = MANIFESTS[region];
   const opt = m && m.slots && m.slots.options ? m.slots.options : {};
-  const hit = (Array.isArray(opt.knobs) ? opt.knobs : []).find((k) => k && k.name === key);
+  const hit = [...(Array.isArray(opt.knobs) ? opt.knobs : []), ...(Array.isArray(opt.numbers) ? opt.numbers : [])].find((k) => k && k.name === key);
   return hit && typeof hit.label === 'string' && hit.label ? hit.label : key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 module.exports = {
-  regionFreeKnobNames, customizeGroups, regionKnobLabel,
+  regionFreeKnobNames, regionNumbers, customizeGroups, regionKnobLabel,
   REGIONS, regionOptionsProblems, cleanRegionOptions, readRegionOptions, applyRegionOptions,
   effectiveRegionKnobs, regionPresetName, regionPresetPick, regionKnobChange, customizeKnobNames,
 };

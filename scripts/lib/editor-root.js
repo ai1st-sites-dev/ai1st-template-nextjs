@@ -384,12 +384,10 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       continue;
     }
     if (f.field === 'logoUrl') {
-      // #1784 —— 写进一张**新的、非空的** logo ⟹ 一并置 `logoHasWordmark: true`（同 `create-site.js` 建站时那条：老板自己传的，当它自带店名）。
-      //   logo 没变（每次存盘这一格都原样带着）⟹ 不碰它，AI 图标那张的 false 仍是 false；清空 ⟹ 也不碰（没图本来就照店名画）。
-      const url = v.trim();
-      const was = isObj(entry.doc) && typeof entry.doc.logoUrl === 'string' ? entry.doc.logoUrl.trim() : '';
-      setAt(entry.doc, key, url || null);
-      if (url && url !== was) entry.doc.logoHasWordmark = true;
+      // 空串 = 删掉（顶栏画名字）。🔴 #1784 r7 —— 不碰 `logoHasWordmark`：r6 在这里「换上新图 ⟹ 置 true」，而 r7 起编辑器里换图只在
+      //   Logo 子页的 Image 下，换的那一下把 `headerOptions.logoType` 存成 image（`EditorApp.tsx` §LogoSubPage）⟹ 默认那条判据用不上了。
+      //   建站那条（`create-site.js`，老板自己传的 logo 当它自带店名）仍要它定默认，不动。
+      setAt(entry.doc, key, v.trim() || null);
       continue;
     }
     if (f.field === 'socialLinks') {

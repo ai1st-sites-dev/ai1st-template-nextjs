@@ -39,15 +39,27 @@ check(eq(knobs, [
   { name: 'logo', values: ['left', 'center', 'right'], label: 'Logo position' },
   { name: 'menu', values: ['beside', 'center', 'left', 'below'] },
   { name: 'logoType', values: ['text', 'image'], label: 'Logo' },
-  { name: 'logoSize', values: ['s', 'm', 'l', 'xl'], default: 'm', label: 'Logo size' },
-]), '旋钮 = logo（left · center · right）· menu（beside · center · left · below）· logoType · logoSize（#1784，带面板上的名字），顺序即工具栏顺序', JSON.stringify(knobs));
+]), '旋钮 = logo（left · center · right）· menu（beside · center · left · below）· logoType（#1784，带面板上的名字），顺序即工具栏顺序', JSON.stringify(knobs));
+// #1784 r7 —— logoSize 是数字，不在旋钮表里，在 §numbersOf：图高 24–80px、步长 4、默认 40。
+check(eq(h.numbersOf(m), [{ name: 'logoSize', min: 24, max: 80, step: 4, default: 40, label: 'Logo size' }]), '#1784 r7：numbersOf 读出 logoSize 24–80/4 默认 40', JSON.stringify(h.numbersOf(m)));
+{
+  const r = h.numbersOf(m)[0];
+  check([24, 28, 40, 76, 80].every((v) => h.inRange(r, v)) && ![20, 84, 42, '40', 40.5, null, undefined].some((v) => h.inRange(r, v)),
+    '#1784 r7：inRange —— 两端和步上的整数收，范围外 / 不在步上 / 不是数不收');
+  const bad = (n) => h.numbersOf({ slots: { options: { numbers: [n] } } }).length === 0;
+  check(bad({ name: 'x', min: 10, max: 5, step: 1, default: 7 }) && bad({ name: 'x', min: 0, max: 10, step: 0, default: 0 })
+    && bad({ name: 'x', min: 0, max: 10, step: 4, default: 6 }) && bad({ name: 'x', min: '0', max: 10, step: 1, default: 0 }),
+    '#1784 r7：写坏的数字声明（min > max、步长 0、默认不在步上、不是数）跳过');
+}
 // #1784 —— 纠正不碰不归预设管的旋钮：没写就不出现，写了合法的原样带着，写了坏的丢掉。
-check(eq(h.normalizeKnobs({ logo: 'center', menu: 'beside' }, ctx), { logo: 'center', menu: 'left' }), '#1784：没写 logoType / logoSize ⟹ 纠正后也没有（不编默认）');
-check(eq(h.normalizeKnobs({ logo: 'left', menu: 'beside', logoType: 'image', logoSize: 'huge' }, ctx), { logo: 'left', menu: 'beside', logoType: 'image' }),
-  '#1784：合法的 logoType 原样带着，值域外的 logoSize 丢掉');
+check(eq(h.normalizeKnobs({ logo: 'center', menu: 'beside' }, ctx), { logo: 'center', menu: 'left' }), '#1784：没写 logoType ⟹ 纠正后也没有（不编默认）');
+check(eq(h.normalizeKnobs({ logo: 'left', menu: 'beside', logoType: 'image' }, ctx), { logo: 'left', menu: 'beside', logoType: 'image' }),
+  '#1784：合法的 logoType 原样带着');
+check(eq(h.normalizeKnobs({ logo: 'left', menu: 'beside', logoType: 'both' }, ctx), { logo: 'left', menu: 'beside' }),
+  '#1784：值域外的 logoType 丢掉');
 // #1784 × #1788 —— menu 存着被删掉的旧值走「跟 logo 走」的纠正；不归预设管的两个旋钮不进那条纠正，原样留着。
-check(eq(h.normalizeKnobs({ logo: 'center', menu: 'split', logoType: 'image', logoSize: 'xl' }, { ...ctx, base: { logo: 'center', menu: 'below' } }),
-  { logo: 'center', menu: 'left', logoType: 'image', logoSize: 'xl' }), '#1784 × #1788：menu=split 被纠正成 left，logoType=image / logoSize=xl 原样留着');
+check(eq(h.normalizeKnobs({ logo: 'center', menu: 'split', logoType: 'image' }, { ...ctx, base: { logo: 'center', menu: 'below' } }),
+  { logo: 'center', menu: 'left', logoType: 'image' }), '#1784 × #1788：menu=split 被纠正成 left，logoType=image 原样留着');
 check(!knobs.some((k) => k.name === 'topbar'), 'topbar 不再是旋钮');
 check(eq(coupling, ['logo', 'menu']), 'knobCoupling = [logo, menu]');
 check(h.knobsOf({ slots: { options: { shape: '{icons: bool}' } } }).length === 0, '只有布尔开关的块 ⟹ 0 个旋钮（开关不是旋钮）');
@@ -127,14 +139,14 @@ check(h.presetOf({ logo: 'center', menu: 'left', topbar: true }, ctx) === 'custo
 check(h.presetOf({ logo: 'right', menu: 'beside' }, ctx) === 'custom', 'logo=right ⟹ custom（没有预设在右）');
 // #1784 验收 7 —— logoType / logoSize 声明在 knobs 里但没有预设写到 ⟹ 不归预设管，判「是哪个预设」不比它们。
 check(eq(h.presetKnobNamesOf(presets), ['logo', 'menu']), '#1784：归预设管的旋钮只有 logo / menu', JSON.stringify(h.presetKnobNamesOf(presets)));
-check(knobs.some((k) => k.name === 'logoType') && knobs.some((k) => k.name === 'logoSize'), '#1784：logoType / logoSize 是 knobs 里的旋钮');
-check(h.presetOf({ logo: 'left', menu: 'beside', logoType: 'image', logoSize: 'xl' }, ctx) === 'logo-left',
-  '#1784 验收 7：logo-left 的旋钮 + logoType=image + logoSize=xl ⟹ logo-left，不是 custom');
-check(h.presetOf({ logo: 'center', menu: 'below', topbar: true, logoType: 'text', logoSize: 's' }, ctx) === 'topbar-stacked',
+check(knobs.some((k) => k.name === 'logoType') && !knobs.some((k) => k.name === 'logoSize'), '#1784：logoType 是 knobs 里的旋钮；r7 起 logoSize 不是（它是数字）');
+check(h.presetOf({ logo: 'left', menu: 'beside', logoType: 'image', logoSize: 64 }, ctx) === 'logo-left',
+  '#1784 验收 7：logo-left 的旋钮 + logoType=image + logoSize=64 ⟹ logo-left，不是 custom');
+check(h.presetOf({ logo: 'center', menu: 'below', topbar: true, logoType: 'text', logoSize: 24 }, ctx) === 'topbar-stacked',
   '#1784：topbar-stacked 的旋钮 + 开关 + 两个不归预设管的值 ⟹ topbar-stacked');
-check(h.presetOf({ logo: 'center', menu: 'left', logoType: 'image', logoSize: 'xl' }, ctx) === 'logo-center',
-  '#1784：logo-center（#1788 新加的预设）的旋钮 + logoType=image + logoSize=xl ⟹ logo-center');
-check(bk_presetName({ logo: 'left', menu: 'beside', logoType: 'image', logoSize: 'xl' }) === 'logo-left',
+check(h.presetOf({ logo: 'center', menu: 'left', logoType: 'image', logoSize: 64 }, ctx) === 'logo-center',
+  '#1784：logo-center（#1788 新加的预设）的旋钮 + logoType=image + logoSize=64 ⟹ logo-center');
+check(bk_presetName({ logo: 'left', menu: 'beside', logoType: 'image', logoSize: 64 }) === 'logo-left',
   '#1784：block-knobs §presetNameFor 同一口径 ⟹ logo-left');
 check(new Set(presets.map((p) => `${p.knobs.logo}|${p.knobs.menu}|${p.options.topbar}`)).size === presets.length, '6 个预设的组合（旋钮 + topbar）两两不同');
 // 反向对照：认预设时不看 topbar ⟹ topbar 会被认成 logo-left（先声明的那个）。

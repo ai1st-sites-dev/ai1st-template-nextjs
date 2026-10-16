@@ -59,19 +59,30 @@ console.log('① region-options.js');
   check(ro.regionPresetName('header', 'logo-left', { logo: 'center', menu: 'below' }) === 'stacked', '那一组就是 stacked 预设');
   check(same(ro.regionPresetPick('header', 'topbar', { bg: '#111111', logo: 'center', menu: 'below', icons: true, topbar: false }),
     { shape: 'topbar', options: { bg: '#111111', icons: true } }), '选预设：形态换掉、旋钮和归预设管的开关清掉，底色和 icons 留着');
-  check(same(ro.customizeKnobNames('header'), ['logo', 'menu', 'logoType', 'logoSize']) && same(ro.customizeKnobNames('footer'), ['brand', 'form']),
-    'Customize 页：顶栏 logo / menu / logoType / logoSize（#1784）；页脚 brand / form（layout 就是预设本身）');
-  // #1784 —— 两个旋钮 logoType / logoSize 声明在 `knobs` 里，但没有任何预设写到它们 ⟹ 不归预设管（`header-knobs.js` 文件头）。
-  check(same(ro.regionOptionsProblems('header', { logoType: 'image', logoSize: 'xl' }), []), '#1784：顶栏认 logoType / logoSize');
+  // #1784 r7 —— logoType 不在 Customize（logo 的东西都在 Content 页的 Logo 子页）；logoSize 是数字，本来就不是旋钮。
+  check(same(ro.customizeKnobNames('header'), ['logo', 'menu']) && same(ro.customizeKnobNames('footer'), ['brand', 'form']),
+    'Customize 页：顶栏 logo / menu（#1784 r7 起 logoType 不在这一页）；页脚 brand / form（layout 就是预设本身）', JSON.stringify(ro.customizeKnobNames('header')));
+  // #1784 —— logoType 声明在 `knobs` 里，但没有任何预设写到它 ⟹ 不归预设管（`header-knobs.js` 文件头）；
+  //   r7：logoSize 是数字（图高 px），声明在 `slots.options.numbers`：24–80、步长 4。
+  check(same(ro.regionOptionsProblems('header', { logoType: 'image', logoSize: 80 }), []), '#1784：顶栏认 logoType / logoSize（数字）');
+  for (const ok of [24, 40, 44, 76, 80]) check(same(ro.regionOptionsProblems('header', { logoSize: ok }), []), `#1784 r7：logoSize=${ok} 收`);
+  for (const no of ['xl', 'm', '40', 20, 84, 42, 40.5, null, true]) {
+    check(ro.regionOptionsProblems('header', { logoSize: no }).length === 1, `#1784 r7：logoSize=${JSON.stringify(no)} 拒收（r6 的四档字符串、范围外、不在步上、不是数）`);
+  }
   check(ro.regionOptionsProblems('header', { logoType: 'both', logoSize: 'xxl' }).length === 2, '#1784：值域外的 logoType / logoSize 各点一次名');
-  check(ro.regionOptionsProblems('footer', { logoSize: 'm' }).length === 1, '#1784：页脚不单独设 logo 大小 ⟹ 写在页脚那份里点名');
+  check(ro.regionOptionsProblems('footer', { logoSize: 40 }).length === 1, '#1784：页脚不单独设 logo 大小 ⟹ 写在页脚那份里点名');
   check(same(ro.cleanRegionOptions('header', { logoType: 'text', logoSize: 'huge' }), { logoType: 'text' }), '#1784：清洗留合法的那一格');
-  check(same(ro.regionPresetPick('header', 'stacked', { logo: 'left', menu: 'center', logoType: 'text', logoSize: 'xl', topbar: true }),
-    { shape: 'stacked', options: { logoType: 'text', logoSize: 'xl' } }), '#1784 验收 6：点预设 ⟹ 预设旋钮 / topbar 清掉，logoType / logoSize 留着');
-  check(ro.regionPresetName('header', 'topbar', { logoType: 'text', logoSize: 's' }) === 'topbar', '#1784：存了 logoType / logoSize 仍认得出是哪个预设（不是 custom）');
-  check(same(ro.regionKnobChange('header', 'logo-left', { logo: 'left', menu: 'beside' }, 'logoSize', 'l'), { logo: 'left', menu: 'beside', logoSize: 'l' }),
+  check(same(ro.cleanRegionOptions('header', { logoType: 'image', logoSize: 'xl' }), { logoType: 'image' }), '#1784 r7：r6 存下的四档字符串在构建那一侧丢掉（⟹ 默认 40，不迁移）');
+  check(same(ro.cleanRegionOptions('header', { logoSize: 64 }), { logoSize: 64 }), '#1784 r7：合法的数字留着');
+  check(same(ro.regionPresetPick('header', 'stacked', { logo: 'left', menu: 'center', logoType: 'text', logoSize: 64, topbar: true }),
+    { shape: 'stacked', options: { logoType: 'text', logoSize: 64 } }), '#1784 验收 6：点预设 ⟹ 预设旋钮 / topbar 清掉，logoType / logoSize 留着');
+  check(ro.regionPresetName('header', 'topbar', { logoType: 'text', logoSize: 24 }) === 'topbar', '#1784：存了 logoType / logoSize 仍认得出是哪个预设（不是 custom）');
+  check(same(ro.regionKnobChange('header', 'logo-left', { logo: 'left', menu: 'beside' }, 'logoSize', 52), { logo: 'left', menu: 'beside', logoSize: 52 }),
     '#1784：拧 logoSize 只写它自己，预设旋钮不动');
-  check(same(ro.regionKnobChange('header', 'logo-left', { logoSize: 'l' }, 'logoSize', 'huge'), { logoSize: 'l' }), '#1784：值域外的值不写进去');
+  check(same(ro.regionKnobChange('header', 'logo-left', { logoSize: 52 }, 'logoSize', 'huge'), { logoSize: 52 }), '#1784：值域外的值不写进去');
+  check(same(ro.regionKnobChange('header', 'logo-left', { logoSize: 52 }, 'logoSize', 82), { logoSize: 52 }), '#1784 r7：范围外的数不写进去');
+  check(same(ro.regionNumbers('header').map((n) => [n.name, n.min, n.max, n.step, n.default]), [['logoSize', 24, 80, 4, 40]]) && same(ro.regionNumbers('footer'), []),
+    '#1784 r7：regionNumbers —— 顶栏 logoSize 24–80/4 默认 40，页脚没有');
   // 🔴 拧 logo / menu 会把整组生效旋钮一起存（耦合纠正要它）—— 不归预设管的那两个不许被顺手填上默认存下：logoType 一旦被存成
   //    text，`brand.logoHasWordmark` 那条默认就再也不起作用了。
   const turned = ro.regionKnobChange('header', 'logo-left', {}, 'menu', 'center');
@@ -79,20 +90,20 @@ console.log('① region-options.js');
   check(same(Object.keys(ro.effectiveRegionKnobs('header', 'logo-left', {})).sort(), ['logo', 'menu', 'topbar']),
     '#1784：生效值里只有归预设管的那几格（logoType / logoSize 没有预设给的底）');
   check(same(ro.regionFreeKnobNames('header'), ['logoType', 'logoSize']) && same(ro.regionFreeKnobNames('footer'), []),
-    '#1784：不归预设管的旋钮 —— 顶栏 logoType / logoSize，页脚没有');
-  check(same(ro.customizeGroups('header'), [['logo', 'menu', 'bool:topbar', 'bool:sticky'], ['logoType', 'logoSize'], ['bool:icons']]),
-    '#1784：顶栏 Customize 的分组 —— logoType / logoSize 在 topbar 那一组（#1786 起末尾带 sticky）后面', JSON.stringify(ro.customizeGroups('header')));
-  // 反向对照：manifest 里没有 toolbarGroups ⟹ 退回改前的次序，两行就排到 topbar 前面去了（上一格会红）。
+    '#1784：不归预设管的那几格 —— 顶栏 logoType（旋钮）/ logoSize（r7：数字），页脚没有');
+  check(same(ro.customizeGroups('header'), [['logo', 'menu', 'bool:topbar', 'bool:sticky'], ['bool:icons']]),
+    '#1784 r7：顶栏 Customize 的分组 —— 只剩排版（位置 / 菜单 / 顶条 / 吸顶 → 图标），没有 logo 的东西', JSON.stringify(ro.customizeGroups('header')));
+  // 反向对照：Customize 不过滤不归预设管的旋钮 ⟹ logoType 又回到这一页（上一格读得出差别）。
   const bk = require('./lib/block-knobs.js');
   const m = JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'header', 'manifest.json'), 'utf-8'));
-  const flat = bk.arrangeToolbar(['logo', 'menu', 'logoType', 'logoSize', 'bool:topbar', 'bool:sticky', 'bool:icons'], []);
-  check(!same(flat, ro.customizeGroups('header')) && flat[0].indexOf('logoType') < flat[0].indexOf('bool:topbar'),
-    '反向对照：不按 toolbarGroups 排 ⟹ logoType 排在 topbar 前（上一格读得出差别）');
+  const unfiltered = bk.arrangeToolbar(['logo', 'menu', 'logoType', 'bool:topbar', 'bool:sticky', 'bool:icons'], bk.toolbarGroupsOf(m));
+  check(!same(unfiltered, ro.customizeGroups('header')) && unfiltered.flat().includes('logoType'),
+    '反向对照：不过滤 logoType ⟹ 分组里多出它（上一格读得出差别）', JSON.stringify(unfiltered));
   // 读的是没展开共用槽的原始 manifest（`bg` 还是 `{ ref }`）⟹ `color:bg` 那一条恒被点名，跟本票无关，滤掉。
   const declProbs = bk.knobDeclarationProblems(m).filter((x) => !x.includes('"color:bg"'));
   check(same(declProbs, []), '#1784：header manifest 的声明（两个没有预设写到的旋钮、toolbarGroups 里的两个新 token）没有问题', JSON.stringify(declProbs));
-  const m2 = JSON.parse(JSON.stringify(m)); m2.presets[0].knobs.logoSize = 'm';
-  check(bk.knobDeclarationProblems(m2).some((x) => x.includes('logoSize')), '反向对照：只有一个预设写了 logoSize ⟹ 它归预设管了，别的预设没写 ⟹ 声明校验点名');
+  const m2 = JSON.parse(JSON.stringify(m)); m2.presets[0].knobs.logoType = 'text';
+  check(bk.knobDeclarationProblems(m2).some((x) => x.includes('logoType')), '反向对照：只有一个预设写了 logoType ⟹ 它归预设管了，别的预设没写 ⟹ 声明校验点名');
   // #1788 —— 构建那一侧（给了形态）：menu 存着值域外的字符串（被删掉的 split / gathered、手写坏的）⟹ 就地纠正成跟 logo 走的那个值，不丢。
   for (const old of ['gathered', 'split', 'x']) {
     check(same(ro.cleanRegionOptions('header', { menu: old }, 'stacked'), { menu: 'left' }), `形态 stacked（logo=center）+ menu=${old} ⟹ left（不丢、不落回 stacked 的 below）`);
@@ -106,9 +117,9 @@ console.log('① region-options.js');
     '反向对照：不给形态 ⟹ 值域外的 menu 照旧丢掉；写盘照旧拒收');
   // #1784 × #1788（QA2 r5 点名）—— theme.json 存着被删的 menu + 两个不归预设管的旋钮 ⟹ menu 被纠正，logoType / logoSize 原样留着。
   //   （被纠正的 menu 最后才写进去，所以排在末尾 —— 跟上面 #1788 那格的 `{ bg, menu }` 同一个次序。）
-  check(same(ro.readRegionOptions({ regionOptions: { header: { menu: 'split', logoType: 'image', logoSize: 'xl' } } }, { header: 'stacked' }).header,
-    { logoType: 'image', logoSize: 'xl', menu: 'left' }), '#1784 × #1788：stacked + menu=split + logoType=image + logoSize=xl ⟹ menu=left，logoType / logoSize 不动');
-  check(same(ro.cleanRegionOptions('header', { menu: 'gathered', logoType: 'text', logoSize: 's' }, 'logo-left'), { logoType: 'text', logoSize: 's', menu: 'beside' }),
+  check(same(ro.readRegionOptions({ regionOptions: { header: { menu: 'split', logoType: 'image', logoSize: 64 } } }, { header: 'stacked' }).header,
+    { logoType: 'image', logoSize: 64, menu: 'left' }), '#1784 × #1788：stacked + menu=split + logoType=image + logoSize=64 ⟹ menu=left，logoType / logoSize 不动');
+  check(same(ro.cleanRegionOptions('header', { menu: 'gathered', logoType: 'text', logoSize: 28 }, 'logo-left'), { logoType: 'text', logoSize: 28, menu: 'beside' }),
     '#1784 × #1788：logo-left + menu=gathered ⟹ beside，logoType / logoSize 不动');
 }
 

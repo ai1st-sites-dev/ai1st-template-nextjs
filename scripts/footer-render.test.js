@@ -490,13 +490,15 @@ console.log('\n#1784 页脚 logo 跟顶栏同一种、同一档');
     if (!m) return null;
     const open = m[0].slice(0, m[0].indexOf('>') + 1);
     const a = (n) => { const x = open.match(new RegExp(`\\s${n}="([^"]*)"`)); return x ? x[1] : null; };
-    return { type: a('data-logo-type'), size: a('data-logo-size'), imgs: (m[1].match(/<img\b[^>]*>/g) || []), text: m[1].replace(/<[^>]+>/g, '') };
+    const hm = (a('style') || '').match(/--ftr-logo-h:\s*(\d+)px/);
+    return { type: a('data-logo-type'), size: a('data-logo-size'), h: hm ? Number(hm[1]) : null, imgs: (m[1].match(/<img\b[^>]*>/g) || []), text: m[1].replace(/<[^>]+>/g, '') };
   };
   const rf = (shape, data, logoOptions, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: ICONS, logoOptions }));
   for (const shape of PRESET_NAMES) {
-    for (const [type, size] of [['image', 's'], ['image', 'xl'], ['text', 'm'], ['text', 'l']]) {
+    // r7：图高是数字（px），滑杆两端 + 默认。
+    for (const [type, size] of [['image', 24], ['image', 80], ['text', 40], ['text', 52]]) {
       const b = brandOf(rf(shape, base, { logoType: type, logoSize: size }));
-      const good = b && b.type === type && b.size === size && (type === 'image'
+      const good = b && b.type === type && b.size === String(size) && b.h === size && (type === 'image'
         ? b.imgs.length === 1 && b.imgs[0].includes(`alt="${BRAND}"`) && b.text === ''
         : b.imgs.length === 0 && b.text === BRAND);
       check(good, `${shape} · 顶栏 ${type} · ${size} ⟹ 页脚同一种、同一档`, JSON.stringify(b));
@@ -504,23 +506,24 @@ console.log('\n#1784 页脚 logo 跟顶栏同一种、同一档');
   }
   // 默认跟顶栏同一条（`brand-logo.js`）：看 data.logoHasWordmark，不看有没有图。
   const def = brandOf(rf('stacked', { ...base, logoHasWordmark: true }, undefined));
-  check(def && def.type === 'image' && def.size === 'm', '不传 logoOptions + 图里自带店名 ⟹ image · m', JSON.stringify(def));
+  check(def && def.type === 'image' && def.h === 40, '不传 logoOptions + 图里自带店名 ⟹ image · 40px', JSON.stringify(def));
   const icon = brandOf(rf('stacked', { ...base, logoHasWordmark: false }, undefined));
   check(icon && icon.type === 'text' && icon.imgs.length === 0 && icon.text === BRAND, '验收 0：有图但 logoHasWordmark=false ⟹ 页脚出店名、<img> 0 个', JSON.stringify(icon));
   const noLogo = { ...base }; delete noLogo.logo;
-  const cleared = brandOf(rf('columns', noLogo, { logoType: 'image', logoSize: 'l' }));
+  const cleared = brandOf(rf('columns', noLogo, { logoType: 'image', logoSize: 52 }));
   check(cleared && cleared.type === 'text' && cleared.text === BRAND, '存着 image 但没图 ⟹ 出店名', JSON.stringify(cleared));
-  check(!/\bfs-4\b/.test(rf('stacked', noLogo, { logoType: 'text', logoSize: 's' })), 'stacked 原来那档大字（fs-4）取消，统一按 logoSize');
+  check(!/\bfs-4\b/.test(rf('stacked', noLogo, { logoType: 'text', logoSize: 24 })), 'stacked 原来那档大字（fs-4）取消');
+  // r7：几何跟顶栏同一套 —— 图高读 `--ftr-logo-h`（默认 40），店名一律 1.25rem，992 以下图高封顶 44px，四档规则已删。
   const css = fs.readFileSync(path.join(NEXT, 'blocks', 'footer', 'block.css'), 'utf-8');
-  const want = { s: ['28px', '1rem'], m: ['40px', '1.25rem'], l: ['52px', '1.5rem'], xl: ['64px', '1.875rem'] };
-  check(Object.entries(want).every(([sz, [h, fs_]]) => new RegExp(`\\.ftr-brand\\[data-logo-size="${sz}"\\]\\s*\\{\\s*--ftr-logo-h:\\s*${h};\\s*--ftr-logo-fs:\\s*${fs_.replace('.', '\\.')};`).test(css)),
-    'footer block.css 的尺寸表跟顶栏同一张（28/40/52/64px · 1/1.25/1.5/1.875rem）');
+  check(/\.ftr-brand \.ftr-logo-img \{ height: var\(--ftr-logo-h, 40px\);/.test(css) && /\.ftr-brand \.ftr-logo-text \{ font-size: 1\.25rem; \}/.test(css)
+    && !/data-logo-size="/.test(css) && /height:\s*min\(var\(--ftr-logo-h, 40px\), 44px\)/.test(css.slice(css.lastIndexOf('@media (max-width: 991.98px)'))),
+    'footer block.css 跟顶栏同一套：图高 var(--ftr-logo-h, 40px)、店名 1.25rem、992 以下封顶 44px、没有四档规则');
   // 反向对照：页脚不读 logoOptions（只按有没有图）⟹ 上面 text 那几格读得出差别。
   const src = fs.readFileSync(SECTION, 'utf-8');
   const broken = src.replace('resolveBrandLogo(logoOptions, {', 'resolveBrandLogo(undefined, {');
   if (broken === src) bad('反向对照没改到源码（锚点找不到）');
   else {
-    const b = brandOf(rf('slim-row', { ...base, logoHasWordmark: true }, { logoType: 'text', logoSize: 'l' }, loadSection(broken).default));
+    const b = brandOf(rf('slim-row', { ...base, logoHasWordmark: true }, { logoType: 'text', logoSize: 52 }, loadSection(broken).default));
     check(b && b.type === 'image', '反向对照：页脚不读 logoOptions ⟹ text 那几格会红', JSON.stringify(b));
     loadSection();
   }

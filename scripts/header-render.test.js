@@ -105,8 +105,11 @@ console.log('① 目录集合 · manifest presets · 形态表退役');
   check((MANIFEST.presets || []).every((p) => Object.keys(p).sort().join() === 'knobs,name,options,shape' && p.shape === p.name
     && Object.keys(p.knobs).sort().join() === 'logo,menu' && typeof p.options.topbar === 'boolean'), '每条预设是 { name, shape, knobs:{logo,menu}, options:{topbar} }，shape = 目录名 = name');
   const knobDecl = ((MANIFEST.slots.options || {}).knobs || []).map((k) => `${k.name}:${k.values.join('|')}`);
-  check(JSON.stringify(knobDecl) === JSON.stringify(['logo:left|center|right', 'menu:beside|center|left|below', 'logoType:text|image', 'logoSize:s|m|l|xl']),
-    'slots.options.knobs 声明四个旋钮（#1468 / #1788 值域 + #1784 的 logoType / logoSize，后两个没有预设写到）、顺序 = 控件顺序', JSON.stringify(knobDecl));
+  check(JSON.stringify(knobDecl) === JSON.stringify(['logo:left|center|right', 'menu:beside|center|left|below', 'logoType:text|image']),
+    'slots.options.knobs 声明三个旋钮（#1468 / #1788 值域 + #1784 的 logoType，没有预设写到）、顺序 = 控件顺序', JSON.stringify(knobDecl));
+  // #1784 r7 —— logoSize 是数字（图高 px），住 slots.options.numbers：24–80、步长 4、默认 40（Chris 2026-10-15 那条留言里的数）。
+  const nums = ((MANIFEST.slots.options || {}).numbers || []).map((n) => `${n.name}:${n.min}-${n.max}/${n.step}=${n.default}`);
+  check(JSON.stringify(nums) === JSON.stringify(['logoSize:24-80/4=40']), '#1784 r7：slots.options.numbers 只声明 logoSize 24–80 步长 4 默认 40', JSON.stringify(nums));
   // 行为判据（PM r2 裁定 ②）：Section 不导出、也不声明一张「形态名 → 布局」的表 —— 去掉注释之后没有 SHAPES。
   const code = ORIGINAL.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   check(!/\bSHAPES\b/.test(code), 'Section.tsx 的代码里（去掉注释）没有 SHAPES');
@@ -408,7 +411,7 @@ console.log('\n⑧ sticky');
   C = loadSection();
 }
 
-// ══ ⑨ #1784：logoType（text | image）× logoSize（s | m | l | xl）—— 图和店名二选一、大小四档 ══════════════════
+// ══ ⑨ #1784：logoType（text | image）× logoSize（r7：图高 px，24–80）—— 图和店名二选一、图高连续可调 ══════════════════
 console.log('\n⑨ #1784 logoType × logoSize');
 {
   const BRAND = DEMO.brandName;
@@ -416,43 +419,49 @@ console.log('\n⑨ #1784 logoType × logoSize');
   const brands = (h) => [...h.matchAll(/<a class="hdr-brand[^"]*"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => {
     const open = m[0].slice(0, m[0].indexOf('>') + 1);
     const a = (n) => { const x = open.match(new RegExp(`\\s${n}="([^"]*)"`)); return x ? x[1] : null; };
-    return { type: a('data-logo-type'), size: a('data-logo-size'), inner: m[1] };
+    const st = a('style') || '';
+    const h = st.match(/--hdr-logo-h:\s*(\d+)px/);
+    return { type: a('data-logo-type'), size: a('data-logo-size'), h: h ? Number(h[1]) : null, inner: m[1] };
   });
   const imgs = (inner) => (inner.match(/<img\b[^>]*>/g) || []);
   const shown = (inner) => inner.replace(/<img\b[^>]*>/g, '').replace(/<[^>]+>/g, '');   // 页面上看得见的字
-  const SIZES = ['s', 'm', 'l', 'xl'];
+  // r7：滑杆两端 + 默认（验收 6「四档的用例换成滑杆两端 + 默认值」）。
+  const SIZES = [24, 40, 80];
   check(!!DEMO.logo, `夹具有 logo 图（${DEMO.logo}）`);
   for (const preset of ['logo-left', 'logo-center', 'stacked']) {
     for (const type of ['image', 'text']) {
       for (const size of SIZES) {
         const b = brands(render(preset, withOpts({ logoType: type, logoSize: size })));
-        const good = b.length === 2 && b.every((x) => x.type === type && x.size === size && (type === 'image'
+        const good = b.length === 2 && b.every((x) => x.type === type && x.size === String(size) && x.h === size && (type === 'image'
           ? imgs(x.inner).length === 1 && imgs(x.inner)[0].includes(`alt="${BRAND}"`) && shown(x.inner) === ''
           : imgs(x.inner).length === 0 && shown(x.inner) === BRAND));
-        check(good, `${preset} · ${type} · ${size}：两个 logo 位置都只有${type === 'image' ? `一张图（alt=店名）、看得见的字 0` : '店名、<img> 0 个'}`, JSON.stringify(b));
+        check(good, `${preset} · ${type} · ${size}px：--hdr-logo-h = ${size}px、两个 logo 位置都只有${type === 'image' ? `一张图（alt=店名）、看得见的字 0` : '店名、<img> 0 个'}`, JSON.stringify(b));
       }
     }
   }
   // 默认：没存 logoType ⟹ 看 data.logoHasWordmark（构建从 brand.logoHasWordmark 派生）：真 image、假或没有 text —— 不看有没有图。
-  //   没存 logoSize ⟹ m。存了 image 却没有图 ⟹ 照 text 画。
+  //   没存 logoSize ⟹ 40。存了 image 却没有图 ⟹ 照 text 画。
   const noLogo = (o) => { const d = withOpts(o); delete d.logo; return d; };
   const wm = (o, v) => ({ ...withOpts(o), logoHasWordmark: v });
   const def = brands(render('logo-left', wm({}, true)));
-  check(def.every((x) => x.type === 'image' && x.size === 'm' && imgs(x.inner).length === 1 && shown(x.inner) === ''),
-    '验收 1：没存旋钮 + 图里自带店名（logoHasWordmark）⟹ image · m，看得见的字 0', JSON.stringify(def));
+  check(def.every((x) => x.type === 'image' && x.h === 40 && imgs(x.inner).length === 1 && shown(x.inner) === ''),
+    '验收 1：没存旋钮 + 图里自带店名（logoHasWordmark）⟹ image · 40px，看得见的字 0', JSON.stringify(def));
   const icon = brands(render('logo-left', wm({}, false)));
-  check(icon.every((x) => x.type === 'text' && x.size === 'm' && imgs(x.inner).length === 0 && shown(x.inner) === BRAND),
-    '验收 0：有图但 logoHasWordmark=false（AI 图标 logo）⟹ text · m，店名在、<img> 0 个', JSON.stringify(icon));
+  check(icon.every((x) => x.type === 'text' && imgs(x.inner).length === 0 && shown(x.inner) === BRAND),
+    '验收 0：有图但 logoHasWordmark=false（AI 图标 logo）⟹ text，店名在、<img> 0 个', JSON.stringify(icon));
   const unset = brands(render('logo-left', withOpts({})));
   check(unset.every((x) => x.type === 'text' && imgs(x.inner).length === 0), '有图、没有 logoHasWordmark 这一格 ⟹ text（不看有没有图）', JSON.stringify(unset));
   const flipped = brands(render('logo-left', wm({ logoType: 'text' }, true)));
   check(flipped.every((x) => x.type === 'text' && imgs(x.inner).length === 0), '验收 1：自带店名的站切 text ⟹ 只有店名、<img> 0 个', JSON.stringify(flipped));
   const defText = brands(render('logo-left', noLogo({})));
-  check(defText.every((x) => x.type === 'text' && x.size === 'm' && imgs(x.inner).length === 0), '没存旋钮 + 没图 ⟹ text · m', JSON.stringify(defText));
-  const cleared = brands(render('logo-left', noLogo({ logoType: 'image', logoSize: 'xl' })));
-  check(cleared.every((x) => x.type === 'text' && x.size === 'xl' && shown(x.inner) === BRAND), '验收 4：存着 image 但 logo 清空 ⟹ 出店名（大小照旧 xl）', JSON.stringify(cleared));
-  const junk = brands(render('logo-left', wm({ logoType: 'both', logoSize: 'huge' }, true)));
-  check(junk.every((x) => x.type === 'image' && x.size === 'm'), '写坏的值当没写（自带店名 ⟹ image · m）', JSON.stringify(junk));
+  check(defText.every((x) => x.type === 'text' && imgs(x.inner).length === 0), '没存旋钮 + 没图 ⟹ text', JSON.stringify(defText));
+  const cleared = brands(render('logo-left', noLogo({ logoType: 'image', logoSize: 80 })));
+  check(cleared.every((x) => x.type === 'text' && shown(x.inner) === BRAND), 'r7 验收 5：存着 image 但没有图 ⟹ 出店名', JSON.stringify(cleared));
+  // 写坏的值当没写：r6 存下的四档字符串、范围外、不在步上、字符串数字 —— 一律回默认 40。
+  for (const bad of ['huge', 'xl', 'm', 20, 84, 42, '52']) {
+    const junk = brands(render('logo-left', wm({ logoType: 'both', logoSize: bad }, true)));
+    check(junk.every((x) => x.type === 'image' && x.h === 40), `写坏的值当没写（logoSize=${JSON.stringify(bad)} ⟹ 40px；logoType=both + 自带店名 ⟹ image）`, JSON.stringify(junk));
+  }
   // 反向对照：默认改回「有图就 image」（r1 的判据）⟹ 上面「验收 0」那一格会红。
   const s0 = mutate('hasWordmark: data.logoHasWordmark === true', 'hasWordmark: !!data.logo');
   if (!s0) bad('反向对照没改到源码（锚点找不到）');
@@ -462,19 +471,23 @@ console.log('\n⑨ #1784 logoType × logoSize');
   }
   // 旋钮不碰布局：拧 logoType / logoSize 前后，根上的预设 / 三个派生类一个字不变（它们不进预设）。
   const plainRoot = attr(render('topbar', clone(DEMO)), 'class');
-  const knobRoot = attr(render('topbar', withOpts({ logoType: 'text', logoSize: 'xl' })), 'class');
-  check(plainRoot === knobRoot && attr(render('topbar', withOpts({ logoType: 'text', logoSize: 'xl' })), 'data-preset') === 'topbar',
+  const knobRoot = attr(render('topbar', withOpts({ logoType: 'text', logoSize: 80 })), 'class');
+  check(plainRoot === knobRoot && attr(render('topbar', withOpts({ logoType: 'text', logoSize: 80 })), 'data-preset') === 'topbar',
     '拧了 logoType / logoSize 仍认得出是 topbar 预设、根上的类不变');
-  // 尺寸表（几何在 block.css；HTML 只挂 data-logo-size）：正文那张表逐格对，992 以下封顶 44px / 1.25rem。
+  // 几何在 block.css：图高读 Section 写的 `--hdr-logo-h`；店名一律 1.25rem（r7：text 没有大小控件）；992 以下图高封顶 44px。
   const css = fs.readFileSync(path.join(BLOCK_DIR, 'block.css'), 'utf-8');
-  const want = { s: ['28px', '1rem'], m: ['40px', '1.25rem'], l: ['52px', '1.5rem'], xl: ['64px', '1.875rem'] };
-  for (const size of SIZES) {
-    const m = css.match(new RegExp(`\\.hdr-brand\\[data-logo-size="${size}"\\]\\s*\\{\\s*--hdr-logo-h:\\s*([^;]+);\\s*--hdr-logo-fs:\\s*([^;]+);`));
-    check(m && m[1] === want[size][0] && m[2] === want[size][1], `block.css ${size}：图高 ${want[size][0]} · 店名 ${want[size][1]}`, m ? `${m[1]} · ${m[2]}` : '没找到');
-  }
+  check(/\.hdr-brand \.hdr-logo-img \{ height: var\(--hdr-logo-h, 40px\);/.test(css), 'block.css：图高 = var(--hdr-logo-h, 40px)');
+  check(/\.hdr-brand \.hdr-logo-text \{ font-size: 1\.25rem; \}/.test(css), 'block.css：店名 1.25rem（r7 起只有这一档）');
+  check(!/data-logo-size="/.test(css), 'block.css：s / m / l / xl 四档的规则已删（r7）');
   const mq = css.slice(css.lastIndexOf('@media (max-width: 991.98px)'));
-  check(/height:\s*min\(var\(--hdr-logo-h, 40px\), 44px\)/.test(mq) && /font-size:\s*min\(var\(--hdr-logo-fs, 1\.25rem\), 1\.25rem\)/.test(mq),
-    'block.css：992 以下图高封顶 44px、店名封顶 1.25rem');
+  check(/height:\s*min\(var\(--hdr-logo-h, 40px\), 44px\)/.test(mq), 'block.css：992 以下图高封顶 44px');
+  // 反向对照：Section 不把图高写进 --hdr-logo-h ⟹ 上面「--hdr-logo-h = Npx」那几格会红。
+  const s3 = mutate("style={{ ['--hdr-logo-h' as string]: `${brandLogo.size}px` }}", '');
+  if (!s3) bad('反向对照没改到源码（锚点找不到）');
+  else {
+    const b = brands(render('logo-left', withOpts({ logoType: 'image', logoSize: 80 }), loadSection(s3)));
+    check(b.every((x) => x.h !== 80), '反向对照：不写 --hdr-logo-h ⟹ 80px 那几格会红', JSON.stringify(b));
+  }
   // 反向对照：只出图时 alt 退回空串（改前的写法）⟹ 上面 image 那几格读得出差别。
   const s1 = mutate('alt={brand} className="hdr-logo-img', 'alt="" className="hdr-logo-img');
   if (!s1) bad('反向对照没改到源码（锚点找不到）');

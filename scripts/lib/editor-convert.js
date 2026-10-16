@@ -1151,10 +1151,10 @@ function regionOptionSegments(name, region, shapeBefore, shapeAfter, before, aft
     if (shapeChanged || deepEqual(effA[k], effB[k])) continue;
     out.push(`${name} · ${cap(k)} → ${typeof effB[k] === 'boolean' ? (effB[k] ? 'on' : 'off') : effB[k]}`);
   }
-  // #1784 —— 不归预设管的旋钮（顶栏 logoType / logoSize）：不在生效值里（它没有预设给的底），比存下的那一格；换预设也不清它，
-  //   所以 shapeChanged 时照样说。
+  // #1784 —— 不归预设管的旋钮（顶栏 logoType）和数字范围（r7：logoSize，图高 px）：不在生效值里（它没有预设给的底），比存下的那一格；
+  //   换预设也不清它，所以 shapeChanged 时照样说。
   for (const k of regionFreeKnobNames(region)) {
-    if (a[k] === b[k] || typeof b[k] !== 'string') continue;
+    if (a[k] === b[k] || (typeof b[k] !== 'string' && typeof b[k] !== 'number')) continue;
     out.push(`${name} · ${cap(k)} → ${b[k]}`);
   }
   // 不归预设管的开关（顶栏 `icons`）：没存 = 关（块自己的默认，`blocks/header/Section.tsx` 的 `icons = false`）。

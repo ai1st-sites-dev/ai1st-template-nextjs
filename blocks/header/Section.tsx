@@ -98,7 +98,7 @@ export interface HeaderOptions {
   icons?: boolean;
   /** #1786 —— 往下滚时吸在页面顶上（§文件头）。不归预设管。 */
   sticky?: boolean;
-  /** #1784 —— 不归预设管的两个旋钮（`scripts/lib/brand-logo.js`）：没写 ⟹ 图里自带店名 image / 否则 text、大小 m。 */
+  /** #1784 —— 不归预设管的两格（`scripts/lib/brand-logo.js`）：没写 ⟹ 图里自带店名 image / 否则 text；logoSize 是图高 px（r7），没写 40。 */
   logoType?: LogoType;
   logoSize?: LogoSize;
 }
@@ -310,11 +310,12 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
   // `compact` = 手机 / iPad 那一条：店名要让位给电话图标和汉堡 —— 可以收缩、可以换成两行，不许把后两个挤到
   // 下一行（QA2 #1462 r1：390 宽 topbar 预设整条折成两行，汉堡掉到第二行最左边；320 宽连 logo-left 也折）。
   // 店名不截断：生意名是这一条上最要紧的字。桌面那三格里仍是一行不收缩。
-  // #1784 —— 图和店名二选一（`logoType`），大小四档（`logoSize`）：只出图时 `alt` 写店名，读屏照样念得出是谁家；
-  //    图高 / 字号（含 992 以下的上限）在 block.css 按 `data-logo-size` 定。
+  // #1784 —— 图和店名二选一（`logoType`）：只出图时 `alt` 写店名，读屏照样念得出是谁家。
+  //    r7 —— 图高是 `logoSize`（px，Logo 子页的 Scale 滑杆），经 `--hdr-logo-h` 交给 block.css（992 以下的 44px 上限在那儿）；
+  //    店名没有大小（Durable 那样只有图能调），字号写死在 block.css。
   const brandLink = (compact = false) => (
     <SiteLink className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${deep ? 'text-white' : 'text-heading'}`} href={homeHref}
-      data-logo-type={brandLogo.type} data-logo-size={brandLogo.size}>
+      data-logo-type={brandLogo.type} data-logo-size={brandLogo.size} style={{ ['--hdr-logo-h' as string]: `${brandLogo.size}px` }}>
       {brandLogo.type === 'image'
         ? <img src={data.logo} alt={brand} className="hdr-logo-img w-auto flex-shrink-0" />
         : <span className={`hdr-logo-text fw-semibold ${compact ? 'text-wrap lh-sm' : 'text-nowrap'}`}>{brand}</span>}

@@ -112,7 +112,7 @@ export default function SiteShell({ site, locale, page, currentPath, shell, notF
   const headerData = shellBlockData(site, 'header', locale, shell?.headerOptions);
   const footerData = shellBlockData(site, 'footer', locale, shell?.footerOptions);
   const footerLeadForm = footerLeadFormOf(site, locale);
-  // #1784 —— 页脚的 logo 跟顶栏那份 `logoType` / `logoSize` 走（`scripts/lib/brand-logo.js`）。
+  // #1784 —— 页脚的 logo 跟顶栏那份 `logoType` / `logoSize`（图高 px）走（`scripts/lib/brand-logo.js`）。
   const headerLogoOptions = (headerData.options || {}) as Record<string, unknown>;
 
   return (

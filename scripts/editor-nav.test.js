@@ -363,8 +363,11 @@ console.log('⑤ nav-editor（能不能存 · 拖动 · 预览 == 构建）');
   check(JSON.stringify(live3.header.buttons) === JSON.stringify(base.header.buttons), '没带 headerButtons ⟹ 构建那份按钮原样', JSON.stringify(live3.header));
   const live4 = navEditor.liveShellData(base, { headerButtons: [] }, 'en', 'en');
   check(JSON.stringify(live4.header.buttons) === '[]', '带了空列表 ⟹ 0 颗（老板删光了）', JSON.stringify(live4.header));
-  // #1784 —— 画布上换了一张新 logo ⟹ 当它自带店名（同存盘那条规矩）；logo 没变 ⟹ 构建那份的 logoHasWordmark 原样；清空 ⟹ 一起去掉。
-  check(live.header.logoHasWordmark === true && live.footer.logoHasWordmark === true, '#1784：换了新 logo ⟹ 两个区 logoHasWordmark=true', JSON.stringify(live));
+  // #1784 r7 —— 画布上换了一张新 logo ⟹ logoHasWordmark 照构建那份（同存盘：不再置真，换图那一下 Logo 子页把 logoType 存成 image）；
+  //   logo 没变 ⟹ 原样；清空 ⟹ 一起去掉。
+  check(!('logoHasWordmark' in live.header) && !('logoHasWordmark' in live.footer), '#1784 r7：换了新 logo ⟹ 不置 logoHasWordmark（构建那份没有就还是没有）', JSON.stringify(live));
+  const keptOnSwap = navEditor.liveShellData({ header: { ...base.header, logoHasWordmark: true }, footer: { ...base.footer, logoHasWordmark: true } }, { logoUrl: '/brand-new.png' }, 'en', 'en');
+  check(keptOnSwap.header.logoHasWordmark === true && keptOnSwap.header.logo === '/brand-new.png', '#1784 r7：换了新 logo、构建那份是 true ⟹ 仍是 true（不碰它）', JSON.stringify(keptOnSwap.header));
   const same = navEditor.liveShellData(base, { logoUrl: '/old.png' }, 'en', 'en');
   check(!('logoHasWordmark' in same.header) && !('logoHasWordmark' in same.footer), '#1784：logo 没变（AI 图标那张）⟹ 不置真', JSON.stringify(same));
   const kept = navEditor.liveShellData({ header: { ...base.header, logoHasWordmark: true }, footer: { ...base.footer, logoHasWordmark: true } }, { logoUrl: '/old.png' }, 'en', 'en');

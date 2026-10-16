@@ -12,7 +12,7 @@
 //     `name` 是显示名，`shape` 是形态目录名（header 两者同名，hero 不同名）。#1468：预设 `options` 里写了的布尔
 //     「归预设管」（header 的 topbar）—— 判「是哪个预设」连它一起比；没有预设写的（icons）不参与；
 //   · 🔴 #1784：**旋钮也按同一个办法分两类** —— 有预设在 `knobs` 里写到的归预设管；**没有任何预设写到的不归**
-//     （header 的 logoType / logoSize）。不归的那几个：判「是哪个预设」不比它、纠正时不碰它（不在耦合里）、
+//     （header 的 logoType；#1784 r7 起 logoSize 是数字，改住 §numbersOf）。不归的那几个：判「是哪个预设」不比它、纠正时不碰它（不在耦合里）、
 //     点预设时不清掉它（`region-options.js` §regionPresetPick）。判据只有 §presetKnobNamesOf 一处；
 //   · 耦合（可选，header 有、hero 可以没有）：顶层 `knobCoupling: [甲, 乙]` —— 这两个旋钮的组合**必须在某个
 //     预设里出现过**，否则不成立。header 是 `["logo", "menu"]`：logo=center 只能配 left / below（#1788），
@@ -144,12 +144,33 @@ function normalizeKnobs(values, { knobs, presets, coupling, changed, base } = {}
  */
 function presetOf(values, { knobs, presets }) {
   const bools = presetBooleansOf(presets);
-  const owned = presetKnobNamesOf(presets);   // 不归预设管的旋钮（#1784，logoType / logoSize）不比
+  const owned = presetKnobNamesOf(presets);   // 不归预设管的旋钮（#1784，logoType）不比
   const hit = presets.find((p) => knobs.every((k) => !owned.includes(k.name) || p.knobs[k.name] === values[k.name])
     && bools.every((b) => !!(p.options && p.options[b] === true) === (values[b] === true)));
   return hit ? hit.name : 'custom';
 }
 
+/**
+ * #1784 r7 —— 数字范围：`slots.options.numbers: [{ name, min, max, step, default, label? }]`（顶栏的 logoSize：图高 24–80px，步长 4）。
+ * 旋钮只收字符串值（§knobsOf；Go 那一侧 `catalog_admin.go` 也是 `[]string`），连续的数字放不进去，所以单独声明一张。
+ * 不归预设管（没有预设能写它）。写坏的项跳过：min ≤ default ≤ max、步长 > 0、default 落在步上。
+ */
+function numbersOf(manifest) {
+  const opt = manifest && manifest.slots && manifest.slots.options;
+  const list = opt && Array.isArray(opt.numbers) ? opt.numbers : [];
+  const num = (v) => typeof v === 'number' && Number.isFinite(v);
+  return list
+    .filter((r) => r && isStr(r.name) && num(r.min) && num(r.max) && num(r.step) && num(r.default) && r.step > 0
+      && r.min <= r.default && r.default <= r.max && (r.default - r.min) % r.step === 0)
+    .map((r) => ({ name: r.name, min: r.min, max: r.max, step: r.step, default: r.default, ...(isStr(r.label) ? { label: r.label } : {}) }));
+}
+
+/** 这个值落不落在范围里（整数步上，两端都算）。 */
+function inRange(range, v) {
+  return !!range && typeof v === 'number' && Number.isFinite(v) && v >= range.min && v <= range.max && (v - range.min) % range.step === 0;
+}
+
 module.exports = {
+  numbersOf, inRange,
   knobsOf, presetsOf, couplingOf, presetKnobs, presetKnobNamesOf, presetBooleansOf, presetBooleans, presetForShape, normalizeKnobs, presetOf,
 };

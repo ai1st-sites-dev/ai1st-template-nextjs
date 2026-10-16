@@ -108,7 +108,7 @@ import {
 import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import { customizeGroups, customizeKnobNames, effectiveRegionKnobs, regionKnobChange, regionPresetName, regionPresetPick } from '../../../scripts/lib/region-options.js';
-import { resolveBrandLogo } from '../../../scripts/lib/brand-logo.js';
+import { LOGO_SIZE, resolveBrandLogo } from '../../../scripts/lib/brand-logo.js';
 import { MAX_TOPBAR_LINKS, isContactRef, linkKindOf, topbarLinksProblem } from '../../../scripts/lib/topbar-links.js';
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type BusinessContact, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
@@ -2696,14 +2696,92 @@ function topbarLabelFallback(it: TopbarItem, live: SiteData): string {
   if (isContactRef(it.href)) return contactText(kind as 'phone' | 'email', it.href, live);
   return topbarItemText({ ...it, label: '' }, live);
 }
+/**
+ * #1784 r7 —— Logo 那一行和子页要的几个现值：亮 Text 还是 Image 跟画布同一条判据（`brand-logo.js`：存了 logoType 就是它，
+ *   没存看「图里自带店名吗」—— 读画布上那份顶栏 data，跟外壳画的是同一份）；图高没存 / 不合法 ⟹ manifest 的默认（40）。
+ */
+function headerLogoState(props: Record<string, unknown>, site: SiteData, locale: string) {
+  const url = typeof props.logoUrl === 'string' ? props.logoUrl.trim() : '';
+  const hd = (withHeaderContent(site, locale, { logoUrl: typeof props.logoUrl === 'string' ? props.logoUrl : undefined }).regions.header.dataByLocale || {})[locale || site.defaultLocale] as
+    { logo?: string; logoHasWordmark?: boolean } | undefined;
+  const bl = resolveBrandLogo(asOptions(props.headerOptions), { hasLogo: !!(hd && hd.logo), hasWordmark: !!(hd && hd.logoHasWordmark === true) });
+  return { chosen: bl.chosen, size: bl.size, url, name: typeof props.brandName === 'string' ? props.brandName : '' };
+}
+
+/**
+ * #1784 r7 —— Content 页 Logo 那一行 ✎ Edit 进来的子页（照 Durable：左上 ← 回去；没有自己的保存键，Cancel / Done 是整个面板的）。
+ *   · Text | Image —— `headerOptions.logoType`，经 §regionKnobChange（不归预设管，只写它自己）。
+ *   · Text：Name = `brandName`（Website settings 里同一个值）。没有大小控件：店名一律 1.25rem（block.css）。
+ *   · Image：图（`logoUrl`，同右栏图片格的 Change / Remove）+ Scale 滑杆 = `headerOptions.logoSize`（图高 px，范围 / 步长 / 默认只写在
+ *     顶栏 manifest 的 `slots.options.numbers`，`brand-logo.js` §LOGO_SIZE）。换上一张图时 logoType 一并写成 image（不靠「图里自带店名吗」那条默认）。
+ *     选了 Image 没传图：图框空着；画布 / 网站照 Text 画（`brand-logo.js`）。
+ *   每样改动都是 root 上的值（`set` = §changeHeader），跟 Content 本页同一个事务：画布当场变，Done 一笔、Cancel 全退回。
+ */
+function LogoSubPage({ props, logo, set, onBack }: {
+  props: Record<string, unknown>;
+  logo: ReturnType<typeof headerLogoState>;
+  set: (patch: Partial<RootProps>) => void;
+  onBack: () => void;
+}) {
+  const shape = String(props.headerShape || '');
+  const opts = asOptions(props.headerOptions);
+  const knob = (key: string, value: unknown, extra: Partial<RootProps> = {}) =>
+    set({ ...extra, headerOptions: regionKnobChange('header', shape, opts, key, value) });
+  const pickType = (t: 'text' | 'image') => knob('logoType', t);
+  return (
+    <div data-editor-logo-page="">
+      <button type="button" data-editor-logo-back="" onClick={onBack}
+        style={{ border: 0, background: 'none', padding: '0 0 10px', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#101828', fontFamily: 'inherit' }}>
+        ← Logo
+      </button>
+      <div style={CTRL_ROW} role="radiogroup" aria-label="Logo type">
+        {(['text', 'image'] as const).map((t) => (
+          <button key={t} type="button" role="radio" aria-checked={logo.chosen === t} data-editor-logo-type={t}
+            onClick={() => pickType(t)} style={{ ...chip(logo.chosen === t), flex: 1 }}>
+            {t === 'text' ? 'Text' : 'Image'}
+          </button>
+        ))}
+      </div>
+      {logo.chosen === 'text' ? (
+        typeof props.brandName === 'string' && (
+          <div data-editor-content-field="brandName" style={{ marginBottom: 16 }}>
+            <FieldLabel label="Name" el="div" />
+            <input data-editor-header-brand="" type="text" value={props.brandName} onChange={(e) => set({ brandName: e.target.value })} style={INPUT_STYLE} />
+          </div>
+        )
+      ) : (
+        <>
+          <div data-editor-content-field="logoUrl" style={{ marginBottom: 16 }}>
+            <ImageUrlControl label="Image" optional value={logo.url}
+              onChange={(v) => {
+                const url = typeof v === 'string' ? v : '';
+                // 换上一张图 ⟹ 当场把 Image 钉成存下的值（只清空图不动它：清空之后画布照 Text 画，框空着等下一张）。
+                if (url) knob('logoType', 'image', { logoUrl: url }); else set({ logoUrl: '' });
+              }} />
+          </div>
+          <div data-editor-content-field="logoSize" style={{ marginBottom: 16 }}>
+            <FieldLabel label="Scale" el="div" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input data-editor-logo-scale="" type="range" min={LOGO_SIZE.min} max={LOGO_SIZE.max} step={LOGO_SIZE.step} value={logo.size}
+                aria-label="Logo scale" onChange={(e) => knob('logoSize', Number(e.target.value))} style={{ flex: 1 }} />
+              <span data-editor-logo-scale-value="" style={{ fontSize: 12, color: '#667085', minWidth: 36, textAlign: 'right' }}>{`${logo.size}px`}</span>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap', fontFamily: 'inherit' };
 
 /**
- * #1759 —— 顶栏 Design 面板的 Content 页（票正文做什么 3）：Logo · Website name · Navigation links · Buttons；#1780 起最上面多一段 Top bar
+ * #1759 —— 顶栏 Design 面板的 Content 页（票正文做什么 3）：Logo · Navigation links · Buttons；#1780 起最上面多一段 Top bar
  *   （只在当前版式带上面那一行时出，见下面 `topbar` 那几行）。
  *   改的全是 root 上的值（`changeHeader`），跟 Layout / Customize 两页同一个事务：画布当场跟着变（§withHeaderContent），Done 存一笔、Cancel 全退回。
- *   · Logo —— 同右栏图片格的 Change（`ImageUrlControl`，选图弹窗同一个 `pickImage`）；写 `brand.json` 的 `logoUrl`。
- *   · Website name —— Website settings 面板里那一格的同一个值（`brandName`）。
+ *   · Logo —— #1784 r7（Chris 2026-10-15「照 Durable」）：一行，Text 显示店名、Image 显示图的小缩略，✎ Edit 进 Logo 子页（§LogoSubPage）。
+ *     子页里是 logo 的全部：Text | Image（`headerOptions.logoType`）、Name（`brandName`，Website settings 里同一个值）、
+ *     图（`brand.json` 的 `logoUrl`，同右栏图片格的 Change）+ Scale 滑杆（`headerOptions.logoSize`，图高 px）。Customize 页不再有 logo 的东西。
  *   · Navigation links —— #1781：老板自己的一份列表（`headerLinks` = `navigation.json` 的 `header.links`）。一行一项：拖动 · 名字 · Edit · 删除；
  *     Edit / Add navigation link 开链接弹窗（§NavLinkDialog）。不能存的规矩（名字 / 链接）在 `nav-editor.js` §menuItemProblem。
  *   · Buttons —— #1787：0–3 颗的列表，第 1 颗是主按钮（样子按位置定：实心 · 描边 · 文字链接样）。一行一颗：⋮⋮ 拖动 · 名字 · ✎ Edit · 🗑；
@@ -2718,6 +2796,8 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
   const links = Array.isArray(props.headerLinks) ? (props.headerLinks as MenuItem[]) : null;
   const buttons = Array.isArray(props.headerButtons) ? (props.headerButtons as unknown[]).map(asButtonValue) : null;
   const [btnDrag, setBtnDrag] = useState<number | null>(null);
+  // #1784 r7 —— Logo 子页开着没有（← 回 Content；切到别的页再回来就是 Content 本页）。
+  const [logoPage, setLogoPage] = useState(false);
   const set = (patch: Partial<RootProps>) => ui.changeHeader(patch);
   // #1781 —— Edit / Add 开链接弹窗（§NavLinkDialog）：同一个面板换成弹窗那一页，Done / Cancel 回到这一页。
   const edit = (focus: string) => ui.openDesign(REGION_DESIGN_ID.header, 'navlink', `${focus}@content`);
@@ -2745,6 +2825,8 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
     next.splice(to, 0, x);
     setTopbar(next);
   };
+  const logo = headerLogoState(props, site, locale);
+  if (logoPage) return <LogoSubPage props={props} logo={logo} set={set} onBack={() => setLogoPage(false)} />;
   return (
     <>
       {topbar && headerHasTopbar(props) && (
@@ -2774,15 +2856,21 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
             style={{ ...HEADER_ROW_BTN, ...(topbar.length >= MAX_TOPBAR_LINKS ? { opacity: 0.4, cursor: 'default' } : {}) }}>+ Add link</button>
         </div>
       )}
-      {typeof props.logoUrl === 'string' && (
-        <div data-editor-content-field="logoUrl" style={{ marginBottom: 16 }}>
-          <ImageUrlControl label="Logo" optional value={props.logoUrl} onChange={(v) => set({ logoUrl: typeof v === 'string' ? v : '' })} />
-        </div>
-      )}
-      {typeof props.brandName === 'string' && (
-        <div data-editor-content-field="brandName" style={{ marginBottom: 16 }}>
-          <FieldLabel label="Website name" el="div" />
-          <input data-editor-header-brand="" type="text" value={props.brandName} onChange={(e) => set({ brandName: e.target.value })} style={INPUT_STYLE} />
+      {(typeof props.logoUrl === 'string' || typeof props.brandName === 'string') && (
+        <div data-editor-content-field="logo" data-editor-header-logo-row={logo.chosen} style={{ marginBottom: 16 }}>
+          <FieldLabel label="Logo" el="div" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span data-editor-header-logo-summary="" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+              {logo.chosen === 'image'
+                ? (logo.url
+                  ? <img src={logo.url} alt="" style={{ height: 28, maxWidth: '100%', objectFit: 'contain' }} />
+                  : <span style={{ fontSize: 14, color: '#98a2b3' }}>No image yet</span>)
+                : <span style={{ fontSize: 14, color: logo.name.trim() ? '#101828' : '#98a2b3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {logo.name.trim() || 'No name yet'}
+                </span>}
+            </span>
+            <button type="button" data-editor-header-logo-edit="" onClick={() => setLogoPage(true)} style={HEADER_ROW_BTN}>✎ Edit</button>
+          </div>
         </div>
       )}
       {links && (
@@ -3303,18 +3391,10 @@ function DesignPopover({ doc }: { doc: Document }) {
     };
     const { bg: bgValue, ...knobOpts } = opts;
     const knobV: Record<string, unknown> = { ...knobOpts, ...effectiveRegionKnobs(region, shape, opts) };
-    // #1784 —— 顶栏的 logoType 没存时亮哪一格跟画布同一条判据（图里自带店名 image / 否则 text，`brand-logo.js`）；logoSize 没存亮 m。
-    //   「自带店名吗」读画布上那份顶栏 data（Content 页刚换的 logo 也算进去，`nav-editor.js` §liveShellData）。
-    if (region === 'header') {
-      const hd = (withHeaderContent(site, api.locale, { logoUrl: typeof rootProps.logoUrl === 'string' ? rootProps.logoUrl : undefined }).regions.header.dataByLocale || {})[api.locale || site.defaultLocale] as
-        { logo?: string; logoHasWordmark?: boolean } | undefined;
-      const bl = resolveBrandLogo(opts, { hasLogo: !!(hd && hd.logo), hasWordmark: !!(hd && hd.logoHasWordmark === true) });
-      knobV.logoType = bl.chosen;
-      knobV.logoSize = bl.size;
-    }
+    // #1784 r7 —— logo 画什么、多大不在这一页（Content 页的 Logo 子页，§LogoSubPage）：§customizeKnobNames 不出 logoType。
     const shown = customizeKnobNames(region);
     const allKnobs = (f.knobs || []).filter((x) => shown.includes(x.name));
-    // #1784 —— 按 manifest 的 `toolbarGroups` 一组一组画（顶栏：位置 / 菜单 / 顶条 → Logo / Logo size → 图标），同一个 §KnobControls。
+    // #1784 —— 按 manifest 的 `toolbarGroups` 一组一组画（顶栏：位置 / 菜单 / 顶条 → 图标），同一个 §KnobControls。
     const groupField = (g: string[]) => ({
       ...f,
       knobs: allKnobs.filter((x) => g.includes(x.name)),

@@ -63,7 +63,7 @@ function presetsOf(manifest) {
 
 /**
  * 归预设管的旋钮（#1784）：有预设在 `knobs` 里写到的那几个，按 `slots.options.knobs` 的声明顺序。
- * **没有任何预设写到的旋钮不归预设管**（顶栏的 logoType / logoSize）：判「是哪个预设」不比它、点预设不清它 ——
+ * **没有任何预设写到的旋钮不归预设管**（顶栏的 logoType）：判「是哪个预设」不比它、点预设不清它 ——
  * 跟布尔分「归预设管（topbar）/ 不归（icons）」同一个办法（§presetBooleansOf）。`header-knobs.js` §presetKnobNamesOf 同一判据。
  */
 function presetKnobsOf(manifest) {
