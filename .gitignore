@@ -61,3 +61,6 @@ public/fonts/bootstrap-icons.woff2
 # #1600 —— 建站报告：建站时写、entrypoint 在 next build 之后再并进死链。权威那份在数据库（site_build_reports），
 # 不进站仓：否则下一次编辑的 `git add -A` 会把它（以及 entrypoint 改过的那一版）提交进去。
 site/build-report.json
+
+# #1802 —— `scripts/site.js` 的预打包产物（`node scripts/site.js bundle` 现打，不进仓）
+/render/dist/

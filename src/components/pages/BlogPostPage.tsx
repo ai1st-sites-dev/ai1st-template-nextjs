@@ -1,18 +1,17 @@
-import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import SiteLink from '@/components/SiteLink';
 import { ArticleJsonLd } from '@/components/JsonLd';
 import type { SiteData } from '@/lib/types/config';
-import { getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
+import { getBlogPosts, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
 // #1426（T4）—— Tailwind 退场，按 Webpixels 的 `blog-content-1`（`docs/reference/webpixels/components.json`）重写。
 // 正文是 AI 写的裸 HTML（下面的 dangerouslySetInnerHTML，一个 class 都没有）：原来靠 Tailwind 的 `prose`，现在交给
 // Bootstrap reboot（标题阶梯、列表符号、段距本来就有，设计文档 §1.3 / B8）+ Webpixels 自带的 `.article`（那个组件
 // 本身就这么写：行高、h2 间距、blockquote、code）。行宽 `mw-read` = 65ch。链接色接主题那一档（globals.css §博客两页）。
+// #1802 —— 「没有这篇 ⟹ 跳回博客列表」挪到调用方（Next 那边是两个 blog 路由文件；`render/` 只为存在的文章出页），
+// 这个组件从此不 import Next。
 export default function BlogPostPage({ site, locale, slug }: { site: SiteData; locale: string; slug: string }) {
-  if (!isValidLocale(site, locale)) notFound();
-  const post = getBlogPosts(site, locale).find((p) => p.slug === slug);
-  if (!post) redirect(localeUrl(site, '', locale, 'blogIndex'));
+  const post = getBlogPosts(site, locale).find((p) => p.slug === slug)!;
 
   const labels = getLabels(locale);
 
@@ -23,9 +22,9 @@ export default function BlogPostPage({ site, locale, slug }: { site: SiteData; l
       <article className="py-12 py-lg-16">
         <div className="container">
           <div className="mw-read mx-auto">
-            <Link href={localeUrl(site, '', locale, 'blogIndex')} className="text-sm text-decoration-none blog-accent">
+            <SiteLink className="text-sm text-decoration-none blog-accent" href={localeUrl(site, '', locale, 'blogIndex')}>
               &larr; {labels.backToBlog}
-            </Link>
+            </SiteLink>
 
             <header className="mt-6">
               <div className="d-flex align-items-center gap-3">

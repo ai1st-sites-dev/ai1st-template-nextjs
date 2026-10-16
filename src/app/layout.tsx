@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { getSeo, getBrandName } from '@/lib/config';
+import { getSeo } from '@/lib/config';
 import type { SiteData } from '@/lib/types/config';
 import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 import { isPreviewRender } from '@/lib/render-mode';
-import { ogImageFields, twitterCard } from '@/lib/og-image';
+import { rootMetadata } from '@/lib/metadata';
+import { buildChatWidgetLoader, buildFaviconSvg, chatWidgetSrc } from '@/lib/document-parts';
 // #1472 —— `auto` 站首屏前那段脚本（判据和文案都在 lib 那一处）。
 import { AUTO_SCHEME_SCRIPT } from '../../scripts/lib/color-scheme.js';
 import { DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
@@ -13,15 +14,7 @@ import { DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
 // 都是从编译期常量算的。站点内容现在是每次请求读的（`requestSiteData`），所以它们都搬进了函数里：metadata 改成
 // `generateMetadata`，其余在 RootLayout 里现算。发布模式下构建时调一次、值跟原来一样；预览模式下每个请求一次。
 
-// TICKET-136: layout.tsx is a server component with no locale prop — use the
-// default-locale brand name for the site-wide baseline metadata (per-page
-// metadata builders in lib/metadata.ts already pass locale through).
-function buildFaviconSvg(site: SiteData): string {
-  const letter = (getBrandName(site, site.defaultLocale) || 'X').charAt(0).toUpperCase();
-  const bg = site.brand.colors.primary[500] || '#6366f1';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="${bg}"/><text x="16" y="23" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="20" font-weight="bold">${letter}</text></svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
+// #1802 —— `buildFaviconSvg` / `buildChatWidgetLoader` 搬去了 `lib/document-parts.ts`（Next 外的 `render/document.tsx` 出同一份）。
 
 // 🔴 #1002 —— `buildCssVariables()` 不在这里了。配色 / 字体族 / 风格设定以前是这个文件拼出来、
 // 用一段 inline <style> 烤进每一页 HTML 的；现在它们住在 `/theme.css` 里（生成器是
@@ -656,49 +649,9 @@ window.addEventListener('message',function(e){
 })();`;
 }
 
+// #1802 —— 根布局这一层的 metadata 搬去了 `lib/metadata.ts` §rootMetadata（`render/meta.tsx` 拿同一份去合并每页的）。
 export async function generateMetadata(): Promise<Metadata> {
-  const site = await requestSiteData();
-  const seo = getSeo(site, site.defaultLocale);
-  const defaultBrandName = getBrandName(site, site.defaultLocale);
-  return {
-    title: {
-      default: seo.siteTitle,
-      template: `%s | ${defaultBrandName}`,
-    },
-    description: seo.siteDescription,
-    metadataBase: new URL(seo.domain),
-    alternates: {
-      canonical: '/',
-    },
-    openGraph: {
-      title: seo.siteTitle,
-      description: seo.siteDescription,
-      url: seo.domain,
-      siteName: defaultBrandName,
-      locale: seo.locale,
-      type: 'website',
-      ...ogImageFields(site),
-    },
-    twitter: {
-      // #1552 —— 有分享图才声明大图卡；没图降成 summary（§siteOgImage 三档）。
-      card: twitterCard(site),
-      title: seo.siteTitle,
-      description: seo.siteDescription,
-    },
-    // #1547 — 预览构建（manager 给 indexable=false）整站 noindex；canonical 照常指自己。
-    robots: seo.indexable === false ? { index: false, follow: false } : {
-      index: true,
-      follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
-      },
-    },
-    verification: seo.verification,
-  };
+  return rootMetadata(await requestSiteData());
 }
 
 // #1409 — answers `ai1st:editor-ping` with `ai1st:editor-pong {page, locale}` (read off `<main data-page>`,
@@ -712,16 +665,6 @@ function buildEditorProbeScript(trusted: string): string {
     + `var m=document.querySelector("main[data-page]");`
     + `try{window.parent.postMessage({type:"ai1st:editor-pong",page:m?m.getAttribute("data-page"):null,`
     + `locale:m?m.getAttribute("data-locale"):null},T);}catch(err){}});})();`;
-}
-
-// #1409 — the chat widget loader. Everything except the editor route gets the widget; see the call site.
-// 🔴 The prefix is the editor's route (`src/app/~editor`). Not exported: a layout file may only export
-//    Next's own names. `JSON.stringify` + escaping `<` keeps the URL one string literal inside the script.
-const EDITOR_ROUTE_PREFIX = '/~editor/';
-function buildChatWidgetLoader(src: string): string {
-  return `(function(){if(location.pathname.indexOf(${JSON.stringify(EDITOR_ROUTE_PREFIX)})===0)return;`
-    + `var s=document.createElement("script");s.async=true;s.src=${JSON.stringify(src).replace(/</g, '\\u003c')};`
-    + `document.body.appendChild(s);})();`;
 }
 
 // #1665 —— 发布模式下 RootLayout 必须是**同步**的：写成 async 之后，Next 给 404 页插的那条 `<meta name="robots" content="noindex">`
@@ -738,9 +681,10 @@ export default function RootLayout({
 }
 
 function rootLayout(site: SiteData, children: React.ReactNode) {
-  const { brand, siteId, leadApi, colorScheme, dir } = site;
+  const { brand, leadApi, colorScheme, dir } = site;
   const seo = getSeo(site, site.defaultLocale);
   const previewTrustedOrigin = previewTrustedOriginOf(leadApi);
+  const chatSrc = chatWidgetSrc(site);
   return (
     // #1472 —— 站级深浅。`light` / `dark` 构建时写死；`auto` 构建时不知道访客的系统是深是浅 ⟹ 不写，由 <head> 第一段
     // 内联脚本在 body 画第一帧之前按 `prefers-color-scheme` 写上（并跟着系统切换改写）。属性是脚本写的，React 水合时
@@ -844,10 +788,10 @@ function rootLayout(site: SiteData, children: React.ReactNode) {
             which route it is wrapping in a static export, so the check runs in the browser; everywhere
             else the widget loads exactly as before (an injected script is async, and widget.js finds
             itself through `document.currentScript`, which is set for injected scripts too). */}
-        {siteId && leadApi && (
+        {chatSrc && (
           <script
             dangerouslySetInnerHTML={{
-              __html: buildChatWidgetLoader(`${leadApi.replace(/\/$/, '')}/widget.js?site=${siteId}`),
+              __html: buildChatWidgetLoader(chatSrc),
             }}
           />
         )}

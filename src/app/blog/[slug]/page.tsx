@@ -4,7 +4,8 @@ import type { Metadata } from 'next';
 import SiteShell from '@/components/SiteShell';
 import BlogPostPage from '@/components/pages/BlogPostPage';
 import { blogPostMetadata } from '@/lib/metadata';
-import { getBlogPosts } from '@/lib/config';
+import { redirect } from 'next/navigation';
+import { getBlogPosts, localeUrl } from '@/lib/config';
 import { isPreviewRender } from '@/lib/render-mode';
 import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 
@@ -29,6 +30,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function RootBlogPost({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const site = await requestSiteData();
+  // #1802 —— 原来在 BlogPostPage 里（它现在不 import Next）：没有这篇 ⟹ 跳回博客列表（空博客的 `_` 占位页走的就是这一支）。
+  if (!getBlogPosts(site, site.defaultLocale).some((p) => p.slug === slug)) redirect(localeUrl(site, '', site.defaultLocale, 'blogIndex'));
   return (
     <SiteShell site={site} locale={site.defaultLocale} currentPath={`/blog/${slug}`}>
       <BlogPostPage site={site} locale={site.defaultLocale} slug={slug} />

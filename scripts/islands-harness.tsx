@@ -1,6 +1,6 @@
 // #1798 —— 岛的浏览器测试（`islands.test.js`）用的服务端入口：把几块真实的块（`SectionRenderer`，跟真站同一条路）
 // 画成「静态整页 + 岛」。由 `scripts/lib/islands-build.js` §buildServer 打成 CommonJS 给 node require。
-// 只给测试用；接进发布那条整页渲染（renderPage）归 T2a-2 / 本票后合的那张。
+// 只给测试用；发布那条整页渲染在 `render/index.tsx`（#1802，同一个 renderWithIslands）。
 import SectionRenderer from '@/components/SectionRenderer';
 import SiteShell from '@/components/SiteShell';
 import { renderWithIslands } from '@/islands/render';

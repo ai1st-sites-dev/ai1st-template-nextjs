@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { getSeo } from '@/lib/config';
+import { robotsRules } from '@/lib/seo-files';
 import { requestSiteData } from '@/lib/site-data.server';
 
 // #1665 —— 这里原来是 `export const dynamic = 'force-static'`，它会让预览模式下这条路由也在构建时生成一次、之后不变。
@@ -8,14 +8,7 @@ import { requestSiteData } from '@/lib/site-data.server';
 //    实测 /llms.txt）。`revalidate = false` 不强制静态：预览模式下 `requestSiteData` 先调了 `connection()`，这条路由按请求生成。
 export const revalidate = false;
 
+// #1802 —— 内容在 `lib/seo-files.ts` §robotsRules（Next 外的 `render/` 用同一份）。
 export default async function robots(): Promise<MetadataRoute.Robots> {
-  const site = await requestSiteData();
-  const seo = getSeo(site, site.defaultLocale);
-  return {
-    // #1547 — 预览构建（indexable=false）整站 Disallow；Sitemap 行照常写这次构建的地址。
-    rules: seo.indexable === false
-      ? { userAgent: '*', disallow: '/' }
-      : { userAgent: '*', allow: '/' },
-    sitemap: `${seo.domain}/sitemap.xml`,
-  };
+  return robotsRules(await requestSiteData());
 }

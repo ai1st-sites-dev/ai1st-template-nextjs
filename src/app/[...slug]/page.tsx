@@ -20,14 +20,14 @@
 //   /<locale>/blog        → here (non-default locale blog index)
 //   /<locale>/blog/<post> → here (non-default locale blog post)
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import SiteShell from '@/components/SiteShell';
 import HomePage from '@/components/pages/HomePage';
 import SubPage from '@/components/pages/SubPage';
 import BlogIndexPage from '@/components/pages/BlogIndexPage';
 import BlogPostPage from '@/components/pages/BlogPostPage';
-import { homeMetadata, subPageMetadata, blogIndexMetadata, blogPostMetadata } from '@/lib/metadata';
-import { getNonHomePages, getBlogPosts, getHomePage, getPage, type SiteData } from '@/lib/config';
+import { homeMetadata, subPageMetadata, blogIndexMetadata, blogPostMetadata, redirectMetadata } from '@/lib/metadata';
+import { getNonHomePages, getBlogPosts, getHomePage, getPage, localeUrl, type SiteData } from '@/lib/config';
 import { isPreviewRender } from '@/lib/render-mode';
 import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 
@@ -140,11 +140,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     case 'subpage': return subPageMetadata(site, r.locale, r.slug);
     case 'blogIndex': return blogIndexMetadata(site, r.locale);
     case 'blogPost': return blogPostMetadata(site, r.locale, r.slug);
-    case 'redirect': return {
-      title: 'Redirecting...',
-      robots: { index: false, follow: false },
-      alternates: { canonical: r.target },
-    };
+    case 'redirect': return redirectMetadata(r.target);
     default: return {};
   }
 }
@@ -175,6 +171,11 @@ export default async function CatchAllPage({ params }: { params: Promise<{ slug:
       </>
     );
   }
+
+  // #1802 —— 这两条检查原来在页面组件里（SubPage / BlogPostPage），那两个组件现在也给 Next 外的 `render/` 用、不 import Next，
+  //    所以挪到这里：不存在的页是真 404（#1552），不存在的文章跳回这种语言的博客列表。
+  if (r.kind === 'subpage' && !getPage(site, r.slug, r.locale)) notFound();
+  if (r.kind === 'blogPost' && !getBlogPosts(site, r.locale).some((p) => p.slug === r.slug)) redirect(localeUrl(site, '', r.locale, 'blogIndex'));
 
   let body: React.ReactNode;
   switch (r.kind) {

@@ -3,6 +3,54 @@ import type { SiteData } from '@/lib/types/config';
 import { getSeo, getPage, getBlogPosts, getAlternateLanguages, getXDefaultHref, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
 import { ogImageFields, twitterCard } from '@/lib/og-image';
 
+/**
+ * #1802 —— 根布局那一层（原来是 `app/layout.tsx` 的 `generateMetadata` 正文，逐字搬过来）。每页的 metadata 由 Next
+ * 合并在它上面；Next 外的整页渲染（`render/meta.tsx`）照 Next 的合并规则拿同一份去合并。
+ */
+export function rootMetadata(site: SiteData): Metadata {
+  const seo = getSeo(site, site.defaultLocale);
+  const defaultBrandName = getBrandName(site, site.defaultLocale);
+  return {
+    title: {
+      default: seo.siteTitle,
+      template: `%s | ${defaultBrandName}`,
+    },
+    description: seo.siteDescription,
+    metadataBase: new URL(seo.domain),
+    alternates: {
+      canonical: '/',
+    },
+    openGraph: {
+      title: seo.siteTitle,
+      description: seo.siteDescription,
+      url: seo.domain,
+      siteName: defaultBrandName,
+      locale: seo.locale,
+      type: 'website',
+      ...ogImageFields(site),
+    },
+    twitter: {
+      // #1552 —— 有分享图才声明大图卡；没图降成 summary（§siteOgImage 三档）。
+      card: twitterCard(site),
+      title: seo.siteTitle,
+      description: seo.siteDescription,
+    },
+    // #1547 — 预览构建（manager 给 indexable=false）整站 noindex；canonical 照常指自己。
+    robots: seo.indexable === false ? { index: false, follow: false } : {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
+    verification: seo.verification,
+  };
+}
+
 // Shared metadata builders. Used by route files (app/page.tsx, app/[...slug]/page.tsx,
 // app/blog/page.tsx, app/blog/[slug]/page.tsx) so each entry point produces canonical /
 // hreflang / OG identical to the multi-locale routes that existed before TICKET-129b.
@@ -128,5 +176,15 @@ export function blogPostMetadata(site: SiteData, locale: string, slug: string): 
       authors: [post.author],
       tags: post.tags,
     },
+  };
+}
+
+/** #1802 —— 默认语言带前缀那种地址（`/<默认语言>/…`）的跳转小页（TICKET-129b v2 的 A1）。原来写在 `[...slug]/page.tsx` 里，
+ *  搬出来是为了 `render/` 拿同一份。 */
+export function redirectMetadata(target: string): Metadata {
+  return {
+    title: 'Redirecting...',
+    robots: { index: false, follow: false },
+    alternates: { canonical: target },
   };
 }

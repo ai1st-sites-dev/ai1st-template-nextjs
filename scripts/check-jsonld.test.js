@@ -151,5 +151,29 @@ try {
   check(K.checkOut(tmp, { siteDir: path.join(tmp, 'no-site') }).code === 2, '--site 指向读不了的目录 ⟹ 退出码 2');
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 
+// #1802 —— `scripts/site.js render` 出的产物（`<页>/index.html` 那种形状）也过这把尺：拿夹具站真渲染一次，再对站点数据核。
+{
+  const cp = require('child_process');
+  const ROOT = path.resolve(__dirname, '..');
+  const SITE = path.join(__dirname, 'site.js');
+  const fx = path.join(__dirname, 'fixtures', 'site-fixtures', 'site-bbc4ff97.json');
+  const bundleDir = path.join(ROOT, 'render', 'dist', `test-jsonld-${process.pid}`);
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'jsonld-render-'));
+  try {
+    cp.execFileSync(process.execPath, [SITE, 'bundle', '--out-dir', bundleDir], { stdio: 'pipe' });
+    cp.execFileSync(process.execPath, [SITE, 'render', '--site', fx, '--out', path.join(work, 'out'), '--bundle-dir', bundleDir, '--site-url', 'https://example.test'], { stdio: 'pipe' });
+    cp.execFileSync(process.execPath, [path.join(__dirname, 'fixtures', 'site-fixtures', 'export-site-json.js'), 'to-dir', fx, path.join(work, 'site')], { stdio: 'pipe' });
+    const r = K.checkOut(path.join(work, 'out'), { siteDir: path.join(work, 'site') });
+    const summary = r.lines[r.lines.length - 1];
+    const blocks = Number((/(\d+) 段 JSON-LD/.exec(summary) || [])[1]);
+    check(r.code === 0 && blocks > 20, `site.js render 的产物：0 处问题、真读到了 JSON-LD（${summary}）`);
+  } catch (e) {
+    check(false, `site.js render 的产物跑不出来：${e.message.split('\n')[0]}`);
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+    fs.rmSync(bundleDir, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

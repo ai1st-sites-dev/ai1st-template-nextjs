@@ -1,7 +1,6 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import SiteLink from '@/components/SiteLink';
 import type { SiteData } from '@/lib/types/config';
-import { getBlogPosts, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
+import { getBlogPosts, getBrandName, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
 // #1426（T4）—— Tailwind 退场，按 Webpixels 的 `section-blog-1`（`docs/reference/webpixels/components.json`）重写：
@@ -17,8 +16,9 @@ const COVERS: Array<[string, string]> = [
   ['var(--color-primary-200)', 'var(--color-primary-100)'],
 ];
 
+// #1802 —— 不 import Next（`render/` 也画它）：语言由调用方保证是站里有的；`next/link` 换成 `SiteLink`，
+// href 写在最后 —— 跟 `next/link` 输出的属性顺序一样，Next 导出的 HTML 逐字节不变（`SiteLink.tsx` 文件头）。
 export default function BlogIndexPage({ site, locale }: { site: SiteData; locale: string }) {
-  if (!isValidLocale(site, locale)) notFound();
   const blogPosts = getBlogPosts(site, locale);
   const labels = getLabels(locale);
 
@@ -41,9 +41,9 @@ export default function BlogIndexPage({ site, locale }: { site: SiteData; locale
                 const [from, to] = COVERS[index % COVERS.length];
                 return (
                   <div key={post.slug} className="col-12 col-md-6 col-lg-4 d-flex">
-                    <Link
-                      href={localeUrl(site, post.slug, locale, 'blogPost')}
+                    <SiteLink
                       className="blog-card card w-100 border-0 shadow-sm overflow-hidden text-reset text-decoration-none"
+                      href={localeUrl(site, post.slug, locale, 'blogPost')}
                     >
                       <div className="blog-card-cover" style={{ background: `linear-gradient(to bottom right, ${from}, ${to})` }} />
                       <div className="card-body p-6">
@@ -55,7 +55,7 @@ export default function BlogIndexPage({ site, locale }: { site: SiteData; locale
                         <p className="text-sm text-body-secondary mb-0 blog-card-excerpt">{post.excerpt}</p>
                         <div className="text-sm fw-semibold mt-4 blog-accent">{labels.readMore} &rarr;</div>
                       </div>
-                    </Link>
+                    </SiteLink>
                   </div>
                 );
               })}

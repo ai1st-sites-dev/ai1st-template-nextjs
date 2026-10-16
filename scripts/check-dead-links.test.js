@@ -201,8 +201,38 @@ test('⑪ 两个候选站目录 ⟹ 不猜（原地报，不写 descendedInto）
   assert.strictEqual(summary.pages, 2, '原地扫，两个站的页都看到');
 });
 
+// ⑫ #1802 —— `scripts/site.js render` 出的那种形状（`about/index.html`；样式表在 `/_platform/` 下）。
+//    站的输出目录里**没有**平台文件（它们由 deploy 传到 R2 的 `_platform/`，T2c），所以拿裸的输出目录去跑，
+//    每页那几条 `/_platform/…` 的样式表 / runtime 就是「死链」—— T2c 接发布闸时要么把平台文件一起放进来、要么让闸认识 `_platform/`。
+//    这一格两臂都量：平台文件按 `--platform-out` 放进同一棵树 ⟹ 0 条；不放 ⟹ 死的恰好是、也只是 `/_platform/` 那几条。
+test('⑫ #1802 site.js render 的产物：平台文件放进来 0 条死链；不放，死的只有 /_platform/ 那几条', () => {
+  const ROOT = path.resolve(__dirname, '..');
+  const bundleDir = path.join(ROOT, 'render', 'dist', `test-dead-links-${process.pid}`);
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-links-render-'));
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-links-render-bare-'));
+  try {
+    const SITE = path.join(__dirname, 'site.js');
+    // 夹具用 skipAI 造的那个：spike 导的两个站引着站仓自己的 /logo.png、/photos/*（图不在站 JSON 里），Next 产物里那几条照样是死的。
+    const fx = path.join(__dirname, 'fixtures', 'site-fixtures', 'site-multilang.json');
+    const b = spawnSync(process.execPath, [SITE, 'bundle', '--out-dir', bundleDir], { encoding: 'utf8' });
+    assert.strictEqual(b.status, 0, `site.js bundle 失败：${b.stderr}`);
+    for (const [dir, extra] of [[out, ['--platform-out', out]], [bare, []]]) {
+      const r = spawnSync(process.execPath, [SITE, 'render', '--site', fx, '--out', dir, '--bundle-dir', bundleDir, '--site-url', 'https://example.test', ...extra], { encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `site.js render 失败：${r.stderr.slice(-800)}`);
+    }
+    const full = run(out);
+    assert.strictEqual(full.rc, 0, `平台文件放进来还有死链：${JSON.stringify(full.summary.dead)}`);
+    assert.ok(full.summary.pages >= 9 && full.summary.checked > 20, `真的扫到了页和链接（${full.summary.pages} 页 · ${full.summary.checked} 条）`);
+    const naked = run(bare);
+    const hrefs = [...new Set(naked.summary.dead.map(d => d.href))];
+    assert.ok(hrefs.length > 0 && hrefs.every(h => h.startsWith('/_platform/')), `不放平台文件时死的应该只有 /_platform/：${JSON.stringify(hrefs)}`);
+  } finally {
+    for (const d of [out, bare, bundleDir]) fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
 if (failed > 0) {
   console.error(`\n🔴 #1176 check-dead-links 体检: ${failed} 格失败`);
   process.exit(1);
 }
-console.log('\n✅ #1176 check-dead-links 体检: 11/11 通过');
+console.log('\n✅ #1176 check-dead-links 体检: 12/12 通过');

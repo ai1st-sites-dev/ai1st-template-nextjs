@@ -219,8 +219,9 @@ function htmlFiles(dir) {
 /** 导出产物里的文件 → 默认语言那一页的 slug（`index.html` 是首页）。编辑器副本（`~editor/…`）和别的语言（`<语言>/…`）
  *  得到的是对不上任何页面的 slug ⟹ 不对站点数据（编辑器副本不带 JSON-LD；站点数据只取默认语言那份）。 */
 function slugOf(rel) {
-  const s = rel.split(path.sep).join('/').replace(/\.html$/, '');
-  return s === 'index' ? 'home' : s;
+  // #1802 —— 两种产物形状：Next 导出是 `about.html`，`site.js render` 是 `about/index.html`（站根都是 `index.html`）。
+  const s = rel.split(path.sep).join('/').replace(/\.html$/, '').replace(/(^|\/)index$/, '');
+  return s === '' ? 'home' : s;
 }
 
 /** @returns {{ code: 0|1|2, lines: string[] }} */

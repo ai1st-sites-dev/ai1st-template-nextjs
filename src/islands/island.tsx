@@ -17,6 +17,10 @@ import { createContext, useContext, type ComponentType } from 'react';
 export interface IslandCollector {
   /** 登记一个岛，返回它在这一页里的序号（占位上的 `data-island-slot`）。 */
   add(name: string, props: object): number;
+  /** #1802 —— 这一次整页渲染的随机记号（占位上的 `data-island-token`）。填岛时只认带这个记号的占位：
+   *  页面里的用户内容（博客正文是裸 HTML）写出一个字面的 `<div data-island=… data-island-slot=…>` 也猜不到它，
+   *  就只是一个普通的空 div，不会被当成岛去填、也不会让整页渲染报错（#1798 QA3 量出来的那一条）。 */
+  token: string;
 }
 
 export const IslandCollectorContext = createContext<IslandCollector | null>(null);
@@ -26,7 +30,7 @@ export function island<P extends object>(name: string, Component: ComponentType<
     const collector = useContext(IslandCollectorContext);
     if (!collector) return <Component {...props} />;
     const slot = collector.add(name, project ? project(props) : props);
-    return <div data-island={name} data-island-slot={slot} />;
+    return <div data-island={name} data-island-slot={slot} data-island-token={collector.token} />;
   }
   Island.displayName = `Island(${name})`;
   return Island;

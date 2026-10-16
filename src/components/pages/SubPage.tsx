@@ -1,16 +1,14 @@
-import { notFound } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
 import { FaqPageJsonLd, KeywordServiceJsonLd, ServiceJsonLd } from '@/components/JsonLd';
 import type { SiteData } from '@/lib/types/config';
-import { getSeo, getServices, getPage, isValidLocale, localeUrl } from '@/lib/config';
+import { getSeo, getServices, getPage, localeUrl } from '@/lib/config';
 import { iconTablesFor } from '../../../scripts/lib/icons.js';
 import { blocksUseSource, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 
+// #1802 —— 「这一页不存在 ⟹ 404」挪到调用方：Next 那边是 `[...slug]/page.tsx`（#1552：真 404，不跳回首页），
+// `render/` 只为存在的页出 HTML。这个组件从此不 import Next。
 export default function SubPage({ site, locale, slug }: { site: SiteData; locale: string; slug: string }) {
-  if (!isValidLocale(site, locale)) notFound();
-  const page = getPage(site, slug, locale);
-  // #1552 —— 不存在的页是真 404（`app/not-found.tsx`），不再跳回首页（Google 把那种跳转当 soft-404）。
-  if (!page) notFound();
+  const page = getPage(site, slug, locale)!;
 
   const seo = getSeo(site, locale);
   const services = getServices(site, locale);
