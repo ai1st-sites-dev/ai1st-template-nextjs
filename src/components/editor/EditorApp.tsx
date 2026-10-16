@@ -88,7 +88,7 @@
 //   行业不在站点文件里（`site_meta.json` 只有 siteId / leadApi / locales）：dashboard 在 `ai1st:editor-baseline` 里多带一个
 //   `industry`，这里记着；没送来就省掉行业那个词（同一个函数里那一支）。
 
-import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Children, createContext, Fragment, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Puck, ActionBar, AutoField, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
@@ -2079,7 +2079,49 @@ function RegionBars({ doc }: { doc: Document }) {
   }, [doc]);
   if (ui && ui.dialogOpen) return null;
   const shown = (['header', 'footer'] as const).filter((r) => r === picked || (!typing && r === hovered));
-  return <>{shown.map((r) => <RegionBar key={r} doc={doc} region={r} />)}</>;
+  return <>{shown.map((r) => <Fragment key={r}><RegionShade doc={doc} region={r} hover={!typing && r === hovered} /><RegionBar doc={doc} region={r} /></Fragment>)}</>;
+}
+
+/**
+ * #1821 —— 顶栏 / 页脚的盖板：普通块那层是 Puck 画的（`DraggableComponent`：悬停 = 底 + 边，点中 = 只留边），外壳不是 Puck 的块，
+ *   没人画 ⟹ 这里照它画一层，取同一组 `--puck-*` 变量（画布 document 里解析得出：Puck 那层就画在这里）。开关跟条同一个（§RegionBars 的 `shown`）。
+ *   框 = `regionEl` 那一帧的 getBoundingClientRect，每帧现量（sticky 顶栏滚动时跟着走）；不缩放（要跟内容一起缩，不同条的 1/zoom）。
+ *   `pointer-events: none`：盖着照样点得到菜单项（#1781）、⌄（#1783）。层级在条之下（§BLOCKBAR_BOX）。
+ *   展开着的下拉卡片（#1783，Bootstrap 的 `.dropdown-menu`）上沿落在顶栏框里 9~15 px（六个预设实测）：盖板挂在 body 上、层级比顶栏里的一切都高，
+ *   不挖掉就压在卡片那一截上 ⟹ 每帧把落在框里的那几张卡片用 `clip-path`（evenodd 挖洞）剪掉。
+ */
+function RegionShade({ doc, region, hover }: { doc: Document; region: Region; hover: boolean }) {
+  const [box, setBox] = useState<{ top: number; left: number; width: number; height: number; clipPath?: string } | null>(null);
+  useLayoutEffect(() => {
+    const win = doc.defaultView;
+    if (!win) return;
+    const measure = () => {
+      const el = regionEl(doc, region);
+      const r = el?.getBoundingClientRect();
+      let next: typeof box = null;
+      if (el && r && r.width > 0 && r.height > 0) {
+        next = { top: r.top, left: r.left, width: r.width, height: r.height };
+        const holes = Array.from(el.querySelectorAll('.dropdown-menu')).map((m) => m.getBoundingClientRect())
+          .filter((m) => m.width > 0 && m.height > 0 && m.left < r.right && m.right > r.left && m.top < r.bottom && m.bottom > r.top)
+          .map((m) => {
+            const x1 = Math.max(m.left, r.left) - r.left, x2 = Math.min(m.right, r.right) - r.left;
+            const y1 = Math.max(m.top, r.top) - r.top, y2 = Math.min(m.bottom, r.bottom) - r.top;
+            return `, ${x1}px ${y1}px, ${x2}px ${y1}px, ${x2}px ${y2}px, ${x1}px ${y2}px, ${x1}px ${y1}px, 0 0`;
+          });
+        if (holes.length) next.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0${holes.join('')})`;
+      }
+      setBox((p) => (p === next || (p && next && p.top === next.top && p.left === next.left && p.width === next.width && p.height === next.height && p.clipPath === next.clipPath) ? p : next));
+    };
+    measure();
+    let raf = win.requestAnimationFrame(function tick() { measure(); raf = win.requestAnimationFrame(tick); });
+    return () => win.cancelAnimationFrame(raf);
+  }, [doc, region]);
+  if (!box) return null;
+  return createPortal(
+    <span data-editor-region-shade={region} aria-hidden="true"
+      style={{ ...REGION_SHADE_BOX, ...box, ...(hover ? { background: 'var(--puck-color-selection-bg)' } : null) }} />,
+    doc.body,
+  );
 }
 
 function RegionBar({ doc, region }: { doc: Document; region: Region }) {
@@ -2411,6 +2453,9 @@ const BLOCKBAR_CSS = `
 [data-editor-content-field] label { display: block; }`;
 // 条本身：画布可视区里 `position: fixed`（§useBlockBarPos 给 bottom / left），横向以 left 为中线；画布缩放过（Puck 的 Auto zoom）
 // ⟹ 按 1/zoom 放大，屏幕上跟 Puck 原来那条一样大。层级在 Design 弹层（§POPOVER）之下。
+// #1821 —— 顶栏 / 页脚的盖板（§RegionShade）：边同 Puck 那层（`outline` 往里画一个边宽）；在条（2147482000）之下。
+const REGION_SHADE_BOX: CSSProperties = { position: 'fixed', zIndex: 2147481000, pointerEvents: 'none', boxSizing: 'border-box',
+  outline: 'var(--puck-border-width-focus) solid var(--puck-color-selection-border)', outlineOffset: 'calc(var(--puck-border-width-focus) * -1)' };
 const BLOCKBAR_BOX: CSSProperties = { position: 'fixed', zIndex: 2147482000, display: 'inline-flex', translate: '-50% 0', transformOrigin: 'center bottom', cursor: 'default' };
 // #1723 —— 条目条：贴那一项的右上角（§useItemBarPos 给 top / left = 右上角），往左展开；压在块的条之上、字的工具条之下（#1657 优先）。
 // #1760 —— 竖排：生成没成那一句挂在条下面（右沿对齐）；没有那一句时跟原来一样大。
