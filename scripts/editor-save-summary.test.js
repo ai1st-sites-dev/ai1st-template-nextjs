@@ -432,6 +432,20 @@ console.log('⑪ #1723 画布条目条：删 / 上移 / 下移 各记一条，�
   const pickL = ro.regionPresetPick('header', 'topbar', { logoType: 'image', logoSize: 24 });
   eq(say({ headerShape: pickL.shape, headerOptions: pickL.options }, { headerShape: '', headerOptions: { logoType: 'image', logoSize: 24 } }),
     `${rootLabels.headerShape} → ${pickL.shape}`, '#1784：选预设 ⟹ logoType / logoSize 留着、不报');
+  // #1819 —— Logo 子页一笔里选 Image + 传图 + 拖滑杆：logoType 那一项和 logoUrl 那一项不许同叫「Logo」。
+  //   logoUrl 的标题从 EditorApp.tsx 的 ROOT_SAVE_LABELS 现取（记录用的就是那一份），不手写。
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src/components/editor/EditorApp.tsx'), 'utf8');
+  const blk = (src.match(/const ROOT_SAVE_LABELS[^=]*=\s*\{([\s\S]*?)\n\};/) || [])[1] || '';
+  const urlLabel = (blk.match(/\blogoUrl:\s*'([^']*)'/) || [])[1];
+  if (!urlLabel) die('EditorApp.tsx 的 ROOT_SAVE_LABELS 里找不到 logoUrl');
+  const logoSave = describeSave({ saved: null, json: null, shared: null, schema, rootLabels: { ...rootLabels, logoUrl: urlLabel }, shapeLabel: 'Layout',
+    root: { headerOptions: { logoType: 'image', logoSize: 80 }, logoUrl: '/uploads/logo.png' }, rootBefore: { headerShape: hShape } });
+  const segs = logoSave.split('; ');
+  const typeSeg = segs.find((s) => s.endsWith(' → image'));
+  eq(logoSave, `${HO} · Logo → image; ${HO} · Logo size → 80; ${urlLabel}`, '#1819：子页选 Image + 传图 + Scale 拖到 80 那一笔');
+  eq(urlLabel, 'Header · Logo image', '#1819：logoUrl 那一项叫 Header · Logo image');
+  eq(typeSeg && typeSeg.replace(/ → image$/, ''), 'Header · Logo', '#1819：logoType 那一项叫 Header · Logo');
+  eq(segs.filter((s) => s.replace(/ → .*$/, '') === urlLabel).length, 1, '#1819：两项标题不相等（记录里叫 logoUrl 那个名字的只有一项）');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

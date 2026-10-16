@@ -1216,7 +1216,7 @@ const ROOT_SAVE_LABELS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(BUSINESS_INFO_LABELS).map(([k, v]) => [k, `Website settings · ${v}`])),
   layout: `Website settings · ${ROOT_FIELD_LABELS.layout}`,
   // #1759 —— 顶栏 Content 页（票正文做什么 5：跟页面块存盘记录同一种写法）。#1781：菜单是 root 字段了，同一张表。
-  logoUrl: 'Header · Logo',
+  logoUrl: 'Header · Logo image',
   // #1785 —— 它在 Website settings 面板里改，跟同面板那几样一样带面板名（#1776 立的规矩；logoUrl 不带是因为它在顶栏 Content 页改）。
   socialLinks: 'Website settings · Social links',
   headerButtons: 'Header · Buttons',
