@@ -91,7 +91,10 @@ function footerLeadFormOf(site: SiteData, locale: string) {
 }
 
 // #1628 —— `notFound`：只有 app/not-found.tsx 传，交给语言开关（404 页上一律回目标语言首页）。
-export default function SiteShell({ site, locale, page, shell, notFound, children }: { site: SiteData; locale: string; page?: string; shell?: ShellOverride; notFound?: boolean; children: React.ReactNode }) {
+// #1794 —— `currentPath`：这一页去掉语言前缀的路径（`/`、`/about`、`/blog/x`），交给语言开关（它不再 `usePathname`）。
+//    默认语言的 `/about` 和 `/fr/about` 是同一页，这里只认去掉前缀那个。不传时按 `page` 推（首页的 page 是 `'home'`）——
+//    博客页没有 `page`，推出来是 `/`，所以 app/ 下的调用方都显式传；只有编辑器画布（EditorApp）今天不传。
+export default function SiteShell({ site, locale, page, currentPath, shell, notFound, children }: { site: SiteData; locale: string; page?: string; currentPath?: string; shell?: ShellOverride; notFound?: boolean; children: React.ReactNode }) {
   const { defaultLocale, locales, pageLayout, regions: siteRegions } = site;
   const regions = shell ? shell.layout.regions : pageLayout.regions;
   const repeatVariants = (shell ? shell.layout.repeatVariants : pageLayout.repeatVariants) || {};
@@ -128,7 +131,7 @@ export default function SiteShell({ site, locale, page, shell, notFound, childre
                 {locales.length > 1 ? (
                   <div className="bg-body border-bottom">
                     <div className="container d-flex justify-content-end py-1">
-                      <LanguageSwitcher currentLocale={locale} notFound={notFound} locales={locales} switchIndex={localeSwitchIndex(site)} />
+                      <LanguageSwitcher currentLocale={locale} currentPath={currentPath ?? (page && page !== 'home' ? '/' + page : '/')} notFound={notFound} locales={locales} switchIndex={localeSwitchIndex(site)} />
                     </div>
                   </div>
                 ) : null}

@@ -13,7 +13,7 @@
 // 图标 / 箭头 / 文字由块自己放进 children：各块今天用的图标件不同（`Icon` 与按站图标表的 `InlineIcon`），
 // 统一它会改 DOM，不在本票（「对老板和建站 AI 没有区别」—— 生成的 HTML 结构不变）。
 
-import Link from 'next/link';
+import SiteLink from '@/components/SiteLink';
 import type { ReactNode } from 'react';
 
 export type ButtonStyle = 'solid' | 'outline' | 'link';
@@ -72,12 +72,12 @@ interface ButtonProps {
   children: ReactNode;
 }
 
-/** `<Link>` 一枚。`data-cta` 照旧写数据里的 style（没写就是块的默认）。 */
+/** `<SiteLink>` 一枚（#1794 起是普通 `<a>`，站内路径带 basePath）。`data-cta` 照旧写数据里的 style（没写就是块的默认）。 */
 export default function Button({ href, style, fallback, size, defaultSize, flush, className, item, children }: ButtonProps) {
   const cls = buttonClass(resolveButtonStyle(style, fallback), { size: resolveButtonSize(size, defaultSize), flush });
   return (
-    <Link href={href} className={className ? `${cls} ${className}` : cls} data-cta={style || fallback}{...(item ? { 'data-item': item } : {})}>
+    <SiteLink className={className ? `${cls} ${className}` : cls} data-cta={style || fallback}{...(item ? { 'data-item': item } : {})} href={href}>
       {children}
-    </Link>
+    </SiteLink>
   );
 }

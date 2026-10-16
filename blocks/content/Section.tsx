@@ -66,7 +66,7 @@ function inline(nodes: RichInline[]): ReactNode[] {
   return nodes.map((n, i) => {
     if (n.t === 'text') return n.v;
     if (n.t === 'strong') return <strong key={i}>{inline(n.c)}</strong>;
-    // #1508 r2：richtext 的链接也收 `/` 开头的站内路径（richtext.js §SAFE_HREF）⟹ 按值判，站内走 next/link 才吃 basePath。
+    // #1508 r2：richtext 的链接也收 `/` 开头的站内路径（richtext.js §SAFE_HREF）⟹ 按值判，站内走 SiteLink 才吃 basePath。
     return <SiteLink key={i} href={n.href}>{inline(n.c)}</SiteLink>;
   });
 }

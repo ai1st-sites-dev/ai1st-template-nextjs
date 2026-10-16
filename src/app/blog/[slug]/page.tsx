@@ -30,7 +30,7 @@ export default async function RootBlogPost({ params }: { params: Promise<{ slug:
   const { slug } = await params;
   const site = await requestSiteData();
   return (
-    <SiteShell site={site} locale={site.defaultLocale}>
+    <SiteShell site={site} locale={site.defaultLocale} currentPath={`/blog/${slug}`}>
       <BlogPostPage site={site} locale={site.defaultLocale} slug={slug} />
     </SiteShell>
   );

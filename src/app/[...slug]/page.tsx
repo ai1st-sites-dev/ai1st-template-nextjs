@@ -190,5 +190,7 @@ export default async function CatchAllPage({ params }: { params: Promise<{ slug:
         : undefined;
   // #1351 —— 把这一页的名字带到 DOM 上（`<main data-page>`），检查器靠它分清站级共用块改的是哪一页。
   //    博客那两种没有 `pages/` 里的记录 ⟹ `page` 是 undefined ⟹ 不写这个属性。
-  return <SiteShell site={site} locale={r.locale} page={page?.slug}>{body}</SiteShell>;
+  // #1794 —— 语言开关要的是去掉语言前缀的路径（`/fr/blog/x` → `/blog/x`）；按地址本身算，博客页也对。
+  const rest = slug[0] === r.locale && site.locales.includes(slug[0]) ? slug.slice(1) : slug;
+  return <SiteShell site={site} locale={r.locale} page={page?.slug} currentPath={'/' + rest.join('/')}>{body}</SiteShell>;
 }

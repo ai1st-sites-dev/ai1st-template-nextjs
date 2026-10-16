@@ -19,7 +19,7 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，同 milestones / cta）。
 
-import Link from 'next/link';
+import SiteLink from '@/components/SiteLink';
 import { getBlogPosts, localeUrl } from '@/lib/config';
 import BlockSection from '@/components/BlockSection';
 import type { BgValue } from '../../scripts/lib/contrast.js';
@@ -150,13 +150,13 @@ export default function BlogNewSection({ data, locale, block, site }: Props) {
                 <article key={p.slug} className="bl-post" data-part="post" data-post={p.slug} data-image={image}>
                   <div className="bl-inner h-100">
                     {cover ? (
-                      <Link className="bl-img" href={href} tabIndex={-1} aria-hidden="true" data-part="cover">
+                      <SiteLink className="bl-img" tabIndex={-1} aria-hidden="true" data-part="cover" href={href}>
                         <img src={cover.imageUrl} alt={cover.alt || ''} />
-                      </Link>
+                      </SiteLink>
                     ) : (
-                      <Link className="bl-img bl-ph" href={href} tabIndex={-1} aria-hidden="true" data-part="cover-placeholder">
+                      <SiteLink className="bl-img bl-ph" tabIndex={-1} aria-hidden="true" data-part="cover-placeholder" href={href}>
                         <span className="bl-ph-label fw-semibold">{p.category || 'Blog'}</span>
-                      </Link>
+                      </SiteLink>
                     )}
                     <div className="bl-text">
                       <div className="bl-meta text-xs text-muted" data-part="meta">
@@ -165,7 +165,7 @@ export default function BlogNewSection({ data, locale, block, site }: Props) {
                         {' · '}<span data-part="read-time">{readMinutes(p.content)} min read</span>
                       </div>
                       <h3 className="bl-title h5 fw-semibold mt-2 mb-2">
-                        <Link className="text-reset text-decoration-none" href={href}>{p.title}</Link>
+                        <SiteLink className="text-reset text-decoration-none" href={href}>{p.title}</SiteLink>
                       </h3>
                       {excerpt ? <p className="bl-ex text-sm text-muted mb-0" data-part="excerpt">{excerpt}</p> : null}
                       {author ? (

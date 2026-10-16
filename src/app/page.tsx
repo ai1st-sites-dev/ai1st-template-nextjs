@@ -17,7 +17,7 @@ export default async function RootHomePage() {
   const site = await requestSiteData();
   const { defaultLocale } = site;
   return (
-    <SiteShell site={site} locale={defaultLocale} page={getHomePage(site, defaultLocale)?.slug}>
+    <SiteShell site={site} locale={defaultLocale} page={getHomePage(site, defaultLocale)?.slug} currentPath="/">
       <HomePage site={site} locale={defaultLocale} />
     </SiteShell>
   );

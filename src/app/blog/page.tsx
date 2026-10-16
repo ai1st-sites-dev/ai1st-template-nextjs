@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootBlogIndex() {
   const site = await requestSiteData();
   return (
-    <SiteShell site={site} locale={site.defaultLocale}>
+    <SiteShell site={site} locale={site.defaultLocale} currentPath="/blog">
       <BlogIndexPage site={site} locale={site.defaultLocale} />
     </SiteShell>
   );

@@ -22,7 +22,7 @@ function notFoundPage(site: SiteData) {
   const { defaultLocale } = site;
   const labels = getLabels(defaultLocale);
   return (
-    <SiteShell site={site} locale={defaultLocale} notFound>
+    <SiteShell site={site} locale={defaultLocale} currentPath="/" notFound>
       <section className="py-16 py-lg-24" data-not-found="">
         <div className="container">
           <div className="text-center mx-auto mw-read">

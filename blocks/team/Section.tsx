@@ -25,7 +25,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认；
 //    这里不自己算亮度、不自己拼渐变。
 
-import Link from 'next/link';
+import SiteLink from '@/components/SiteLink';
 import { slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
@@ -141,10 +141,10 @@ export default function TeamNewSection({ data, block, iconTable = {} }: Props) {
                       {m.bio ? <p className="tm-bio text-sm text-muted mb-0" data-part="bio" data-slot={`members.${i}.bio`}>{m.bio}</p> : null}
                       {links.length ? (
                         <div className="tm-links d-flex gap-3" data-part="links">
-                          {/* 🔴 #1508 那条规则：站内路径（`/…`）走 `next/link`（展示站跑在 basePath 下，裸 `<a>` 不吃前缀、根路径闸拒绝切换）；
+                          {/* 🔴 #1508 那条规则：站内路径（`/…`）走 `SiteLink`（它拼 basePath，#1794；展示站跑在 basePath 下，裸 `<a>` 不吃前缀、根路径闸拒绝切换）；
                               `mailto:` / `tel:` / `http(s):` 保持裸 `<a>`。 */}
                           {links.map((l, j) => (String(l.href).startsWith('/')
-                            ? <Link key={j} className="tm-link text-muted" href={String(l.href)} aria-label={l.icon} data-part="link">{icon(l.icon)}</Link>
+                            ? <SiteLink key={j} className="tm-link text-muted" aria-label={l.icon} data-part="link" href={String(l.href)}>{icon(l.icon)}</SiteLink>
                             : <a key={j} className="tm-link text-muted" href={l.href} aria-label={l.icon} data-part="link">{icon(l.icon)}</a>
                           ))}
                         </div>

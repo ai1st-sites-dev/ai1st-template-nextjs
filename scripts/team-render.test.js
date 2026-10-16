@@ -44,11 +44,10 @@ const check = (cond, m, detail) => (cond ? ok(m) : bad(detail ? `${m} —— ${d
 const STUB_DIR = path.join(NEXT, 'scripts', '.team-stubs');
 fs.mkdirSync(STUB_DIR, { recursive: true });
 const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.writeFileSync(p, body); return p; };
-const STUBS = {
-  'next/link': stub('link', "const React=require('react');"
-    // data-next-link —— 让断言分得出这一条走的是 next/link 还是裸 <a>（#1508 那条规则，见 AC7 末尾）。
-    + "const L=({href,children,...r})=>React.createElement('a',{'data-next-link':'',href,...r},children);module.exports=L;module.exports.default=L;\n"),
-};
+const STUBS = {};
+// #1794 —— 站内链接走 `SiteLink`（普通 `<a>`，自己拼 basePath）。给一个 basePath，断言才分得出一条链接走的是 SiteLink
+//    还是裸 `<a>`（#1508 那条规则，见 AC7 末尾）：只有前者的 href 带 `/bp`。SiteLink 在模块加载时读它 ⟹ 要在 require 之前设。
+process.env.AI1ST_BASE_PATH = '/bp';
 process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } });
 for (const ext of ['.tsx', '.ts']) {
   require.extensions[ext] = (mod, filename) => mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf-8'), {
@@ -205,13 +204,13 @@ console.log('\n── AC7 部件');
   const anchors = full.match(/<a class="tm-link[^"]*"[^>]*>[\s\S]*?<\/a>/g) || [];
   const filled = anchors.filter((a) => /<svg[^>]*>[\s\S]*?<path[\s\S]*?<\/svg>/.test(a));
   check(anchors.length === want && filled.length === want, `夹具 ${want} 条 link ⟹ ${anchors.length} 个 <a>、其中 ${filled.length} 个带非空内联 <svg>`);
-  // #1508 那条规则：站内路径走 next/link（展示站 basePath 下裸 <a> 不吃前缀）；mailto: / tel: / https: 保持裸 <a>。
+  // #1508 那条规则：站内路径走 SiteLink（展示站 basePath 下裸 <a> 不吃前缀）；mailto: / tel: / https: 保持裸 <a>。
   const mixed = clone(DEMO);
   mixed.members[0].links = [{ icon: 'linkedin', href: '/about' }, { icon: 'envelope', href: 'mailto:a@b.example' }, { icon: 'telephone', href: 'tel:+1' }, { icon: 'instagram', href: 'https://x.example/' }];
   const linksOf0 = (membersOf(render('hiring', mixed))[0].match(/<a [^>]*data-part="link"[^>]*>/g) || []);
-  const viaLink = linksOf0.map((a) => (a.includes('data-next-link') ? 1 : 0)).join('');
-  check(linksOf0.length === 4 && viaLink === '1000', `成员链接 /about 走 next/link、mailto / tel / https 走裸 <a>（${viaLink}）`);
-  check(/data-next-link=""[^>]*tm-join-cta/.test(full), '对照：招聘卡按钮（/contact）走的是 next/link，替身的标记读得出来');
+  const viaLink = linksOf0.map((a) => (a.includes('href="/bp/') ? 1 : 0)).join('');
+  check(linksOf0.length === 4 && viaLink === '1000' && linksOf0[0].includes('href="/bp/about"'), `成员链接 /about 走 SiteLink（带 basePath）、mailto / tel / https 走裸 <a> 不带（${viaLink}）`);
+  check((full.match(/<a [^>]*tm-join-cta[^>]*>/) || [''])[0].includes('href="/bp/contact"'), '对照：招聘卡按钮（/contact）走的是 SiteLink，href 带 basePath');
   // 阳性对照：把一条 link 的 `icon` 键改名成 `kind` ⟹ 图标表里收不到、那一条画不出来，上面那格就红。
   const renamed = clone(DEMO); renamed.members[0].links[0] = { kind: renamed.members[0].links[0].icon, href: renamed.members[0].links[0].href };
   const ra = render('hiring', renamed).match(/<a class="tm-link[^"]*"[^>]*>[\s\S]*?<\/a>/g) || [];

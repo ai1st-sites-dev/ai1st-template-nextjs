@@ -17,7 +17,6 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认；
 //    这里不自己算亮度、不自己拼渐变。深底 + mono 的 logo 反白写在 `block.css`（按 `data-tone`）。
 
-import Link from 'next/link';
 import { knobImg, slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
@@ -116,9 +115,9 @@ export default function LogosNewSection({ data, block }: Props) {
               {d.body ? <p className="fs-5 text-muted mb-0 lo-body" data-slot="body">{d.body}</p> : null}
               {cta ? (
                 <div className="lo-cta" data-part="cta">
-                  <Link href={cta.href || '#'} className={ctaClass(ctaStyle)} data-cta={ctaStyle}>
+                  <SiteLink className={ctaClass(ctaStyle)} data-cta={ctaStyle} href={cta.href || '#'}>
                     <span data-slot="introCta.label">{cta.label}</span>
-                  </Link>
+                  </SiteLink>
                 </div>
               ) : null}
             </div>

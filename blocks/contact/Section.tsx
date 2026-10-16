@@ -31,7 +31,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg）；这里不自己算亮度、不自己拼渐变。
 
 import { getSeo, getServices, leadFormSite } from '@/lib/config';
-import Link from 'next/link';
+import SiteLink from '@/components/SiteLink';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import BlockSection, { blockTone } from '@/components/BlockSection';
 import type { BlockConfig, SiteData } from '@/lib/types/config';
@@ -207,12 +207,12 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
                           {/* link 那一条的标题就是值（下面那个链接），不另画一行标题。 */}
                           {r.kind !== 'link' && r.title ? <div className="ct-ch-title fw-semibold" data-slot={`items.${r.index}.title`}>{r.title}</div> : null}
                           {r.hint ? <div className="ct-ch-hint text-xs text-muted mb-1" data-slot={`items.${r.index}.hint`}>{r.hint}</div> : null}
-                          {/* 🔴 #1508 —— 站内路径（`/…`）必须走 `next/link`：展示站跑在 basePath 下，裸 `<a>` 不吃前缀，
+                          {/* 🔴 #1508 —— 站内路径（`/…`）必须走 `SiteLink`（它拼 basePath，#1794）：展示站跑在 basePath 下，裸 `<a>` 不吃前缀，
                               那条根绝对路径会让 build-showcase-from-main.sh 的根路径闸拒绝切换（实测冻了 7.4 小时）。
                               `tel:` / `mailto:` / `http(s):` 不是站内链接，保持裸 `<a>`。判据就是 href 以 `/` 开头。 */}
                           {r.href
                             ? (r.href.startsWith('/')
-                                ? <Link className="ct-value fw-semibold text-body" href={r.href} data-value={r.kind} {...(r.kind === 'link' ? { 'data-slot': `items.${r.index}.title` } : {})}>{r.value}</Link>
+                                ? <SiteLink className="ct-value fw-semibold text-body" data-value={r.kind} {...(r.kind === 'link' ? { 'data-slot': `items.${r.index}.title` } : {})} href={r.href}>{r.value}</SiteLink>
                                 : <a className="ct-value fw-semibold text-body" href={r.href} data-value={r.kind} {...(r.kind === 'link' ? { 'data-slot': `items.${r.index}.title` } : {})}>{r.value}</a>)
                             : <span className="ct-value fw-semibold" data-value={r.kind}>{r.value}</span>}
                         </div>

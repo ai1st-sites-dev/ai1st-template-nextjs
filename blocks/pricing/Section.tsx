@@ -27,7 +27,7 @@
 //    （`scripts/lib/icons.js` §iconTableFor，`check` 勾号登记在 `BLOCK_ICONS['pricing']`），这里用 `InlineIcon` 画。
 
 import { useState, type CSSProperties } from 'react';
-import Link from 'next/link';
+import SiteLink from '@/components/SiteLink';
 import { rowImgs, slotImg } from '@/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
@@ -271,9 +271,9 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                       ) : null}
                       {p.description ? <p className="pr-desc text-muted text-sm mb-4" data-slot={`plans.${i}.description`}>{p.description}</p> : null}
                       {cta ? (
-                        <Link href={cta.href || '#'} className={`pr-cta btn ${ctaStyle === 'solid' ? 'btn-primary' : 'btn-outline-primary'} w-100`} data-cta={ctaStyle}>
+                        <SiteLink className={`pr-cta btn ${ctaStyle === 'solid' ? 'btn-primary' : 'btn-outline-primary'} w-100`} data-cta={ctaStyle} href={cta.href || '#'}>
                           <span data-slot={`plans.${i}.cta.label`}>{cta.label}</span>
-                        </Link>
+                        </SiteLink>
                       ) : null}
                     </div>
                     {features.length ? (

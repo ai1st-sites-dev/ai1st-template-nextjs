@@ -1,7 +1,4 @@
-'use client';
-
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import SiteLink from './SiteLink';
 import { localeUrl, switchLocaleHref, type LocaleSwitchIndex } from '@/lib/config';
 
 // TICKET-134 v2: native language name + globe icon. Following Vercel / Stripe /
@@ -30,23 +27,15 @@ function renderLocale(locale: string): string {
 //    下拉仍是自己的卡片，字跟卡片底同一套（都随深浅换），不靠从祖先继承。
 // #1628 —— `notFound`：404 页上的开关一律回目标语言首页（那一页本来就没有语言版本；水合后 usePathname 读到的是
 //    访客打错的那个地址，它碰巧在目标语言里存在也不该当成「同一页」）。
-// #1665 —— 这是浏览器端组件，站点内容读不到：语言清单和换语言要查的那张索引由 SiteShell（服务端）算好递进来。
-export default function LanguageSwitcher({ currentLocale, notFound = false, locales, switchIndex }: {
-  currentLocale: string; notFound?: boolean; locales: string[]; switchIndex: LocaleSwitchIndex;
+// #1665 —— 语言清单和换语言要查的那张索引由 SiteShell（服务端）算好递进来。
+// #1794 —— 当前路径也由 SiteShell 递进来（`currentPath`，已去掉语言前缀：`/about`、`/blog/x`、首页 `/`），不再 `usePathname`
+//    ⟹ 没有任何客户端逻辑了（下拉是原生 `<details>`），`'use client'` 一起摘掉。块要在没有 Next 的地方跑（画布 / 发布渲染）。
+export default function LanguageSwitcher({ currentLocale, currentPath, notFound = false, locales, switchIndex }: {
+  currentLocale: string; currentPath: string; notFound?: boolean; locales: string[]; switchIndex: LocaleSwitchIndex;
 }) {
-  const pathname = usePathname();
   // Single-locale sites (~30 in production) must render nothing — backward compat P0.
   if (locales.length <= 1) return null;
-
-  // TICKET-129: pathname may be /about (defaultLocale alias, no prefix) or
-  // /<locale>/about (other locale). Strip locale prefix only if currentLocale is
-  // present in the path; otherwise the path is already the slug-only form.
-  const localePrefix = `/${currentLocale}`;
-  const pathSansLocale = pathname === localePrefix
-    ? '/'
-    : pathname.startsWith(`${localePrefix}/`)
-      ? pathname.slice(localePrefix.length)
-      : pathname || '/';
+  const pathSansLocale = currentPath || '/';
 
   return (
     <details className="position-relative d-inline-block">
@@ -60,12 +49,12 @@ export default function LanguageSwitcher({ currentLocale, notFound = false, loca
           const href = notFound ? localeUrl(switchIndex, 'home', l) : switchLocaleHref(switchIndex, pathSansLocale, l);
           return (
             <li key={l}>
-              <Link
+              <SiteLink
                 href={href}
                 className="d-block px-2 py-1 text-sm link-body-emphasis text-decoration-none text-nowrap"
               >
                 {renderLocale(l)}
-              </Link>
+              </SiteLink>
             </li>
           );
         })}
