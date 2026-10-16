@@ -94,7 +94,7 @@ check('认不出组的行业（pet grooming / church）⟹ 默认配方，过同
 check('beauty（7 服务发廊那一组）：首页 + 服务列表页 + 每个服务一页 + contact，没有 about / faq / gallery / quote', () => {
   const plan = R.sitePagesFor('hair salon', { services: SVC });
   assert.deepStrictEqual(plan.pages.map((p) => p.slug), ['home', 'services', 'services/alpha', 'services/beta', 'contact']);
-  assert.deepStrictEqual(plan.nav, ['services']);
+  assert.deepStrictEqual(plan.nav, ['services', 'contact']); // #1781 按钮那一页也进菜单
   assert.strictEqual(plan.ctaPage, 'contact');
 });
 
@@ -144,12 +144,12 @@ check('关掉 contact ⟹ contact 页不要了，按钮指首页（不留死链�
   assert.strictEqual(plan.ctaPage, 'home');
 });
 
-check('导航 == 普通页里除了按钮那一页（sync-config 每次构建按这条规则重排顶部导航，写别的会被覆盖）—— 16 组 + 默认、关不关块都成立', () => {
+check('#1781 导航 == 全部普通页，按钮那一页也在（页脚第一列抄菜单，扣掉它页脚就没有联系页）—— 16 组 + 默认、关不关块都成立', () => {
   const words = [...SECTORS.map((s) => WORD_OF[s.key]), 'pet grooming'];
   for (const w of words) {
     for (const off of [[], ['faq'], ['features'], ['contact'], ['content']]) {
       const plan = R.sitePagesFor(w, { services: SVC, disabledBlocks: off });
-      const regular = plan.pages.filter((p) => p.slug !== 'home' && !p.serviceDetailPage && p.slug !== plan.ctaPage).map((p) => p.slug);
+      const regular = plan.pages.filter((p) => p.slug !== 'home' && !p.serviceDetailPage).map((p) => p.slug);
       assert.deepStrictEqual(plan.nav, regular, `${w} 关 ${off.join(',') || '（无）'}`);
     }
   }

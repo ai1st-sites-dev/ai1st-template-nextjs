@@ -64,8 +64,8 @@ function recipe({ about, faq, look, steps = false, why }) {
       b('faq', look.faq, '3-5 questions about this service'),
       cta,
     ],
-    // 顶部导航放哪几页（首页恒在最前；行动按钮那一页不进链接，它是按钮）。
-    nav: ['services', ...(about ? ['about'] : []), ...(faq ? ['faq'] : [])],
+    // 顶部导航放哪几页（首页恒在最前）。#1781 —— 行动按钮那一页也进链接：菜单是老板自己的列表、页脚第一列抄它，扣掉它页脚就没了联系页入口。
+    nav: ['services', ...(about ? ['about'] : []), ...(faq ? ['faq'] : []), CTA_PAGE],
     ctaPage: CTA_PAGE,
   };
 }
@@ -117,9 +117,9 @@ function siteRecipeForIndustry(industry) {
  * 后台关掉的块（同 #1346 在 skipAI 那条路上的写法）：从块序里拿掉；一页的 `core` 块被关、或拿空了 ⟹ 整页不要。
  * 拿掉的页从导航里一起拿掉；`contact` 没了 ⟹ 按钮指首页（不留死链）。
  *
- * 🔴 `nav` 恒等于「普通页（非首页、非服务页）里除了按钮那一页」—— 因为 sync-config.js 每次构建都按这条规则重排顶部导航
- *    （§Auto-generate navigation），写别的也会被构建覆盖。所以 `features` 被后台关掉、`services` 列表页随之拿掉时，
- *    顶部导航到不了服务页（只剩页脚那一栏）—— 这跟今天关掉 features 时一样，配方不在这里假装做得到。
+ * 🔴 `nav` 恒等于「普通页（非首页、非服务页）」，按钮那一页也在里面（#1781）。它只决定新站的第一份菜单：#1781 起
+ *    `header.links` 是老板的数据，构建不再重排（`nav-menu.js` §syncMenu 只追加新页、去掉删了的页）。`features` 被后台
+ *    关掉、`services` 列表页随之拿掉时，顶部导航到不了服务页（只剩页脚那一栏）—— 配方不在这里假装做得到。
  */
 function sitePagesFor(industry, { services = [], disabledBlocks = [] } = {}) {
   const { sector, recipe: r } = siteRecipeForIndustry(industry);

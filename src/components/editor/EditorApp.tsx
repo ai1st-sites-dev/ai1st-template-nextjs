@@ -125,11 +125,10 @@ import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, itemListAt, itemImageOf, runItemImage, useItemImageState, clearItemImageNote, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField, ImageUrlControl } from './ImageField';
-import { ButtonEditor, ButtonLinkEnvContext, REGION_LINK_TYPES, buttonHrefField, contactText } from './ButtonLink';
+import { ButtonEditor, ButtonLinkEnvContext, MenuLinkEditor, REGION_LINK_TYPES, buttonHrefField, contactText } from './ButtonLink';
 import { externalUrl } from '../../../scripts/lib/button-link.js';
 import {
-  navMenuToPanel, panelRows, buttonPage, moveShown, setShown, setLabel, navMenuProblem, navMenuChanges, applyPageNav, liveShellData,
-  type NavPanel, type NavChange,
+  liveShellData, menuItemProblem, menuLinksProblem, moveItem, type MenuItem,
 } from '../../../scripts/lib/nav-editor.js';
 import type { ContactRef, SiteData } from '@/lib/types/config';
 import type { IconTable } from '@/components/InlineIcon';
@@ -959,18 +958,19 @@ type RootProps = {
   phone?: string;
   email?: string;
   address?: string;
-  /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、按钮（这种语言的 `navigation.json`）、菜单（`nav-editor.js` 面板那一份）。
-   *  都没有右栏字段：只在顶栏的 Design 面板 Content 页里改（§HeaderContent）。 */
+  /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、按钮（这种语言的 `navigation.json`）、菜单（#1781：同一份 `navigation.json`）。
+   *  都没有右栏字段：只在顶栏的 Design 面板 Content 页里改（§HeaderContent），菜单另可在画布上点某一项改（§NavLinkDialog）。 */
   logoUrl?: string;
   /** #1787 —— 顶栏按钮 0–3 颗，第 1 颗是主按钮（`header-buttons.js`）。#1779 —— `href` 是地址，或电话 / 邮箱引用
    *  （`{source: "phone"}`，按钮弹窗选 Phone / Email 时存的那种）。 */
   headerButtons?: HeaderButtonValue[];
-  navMenu?: NavPanel;
   /** #1780 —— 顶栏上面那一行的链接列表（这种语言的 `navigation.json` 的 `header.topbarLinks`，规则在 `topbar-links.js`）。
    *  只在顶栏 Content 页的 Top bar 段和画布上点那一项开的链接弹窗里改。 */
   headerTopbar?: TopbarItem[];
   /** #1785 —— Website settings 的 Social links（`brand.json` 的 `socialLinks`）。 */
   socialLinks?: SocialLink[];
+  /** #1781 —— 菜单：`header.links` 原样（`[{label, href}]`，href 是字符串或电话 / 邮箱引用）。页脚第一列构建时抄它。 */
+  headerLinks?: MenuItem[];
   children?: ReactNode;
 };
 /** #1780 —— 顶栏上面那一行的一项：`href` 是字符串或电话 / 邮箱引用（同按钮）。 */
@@ -1045,10 +1045,10 @@ function withBusinessInfo(site: SiteData, locale: string, p: RootProps): SiteDat
 
 /**
  * #1759 —— 顶栏 Content 页的现值画到画布上：顶栏 / 页脚是构建时烤进 `regions.*.dataByLocale` 的（`lib/shell-data.js`），
- * 这里照 `nav-editor.js` §liveShellData 换上菜单（跟构建同一条规则，`lib/nav-menu.js`）、按钮和 logo。没带的那一样原样。
+ * 这里照 `nav-editor.js` §liveShellData 换上菜单（#1781：老板那一份列表原样，页脚第一列同一份）、按钮（#1787）和 logo。没带的那一样原样。
  */
-function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'logoUrl' | 'headerButtons' | 'navMenu' | 'headerTopbar'>): SiteData {
-  if (p.logoUrl === undefined && !p.headerButtons && !p.navMenu && !p.headerTopbar) return site;
+function withHeaderContent(site: SiteData, locale: string, p: Pick<RootProps, 'logoUrl' | 'headerButtons' | 'headerLinks' | 'headerTopbar'>): SiteData {
+  if (p.logoUrl === undefined && !p.headerButtons && !p.headerLinks && !p.headerTopbar) return site;
   const key = locale || site.defaultLocale;
   const hb = site.regions.header.dataByLocale || {};
   const fb = site.regions.footer.dataByLocale || {};
@@ -1088,11 +1088,11 @@ function withForms(site: SiteData, locale: string, forms: EditorFormChoice[]): S
 
 /** root 的画法：外壳 + 把面板里的 Business info 交给画布上的块（§LiveSiteContext）。 */
 function RootShell({ site, locale, props, shell, children }: { site: SiteData; locale: string; props: RootProps; shell: ShellOverride; children?: ReactNode }) {
-  const { brandName, phone, email, address, socialLinks, logoUrl, headerButtons, navMenu, headerTopbar } = props;
+  const { brandName, phone, email, address, socialLinks, logoUrl, headerButtons, headerLinks, headerTopbar } = props;
   const { canvasForms } = useContext(FormsContext);
   const live = useMemo(
-    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address, socialLinks }), locale, { logoUrl, headerButtons, navMenu, headerTopbar }), locale, canvasForms),
-    [site, locale, brandName, phone, email, address, socialLinks, logoUrl, headerButtons, navMenu, headerTopbar, canvasForms],
+    () => withForms(withHeaderContent(withBusinessInfo(site, locale, { brandName, phone, email, address, socialLinks }), locale, { logoUrl, headerButtons, headerLinks, headerTopbar }), locale, canvasForms),
+    [site, locale, brandName, phone, email, address, socialLinks, logoUrl, headerButtons, headerLinks, headerTopbar, canvasForms],
   );
   return (
     <LiveSiteContext.Provider value={live}>
@@ -1123,17 +1123,14 @@ const ROOT_SAVE_LABELS: Record<string, string> = {
   ...ROOT_FIELD_LABELS,
   ...Object.fromEntries(Object.entries(BUSINESS_INFO_LABELS).map(([k, v]) => [k, `Website settings · ${v}`])),
   layout: `Website settings · ${ROOT_FIELD_LABELS.layout}`,
-  // #1759 —— 顶栏 Content 页（票正文做什么 5：跟页面块存盘记录同一种写法）。菜单那一句不在这里（它不是 root 字段，§saveFields 补）。
+  // #1759 —— 顶栏 Content 页（票正文做什么 5：跟页面块存盘记录同一种写法）。#1781：菜单是 root 字段了，同一张表。
   logoUrl: 'Header · Logo',
   // #1785 —— 它在 Website settings 面板里改，跟同面板那几样一样带面板名（#1776 立的规矩；logoUrl 不带是因为它在顶栏 Content 页改）。
   socialLinks: 'Website settings · Social links',
   headerButtons: 'Header · Buttons',
   headerTopbar: 'Header · Top bar',
+  headerLinks: 'Header · Navigation links',
 };
-/** #1759 —— 菜单改了（别的页的 navLabel / navOrder，或这一页的那两格）时记录里那一句。 */
-const NAV_SAVE_LABEL = 'Header · Navigation links';
-/** #1759 —— 一页的 JSON 去掉菜单那两格（§saveFields 判「块那一半改没改」用）。 */
-const withoutNav = (o: Record<string, unknown>) => { const c = { ...o }; delete c.navLabel; delete c.navOrder; return c; };
 
 function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
   const fields: Fields = {
@@ -1180,10 +1177,8 @@ function rootConfig(schema: EditorSchema, locale: string, site: SiteData) {
  * 布局 / 形态**不**在这里按 schema 的名单筛：盘上的值不在名单里时，构建时那份也一样会是它，画布那头
  * `layoutOf(layout) || schema.root.layouts[0]` 是现成的兜底（PM 裁定第 3 条）。
  */
-function openRoot(built: PuckLikeData['root'], sent: unknown, locale: string, nav?: unknown): PuckLikeData['root'] {
-  // #1759 —— 菜单：底稿另带一格 `nav`（站里 `editor-nav.js` §navMenuOf，盘上现值），换成面板那一份。
-  const navMenu = navMenuToPanel(nav, locale);
-  if ((!sent || typeof sent !== 'object' || Array.isArray(sent)) && !navMenu) return built;
+function openRoot(built: PuckLikeData['root'], sent: unknown): PuckLikeData['root'] {
+  if (!sent || typeof sent !== 'object' || Array.isArray(sent)) return built;
   const v = (sent && typeof sent === 'object' && !Array.isArray(sent) ? sent : {}) as Record<string, unknown>;
   const str = (k: string) => (typeof v[k] === 'string' ? { [k]: v[k] as string } : {});
   // #1738 —— 底色 + 旋钮是对象：只收对象（形状由站里 `region-options.js` 清洗过）。#1787：按钮是数组（每项 `{label, href}`，rootToPuck 再收一遍形状）。
@@ -1191,7 +1186,9 @@ function openRoot(built: PuckLikeData['root'], sent: unknown, locale: string, na
   const arr = (k: string) => (Array.isArray(v[k]) ? { [k]: v[k] as unknown[] } : {});
   const got = {
     ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...obj('headerOptions'), ...obj('footerOptions'), ...str('brandName'), ...str('phone'), ...str('email'), ...str('address'),
-    ...str('logoUrl'), ...arr('headerButtons'), ...arr('headerTopbar'), ...(navMenu ? { navMenu } : {}),
+    ...str('logoUrl'), ...arr('headerButtons'), ...arr('headerTopbar'),
+    // #1781 —— 菜单是一个数组（`header.links`，站里 `editor-root.js` §readHeaderButtons 读的；形状 rootToPuck 再收一遍）。
+    ...(Array.isArray(v.headerLinks) ? { headerLinks: v.headerLinks as MenuItem[] } : {}),
     // #1785 —— Social links 是数组（站里 `editor-root.js` §readBrandValues 读成 `[{platform, url}]`；rootToPuck 再收一遍形状）。
     ...(Array.isArray(v.socialLinks) ? { socialLinks: v.socialLinks } : {}),
   };
@@ -1695,7 +1692,7 @@ function useCanvasHoverOf(doc: Document, keyAt: (el: Element, x: number, y: numb
   return hovered;
 }
 
-type BarPos = { bottom: number; left: number; scale: number };
+type BarPos = { bottom: number; left: number; scale: number; below?: boolean };
 /**
  * 条在画布可视区里的位置：底边 = min(块下沿, 可视区下沿) − 边距，横向在块内居中；块整个不在可视区里 ⟹ null（不出条）。
  * 「可视区」= 画布 iframe 自己的 `innerHeight`（同 §DesignPopover 的 `win.innerHeight`）。每帧量一次（滚动、块变高、挪了位置都跟着走），
@@ -1706,6 +1703,9 @@ type BarPos = { bottom: number; left: number; scale: number };
  *   只擦到一角（中心点没被盖）不躲：一张卡片被划掉底下一截还剩大半能点，躲它条就会跳出几百 px。
  *   普通文字槽不躲：文字点别处还能改，躲它高块的条就找不到落脚点。中心点没被盖 ⟹ 位置一个像素不动。
  *   条的宽高按它自己画出来的读（已乘过 1/zoom，跟块里的元素同一个口径），每帧现量；条还没画出来那一帧按不压放。
+ * #1781 r2 —— 顶栏的条放在顶栏【外面】：上沿 = 顶栏下沿 + 边距（`below`，`bottom` 此时当 CSS 的 top 用）。顶栏只有一行高，
+ *   条放在里面横向居中就压在居中的菜单上（ember-12 · Layout 选 center · menu=below 都是），而菜单的每一项现在点了要开弹窗；
+ *   按下鼠标那一刻条才冒出来的那一种（`picked`）连躲都来不及 —— 按下落在菜单项、松开落在条上，click 就丢了。放外面一个像素都不压。
  */
 function useBlockBarPos(doc: Document, id: string, avoid = false): BarPos | null {
   const [pos, setPos] = useState<BarPos | null>(null);
@@ -1720,7 +1720,9 @@ function useBlockBarPos(doc: Document, id: string, avoid = false): BarPos | null
       if (r && r.height > 0 && r.bottom > 0 && r.top < vh) {
         const frame = win.frameElement as HTMLElement | null;
         const zoom = frame && win.innerWidth ? (frame.getBoundingClientRect().width / win.innerWidth) || 1 : 1;
-        next = { bottom: vh - (Math.min(r.bottom, vh) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
+        next = regionOfDesign(id) === 'header'
+          ? { bottom: r.bottom + BLOCKBAR_GAP, left: r.left + r.width / 2, scale: 1 / zoom, below: true }
+          : { bottom: vh - (Math.min(r.bottom, vh) - BLOCKBAR_GAP), left: r.left + r.width / 2, scale: 1 / zoom };
         const b = avoid && el ? doc.querySelector(`[data-editor-blockbar-for="${CSS.escape(id)}"]`)?.getBoundingClientRect() : null;
         if (el && b && b.height) {
           const targets = Array.from(el.querySelectorAll('[data-item], img[data-slot]')).map((e) => e.getBoundingClientRect()).filter((t) => t.width > 0 && t.height > 0);
@@ -1919,9 +1921,37 @@ function regionKeyAt(el: Element): string | null {
   return r ? r.getAttribute('data-block') : null;
 }
 
+/**
+ * #1781 r3 —— 顶栏的条在顶栏【外面】（r2：上沿 = 顶栏下沿 + BLOCKBAR_GAP，不压居中的菜单），鼠标从顶栏往下走到条上要穿过下面那一块的
+ *   上沿 —— 按元素认（§regionKeyAt）那一段是「不在顶栏上」，HOVER_DELAY_MS 一到条就收了，只靠悬停永远够不着（QA2 r2 实测 0 个面板）。
+ *   所以按坐标再问一句：条正画着的时候，顶栏下沿和条（左右各放 BLOCKBAR_GAP）之间那块梯形也算在顶栏上 —— 它是两者的凸包，
+ *   从顶栏任何一点直线走向条上任何一点，路上每一点都在里面。r3 只放了条正上方那一条竖带，QA2 r3 实测从 logo 那边 / 右边斜着走
+ *   8 条路径 0 条点得开（离开顶栏的那一点在竖带外）。凸包的左右两边是「顶栏下沿两角 → 条下沿两角」两条斜线（不是连到条上沿两角：
+ *   斜着走到条上的按钮，最后一段在条那一行、条的左右外侧 —— r4 第一版按上沿算，16ms 那一臂在 y=119 丢了条）；条本身在它里面。
+ *   条没画着（没出来 / 已经收了）就没有这块梯形 ⟹ 鼠标停在第一块上沿照旧是那一块，不会凭空把顶栏的条叫出来。
+ */
+function regionKeyAtPoint(el: Element, x: number, y: number): string | null {
+  const k = regionKeyAt(el);
+  if (k) return k;
+  if (el.closest('[data-editor-popover]')) return null;
+  const doc = el.ownerDocument;
+  const bar = doc.querySelector('[data-editor-regionbar-for="header"]');
+  const hdr = bar ? regionEl(doc, 'header') : null;
+  if (!bar || !hdr) return null;
+  const b = bar.getBoundingClientRect();
+  const h = hdr.getBoundingClientRect();
+  const top = h.bottom - 1;
+  if (y < top || y > b.bottom) return null;
+  const t = b.bottom > top ? (y - top) / (b.bottom - top) : 1;
+  const left = h.left + t * (b.left - BLOCKBAR_GAP - h.left);
+  const right = h.right + t * (b.right + BLOCKBAR_GAP - h.right);
+  return x >= left && x <= right ? 'header' : null;
+}
+
 function RegionBars({ doc }: { doc: Document }) {
   const ui = useContext(EditorUiContext);
-  const hovered = useCanvasHoverOf(doc, regionKeyAt);
+  // #1781 r3 —— 按坐标认（`byPoint`）：在第一块上挪动时浏览器不一定派新的 mouseover，通道那一段要靠 mousemove 重新问。
+  const hovered = useCanvasHoverOf(doc, regionKeyAtPoint, true);
   const typing = useInlineTyping();
   const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => {
@@ -1931,6 +1961,26 @@ function RegionBars({ doc }: { doc: Document }) {
     };
     doc.addEventListener('pointerdown', onDown, true);
     return () => doc.removeEventListener('pointerdown', onDown, true);
+  }, [doc]);
+  // #1781 —— 画布上点菜单某一项（顶栏块据 `editorIndex` 挂的 `data-editor-region-link="nav.<i>"`）⟹ 开那一项的链接弹窗。
+  //   不跳转（同画布上别的链接）；别的弹层开着先 Cancel（§openDesign 的规矩）；AI 上锁时什么都不做（同 Design）。
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
+  useEffect(() => {
+    const onClick = (e: Event) => {
+      const t = e.target;
+      const el = t && typeof (t as Element).closest === 'function' ? (t as Element).closest('[data-editor-region-link]') : null;
+      const m = el ? /^nav\.(\d+)$/.exec(el.getAttribute('data-editor-region-link') || '') : null;
+      const u = uiRef.current;
+      if (!m || !u) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (u.locked) return;
+      if (u.design) u.cancelDesign();
+      u.openDesign(REGION_DESIGN_ID.header, 'navlink', `nav.${m[1]}`);
+    };
+    doc.addEventListener('click', onClick, true);
+    return () => doc.removeEventListener('click', onClick, true);
   }, [doc]);
   if (ui && ui.dialogOpen) return null;
   const shown = (['header', 'footer'] as const).filter((r) => r === picked || (!typing && r === hovered));
@@ -1961,7 +2011,7 @@ function RegionBar({ doc, region }: { doc: Document; region: Region }) {
   const halt = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return createPortal(
     <span data-editor-blockbar="" data-editor-regionbar-for={region} onClick={halt}
-      {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...BLOCKBAR_BOX, bottom: pos.bottom, left: pos.left, transform: `scale(${pos.scale})` }}>
+      {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...BLOCKBAR_BOX, ...(pos.below ? { top: pos.bottom, transformOrigin: 'center top' } : { bottom: pos.bottom }), left: pos.left, transform: `scale(${pos.scale})` }}>
       <ActionBar>
         <ActionBar.Group>
           <ActionBar.Action label="Design" onClick={design} disabled={ui.locked} data-editor-block-action="design">
@@ -2334,10 +2384,11 @@ const popoverTab = (on: boolean): CSSProperties => ({
 });
 // #1755 —— `button` 不是一页：画布上点按钮开的按钮弹窗（§DesignPopover 的 `button` 那一支），借 Design 面板的事务和出口。
 // #1757 —— 第四页 AI：输入一句话改这一块（§DesignAi）。只给页面块，顶栏 / 页脚的面板没有它。
-type DesignTab = 'layout' | 'customize' | 'content' | 'ai' | 'button';
+// #1781 —— 'navlink'：菜单一项的链接弹窗（`focus` = `nav.<下标>` 或 `nav.new`；带 `@content` 后缀 = 从 Content 页开的，Done / Cancel 回 Content 页）。
+type DesignTab = 'layout' | 'customize' | 'content' | 'ai' | 'button' | 'navlink';
 // 「先存再发」那一笔没存上时，左边聊天说的那句（#1757 起面板的 AI 页也说它，正文做什么 6）。
 const SEND_SAVE_FAILED = 'Your message was not sent, because your changes could not be saved first. See the message at the top of the editor.';
-const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content', ai: 'AI', button: 'Button' };
+const DESIGN_TAB_LABEL: Record<DesignTab, string> = { layout: 'Layout', customize: 'Customize', content: 'Content', ai: 'AI', button: 'Button', navlink: 'Navigation link' };
 
 /**
  * #1738 —— Design 面板也给顶栏 / 页脚开。它们不是 Puck 的块（外壳区，`blocks/header/Section.tsx` 文件头），面板认它们用这两个 id
@@ -2435,6 +2486,61 @@ export function DesignContent({ component, item, ui, readOnly }: { component: Ed
 }
 
 /**
+ * #1781 —— 菜单一项的链接弹窗（DesignPopover 的 `navlink` 那一支画它）：Link Type 四选一（没有 Page section）+ 那一格 + Link label。
+ *   改的是弹窗自己手上的一份（`draft`），Done 才交回 `headerLinks`：名字或链接不能存 ⟹ 说一句、弹窗留着（话同写盘那一侧，`nav-editor.js`）。
+ *   `focus`：`nav.<i>` 改第 i 项 · `nav.new` 加到末尾；带 `@content` = 从 Content 页开的（Done / Cancel 回 Content 页，存盘等面板的 Done），
+ *   不带 = 画布上点开的（Done = 交回 + 面板 Done 存一笔，Cancel = 面板 Cancel，什么都不存 —— 验收 5）。
+ */
+function NavLinkDialog({ focus, links, ui, site, locale }: { focus: string; links: MenuItem[]; ui: EditorUi; site: SiteData; locale: string }) {
+  const fromContent = focus.endsWith('@content');
+  const m = /^nav\.(\d+|new)/.exec(focus);
+  const index = m && m[1] !== 'new' ? Number(m[1]) : -1;
+  const existing = index >= 0 && index < links.length ? links[index] : null;
+  const [draft, setDraft] = useState<MenuItem>(() => (existing ? { label: existing.label, href: existing.href } : { label: '', href: '' }));
+  const [error, setError] = useState('');
+  const back = () => ui.openDesign(REGION_DESIGN_ID.header, 'content', 'headerLinks');
+  const cancel = () => (fromContent ? back() : ui.cancelDesign());
+  /** 这一项交回 `headerLinks`。不能存 ⟹ 说一句、原地不动（`draft` 还在弹窗里）、回 false。 */
+  const apply = () => {
+    const why = menuItemProblem(draft);
+    if (why) { setError(why); return false; }
+    const next = links.slice();
+    if (existing) next[index] = draft; else next.push(draft);
+    ui.changeHeader({ headerLinks: next });
+    return true;
+  };
+  const done = () => {
+    if (!apply()) return;
+    if (fromContent) back(); else ui.doneDesign();
+  };
+  // Phone / Email 那一格的「去 Website → Name & contact 改」（#1755 r4，ButtonLink §ButtonLinkFields）：外层那一下是「面板先 Done、再开右栏」。
+  //   弹窗手上的这一项还没交回 root ⟹ 先交（不交的话面板 Done 存的是没有它的那一份，老板刚填的就没了）；这一项不能存 ⟹ 说一句、
+  //   弹窗原地不动、什么都不存（PM #1781 裁定第五条：Done 被拒 ⟹ 原地不动、不吞掉编辑中的内容）。面板 Done 被拒（别处有不能存的值）
+  //   ⟹ 外层那一下自己留着不动，那一句由 `ui.designError` 显示在下面。
+  const outer = useContext(ButtonLinkEnvContext);
+  const env = useMemo(() => (outer ? { ...outer, openBusinessInfo: () => { if (apply()) outer.openBusinessInfo(); } } : null), [outer, draft, links]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <>
+      <div data-editor-navlink-title="" style={{ padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>{existing ? 'Navigation link' : 'Add navigation link'}</div>
+      <div data-editor-navlink-body="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
+        <ButtonLinkEnvContext.Provider value={env}>
+          <MenuLinkEditor item={draft} site={site} locale={locale} onChange={(next) => { setDraft(next); setError(''); }} />
+        </ButtonLinkEnvContext.Provider>
+      </div>
+      {error || ui.designError ? (
+        <p data-editor-design-error="" role="alert" style={{ margin: 0, padding: '0 16px 8px', fontSize: 13, color: '#b42318' }}>{error || ui.designError}</p>
+      ) : null}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
+        <button type="button" data-editor-design-cancel="" onClick={cancel}
+          style={{ ...POPOVER_BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
+        <button type="button" data-editor-design-done="" onClick={done}
+          style={{ ...POPOVER_BTN, border: 0, background: '#1d4ed8', color: '#fff' }}>Done</button>
+      </div>
+    </>
+  );
+}
+
+/**
  * #1759 —— `{label, href}`（不是对象 / 不是字符串 ⟹ 空串）。
  * #1779 —— href 也可以是电话 / 邮箱引用（`{source: "phone"}`，§isButtonRef），原样保留。
  */
@@ -2443,13 +2549,11 @@ function asButtonValue(v: unknown): HeaderButtonValue {
   const href = typeof o.href === 'string' ? o.href : isButtonRef(o.href) ? o.href : '';
   return { label: typeof o.label === 'string' ? o.label : '', href };
 }
-/** #1779 —— 按钮指向哪一页（算菜单里扣掉哪一页）：引用不指向任何一页。 */
-const pageHrefOf = (href: HeaderButtonValue['href']) => (typeof href === 'string' ? href.trim() : '');
 
 /** #1759 —— 顶栏 Content 页有不能存的值时 Done 要说的那一句（'' = 能存）。写盘那一侧（`editor-root.js` / `editor-nav.js`）照样再判一次。 */
 function headerContentProblem(p: Record<string, unknown>): string {
   if (typeof p.brandName === 'string' && !p.brandName.trim()) return 'The website name can\'t be empty.';
-  const menu = navMenuProblem(p.navMenu as NavPanel | undefined);
+  const menu = menuLinksProblem(p.headerLinks);
   if (menu) return menu;
   // #1787 —— 按钮：同写盘那一侧一个函数（`header-buttons.js` §headerButtonsProblem）。
   if (Array.isArray(p.headerButtons)) {
@@ -2508,8 +2612,8 @@ const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #
  *   改的全是 root 上的值（`changeHeader`），跟 Layout / Customize 两页同一个事务：画布当场跟着变（§withHeaderContent），Done 存一笔、Cancel 全退回。
  *   · Logo —— 同右栏图片格的 Change（`ImageUrlControl`，选图弹窗同一个 `pickImage`）；写 `brand.json` 的 `logoUrl`。
  *   · Website name —— Website settings 面板里那一格的同一个值（`brandName`）。
- *   · Navigation links —— 菜单是从页面推出来的：列表、拖动、显示 / 隐藏的规矩全在 `nav-editor.js`。按钮指向的那一页不列，下面一句灰字点名它；
- *     拖动抄 §StringListControl 的形态（只有把手可拖，输入框里能用鼠标选字）。首页一行：能改名，不能拖、不能隐藏。
+ *   · Navigation links —— #1781：老板自己的一份列表（`headerLinks` = `navigation.json` 的 `header.links`）。一行一项：拖动 · 名字 · Edit · 删除；
+ *     Edit / Add navigation link 开链接弹窗（§NavLinkDialog）。不能存的规矩（名字 / 链接）在 `nav-editor.js` §menuItemProblem。
  *   · Buttons —— #1787：0–3 颗的列表，第 1 颗是主按钮（样子按位置定：实心 · 描边 · 文字链接样）。一行一颗：⋮⋮ 拖动 · 名字 · ✎ Edit · 🗑；
  *     底下 + Add button，到 3 颗变灰。✎ Edit / + Add button 开的是画布上点那颗开的同一个按钮弹窗（§DesignPopover 的序号那一支，
  *     同一个事务）：#1755 的按钮控件，Link Type 四类（没有 Page section，§REGION_LINK_TYPES）+ Button label；
@@ -2519,16 +2623,12 @@ const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #
 function HeaderContent({ props, ui, site, locale }: { props: Record<string, unknown>; ui: EditorUi; site: SiteData; locale: string }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [topDrag, setTopDrag] = useState<number | null>(null);
-  const menu = props.navMenu as NavPanel | undefined;
+  const links = Array.isArray(props.headerLinks) ? (props.headerLinks as MenuItem[]) : null;
   const buttons = Array.isArray(props.headerButtons) ? (props.headerButtons as unknown[]).map(asButtonValue) : null;
   const [btnDrag, setBtnDrag] = useState<number | null>(null);
-  // 主按钮 = 第 1 颗：它指向的那一页不进菜单（同构建，`derive-site.js` 的 ctaSlug）。
-  const ctaHref = buttons && buttons[0] ? pageHrefOf(buttons[0].href) : '';
-  const rows = menu ? panelRows(menu, ctaHref) : [];
-  const shownCount = rows.filter((r) => r.shown).length;
-  const btnPage = menu ? buttonPage(menu, ctaHref) : null;
   const set = (patch: Partial<RootProps>) => ui.changeHeader(patch);
-  const setMenu = (next: NavPanel) => set({ navMenu: next });
+  // #1781 —— Edit / Add 开链接弹窗（§NavLinkDialog）：同一个面板换成弹窗那一页，Done / Cancel 回到这一页。
+  const edit = (focus: string) => ui.openDesign(REGION_DESIGN_ID.header, 'navlink', `${focus}@content`);
   // #1787 —— 按钮列表：改的是 root 的 `headerButtons`（同一个事务）；✎ Edit / + Add button 开画布上点那颗开的同一个按钮弹窗。
   const setButtons = (next: HeaderButtonValue[]) => set({ headerButtons: next });
   const editButton = (i: number) => ui.openDesign(REGION_DESIGN_ID.header, 'button', String(i));
@@ -2593,43 +2693,33 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
           <input data-editor-header-brand="" type="text" value={props.brandName} onChange={(e) => set({ brandName: e.target.value })} style={INPUT_STYLE} />
         </div>
       )}
-      {menu && (
-        <div data-editor-content-field="navMenu" data-editor-header-links="" style={{ marginBottom: 16 }}>
+      {links && (
+        // #1781 —— 菜单是老板自己的一份列表（`navigation.json` 的 `header.links`）：一行一项 ⠿ 拖动 · 名字 · Edit · 删除，首页那一行没有特殊待遇。
+        //   拖动抄 §StringListControl 的形态（只有把手可拖）。改名字 / 链接都在弹窗里（Link Type 四选一 + Link label）。
+        <div data-editor-content-field="headerLinks" data-editor-header-links="" style={{ marginBottom: 16 }}>
           <FieldLabel label="Navigation links" el="div" />
           <p data-editor-header-links-note="" style={HEADER_SUB}>These links also appear in the footer menu.</p>
-          <div data-editor-header-link-row="home" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <span aria-hidden="true" style={{ width: 18 }} />
-            <input data-editor-header-link-input="home" type="text" value={menu.home.label} aria-label="Home page link name"
-              onChange={(e) => setMenu(setLabel(menu, 'home', e.target.value))} style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }} />
-            <span style={{ ...HEADER_SUB, margin: 0, minWidth: 64, textAlign: 'center' }}>Home page</span>
-          </div>
-          {rows.map((r) => {
-            const i = rows.indexOf(r);
-            const draggable = r.shown && shownCount > 1;
+          {links.map((it, i) => {
+            const draggable = links.length > 1;
+            const name = typeof it.label === 'string' && it.label.trim() ? it.label : '(no name)';
             return (
-              <div key={r.slug} data-editor-header-link-row={r.slug} data-editor-header-link-hidden={r.shown ? undefined : ''}
-                onDragOver={(e) => { if (r.shown && dragFrom !== null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
-                onDrop={(e) => { e.preventDefault(); if (dragFrom !== null && r.shown) setMenu(moveShown(menu, ctaHref, dragFrom, i)); setDragFrom(null); }}
+              <div key={i} data-editor-header-link-row={i}
+                onDragOver={(e) => { if (dragFrom !== null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) set({ headerLinks: moveItem(links, dragFrom, i) }); setDragFrom(null); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, opacity: dragFrom === i ? 0.5 : 1 }}>
                 <span data-editor-header-link-handle="" draggable={draggable} aria-hidden="true" title={draggable ? 'Drag to reorder' : undefined}
                   onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }}
                   onDragEnd={() => setDragFrom(null)}
                   style={{ width: 18, cursor: draggable ? 'grab' : 'default', color: draggable ? '#98a2b3' : 'transparent', userSelect: 'none' }}>⋮⋮</span>
-                <input data-editor-header-link-input={r.slug} type="text" value={r.label} disabled={!r.shown} aria-label={`${r.title || r.slug} link name`}
-                  onChange={(e) => setMenu(setLabel(menu, r.slug, e.target.value))}
-                  style={{ ...INPUT_STYLE, flex: 1, minWidth: 0, ...(r.shown ? {} : { color: '#98a2b3', background: '#f9fafb' }) }} />
-                <button type="button" role="switch" aria-checked={r.shown} data-editor-header-link-toggle={r.slug}
-                  onClick={() => setMenu(setShown(menu, ctaHref, r.slug, !r.shown))} style={{ ...HEADER_ROW_BTN, minWidth: 64 }}>
-                  {r.shown ? 'Shown' : 'Hidden'}
-                </button>
+                <span data-editor-header-link-label={i} title={name}
+                  style={{ flex: 1, minWidth: 0, fontSize: 14, color: '#101828', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                <button type="button" data-editor-header-link-edit={i} aria-label={`Edit ${name}`} onClick={() => edit(`nav.${i}`)} style={HEADER_ROW_BTN}>✎ Edit</button>
+                <button type="button" data-editor-header-link-delete={i} aria-label={`Delete ${name}`} title="Delete"
+                  onClick={() => set({ headerLinks: links.filter((_, k) => k !== i) })} style={HEADER_ROW_BTN}>🗑</button>
               </div>
             );
           })}
-          {btnPage && (
-            <p data-editor-header-button-page={btnPage.slug} style={HEADER_SUB}>
-              {`"${btnPage.shown ? btnPage.label : btnPage.title || btnPage.slug}" is the button on the right — edit it under Buttons.`}
-            </p>
-          )}
+          <button type="button" data-editor-header-link-add="" onClick={() => edit('nav.new')} style={{ ...HEADER_ROW_BTN, marginTop: 2 }}>+ Add navigation link</button>
         </div>
       )}
       {buttons && (
@@ -2981,6 +3071,19 @@ function DesignPopover({ doc }: { doc: Document }) {
   // #1755 —— 按钮弹窗：画布上点了一颗按钮（InlineEdit §onClick → `openDesign(id, 'button', 'ctas.1')`）。改的是这一块那一列里的那一项，
   //    每一下经 §changeDesign 整列换掉（不记历史、画布当场变）；Done / Cancel、点外面 / Esc / 撤销键 = Cancel，全跟 Design 面板同一套。
   //    判据取 `designStart`（跟 `design` 同一次 setState 里定），不取 `tab`：`tab` 要等下面那个 effect 才跟上，第一帧会画成 Layout。
+  // #1781 —— 菜单一项的链接弹窗（顶栏那一支的 root 值 `headerLinks`）。两种开法：画布上点菜单某一项（`nav.<i>`，弹窗就是整个面板：
+  //    Done 存一笔、Cancel 全退回，同按钮弹窗）· Content 页的 Edit / Add（带 `@content`：Done 把这一项交回列表、Cancel 不交，都回 Content 页，
+  //    存不存等面板自己的 Done）。
+  if (start && start.tab === 'navlink' && region === 'header' && rootProps) {
+    return createPortal(
+      <div ref={boxRef} data-editor-popover="" data-editor-navlink-dialog="" data-editor-popover-for={id} data-editor-navlink-for={start.focus} role="dialog" aria-label="Navigation link"
+        onClick={halt} onPointerDown={halt} onMouseDown={halt} onPointerUp={halt} onMouseUp={halt} onDoubleClick={halt}
+        {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, ...POPOVER, width: pos ? pos.w : POPOVER_W, bottom: pos ? pos.bottom : -10000, left: pos ? pos.left : 0, transform: `scale(${pos ? pos.scale : 1})`, maxHeight: pos ? pos.maxH : 560, visibility: pos ? 'visible' : 'hidden' }}>
+        <NavLinkDialog key={`${start.n}`} focus={start.focus || ''} links={Array.isArray(rootProps.headerLinks) ? (rootProps.headerLinks as MenuItem[]) : []} ui={ui} site={api.site} locale={api.locale} />
+      </div>,
+      doc.body,
+    );
+  }
   // #1779 / #1787 —— 顶栏的按钮（画布上点它，InlineEdit §onClick → `openRegionButton`；或 Content 页那一行的 ✎ Edit）：改的是 root
   //    `headerButtons` 里的那一颗（`start.focus` = 它的下标），每一下经 §changeHeader 整列换掉，Link Type 只给四类（§REGION_LINK_TYPES）。
   //    Done 走顶栏面板那条（§doneDesign：§headerContentProblem 不过 ⟹ 弹窗留着，下面那一行说为什么）。
@@ -3327,8 +3430,8 @@ function inContentInput(t: EventTarget | null): boolean {
   if (!t || typeof (t as Element).closest !== 'function') return false;
   const el = t as HTMLElement;
   // #1755 —— 按钮弹窗里的 Button label / 网址 / 号码同一条（票正文做什么 7：Ctrl+Z 只撤框里的字，不关弹窗）。
-  // #1757 —— AI 页的输入框同一条（正文做什么 8）。
-  if (!el.closest('[data-editor-design-content], [data-editor-button-dialog], [data-editor-design-ai]')) return false;
+  // #1757 —— AI 页的输入框同一条（正文做什么 8）。#1781 —— 菜单链接弹窗里的 Link label / 网址 / 号码同一条。
+  if (!el.closest('[data-editor-design-content], [data-editor-button-dialog], [data-editor-navlink-dialog], [data-editor-design-ai]')) return false;
   return el.tagName === 'TEXTAREA' || el.isContentEditable
     || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image', 'hidden'].includes((el as HTMLInputElement).type));
 }
@@ -3390,8 +3493,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
   const movedRef = useRef<Set<string>>(new Set());
   // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「还有没有要存的」要跟它比，不跟打开时比）。
   // #1676 —— `aiUsed` / `dragged`：这一笔的记录用掉了哪几条 AI 说明、前几次拖动 —— 存上了才清（被拒就留到下一笔）。
-  // #1759 —— `navMenu` / `navPage`：这一笔交了菜单改动时，交出去那一刻的面板菜单和这一页那两格（成功后比较基准换成它，§onMessage `saved`）。
-  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null; forms?: FormCopyEdit | null; aiUsed?: AiNote[]; dragged?: number; navMenu?: NavPanel; navPage?: NavChange | null } | null>(null);
+  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null; forms?: FormCopyEdit | null; aiUsed?: AiNote[]; dragged?: number } | null>(null);
   // #1676 —— 记录说人话要的两样（`editor-convert.js` §describeSave）：AI 按钮改过哪几格（§recordAiNote，作废规矩在那份文件里）、
   // 老板拖过哪几块（块键，最后拖的在最后；相邻两块对调时据它说是谁动了）。换一份新画布时跟 movedRef 一起清。
   const aiNotesRef = useRef<AiNotes>({});
@@ -3542,7 +3644,6 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         raw?: unknown; siteBlocks?: unknown; blocks?: unknown; located?: unknown; weights?: unknown; refs?: unknown; slugs?: unknown;
         root?: unknown;
         industry?: unknown; // #1711 —— dashboard 带来的行业（选图弹窗 Generate 的默认提示词）
-        nav?: unknown; // #1759 —— 顶栏 Content 页的菜单（站里 `editor-nav.js` §navMenuOf，盘上现值）
       };
       if (!d || typeof d !== 'object') return;
       if (d.type === 'ai1st:editor-save-result') {
@@ -3664,12 +3765,10 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         if (d.hash !== undefined && !hashOk) return;
         const b = baseRef.current;
         const sent = sendingRef.current;
-        // #1759 —— 菜单那一半进了文件：比较基准换成交出去那一刻的面板菜单；这一页的 navLabel / navOrder 也写进 `raw`
-        //    （§puckToPage 从 raw 起算 —— 不换的话下一笔会把这一页的菜单名字悄悄改回去）。
-        const initial = sent?.root || sent?.navMenu
-          ? { ...b.initial, root: { ...b.initial.root, props: { ...(b.initial.root?.props || {}), ...(sent.root || {}), ...(sent.navMenu ? { navMenu: sent.navMenu } : {}) } } }
+        const initial = sent?.root
+          ? { ...b.initial, root: { ...b.initial.root, props: { ...(b.initial.root?.props || {}), ...sent.root } } }
           : b.initial;
-        const raw = sent?.navPage ? applyPageNav(b.raw, sent.navPage) : b.raw;
+        const raw = b.raw;
         const lib = sent?.shared ? applySharedChanges(b.siteBlocks, sent.shared, page) as Record<string, unknown> : b.siteBlocks;
         const sharedOwn = sent?.shared ? sharedOwnAfter({ initial: b.initial, own: b.sharedOwn, changes: sent.shared }) : b.sharedOwn;
         baseRef.current = { ...b, raw, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved, siteBlocks: lib, sharedOwn };
@@ -3726,7 +3825,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       // #1452 —— 刚打开（`open`）时换成底稿带来的**盘上现值**（§openRoot）：#1412 起存盘不重建，构建烤进来的那份
       // 在下一次发布前都是旧的 ⟹ 换页 / 关掉重开之后，存过的外壳改动在右栏和画布上都「不见」。
       // `external` / `ai` 不换：那两支问的是「这一页的页面块」，手上的比较基准就是这个 iframe 里存下去的那份。
-      next = { ...next, root: d.reason === 'open' ? openRoot(baseRef.current.initial.root, d.root, locale, d.nav) : baseRef.current.initial.root };
+      next = { ...next, root: d.reason === 'open' ? openRoot(baseRef.current.initial.root, d.root) : baseRef.current.initial.root };
       const g = getPuckRef.current ? getPuckRef.current() : null;
       // #1410 —— 历史里每一条快照的共用块换成新底稿里的那一块（它们的字不归撤销管；不换的话撤销一步，画布上
       // 共用块退回旧字，而网站上是新字）。`ai` 和 `external`（含聊天里的 git 回退）都要做。
@@ -3831,24 +3930,15 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     // 每存成功一次就换成刚存下去的值，道理同上）。页面块没改就不交页面：不然一次只改公告条的存盘也要带着
     // 页面底稿去比 baseHash，别处刚改过这一页时它会被无端拒掉。
     const root = puckRootChanges({ initial: base.initial, now: data as never, schema });
-    // #1759 —— 菜单：跟打开时（存过就是存下去的那份）的面板菜单比。别的页进 `nav`；这一页的 navLabel / navOrder 并进这一页的 JSON
-    //    （同一个文件不许两条路各写一份，`lib/editor-nav.js` 文件头）。
-    const navNow = ((data as { root?: { props?: RootProps } }).root?.props || {}).navMenu;
-    const navCh = navMenuChanges({ initial: ((base.initial.root as { props?: RootProps } | undefined)?.props || {}).navMenu, now: navNow, slug: page });
-    const json = applyPageNav(jsonBlocks, navCh.page);
-    const nav = navCh.nav;
-    const hasNav = Object.keys(nav).length > 0;
-    const navChanged = hasNav || !!navCh.page;
+    const json = jsonBlocks;
     const pageChanged = !deepEqual(json, base.saved);
     const hasShared = Object.keys(shared).length > 0;
     // #1634 —— 面板里 Done 了、还没交出去的表单文案：它自己就算一笔（只改表单的那一笔不带页面）。
     const forms = pendingFormRef.current;
-    if (!pageChanged && Object.keys(root).length === 0 && !hasShared && !forms && !hasNav) return null;
+    if (!pageChanged && Object.keys(root).length === 0 && !hasShared && !forms) return null;
     // #1676 —— 画布上 AI 写的那几格还在不在（后来手改过的说明不用）。
     const { aiNotes, used: aiUsed } = aiNotesForSave(aiNotesRef.current, (data as { content?: unknown[] }).content || []);
-    // #1759 —— 记录里说「页面改了什么」只看块那一半（这一页的 navLabel / navOrder 归菜单那一句说，§saveFields）。
-    const blocksChanged = !deepEqual(withoutNav(jsonBlocks), withoutNav(base.saved));
-    return { base, json, shared, root, pageChanged, blocksChanged, hasShared, forms, nav, hasNav, navChanged, navMenu: navNow, navPage: navCh.page, aiNotes, aiUsed, dragged: draggedRef.current.slice() };
+    return { base, json, shared, root, pageChanged, hasShared, forms, aiNotes, aiUsed, dragged: draggedRef.current.slice() };
   }
 
   /**
@@ -3880,7 +3970,6 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     setStatus({ kind: 'saving', text: 'Saving…' });
     sendingRef.current = {
       json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null, forms: forms || null, aiUsed: plan.aiUsed, dragged: plan.dragged.length,
-      ...(plan.navChanged ? { navMenu: plan.navMenu, navPage: plan.navPage } : {}),
     };
     window.parent.postMessage({ type: 'ai1st:editor-save', ...saveFields(plan) }, trustedOrigin);
     reportPending(null);
@@ -3889,20 +3978,17 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
 
   /** 一笔存盘消息的正文（`ai1st:editor-save` 与 §reportPending 递的待存那份同一个形状）。 */
   function saveFields(plan: NonNullable<ReturnType<typeof planSave>>): Record<string, unknown> {
-    const { base, json, shared, root, pageChanged, blocksChanged, hasShared, forms, nav, hasNav, navChanged, aiNotes, dragged } = plan;
+    const { base, json, shared, root, pageChanged, hasShared, forms, aiNotes, dragged } = plan;
     // #1454 —— 这一笔说人话，manager 拿它写 AI chat 里那条手改记录。🔴 算不出来也照存：它只是说明，不是存盘的一部分。
     let summary = '';
     // #1634 —— 只改了表单文案的那一笔没有页面 / 外壳 / 共用块可说：describeSave 会回一句通用话，那句不要。
-    // #1759 —— 只改了这一页的 navLabel / navOrder（菜单）同理：页面那一半不交给 describeSave，菜单那一句下面补。
-    if ((pageChanged && blocksChanged) || Object.keys(root).length || hasShared) try {
+    if (pageChanged || Object.keys(root).length || hasShared) try {
       summary = describeSave({
-        saved: base.saved, json: pageChanged && blocksChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
+        saved: base.saved, json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
         schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_SAVE_LABELS, shapeLabel: SHAPE_FIELD_LABEL, aiNotes, dragged, slug: page,
         rootBefore: (base.initial.root as { props?: Record<string, unknown> } | undefined)?.props,
       });
     } catch { /* 记录退回 manager 那句通用话 */ }
-    // #1759 —— 菜单改了：`Header · Navigation links`（票正文做什么 5）。
-    if (navChanged) summary = summary ? `${summary}; ${NAV_SAVE_LABEL}` : NAV_SAVE_LABEL;
     // #1634 —— 改了表单文案：说一句是哪张表单（只改了表单时它就是这一笔的全部说明）。
     if (forms) {
       const f = formList.find((x) => x.id === forms.id);
@@ -3917,7 +4003,6 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
       ...(Object.keys(root).length ? { root } : {}),
       ...(hasShared ? { shared } : {}),
       ...(forms ? { forms } : {}),
-      ...(hasNav ? { nav } : {}),
       ...(summary ? { summary } : {}),
     };
   }
@@ -3940,7 +4025,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     const dirty = !!plan;
     const why = dirty ? holdReason() : '';
     const paused = !!why;
-    const key = `${dirty}|${why}|${plan ? JSON.stringify(plan.json) + JSON.stringify(plan.root) + JSON.stringify(plan.shared) + JSON.stringify(plan.nav) + plan.base.hash : ''}`;
+    const key = `${dirty}|${why}|${plan ? JSON.stringify(plan.json) + JSON.stringify(plan.root) + JSON.stringify(plan.shared) + plan.base.hash : ''}`;
     if (key === pendingKeyRef.current) return;
     pendingKeyRef.current = key;
     window.parent.postMessage({ type: 'ai1st:editor-pending', dirty, paused, ...(why ? { why } : {}), ...(plan && !paused ? { save: saveFields(plan) } : {}) }, trustedOrigin);

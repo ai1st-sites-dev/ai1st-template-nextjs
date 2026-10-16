@@ -22,7 +22,7 @@ const fs = require('fs');
 const path = require('path');
 
 const mod = require('./navigation-owned.js');
-const { OWNED, SIDE_EFFECTS, NAV_SHAPE, navigationEditRejection, buildOwnedChanges } = mod;
+const { OWNED, MERGED, SIDE_EFFECTS, NAV_SHAPE, navigationEditRejection, buildOwnedChanges } = mod;
 const { writeRejection, writeNotes } = require('./editable-files.js');
 
 let pass = 0, fail = 0;
@@ -39,12 +39,13 @@ const TEMPLATE_ROOT = path.join(__dirname, '..', '..');
 const SYNC_CONFIG = path.join(TEMPLATE_ROOT, 'scripts', 'derive-site.js');
 // #1759 —— 菜单那条规则（`p.navLabel` 才进、顶栏去掉 `p.slug !== ctaSlug` 那一页）从 derive-site.js 原样搬进了
 //    `lib/nav-menu.js`（编辑器预览要同一份）。⑨ / ⑭ 钉的是「这句话描述的耦合在构建代码里还在」⟹ 构建代码 = derive-site.js
-//    + 它为这条规则调用的 nav-menu.js。🔴 只有 derive-site.js 里真的调了 `navMenu.menuLinks(` 才把 nav-menu.js 算进来 ——
-//    不调的话那份文件里的过滤不是构建的规则，算进来就成了恒绿。
+//    + 它为这条规则调用的 nav-menu.js。🔴 只有 derive-site.js 里真的调了 `navMenu.syncMenu(`（#1781 起；之前是 `menuLinks(`）
+//    才把 nav-menu.js 算进来 —— 不调的话那份文件里的过滤不是构建的规则，算进来就成了恒绿。#1781 删了「去掉按钮那一页」那条过滤。
 const NAV_MENU = path.join(TEMPLATE_ROOT, 'scripts', 'lib', 'nav-menu.js');
 function buildRuleSource() {
   const derive = fs.readFileSync(SYNC_CONFIG, 'utf-8');
-  return derive.includes('navMenu.menuLinks(') ? `${derive}\n${fs.readFileSync(NAV_MENU, 'utf-8')}` : derive;
+  // #1781 —— 构建调的是 `navMenu.syncMenu(`（菜单那条规则 + 只合并的那几句都在 nav-menu.js 里）。
+  return derive.includes('navMenu.syncMenu(') ? `${derive}\n${fs.readFileSync(NAV_MENU, 'utf-8')}` : derive;
 }
 // ⑩ 的判据源头：渲染那一侧是按这个 interface 写的（#1665 之前 tsc 还会经 src/lib/config.ts 的 cast 拿它去量构建生成的那份数据）。
 const TYPES_FILE = path.join(TEMPLATE_ROOT, 'src', 'lib', 'types', 'config.ts');
@@ -84,6 +85,16 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
     // #1108 关心的那条路：topbar 内容今天没有别的通道能加。它构建不碰 ⟹ 按本票的判据自然放行。
     ['加一段 topbar 内容', (n) => { n.topbar = { message: '24/7 emergency service', link: { label: 'Call', href: '/contact' } }; }],
     ['什么都没改（空写入不该被拦）', () => {}],
+    // #1781 —— 菜单是老板自己的一份列表了：改字、加一项、换顺序、清空、指向电话，都写得进去。
+    ['改菜单链接的文字', (n) => { n.header.links[1].label = 'Our Story'; }],
+    ['给菜单加一条外部链接', (n) => { n.header.links.push({ label: 'Order online', href: 'https://example.com' }); }],
+    ['菜单换顺序', (n) => { n.header.links.reverse(); }],
+    ['菜单清空', (n) => { n.header.links = []; }],
+    ['菜单里加一项拨本店电话（引用写法）', (n) => { n.header.links.push({ label: 'Call us', href: { source: 'phone' } }); }],
+    ['菜单和页脚第一列一起改成同一份（模型把两处都写对了）', (n) => {
+      n.header.links = [{ label: 'Home', href: '/' }, { label: 'Reach us', href: '/contact' }];
+      n.footer.columns[0].links = clone(n.header.links);
+    }],
   ];
   const wrong = [];
   for (const [name, mutate] of CASES) {
@@ -103,12 +114,11 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
 // 🔴 每一格配一个「理由里必须出现的词」。只断言「被拒了」的话，把理由换成 Invalid path 也照样绿，
 //    而本票跟 #1087 同一条纪律：拒的理由不说清真相，模型就会替老板编一个不存在的后台页。
 {
+  // #1781 —— 菜单本身（`header.links`）不在这里了（① 那几格）。页脚第一列是构建从菜单抄的：改得跟菜单不一样才拒，理由点名去改 header.links。
   const CASES = [
-    ['改菜单链接的文字', (n) => { n.header.links[1].label = 'Our Story'; }, 'navLabel'],
-    ['给菜单加一条', (n) => { n.header.links.push({ label: 'Blog', href: '/blog' }); }, 'navLabel'],
-    ['菜单换顺序', (n) => { n.header.links.reverse(); }, 'navOrder'],
-    ['菜单清空', (n) => { n.header.links = []; }, 'header.links'],
-    ['改第一栏页脚的链接', (n) => { n.footer.columns[0].links[0].label = 'Start here'; }, 'footer.columns[0].links'],
+    ['改第一栏页脚的链接（跟菜单不一样）', (n) => { n.footer.columns[0].links[0].label = 'Start here'; }, 'header.links'],
+    ['页脚第一列另写一份、菜单没动', (n) => { n.footer.columns[0].links = [{ label: 'Blog', href: '/blog' }]; }, 'footer.columns[0].links'],
+    ['改构建记着的页面清单', (n) => { n.header.knownPages = ['about']; }, 'header.knownPages'],
     ['加一栏页脚', (n) => { n.footer.columns.push({ title: 'X', links: [] }); }, 'footer.columns'],
     ['删一栏页脚', (n) => { n.footer.columns.pop(); }, 'footer.columns'],
   ];
@@ -121,11 +131,19 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
     else if (!String(why).includes(needle)) problems.push(`${name} → 拒了，但理由里没有 "${needle}"：${String(why).split('\n')[0]}`);
   }
   // 拒绝理由还必须告诉模型这里【能】改什么 —— 否则它只知道不许干什么，就又去说「改不了」。
-  const why = tryWrite('navigation.json', (() => { const n = clone(BASE); n.header.links = []; return n; })());
+  const why = tryWrite('navigation.json', (() => { const n = clone(BASE); n.footer.columns[0].links = []; return n; })());
   for (const needle of ['header.buttons', 'footer copyright', 'Nothing was written']) {
     if (!String(why).includes(needle)) problems.push(`拒绝理由里没有 "${needle}"`);
   }
-  if (problems.length === 0) ok(`构建会重写的那几处：${CASES.length} 种改法全部被拒，理由点名了去改 navLabel / navOrder，也说了这里能改什么`);
+  // #1781 —— 菜单那一项的 href 只能是地址或电话 / 邮箱引用：别的形状构建画不出能点的地址，拒（形状那一关，§menuLinkProblems）。
+  for (const [name, href] of [['不认识的 source', { source: 'address' }], ['数字', 5], ['引用带多余的键', { source: 'phone', x: 1 }]]) {
+    const n = clone(BASE);
+    n.header.links.push({ label: 'X', href });
+    const w = tryWrite('en/navigation.json', n);
+    if (w === null) problems.push(`菜单项 href 是${name} → 竟然放行了`);
+    else if (!String(w).includes('header.links[2].href')) problems.push(`菜单项 href 是${name} → 拒了，但没点名 header.links[2].href：${String(w).split('\n')[0]}`);
+  }
+  if (problems.length === 0) ok(`构建会重写的那几处：${CASES.length} 种改法全部被拒，理由点名了去改哪儿，也说了这里能改什么；菜单项 href 的 3 种坏形状也拒`);
   else problems.forEach(bad);
 }
 
@@ -135,7 +153,10 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
   if (found.unavailable) die(`③ ${found.unavailable}`);      // 读不出来 ≠ 对得上
   if (found.paths.length === 0) die('③ 在 sync-config.js 里一个写进 navigation.json 的位置都没解析到 —— 这不是「对得上」，这是什么都没查');
 
-  const declared = OWNED.map((o) => o.syncConfigWrite).sort();
+  // #1781 —— 构建写进 navigation.json 的每一处，要么在 OWNED（会被覆盖 ⟹ 拒），要么在 MERGED（只合并 ⟹ 放行），恰好一处。
+  const both = OWNED.filter((o) => MERGED.some((m) => m.syncConfigWrite === o.syncConfigWrite));
+  if (both.length) bad(`③ 这几处同时登记在 OWNED 和 MERGED 里：${both.map((o) => o.syncConfigWrite).join(' · ')} —— 拒还是放，只能是一个答案`);
+  const declared = [...OWNED, ...MERGED].map((o) => o.syncConfigWrite).sort();
   const actual = found.paths.slice().sort();
   const onlyDeclared = declared.filter((d) => !actual.includes(d));
   const onlyActual = actual.filter((a) => !declared.includes(a));
@@ -176,6 +197,8 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
         ['先取别名再改',        `  const qaAlias = ${V}.footer; qaAlias.description = 'x';`,            'cantTell'],
         ['delete',              `  delete ${V}.footer.copyright;`,                                      'path:footer.copyright'],
         ['传给不认识的函数',    `  qaHelper(${V}.footer);`,                                             'cantTell'],
+        // #1781 —— 「放进对象字面量再传出去」只对 §PURE_CALLEES 算只读：换一个不认识的函数名，同一种写法必须说不出来。
+        ['对象字面量传给不认识的函数', `  qaHelper({ links: ${V}.header.links });`,                     'cantTell'],
       ];
       const problems = [];
       for (const [name, line, expect] of SHAPES) {
@@ -198,7 +221,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
         }
       }
       if (problems.length === 0) {
-        ok(`③ 阳性对照：${SHAPES.length} 种写法（直接赋值 · Object.assign 目标 · 取别名 · delete · 传给不认识的函数）`
+        ok(`③ 阳性对照：${SHAPES.length} 种写法（直接赋值 · Object.assign 目标 · 取别名 · delete · 传给不认识的函数 · 对象字面量传给不认识的函数）`
           + '每一种这把尺子都有反应 —— 前四种里能定位的报出位置，认不出的说不出来（所以上面那格的绿是活的）');
       } else {
         problems.forEach((m) => bad(`③ 阳性对照失败：${m} —— 这把尺子对这种写法是盲的，上面那格的绿不作数`));
@@ -347,9 +370,9 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
 {
   // buildOwnedChanges 恒空（判断坏了）会让 ② 全红；恒非空会让 ① 全红。这里再直接钉一次两向。
   const same = buildOwnedChanges(clone(BASE), clone(BASE));
-  const diff = buildOwnedChanges((() => { const n = clone(BASE); n.header.links = []; return n; })(), BASE);
-  if (same.length === 0 && diff.length > 0) ok('⑧ 差异判断两向都活着（同一份 = 0 处不同 · 动了菜单 = 有不同）');
-  else bad(`⑧ 差异判断坏了：同一份算出 ${same.length} 处不同、动了菜单算出 ${diff.length} 处不同`);
+  const diff = buildOwnedChanges((() => { const n = clone(BASE); n.footer.columns[0].links = []; return n; })(), BASE);
+  if (same.length === 0 && diff.length > 0) ok('⑧ 差异判断两向都活着（同一份 = 0 处不同 · 动了页脚第一列 = 有不同）');
+  else bad(`⑧ 差异判断坏了：同一份算出 ${same.length} 处不同、动了页脚第一列算出 ${diff.length} 处不同`);
 }
 
 /**
@@ -378,15 +401,9 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
   const onlyLabel = notesVia(nav((n) => { n.header.buttons[0].label = 'Book Now'; }));
   if (onlyLabel.length !== 0) problems.push(`只改按钮文字不该有附带说明，实际有 ${onlyLabel.length} 句`);
 
+  // #1781 —— 改按钮链接不再让菜单跟着变（构建不再从菜单里去掉按钮那一页）⟹ 不许再说那句「菜单也会变」。
   const hrefChanged = notesVia(nav((n) => { n.header.buttons[0].href = '/about'; n.header.buttons[0].label = 'Read Our Story'; }));
-  if (hrefChanged.length !== 1) {
-    problems.push(`改了按钮链接应当带 1 句附带说明，实际 ${hrefChanged.length} 句`);
-  } else {
-    const text = hrefChanged[0];
-    for (const needle of ['/about', BASE.header.buttons[0].href, 'top menu']) {
-      if (!text.includes(needle)) problems.push(`那句附带说明里没有 "${needle}"（它必须点名改前改后是哪两页）`);
-    }
-  }
+  if (hrefChanged.length !== 0) problems.push(`改了按钮链接不该再有附带说明（#1781 删了那条耦合），实际 ${hrefChanged.length} 句：${hrefChanged[0]}`);
 
   // 🔴 它是【说明】不是【拒绝】：同一次编辑必须照常放行，否则本票就白做了。
   const stillAllowed = writeRejection('en/navigation.json', {
@@ -396,7 +413,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
   if (stillAllowed !== null) problems.push(`改按钮链接被拒了（本票要它能改）：${stillAllowed}`);
 
   if (problems.length === 0) {
-    ok('⑨ 改按钮链接：照常放行，并且回话里带上「菜单也会跟着变」这句实话；只改文字时不多话');
+    ok('⑨ 改按钮链接：照常放行，不再附带「菜单也会跟着变」（#1781 起那是假话）；只改文字时也不多话');
   } else problems.forEach(bad);
 }
 
@@ -417,16 +434,46 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
       + `（${SIDE_EFFECTS.flatMap((e) => e.coupling).map((c) => `\`${c}\``).join(' · ')}）`);
   } else problems.forEach(bad);
 
-  // 反向对照：把那个过滤拿掉，这一格必须红 —— 否则它只是一句恒真的话。
-  const filter = SIDE_EFFECTS[0].coupling[1];
-  if (!src.includes(filter)) {
-    bad('⑨ 反向对照立不起来：源码里找不到那个过滤');
-  } else {
-    const doctored = src.split(filter).join('true /* qa removed */');
-    const missing = SIDE_EFFECTS[0].coupling.filter((n) => !doctored.includes(n));
-    if (missing.length) ok('⑨ 反向对照：把那个过滤从源码里拿掉，这一格当场红（所以上面那格不是恒绿）');
-    else bad('⑨ 反向对照失败：过滤拿掉了这一格照样绿 —— 这句话没有真的被钉在代码上');
+  // #1781 —— SIDE_EFFECTS 今天是空的（唯一那条随菜单过滤一起删了）。反过来钉一次：那条过滤真的不在构建代码里了 ——
+  //    有人把 `p.slug !== ctaSlug` 加回来，菜单又会跟着按钮变，而这道门一句话都不说（就是 #1104 r2 治过的那件事）。
+  if (SIDE_EFFECTS.length === 0) {
+    // 先剥注释（文件头里讲这条过滤为什么删了的那几句不算代码）。
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/[^\n'`"]*$/gm, '');
+    if (/slug\s*!==\s*ctaSlug/.test(code)) bad('⑨ 构建代码里又出现了「菜单去掉按钮那一页」的过滤，而 SIDE_EFFECTS 是空的 —— 改按钮链接会悄悄改菜单，得把那句附带说明加回来');
+    else ok('⑨ 反向：构建代码里没有「菜单去掉按钮那一页」的过滤，所以 SIDE_EFFECTS 空着是真话');
   }
+}
+
+// ── ③b #1781：§PURE_CALLEES 的前提 —— `nav-menu.js` §syncMenu 真的不改入参；MERGED 那句「只合并」在真代码里 ──────────────
+{
+  const { syncMenu } = require('./nav-menu.js');
+  const deepFreeze = (o) => { if (o && typeof o === 'object') { Object.freeze(o); Object.values(o).forEach(deepFreeze); } return o; };
+  const problems = [];
+  const CASES = [
+    ['还没有菜单', { links: undefined, knownPages: undefined }],
+    ['有菜单、没有 knownPages', { links: [{ label: 'Home', href: '/' }, { label: 'About', href: '/about' }], knownPages: undefined }],
+    ['加一页、删一页', { links: [{ label: 'Home', href: '/' }, { label: 'Old', href: '/old' }, { label: 'Call', href: { source: 'phone' } }], knownPages: ['old', 'about'] }],
+  ];
+  for (const [name, inp] of CASES) {
+    const before = JSON.stringify(inp);
+    const arg = deepFreeze({ ...JSON.parse(before), homeLabel: 'Home', regular: [{ slug: 'about', navLabel: 'About' }, { slug: 'faq', title: 'FAQ' }] });
+    try {
+      const out = syncMenu(arg);
+      if (out.links === arg.links) problems.push(`${name}：回的 links 就是传进来的那个数组（调用方再改它就改到了 navigation.json 的原值）`);
+    } catch (e) {
+      problems.push(`${name}：入参冻住之后抛了 —— 它在改入参（${e.message}）`);
+    }
+  }
+  // 反向对照：一个会改入参的版本，这一格的判法必须抓得到（冻住的对象被改 ⟹ 严格模式下抛）。
+  let caught = false;
+  try { (function () { 'use strict'; const a = deepFreeze({ links: [{ label: 'x', href: '/' }] }); a.links.push({}); }()); } catch { caught = true; }
+  if (!caught) problems.push('反向对照立不起来：冻住的数组 push 竟然没抛 —— 这一格的判法量不到「改入参」');
+  for (const m of MERGED) {
+    const src = buildRuleSource();
+    for (const needle of m.mergedBy) if (!src.includes(needle)) problems.push(`MERGED \`${m.key}\` 那句「只合并」靠的 \`${needle}\` 在构建代码里找不到了`);
+  }
+  if (problems.length === 0) ok(`③b §syncMenu 入参冻住跑 ${CASES.length} 种情形都不改入参（所以 ③ 把「传给它」算只读成立）；MERGED 各项「只合并」那几句都在构建代码里`);
+  else problems.forEach((m) => bad(`③b ${m}`));
 }
 
 function navWritesInSyncConfig(file) {
@@ -451,6 +498,17 @@ function navWritesInSyncConfig(file) {
     'findIndex', 'some', 'every', 'reduce', 'flat', 'flatMap', 'at', 'keys', 'values', 'entries',
     'hasOwnProperty',
   ]);
+
+  // #1781 —— 确定不改入参的那几个函数（`existingNav` 的值当参数传给它们 = 只读）。🔴 白名单，而且**每一个都要有一格真驱动**
+  //    证明它不改入参（下面 ③ 那一格「§syncMenu 不改入参」）—— 只在这里加一个名字、不加那一格，就是把一个没量过的函数当成只读。
+  const PURE_CALLEES = new Set(['navMenu.syncMenu']);
+  /** `node` 是不是直接、或作为对象字面量的一个属性值，传给了 §PURE_CALLEES 里的函数。 */
+  const passedToPure = (node) => {
+    let arg = node;
+    if (ts.isPropertyAssignment(arg.parent) && arg.parent.initializer === arg && ts.isObjectLiteralExpression(arg.parent.parent)) arg = arg.parent.parent;
+    const call = arg.parent;
+    return !!call && ts.isCallExpression(call) && call.arguments.includes(arg) && PURE_CALLEES.has(call.expression.getText());
+  };
 
   /** 一条 `a.b[0].c` 链的根标识符 + 相对根的位置文本；不是这种链就返回 null。 */
   const chain = (node) => {
@@ -552,6 +610,8 @@ function navWritesInSyncConfig(file) {
       cantTell.push({ line: lineOf(node), why: `方法 \`${m}\` 不在「确定只读」那张白名单里`, text: snippet(node) });
       return;
     }
+    // #1781 —— 传给确定不改入参的函数（§PURE_CALLEES）：只读
+    if (passedToPure(node)) return;
     // 当参数传出去
     if (ts.isCallExpression(p) && p.arguments.includes(node)) {
       const callee = p.expression.getText();
@@ -659,6 +719,8 @@ function navWritesInSyncConfig(file) {
       // #1779 —— 顶栏按钮的 href 退回只收字符串：门这一头还放行引用 ⟹ 必须报不同。
       ['按钮 href 退回成 string', (s) => s.replace('export interface HeaderButton {\n  label: string;\n  href: string | ContactRef;', 'export interface HeaderButton {\n  label: string;\n  href: string;'), 'differs'],
       ['换成认不出的类型',    (s) => s.replace('export interface FooterColumn {\n  title: string;', 'export interface FooterColumn {\n  title: number;'), 'cantTell'],
+      // #1781 —— 菜单项的 href 从「什么都收」收窄回 string：这把尺子必须看得见（不然 NAV_SHAPE 的 any 跟类型漂开没人知道）。
+      ['菜单项 href 从 unknown 改回 string', (s) => s.replace('export interface MenuLink {\n  label: string;\n  href: unknown;', 'export interface MenuLink {\n  label: string;\n  href: string;'), 'differs'],
       // 🔴 #1104 r4（QA1 的 ⑩）：`extends` 是「往那个 interface 里加一个必需字段」的一种很普通的写法，
       //    而继承来的成员【不在】 `decl.members` 里。这两格之前都是**静默绿** —— 解析到的处数改前改后
       //    逐字相同，而那个类型下站里那份 navigation.json 会让 `src/lib/config.ts` 那句 cast 报 TS2352。
@@ -695,7 +757,7 @@ function navWritesInSyncConfig(file) {
       }
     }
     if (problems.length === 0) {
-      ok(`⑩ 阳性对照：${SHAPES.length} 种漂（加字段 · 必需↔可选两向 · 删字段 · 跨类型引用 · 按钮 href 退回 string · 换成认不出的类型 · extends 两处 · 声明合并）`
+      ok(`⑩ 阳性对照：${SHAPES.length} 种漂（加字段 · 必需↔可选两向 · 删字段 · 跨类型引用 · 按钮 href 退回 string · 换成认不出的类型 · unknown 收窄 · extends 两处 · 声明合并）`
         + '每一种这把尺子都有反应 —— 认得出的报不同，认不出的说不出来（所以上面那格的绿是活的）');
     } else {
       problems.forEach((m) => bad(`⑩ 阳性对照失败：${m} —— 上面那格的绿不作数`));
@@ -952,11 +1014,10 @@ console.log('\n⑱ 陌生键那句话排在 side-effect 那几句的最前面');
 {
   const next = clone(BASE);
   next.footer.extra = 'x';                       // 制造一个陌生键 ⟹ 那句话必须出现
-  // 🔴 第二类的话必须真的被触发。`SIDE_EFFECTS` 今天只有一条,它读的是主按钮的 href（#1787 起是 `header.buttons[0].href`）
-  //    (自己核:`node -e "console.log(require('./navigation-owned.js').SIDE_EFFECTS.length)"`)——
-  //    所以这里改的是它,不是版权。我第一版改版权,这一格当场打「只有那一句」并红:夹具立不起来
-  //    跟顺序反了长得不一样,这一格分得开,而那正是它该有的样子。
-  next.header.buttons[0].href = '/quote';               // 触发那一条 side effect ⟹ 第二类的话也必须出现
+  // 🔴 第二类的话必须真的被触发。#1781 之前触发它的是 `SIDE_EFFECTS` 那一条（改 `header.cta.href`），
+  //    那条随菜单过滤一起删了（`SIDE_EFFECTS` 今天是空的）⟹ 换成 PAGE_READS 那一类：页脚栏目标题今天没有任何样式画它
+  //    （`renderedBy: []`），改它必然带一句「改了但看不见」。夹具立不起来时下面打「只有那一句」，跟顺序反了长得不一样。
+  next.footer.columns[1].title = 'Roofing';      // 触发「看不见」那一句 ⟹ 第二类的话也必须出现
   const said = mod.navigationEditSideEffects(next, clone(BASE), true);
   const isUndeclared = (l) => l.includes('still in the copy that was just written');
   const iUnd = said.findIndex(isUndeclared);
@@ -964,7 +1025,7 @@ console.log('\n⑱ 陌生键那句话排在 side-effect 那几句的最前面');
   if (iUnd < 0) {
     bad('⑱ 立不起来：造了陌生键却没有那句话 —— 这一格量不到顺序');
   } else if (iOther < 0) {
-    bad('⑱ 立不起来：只有那一句，没有第二类的话 —— 顺序无从判（去看 SIDE_EFFECTS 还认不认改版权这件事）');
+    bad('⑱ 立不起来：只有那一句，没有第二类的话 —— 顺序无从判（去看 PAGE_READS 里 footer.columns[].title 还是不是 renderedBy: []）');
   } else if (iUnd < iOther) {
     ok(`⑱ 陌生键那句排在第 ${iUnd + 1} 句，第一条 side-effect 排在第 ${iOther + 1} 句 ⟹ 顺序对`
       + `（共 ${said.length} 句）`);
@@ -1067,6 +1128,8 @@ function navShapeFromTypes(file) {
       return fromMembers(members, at, seen.concat(name));
     }
     if (node.kind === ts.SyntaxKind.StringKeyword) return { kind: 'string' };
+    // #1781 —— `unknown` = 这一格什么值都收（菜单项的 href：字符串或电话 / 邮箱引用），对应 NAV_SHAPE 的 `any`。
+    if (node.kind === ts.SyntaxKind.UnknownKeyword) return { kind: 'any' };
     // #1779 —— 顶栏按钮的 href：`string | ContactRef` 就是 NAV_SHAPE 的 `buttonHref`（字符串或按钮那几个源的引用）。
     //    只认这一种并集，别的并集照旧说不出来；`ContactRef` 里面的形状由 `item-sources.js` §refProblemsAt 判，不在这把尺子上。
     if (ts.isUnionTypeNode(node) && node.types.length === 2
@@ -1289,28 +1352,27 @@ function flattenShape(shape, at = '', out = []) {
     }
   }
 
-  // ③ 反过来：改菜单链接时那两个词**必须**在（别为了治 ② 把真话也删了）
+  // ③ #1781：页脚第一列是菜单的一份拷贝 —— 改得跟菜单不一样被拒时，补救办法是去改 header.links（照做就真的变）。
+  //    navLabel / navOrder 对它不再是真话（菜单不从页面推了），出现就是新的假补救办法；keyword pages 是另一处的来源。
   {
     const next = clone(BASE);
-    next.header.links[1].label = 'Our Story';
+    next.footer.columns[0].links[0].label = 'Start here';
     const why = String(tryWrite('en/navigation.json', next));
-    for (const truth of ['navLabel', 'navOrder']) {
-      if (!why.includes(truth)) problems.push(`⑭ 改菜单链接的拒绝理由里没有 "${truth}"，而对这一处它是真话`);
-    }
-    if (why.includes('keyword pages')) {
-      problems.push('⑭ 改菜单链接的拒绝理由里混进了「keyword pages」—— 那是另一处的来源');
+    if (!why.includes('header.links')) problems.push('⑭ 改页脚第一列的拒绝理由里没有 "header.links"，而那正是能让它变的地方');
+    for (const lie of ['navLabel', 'navOrder', 'keyword pages']) {
+      if (why.includes(lie)) problems.push(`⑭ 改页脚第一列的拒绝理由里混进了 "${lie}" —— 照它做页脚第一列不会变`);
     }
   }
 
   // ④ 两处一起改时，两句各自出现一次（共用一句的写法在这一格上塌成一句）
   {
     const next = clone(BASE);
-    next.header.links = [];
+    next.footer.columns[0].links = [];
     next.footer.columns.push({ title: 'X', links: [] });
     const why = String(tryWrite('en/navigation.json', next));
     const lines = why.split('\n').filter((l) => l.trim().startsWith('- '));
     if (lines.length !== 2) problems.push(`⑭ 两处一起改应当逐处各给一句（2 行），实际 ${lines.length} 行`);
-    if (!why.includes('navLabel') || !why.includes('keyword pages')) {
+    if (!why.includes('header.links') || !why.includes('keyword pages')) {
       problems.push('⑭ 两处一起改时，两句「从哪来的」没有各自出现 —— 说明它又塌成一句共用的话了');
     }
   }
@@ -1318,7 +1380,7 @@ function flattenShape(shape, at = '', out = []) {
   if (problems.length === 0) {
     ok(`⑭ ${OWNED.length} 处拒绝理由各自那句「从哪来的 / 去改什么」都钉在 sync-config.js 真代码上`
       + `（${OWNED.flatMap((e) => e.rebuiltFromCode).map((c) => `\`${c}\``).join(' · ')}）；`
-      + '页脚栏目数那一处不再拿 navLabel / navOrder 当补救办法，而菜单那两处照旧给它');
+      + '页脚栏目数那一处不拿 navLabel / navOrder 当补救办法，页脚第一列那一处指到 header.links');
   } else problems.forEach(bad);
 
   // 🔴 阳性对照：把那三处的 `rebuiltFrom` / `remediation` 换回**一句共用的**，② 必须当场红。
@@ -1645,7 +1707,7 @@ function flattenShape(shape, at = '', out = []) {
 //    读了 navigation.json 的哪几处，再按 `data-region-layout` 拆分支）。旧组件随旧库删了，新组件不读 navigation.json，
 //    ⑫ 改成真渲染，它没有调用方了。
 
-// ── ⑲ 顶栏按钮的 href 是电话 / 邮箱引用（#1779 验收 6）：AI 改无关导航时门照常放行、引用原样留着；改掉它时那句话是人话 ──
+// ── ⑲ 顶栏按钮的 href 是电话 / 邮箱引用（#1779 验收 6）：AI 改无关导航时门照常放行、引用原样留着（#1781 起改按钮链接不再有附带说明）──
 //
 // 老板在编辑器里把主按钮设成 Phone 之后，navigation.json 里那一格是 `{"source": "phone"}`。这道门原来要它是非空字符串 ⟹
 // 此后 AI 每次改 navigation.json 都被拒，而模型最自然的过门动作是把它改回字符串 —— 老板选的 Phone 被悄悄冲掉，哪儿都不红。
@@ -1668,32 +1730,21 @@ function flattenShape(shape, at = '', out = []) {
   const n1 = notesFor(unrelated, phoneSite);
   if (n1.some((t) => /header button|\[object Object\]/.test(t))) problems.push(`改页脚简介、按钮没动 ⟹ 不该说按钮的事：${n1.join(' | ')}`);
 
-  // ② 把主按钮从 Phone 改成 /contact：放行；那句「菜单也会跟着变」里原来那一边是人话，不是 [object Object]。
+  // ②③④ #1781 —— 原来这里量「Phone ↔ /contact 时那句『菜单也会跟着变』是人话、只说真会变的那一页」。#1781 把菜单改成老板自己的列表、
+  //    删掉了「扣掉按钮指向的那一页」那条构建规则（正文做什么 1，PM 早先说定「谁后落地谁把这一格一起收」）⟹ 那句话本身随之删掉，
+  //    这里改成量：两向都照常放行，而且不再带任何关于按钮 / 菜单的附带说明（不是回归，是按设计删的）。
   const toPage = clone(phoneSite);
   toPage.header.buttons[0].href = '/contact';
   const r2 = tryWrite('en/navigation.json', toPage, phoneSite);
   if (r2 !== null) problems.push(`Phone → /contact 被拒了：${r2}`);
-  const n2 = notesFor(toPage, phoneSite);
-  if (n2.length !== 1) problems.push(`Phone → /contact 应当带 1 句附带说明，实际 ${n2.length} 句`);
-  else {
-    if (/\[object Object\]/.test(n2[0])) problems.push(`那句话里印出了 [object Object]：${n2[0]}`);
-    if (!n2[0].includes('Phone (the business phone number)')) problems.push(`那句话里原来那一边没说成 Phone：${n2[0]}`);
-    if (!n2[0].includes('"/contact" will drop out of the top menu')) problems.push(`那句话没说 /contact 会从菜单里消失：${n2[0]}`);
-    if (/will appear in it/.test(n2[0])) problems.push(`原来那一边不是一页，不该说有一页会出现在菜单里：${n2[0]}`);
-  }
-
-  // ③ 反过来 /contact → Phone：放行；说的是 /contact 会出现在菜单里（不说有哪一页消失）。
-  const n3 = notesFor(phoneSite, BASE);
   if (tryWrite('en/navigation.json', phoneSite, BASE) !== null) problems.push('/contact → Phone 被拒了');
-  if (n3.length !== 1 || !n3[0].includes('"/contact" will appear in the top menu') || /drop out/.test(n3[0])) {
-    problems.push(`/contact → Phone 那句话不对：${n3.join(' | ')}`);
-  }
-
-  // ④ 两头都是引用（Phone → Email）：菜单不变 ⟹ 不说。
   const toEmail = clone(phoneSite);
   toEmail.header.buttons[0].href = { source: 'email' };
-  const n4 = notesFor(toEmail, phoneSite);
-  if (n4.length !== 0) problems.push(`Phone → Email 菜单不变，不该有附带说明：${n4.join(' | ')}`);
+  if (tryWrite('en/navigation.json', toEmail, phoneSite) !== null) problems.push('Phone → Email 被拒了');
+  for (const [name, next, cur] of [['Phone → /contact', toPage, phoneSite], ['/contact → Phone', phoneSite, BASE], ['Phone → Email', toEmail, phoneSite]]) {
+    const n = notesFor(next, cur);
+    if (n.some((t) => /header button|top menu|\[object Object\]/.test(t))) problems.push(`${name} 不该再有按钮 / 菜单那句附带说明（#1781 删了那条规则）：${n.join(' | ')}`);
+  }
 
   // ⑤ 门照样有牙：按钮不收的源、多余的键、空字符串都拒，并且说清是哪一格。
   for (const [name, href] of [['源不认识（address）', { source: 'address' }], ['多一个键', { source: 'phone', x: 1 }], ['空字符串', '  ']]) {
@@ -1704,7 +1755,7 @@ function flattenShape(shape, at = '', out = []) {
   }
 
   if (problems.length === 0) {
-    ok('⑲ 主按钮是 {source: "phone"}：AI 改无关导航照常放行、引用原样留着；Phone ↔ /contact 两向的附带说明都是人话（无 [object Object]）、只说真会变的那一页；Phone → Email 不说；坏引用照拒');
+    ok('⑲ 主按钮是 {source: "phone"}：AI 改无关导航照常放行、引用原样留着；Phone ↔ /contact ↔ Email 都放行、不再带按钮 / 菜单那句附带说明（#1781 起那条规则没了）；坏引用照拒');
   } else problems.forEach((m) => bad(`⑲ ${m}`));
 }
 

@@ -65,11 +65,11 @@ export interface RootValues {
   /** #1738 —— 顶栏 / 页脚的底色 + 旋钮（`theme.json` 的 `regionOptions`，形状在 region-options.js） */
   headerOptions?: Record<string, unknown>;
   footerOptions?: Record<string, unknown>;
-  /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、按钮（这种语言的 `navigation.json`）、菜单（面板那一份，nav-editor.js） */
+  /** #1759 —— 顶栏 Content 页：logo（`brand.json`）、按钮、菜单（#1781：这种语言的 `navigation.json` 的 `header.links`） */
   logoUrl?: string;
   /** #1787 —— 顶栏按钮 0–3 颗；#1779 —— href 可以是电话 / 邮箱引用（同 `src/lib/types/config.ts` 的 ContactRef） */
   headerButtons?: import('./header-buttons').HeaderButtonValue[];
-  navMenu?: import('./nav-editor').NavPanel;
+  headerLinks?: import('./nav-editor').MenuItem[];
   /** #1785 —— Website settings 的 Social links（`brand.json` 的 `socialLinks`，一律数组） */
   socialLinks?: { platform: string; url: string }[];
 }

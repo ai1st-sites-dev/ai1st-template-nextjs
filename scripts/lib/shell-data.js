@@ -38,6 +38,7 @@
 const { hrefAllowed } = require('./href-allowed');
 const { localizeHref } = require('./nav-menu');
 const { topbarContact } = require('./topbar-links');
+const { BUTTON_SOURCES } = require('./item-sources');
 const { isKeywordPage } = require('./keyword-service');
 const { keywordFooterColumns, serviceIdOfKeywordPath } = require('./keyword-pages');
 const { socialPairs } = require('./item-sources');
@@ -48,11 +49,17 @@ const str = (v) => (typeof v === 'string' ? v.trim() : '');
 
 // 站内链接按语言加前缀（TICKET-129）：#1759 起住在 `nav-menu.js`（编辑器顶栏 Content 页的画布预览用同一份），这里照旧导出它。
 
-/** `[{label, href}]` 里两样都是非空字符串的那几项，只留这两个键；href 按语言加前缀。 */
+/** #1781 —— 菜单那一项的 `href` 可以是本店电话 / 邮箱的引用（同按钮）：原样带进 data，SiteShell 渲染前展开成 `tel:` / `mailto:`。 */
+const menuRef = (h) => isObj(h) && typeof h.source === 'string' && BUTTON_SOURCES.includes(h.source);
+
+/**
+ * `[{label, href}]` 里 label 非空、href 是非空字符串（或 §menuRef）的那几项，只留这两个键；字符串 href 按语言加前缀。
+ * #1781 —— 菜单是老板写的了（不再是构建从页面算的）：字符串 href 再过一道写盘那一关的白名单（`href-allowed.js`），同 §usableLink。
+ */
 function links(list, loc) {
   return (Array.isArray(list) ? list : [])
-    .filter((l) => isObj(l) && str(l.label) && str(l.href))
-    .map((l) => ({ label: str(l.label), href: loc(str(l.href)) }));
+    .filter((l) => isObj(l) && str(l.label) && (menuRef(l.href) || (str(l.href) && hrefAllowed(l.href))))
+    .map((l) => ({ label: str(l.label), href: menuRef(l.href) ? { ...l.href } : loc(str(l.href)) }));
 }
 
 /**

@@ -26,6 +26,8 @@
 //                                每颗名字和链接都不许空，判据在 `header-buttons.js` §headerButtonsProblem）
 //   headerTopbar               → <语言>/navigation.json 的 header.topbarLinks（#1780，`[{label, href}]`；没写过读成电话 + 邮箱两项，
 //                                能不能存由 `topbar-links.js` §topbarLinksProblem 说）
+//   headerLinks                → <语言>/navigation.json 的 header.links（#1781，菜单 `[{label, href}]`，href 是字符串或电话 / 邮箱引用；
+//                                每一项要有名字和链接，§checkShape）
 // 🔴 那张表是唯一的一份：读、写、往返守卫都照它走。少一行 ⟹ 那个字段改了不落盘，守卫点名它
 //    （`scripts/editor-root.test.js` ①）。
 //
@@ -44,9 +46,10 @@ const { regionOptionsProblems, cleanRegionOptions, effectiveRegionKnobs } = requ
 
 const { ROOT_FIELDS } = require('./editor-root-fields');
 const { topbarLinksOf, topbarLinksProblem } = require('./topbar-links');
-const { isButtonRef, socialPairs } = require('./item-sources');
+const { isButtonRef, socialPairs, BUTTON_SOURCES, refProblemsAt } = require('./item-sources');
 const { hrefAllowed } = require('./href-allowed');
 const { headerButtonsProblem } = require('./header-buttons');
+const { isMenuRef, menuItemProblem } = require('./nav-editor');
 
 /** 老板在编辑器里可能收到的拒收码。worker 把它原样换成状态栏那句话（`blocks_task.go`）。 */
 const REFUSED = 11;
@@ -70,6 +73,8 @@ const REGION_OPTION_FIELDS = ['headerOptions', 'footerOptions'];
 const MAX_SOCIAL_LINKS = 12;
 /** #1785 —— 平台名的形状（同 Bootstrap Icons 的图标名：小写字母、数字、连字符）。 */
 const SOCIAL_PLATFORM_RE = /^[a-z0-9-]{1,30}$/;
+/** #1781 —— 菜单最多几项（顶栏一行、手机抽屉一屏；构建那头不限，这里给老板的列表定一个界）。 */
+const MENU_MAX = 30;
 
 /**
  * 这个站的默认语言：判据同构建（`sync-config.js` 那段）—— 没有 `site_meta.json` 是扁平老站，默认语言 `en`；
@@ -143,8 +148,14 @@ function readHeaderButtons(localeDir) {
     return {};
   }
   const h = isObj(nav) && isObj(nav.header) ? nav.header : {};
+  // #1781 —— 菜单原样（每项 `{label, href}`，href 是字符串或引用）；形状不对的那一项跳过（编辑器那头不画它，存盘也就不带它）。
+  //    `header.links` 不在（还没构建过的站）⟹ 不回这一格（同上：不回空值去盖构建时那份）。
+  const links = Array.isArray(h.links)
+    ? { headerLinks: h.links.filter((l) => isObj(l) && typeof l.label === 'string' && (typeof l.href === 'string' || isMenuRef(l.href)))
+      .map((l) => ({ label: l.label, href: typeof l.href === 'string' ? l.href : { ...l.href } })) }
+    : {};
   // #1780 —— 顶栏上面那一行：没写过 ⟹ 今天的样子（电话 + 邮箱），编辑器那头显示的就是页面上画的那两项。
-  return { headerButtons: (Array.isArray(h.buttons) ? h.buttons : []).map(buttonOf), headerTopbar: topbarLinksOf(h.topbarLinks) };
+  return { headerButtons: (Array.isArray(h.buttons) ? h.buttons : []).map(buttonOf), headerTopbar: topbarLinksOf(h.topbarLinks), ...links };
 }
 
 /**
@@ -237,6 +248,28 @@ function checkShape(root, layouts) {
       bad(`headerTopbar 必须是 [{label: string, href: string | {source: "phone" | "email", location?}}]：${JSON.stringify(v)}`);
     }
     // 能不能存（至少一项 · 最多三项 …）要看存完以后的版式带不带这一行 ⟹ 在 §planRootWrite 里判（§topbarRefusal）。
+  }
+  // #1781 —— 菜单：一串 `{label, href}`。形状不对（编辑器发不出来的东西）⟹ 5；没名字 / 名字太长 / 没链接 ⟹ 拒收，话同浏览器那一侧
+  //    （`nav-editor.js` §menuItemProblem）。字符串链接能不能用归 §commitWrites 那道链接判据（`link-href.js` 登记了 header.links）。
+  if ('headerLinks' in root) {
+    const list = root.headerLinks;
+    if (!Array.isArray(list)) bad(`headerLinks 必须是数组：${JSON.stringify(list)}`);
+    if (list.length > MENU_MAX) refuse(`The menu can have up to ${MENU_MAX} links. Nothing was changed.`);
+    list.forEach((v, i) => {
+      if (!isObj(v) || Object.keys(v).some((k) => k !== 'label' && k !== 'href') || typeof v.label !== 'string') {
+        bad(`headerLinks[${i}] 必须是 {label: string, href}：${JSON.stringify(v)}`);
+      }
+      if (isObj(v.href)) {
+        const p = refProblemsAt(`headerLinks[${i}].href`, BUTTON_SOURCES, v.href);
+        if (p.length) bad(p.join(' · '));
+      } else if (typeof v.href !== 'string') {
+        bad(`headerLinks[${i}].href 必须是字符串或电话 / 邮箱引用：${JSON.stringify(v.href)}`);
+      }
+    });
+    for (const v of list) {
+      const why = menuItemProblem(v);
+      if (why) refuse(`${why} Nothing was changed.`);
+    }
   }
 }
 
@@ -363,6 +396,11 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       // #1785 —— 网址空的那一行不存；一条都不剩 = 删掉这个键（顶栏 / 页脚按「没有」处理）。一律写成数组。
       const rows = v.map((l) => ({ platform: l.platform, url: l.url.trim() })).filter((l) => l.url);
       setAt(entry.doc, key, rows.length ? rows : null);
+      continue;
+    }
+    if (f.field === 'headerLinks') {
+      // #1781 —— 名字和字符串链接去首尾空格（同按钮）；引用原样。
+      setAt(entry.doc, key, v.map((l) => ({ label: l.label.trim(), href: typeof l.href === 'string' ? l.href.trim() : { ...l.href } })));
       continue;
     }
     setAt(entry.doc, key, BRAND_FIELDS.includes(f.field) && f.field !== 'brandName' && !v.trim() ? null : v);

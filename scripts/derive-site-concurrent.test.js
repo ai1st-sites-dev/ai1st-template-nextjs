@@ -90,8 +90,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   {
     const w = copyOf(base);
     // 让派生在 zh 那份上一定有东西要写（阳性对照：它确实写了盘）。
+    // #1781 起菜单是老板自己的列表，派生不再从页面重算 ⟹ 用它仍会动的那一种：一个「见过」（记在 knownPages 里）
+    // 而这次已经没有的页 ⟹ 菜单里指向它的那一项要被去掉（`nav-menu.js` §syncMenu）。
     const zh = navOf(w, 'zh');
-    zh.header.links = [{ label: 'stale', href: '/nowhere' }];
+    if (!Array.isArray(zh.header.knownPages)) die('夹具的 zh/navigation.json 没有 header.knownPages —— 先派生过一次的站应该有');
+    zh.header.links = [...zh.header.links, { label: 'stale', href: '/nowhere' }];
+    zh.header.knownPages = [...zh.header.knownPages, 'nowhere'];
     fs.writeFileSync(path.join(w, 'site', 'zh', 'navigation.json'), JSON.stringify(zh, null, 2));
     const d = startDerive(w, 2);
     await d.menusRead;
@@ -114,7 +118,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       `读回的 header.buttons = ${JSON.stringify(JSON.parse(after).header.buttons)}`);
     check(/#1807 site\/en\/navigation\.json changed while this derive was running/.test(out), '派生说了它为什么没写 en 那一份');
     const zhLinks = navOf(w, 'zh').header.links;
-    check(!zhLinks.some((l) => l.href === '/nowhere'), '阳性对照：没人动的 zh 那份照常派生（旧菜单被重算掉了）', JSON.stringify(zhLinks));
+    check(!zhLinks.some((l) => l.href === '/nowhere'), '阳性对照：没人动的 zh 那份照常派生（指向已经没有的页的那一项被去掉了）', JSON.stringify(zhLinks));
   }
 
   console.log('② 别人拿着站点文件锁时，派生算完了也不写盘');

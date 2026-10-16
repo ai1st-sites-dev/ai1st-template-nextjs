@@ -235,7 +235,14 @@ const canWrite = (p) => writeRejection(p) === null;
     // 搬的理由就是这一格自己上面那段 #1096：那边读的是**整个 edit-site.js 文件**再 includes，而
     // #1096 已经在同族那一格上把这种读法构造成了假绿。这里的尺子切的是真正送进模型的那段话，
     // 所以本票新增的两条（最后两条）必须立在这把尺上，而原有的 6 条一起搬，一条不丢。
-    { must: 'navLabel', why: 'SYSTEM_PROMPT 没说菜单链接要去改 navLabel —— 模型只知道被拒，不知道去哪改' },
+    // #1781 —— 菜单是老板自己的一份列表了（header.links 写得进去）。原来这一条要求提示词说「去改那一页的 navLabel」，
+    //    那句话今天是假的补救办法：改 navLabel 不会动菜单。所以反过来：必须说菜单能直接改，不许再说去改 navLabel。
+    { must: "The header menu (header.links) is the owner's own list",
+      why: 'SYSTEM_PROMPT 没说菜单能直接改 —— 模型会照旧说「改不了」，或者去改页面的 navLabel（那不会动菜单）' },
+    { mustNot: "change that page's navLabel",
+      why: '还留着「去改那一页的 navLabel」—— #1781 之后它不会让菜单变，是一个假的补救办法' },
+    { must: 'Leave header.knownPages exactly as you read it',
+      why: '没告诉模型 knownPages 别动 —— 它改了整次写入被拒，老板多等一轮' },
     { mustNot: 'say it cannot be changed yet',
       why: '还留着「就说改不了」那句 —— #1104 之后它是假话，那个按钮现在改得了' },
     { mustNot: 'DO NOT edit directly',
@@ -249,8 +256,6 @@ const canWrite = (p) => writeRejection(p) === null;
       why: '没说清删字段的后果是这个站建不出来 —— 模型不知道这条为什么重要' },
     // #1104 r6（QA1 r5 那条 🟡）：拒绝理由与 SYSTEM_PROMPT 是模型的两条入口，那句假话原来两处都有。
     // 只修拒绝理由 ⟹ 模型在被拒**之前**读到的仍是「改 navLabel 就能加一个页脚栏目」。
-    { must: 'navLabel / navOrder will not change it',
-      why: '没说清「页脚有几栏」跟 navLabel / navOrder 无关 —— 模型会把那个假补救办法转给老板' },
     { must: 'one extra column per service that has keyword pages',
       why: '没说页脚栏目数真正从哪来 —— 只说「不许改」不够，老板会问那怎么改' },
   ];

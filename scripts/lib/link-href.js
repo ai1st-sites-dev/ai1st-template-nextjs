@@ -65,6 +65,9 @@ const NAV_LINKS = [
   { key: ['footer', 'legal'], list: true, block: 'footer', slot: 'legal', where: 'the footer legal links' },
   // #1780 —— 顶栏上面那一行（派生成 header 的 `topbar.contact`，`topbar-links.js`）。引用写法的那几项 `href` 不是字符串，不归这里判。
   { key: ['header', 'topbarLinks'], list: true, block: 'header', slot: 'topbar', where: 'the top bar' },
+  // #1781 —— 菜单是老板自己的一份列表了（编辑器 Content 页 · AI 改站都能写），派生成 header 的 `nav`（shell-data.js）。
+  //    引用写法的那几项（`{source: "phone"}`）`href` 不是字符串，不归这里判（§linksOf 只收字符串）。页脚第一列是构建从它抄的，不另登记。
+  { key: ['header', 'links'], list: true, block: 'header', slot: 'nav', where: 'the menu' },
 ];
 
 let nameCache = null;

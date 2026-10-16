@@ -3,14 +3,15 @@
 // nav-menu.js —— 顶栏菜单 / 页脚第一列「从页面推出来」的那一条规则（#1759 从 `derive-site.js` 原样抽出来）。**纯函数、零 require**。
 //
 // 两处用它，必须是同一份：
-//   · `scripts/derive-site.js` —— 构建时把它写进 `navigation.json` 的 `header.links` / `footer.columns[0].links`
-//   · 编辑器（`EditorApp.tsx` §withHeaderContent）—— 顶栏 Content 页里改名 / 拖顺序 / 隐藏 / 改按钮链接时，画布上当场按它重画
-// 🔴 预览用另一条规则 = 老板眼前那一版跟发布后不是同一个菜单（#1759 PM 裁定第二轮第 1 条）。
+//   · `scripts/derive-site.js` —— 构建时按 §syncMenu 维护 `navigation.json` 的 `header.links` / `header.knownPages`
+//   · 编辑器 —— 站内链接按语言加前缀（§localizeHref，`nav-editor.js` §liveShellData 画画布预览）
 //
-// 规则（构建一直是这样，本票没改）：
+// 规则：
 //   · 首项恒为首页，名字 = 首页的 `navLabel` → 这种语言的默认叫法（§HOME_LABELS）→ 'Home'
 //   · 其余 = 普通页（调用方已经去掉关键词页、服务详情页，并按 `navOrder` 排好），`navLabel` 非空的才进
-//   · 顶栏再去掉顶栏主按钮指向的那一页（它就是右边那颗按钮）；页脚第一列不去这一道
+//   📌 #1781 —— 这条规则只在**第一次**用：菜单从此是老板自己的一份列表（`navigation.json` 的 `header.links`），构建只在它
+//      还不在时按这里算一次（§syncMenu）。原来顶栏还去掉主按钮指向的那一页（`p.slug !== ctaSlug`），随 #1781 删掉 ——
+//      菜单里有什么由老板定，页脚第一列跟顶栏是同一份。
 
 // TICKET-133: defensive fallback for the home page navLabel. AI translation
 // and translatePageWithClaude both already translate page.navLabel, so the
@@ -28,32 +29,56 @@ function homeLabelOf(homeNavLabel, locale) {
   return homeNavLabel || HOME_LABELS[locale] || 'Home';
 }
 
-/** 顶栏主按钮指向哪一页（`/contact` → `contact`）。不是字符串 ⟹ ''（构建那头对它调 `.replace`，编辑器只会给字符串）。 */
-function ctaSlugOf(ctaHref) {
-  return typeof ctaHref === 'string' ? ctaHref.replace(/^\//, '') : '';
-}
-
 /**
+ * 从页面推出来的那一份菜单（首页 + `navLabel` 非空的普通页）。#1781 起只在 `header.links` 还不在时用一次（§syncMenu）。
  * @param {object} a
  * @param {string} a.homeLabel   §homeLabelOf 的结果
  * @param {{ slug: string, navLabel?: string }[]} a.regular  普通页，已按 `navOrder` 排好
- * @param {string} a.ctaSlug     顶栏主按钮指向的那一页（§ctaSlugOf 的结果；构建那头是 `header.buttons[0].href.replace(/^\//, '')`，#1787）
- * @returns {{ header: { label: string, href: string }[], footer: { label: string, href: string }[] }}
+ * @returns {{ label: string, href: string }[]}
  */
-function menuLinks({ homeLabel, regular, ctaSlug }) {
-  const header = [
-    { label: homeLabel, href: '/' },
-    ...regular
-      .filter((p) => p.navLabel && p.slug !== ctaSlug)
-      .map((p) => ({ label: p.navLabel, href: `/${p.slug}` })),
-  ];
-  const footer = [
+function menuLinks({ homeLabel, regular }) {
+  return [
     { label: homeLabel, href: '/' },
     ...regular
       .filter((p) => p.navLabel)
       .map((p) => ({ label: p.navLabel, href: `/${p.slug}` })),
   ];
-  return { header, footer };
+}
+
+const pageHref = (slug) => `/${slug}`;
+
+/**
+ * #1781 —— 每次构建对菜单做的全部事情。菜单是老板的数据（`header.links`），构建只做三件事：
+ *   · 还没有菜单（新站第一次构建）⟹ 按 §menuLinks 算一份（今天的结果）。
+ *   · 新出现的普通页（不在 `knownPages` 里）⟹ 追加到菜单末尾，名字 = `navLabel` → `title` → slug。老板删掉的那一项不会被加回来
+ *     （它的 slug 已经在 `knownPages` 里）。菜单里已经有一项指着它（老板先手填了 `/faq`、或 AI 同一笔建页 + 加菜单项）⟹ 只记进
+ *     `knownPages`、不再追加（#1781 r5，QA3 r4 T2：否则顶栏和页脚各多一条重复的）。
+ *   · 页面没了（在 `knownPages` 里、这次不在普通页里）⟹ 菜单里指向它的那几项一起去掉。
+ * `knownPages` 还不在（#1781 之前的站、或新站第一次构建）⟹ 当成「现在这些普通页都见过了」：老站已有的菜单一项不加、一项不减。
+ * 🔴 纯函数，**不改入参**（`navigation-owned.test.js` ③ 认得出把 navigation.json 的值传给它，前提就是这一条，那份测试里有一格专门量它）。
+ * @param {object} a
+ * @param {unknown} a.links       `header.links` 的现值（不是数组 = 还没有）
+ * @param {unknown} a.knownPages  `header.knownPages` 的现值（不是数组 = 还没有）
+ * @param {string} a.homeLabel
+ * @param {{ slug: string, navLabel?: string, title?: string }[]} a.regular  这一次构建的普通页，已按 `navOrder` 排好
+ * @returns {{ links: object[], knownPages: string[] }}
+ */
+function syncMenu({ links, knownPages, homeLabel, regular }) {
+  const slugs = regular.map((p) => p.slug);
+  const now = new Set(slugs);
+  if (!Array.isArray(links)) return { links: menuLinks({ homeLabel, regular }), knownPages: slugs };
+  const copy = links.map((l) => (l && typeof l === 'object' && !Array.isArray(l) ? { ...l } : l));
+  if (!Array.isArray(knownPages)) return { links: copy, knownPages: slugs };
+  const known = knownPages.filter((s) => typeof s === 'string');
+  const knownSet = new Set(known);
+  const gone = new Set(known.filter((s) => !now.has(s)).map(pageHref));
+  const kept = copy.filter((l) => !(l && typeof l === 'object' && typeof l.href === 'string' && gone.has(l.href)));
+  const added = regular.filter((p) => !knownSet.has(p.slug));
+  const pointedAt = new Set(kept.map((l) => (l && typeof l === 'object' ? l.href : undefined)).filter((h) => typeof h === 'string'));
+  for (const p of added) {
+    if (!pointedAt.has(pageHref(p.slug))) kept.push({ label: p.navLabel || p.title || p.slug, href: pageHref(p.slug) });
+  }
+  return { links: kept, knownPages: [...known.filter((s) => now.has(s)), ...added.map((p) => p.slug)] };
 }
 
 /**
@@ -69,4 +94,4 @@ function localizeHref(href, locale, defaultLocale) {
   return `/${locale}${href}`;
 }
 
-module.exports = { HOME_LABELS, homeLabelOf, ctaSlugOf, menuLinks, localizeHref };
+module.exports = { HOME_LABELS, homeLabelOf, menuLinks, syncMenu, localizeHref };

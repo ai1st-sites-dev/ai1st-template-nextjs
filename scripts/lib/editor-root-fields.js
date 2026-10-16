@@ -21,8 +21,10 @@
 //   `navigation.json` 的 `header.buttons`，值是 `[{label, href}]`，0–3 颗，规则在 `header-buttons.js`）。
 //   #1780 —— headerTopbar（这种语言的 `navigation.json` 的 `header.topbarLinks`）：顶栏上面那一行的链接列表 `[{label, href}]`，
 //   `href` 是字符串或电话 / 邮箱引用；规则（默认值、能不能存、怎么画）全在 `topbar-links.js`。
-//   🔴 navigation.json 只许钉这两个键：`navigation-owned.js` 那道门守的是 AI 聊天那条路，编辑器这条路不经过它 ——
-//      别的键（菜单、页脚）在这张表里一行都不许有（菜单是从页面推出来的，`lib/editor-nav.js`）。
+//   #1781 —— headerLinks（这种语言的 `navigation.json` 的 `header.links`）：菜单是老板自己的一份列表 `[{label, href}]`，
+//   `href` 是字符串或电话 / 邮箱引用；判据在 `editor-root.js` §checkShape（话跟浏览器那一侧 `nav-editor.js` 同一句）。
+//   🔴 navigation.json 只许钉这三个键：`navigation-owned.js` 那道门守的是 AI 聊天那条路，编辑器这条路不经过它 ——
+//      构建会重写的那几处（页脚第一列 = 菜单的拷贝、`header.knownPages`、页脚有几栏）在这张表里一行都不许有。
 
 const ROOT_FIELDS = [
   { field: 'layout', scope: 'site', file: 'page-layout.json', key: ['layoutId'] },
@@ -39,6 +41,7 @@ const ROOT_FIELDS = [
   { field: 'headerTopbar', scope: 'locale', file: 'navigation.json', key: ['header', 'topbarLinks'] },
   // #1785 —— Website settings 的 Social links：整站一份，一律写成数组 `[{platform, url}]`（空了 = 删掉这个键）。
   { field: 'socialLinks', scope: 'site', file: 'brand.json', key: ['socialLinks'] },
+  { field: 'headerLinks', scope: 'locale', file: 'navigation.json', key: ['header', 'links'] },
 ];
 
 module.exports = { ROOT_FIELDS };

@@ -1245,6 +1245,11 @@ async function main() {
       //    自己带的，走不到那一处。
       if (off.has('contact')) content.pages = content.pages.filter((pg) => pg.slug !== 'contact');
       content.pages = content.pages.filter((pg) => (pg.sections || []).length);
+      // #1781 —— 新站第一次构建不再重算菜单（nav-menu.js §syncMenu 照收建站写的那份），所以剔掉的页要在这里从菜单 / 页脚第一列一起拿掉，否则留死链。
+      const alive = new Set(content.pages.map((pg) => (pg.slug === 'home' ? '/' : `/${pg.slug}`)));
+      const nav = content.navigation;
+      nav.header.links = nav.header.links.filter((l) => alive.has(l.href));
+      nav.footer.columns[0].links = nav.footer.columns[0].links.filter((l) => alive.has(l.href));
       debug(`[catalog] skipAI 示例站剔掉关掉的块：页面 ${before} → ${content.pages.length}`);
     }
     // #984: the demo site wears the theme we just picked, same registry the AI path reads.
@@ -2168,13 +2173,14 @@ function getDemoConfig(siteId, siteUrl) {
           { label: 'Home', href: '/' },
           { label: 'About', href: '/about' },
           { label: 'Services', href: '/services' },
+          { label: 'Contact', href: '/contact' }, // #1781：按钮那一页也进菜单（页脚第一列抄菜单）
         ],
         buttons: [{ label: 'Get a Quote', href: '/contact' }], // #1636：只改 href（没有 quote 页了），label 留着；#1787：按钮是列表
       },
       footer: {
         description: 'Demo Company — Your trusted local business.',
         columns: [
-          { title: 'Quick Links', links: [{ label: 'Home', href: '/' }, { label: 'About', href: '/about' }, { label: 'Services', href: '/services' }] },
+          { title: 'Quick Links', links: [{ label: 'Home', href: '/' }, { label: 'About', href: '/about' }, { label: 'Services', href: '/services' }, { label: 'Contact', href: '/contact' }] },
         ],
         copyright: `© ${new Date().getFullYear()} Demo Company. All rights reserved.`,
       },
@@ -2866,7 +2872,7 @@ CRITICAL RULES:
 - "pages" is an ARRAY of page objects, each with slug, title, description, navLabel, navOrder, changeFrequency, priority, and brief.
 - Every page's "brief": 2-3 sentences, in the site's language, saying what that page must cover — its main points, specific to this business. The page's sections are written later from it: do NOT write "sections".
 - navOrder determines the order in the navigation. Home is always 0. Assign sequential numbers (1, 2, 3...) to other pages.
-- The CTA page (navigation.ctaPage) should have a higher navOrder so it appears last (but it won't be in the header nav — it becomes the CTA button).
+- The CTA page (navigation.ctaPage) should have a higher navOrder so it appears last (it is also the CTA button's target).
 ${FACTS_ONLY_FROM_FORM_RULE}
 - Page titles (pages[].title): ${titleSpec}. The home page's <title> is seo.siteTitle, used as-is: max 60 chars. Every meta description (seo.siteDescription and pages[].description): ${descSpec}.
 - Use specific language, not generic fluff.
@@ -2986,7 +2992,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
           { label: homeLabel, href: "/" },
           // #1601 —— 配方定顶部导航放哪几页（判据：到得了每一张服务页）；照抄参照站结构那条老路仍是全部普通页。
           ...(recipeNav ? allNonHome.filter((p) => recipeNav.has(p.slug)) : regularPages)
-            .filter(p => p.navLabel && p.slug !== ctaPage)
+            .filter(p => p.navLabel)
             .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
         ],
         // #1787 —— 顶栏按钮是一个列表（0–3 颗）；新站写 1 颗主按钮。

@@ -726,22 +726,18 @@ for (const locale of locales) {
   // 'Home' here, overwriting AI-translated navigation.json on every prebuild.
   // Use the home page's own navLabel (already translated by AI / 122b
   // translatePageWithClaude); fall back to a native-language map if missing.
-  // #1759 —— 规则逐字搬进 `lib/nav-menu.js`（编辑器预览同一份）。`ctaSlug` 这一句照旧在这里对主按钮的 href 调 `.replace`
-  //    （不是字符串就当场抛，同搬之前）；别改成把那条 `existingNav…href` 链直接当参数传 —— `navigation-owned.test.js` ③
-  //    按构造把「existingNav 的一条链流进函数」判成看不见的改动，整份跑不起来。
-  // #1779 —— 主按钮的 href 可以是联系方式引用（`{source: "phone"}`）：它不指向任何一页 ⟹ `ctaSlug` 为空，菜单不扣掉哪一页。
-  //    别的形状照旧当场抛（`.replace` 不存在）—— 引用合不合法由写盘那道门（`navigation-owned.js` §NAV_SHAPE）先挡。
-  //    🔴 判法写成读 `.source`、不写成 `isButtonRef(…)` / `typeof …`：③ 认不出这两种用法（传参 / typeof 都归不了类），整份跑不起来。
-  // #1787 —— 主按钮 = `header.buttons` 的第 1 颗。0 颗（老板删光了）或这一格不在（#1787 之前建的站）⟹ `ctaSlug` 为空、不抛，
-  //    菜单不扣掉哪一页。同上一条：链一律写在这一句里，不存进临时变量（③ 把「存到别处」判成看不见的改动通道）。
+  // #1781 —— 菜单是老板自己的一份列表（`header.links`）：构建只在它还不在时算一次、追加新出现的普通页、去掉指向已删页面的项
+  //    （`header.knownPages` 记着见过哪些页，规则全在 `lib/nav-menu.js` §syncMenu）。页脚第一列 = 菜单原样。
+  //    🔴 读 `existingNav.header.links` 只经 §syncMenu：`navigation-owned.test.js` ③ 只认得它这一个「传出去不会被改」的函数。
   const homeLabel = navMenu.homeLabelOf(homePage.navLabel, locale);
-  const ctaSlug = !(existingNav.header.buttons && existingNav.header.buttons[0]) || existingNav.header.buttons[0].href.source
-    ? '' : existingNav.header.buttons[0].href.replace(/^\//, '');
-  const { header: headerLinks, footer: footerLinks } = navMenu.menuLinks({ homeLabel, regular: regularPages, ctaSlug });
+  const menu = navMenu.syncMenu({
+    links: existingNav.header.links, knownPages: existingNav.header.knownPages, homeLabel, regular: regularPages,
+  });
 
-  existingNav.header.links = headerLinks;
+  existingNav.header.links = menu.links;
+  existingNav.header.knownPages = menu.knownPages;
   if (existingNav.footer.columns.length > 0) {
-    existingNav.footer.columns[0].links = footerLinks;
+    existingNav.footer.columns[0].links = menu.links.map((l) => ({ ...l }));
   }
 
   // Group keyword pages by service — one footer column per service.

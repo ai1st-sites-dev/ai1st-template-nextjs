@@ -681,8 +681,8 @@ function rootToPuck(values) {
   // #1738 —— 顶栏 / 页脚的底色 + 旋钮（一个对象；老站仓里的底稿不带 ⟹ 不放键，编辑器那头留构建时那份）。
   for (const k of ['headerOptions', 'footerOptions']) if (isPlainObject(values[k])) out[k] = { ...values[k] };
   for (const k of ['brandName', 'phone', 'email', 'address']) if (typeof values[k] === 'string') out[k] = values[k];
-  // #1759 —— 顶栏 Content 页：logo、按钮（#1787：`[{label, href}]`，0–3 颗）、菜单（`nav-editor.js` 那一份面板数据）。
-  //    `navMenu` 不是分派表里的字段（菜单是从各页推出来的）：存盘时由 `nav-editor.js` §navMenuChanges 单独比，不经 §puckRootChanges。
+  // #1759 —— 顶栏 Content 页：logo、按钮（#1787：`[{label, href}]`，0–3 颗）。
+  // #1781 —— 菜单（`headerLinks`，`navigation.json` 的 `header.links` 原样）：分派表里的字段，存盘同别的 root 字段经 §puckRootChanges。
   if (typeof values.logoUrl === 'string') out.logoUrl = values.logoUrl;
   if (Array.isArray(values.headerButtons)) {
     // #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`，原样带过去）。
@@ -692,7 +692,7 @@ function rootToPuck(values) {
   }
   // #1780 —— 顶栏上面那一行的链接列表（`[{label, href}]`，href 可以是电话 / 邮箱引用；站里读出来时没写过的已经补成默认两项）。
   if (Array.isArray(values.headerTopbar)) out.headerTopbar = clone(values.headerTopbar);
-  if (isPlainObject(values.navMenu)) out.navMenu = clone(values.navMenu);
+  if (Array.isArray(values.headerLinks)) out.headerLinks = clone(values.headerLinks);
   // #1785 —— Social links（`brand.json` 的 `socialLinks`，读进来已经是数组 `[{platform, url}]`）。
   if (Array.isArray(values.socialLinks)) {
     out.socialLinks = values.socialLinks.filter(isPlainObject)

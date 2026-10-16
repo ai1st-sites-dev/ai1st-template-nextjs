@@ -39,8 +39,6 @@ import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts
 import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
 import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
 import { editorPages } from '../../../../scripts/lib/editor-pages.js';
-import { navMenuOf } from '../../../../scripts/lib/editor-nav.js';
-import { navMenuToPanel } from '../../../../scripts/lib/nav-editor.js';
 import { topbarLinksOf } from '../../../../scripts/lib/topbar-links.js';
 import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
 import { seedProps } from '../../../../scripts/lib/block-placeholders.js';
@@ -75,17 +73,20 @@ function trustedOrigin(leadApi: string): string {
   }
 }
 
-/** #1759 —— 构建这一份里的顶栏按钮（#1787：`header.buttons`，0–3 颗）+ 菜单（面板那一份的形状，`nav-editor.js` §navMenuToPanel）；#1780 加顶栏上面那一行的链接列表。 */
+/** #1759 —— 构建这一份里的顶栏按钮（#1787：`header.buttons`，0–3 颗）+ 菜单（#1781：`header.links` 原样，老板自己的一份列表）；#1780 加顶栏上面那一行的链接列表。 */
 // #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`）：原样带进编辑器（按钮弹窗认它），别的形状当空。
-function headerContent(nav: { header?: { buttons?: unknown; topbarLinks?: unknown } }, pages: unknown[], locale: string) {
+function headerContent(nav: { header?: { buttons?: unknown; topbarLinks?: unknown; links?: unknown } }) {
   const btn = (b?: { label?: string; href?: unknown }) => ({
     label: typeof b?.label === 'string' ? b.label : '',
     href: typeof b?.href === 'string' ? b.href : isButtonRef(b?.href) ? { ...b.href } : '',
   });
   const list = Array.isArray(nav.header?.buttons) ? (nav.header.buttons as unknown[]) : [];
   const headerButtons = list.filter((b): b is { label?: string; href?: unknown } => !!b && typeof b === 'object' && !Array.isArray(b)).map(btn);
-  const navMenu = navMenuToPanel(navMenuOf(pages), locale);
-  return { headerButtons, headerTopbar: topbarLinksOf(nav.header?.topbarLinks), ...(navMenu ? { navMenu } : {}) };
+  const links = Array.isArray(nav.header?.links)
+    ? (nav.header!.links as unknown[]).filter((l): l is { label: string; href: unknown } => !!l && typeof l === 'object' && typeof (l as { label?: unknown }).label === 'string')
+      .map((l) => ({ label: l.label, href: l.href }))
+    : null;
+  return { headerButtons, headerTopbar: topbarLinksOf(nav.header?.topbarLinks), ...(links ? { headerLinks: links } : {}) };
 }
 
 export default async function EditorPage({ params }: { params: Promise<{ target: string[] }> }) {
@@ -148,11 +149,11 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
         phone: site.brand.locations?.[0]?.phone ?? '',
         email: site.brand.email ?? '',
         address: site.brand.locations?.[0]?.address ?? '',
-        // #1759 —— 顶栏 Content 页：logo、两颗按钮（这种语言的 navigation.json）、菜单（这种语言的页，判据同构建 —— `editor-nav.js`）。
+        // #1759 —— 顶栏 Content 页：logo、按钮（#1787）、菜单（#1781）—— 按钮和菜单都在这种语言的 navigation.json。
         logoUrl: site.brand.logoUrl ?? '',
         // #1785 —— Social links：读法同站里 `editor-root.js` §readBrandValues（两种老形状都读成数组、平台名小写）。
         socialLinks: socialPairs(site.brand.socialLinks).map(([platform, url]) => ({ platform: platform.toLowerCase(), url })),
-        ...headerContent(getNavigation(site, locale), pagesByLocale[locale] || [], locale),
+        ...headerContent(getNavigation(site, locale)),
       }),
     },
   };

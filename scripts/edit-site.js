@@ -943,9 +943,8 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       };
       const notWritable = writeRejection(relPath, writeCtx);
       if (notWritable) return { error: notWritable };
-      // #1104 r2 —— 放行了，但**别处会跟着变**的那些改动要说出来（今天只有主按钮的 href —— #1787 起是 header.buttons[0].href：
-      // 构建拿它算出 ctaSlug，再用它把那一页从顶部菜单里过滤掉）。判据在 lib/navigation-owned.js
-      // 的 SIDE_EFFECTS，理由整段写在那里。它不是拒绝 —— 文件照常落盘，只是回话里带上实话。
+      // #1104 r2 —— 放行了，但**别处会跟着变**、或页面根本不读的那些改动要说出来。判据在 lib/navigation-owned.js
+      // 的 SIDE_EFFECTS / PAGE_READS，理由整段写在那里（#1781 起 SIDE_EFFECTS 是空表）。它不是拒绝 —— 文件照常落盘，只是回话里带上实话。
       const sideEffects = writeNotes(relPath, writeCtx);
       // Validate JSON
       let parsed;
@@ -1119,16 +1118,18 @@ The site is defined by JSON configuration files:
   A header button's href may be {"source": "phone"} or {"source": "email"} instead of an address — the
   button then calls / emails the business, filled in from brand.json. Keep it exactly as it is unless the
   owner asks to change where that button goes; to make a button call the business, write it that way.
-  You MAY NOT change the header menu links or the first footer column's links, and you may not add or
-  remove footer columns: those are rebuilt on every build and anything you write there is overwritten.
-  The menu links and the first footer column's links come from each page's navLabel / navOrder — to
-  change one of those entries, change that page's navLabel; to reorder them, change its navOrder. How
-  many footer columns there are is a different thing and navLabel / navOrder will not change it: the
-  build adds one extra column per service that has keyword pages, so the number of columns cannot be
-  set from here at all. When the owner asks for one of those three, tell them which page (or which
-  keyword pages) to change and change it for them; do not point them at a settings screen, there is
-  none. write_file refuses the whole write if you touch any of them, so write the
-  complete file with those parts exactly as you read them.
+  The header menu (header.links) is the owner's own list: you MAY add, change, reorder or remove its
+  entries, each {"label", "href"} — href is an address (a page like "/contact", or https://…) or
+  {"source": "phone"} / {"source": "email"} for the business phone / email. The owner can also edit it in
+  the page editor (the header's Content tab, Navigation links). The first footer column's links are a copy
+  of header.links made on every build: change header.links and leave that column as you read it (or write
+  the same list there). Leave header.knownPages exactly as you read it — the build keeps it, so a new
+  page is added to the end of the menu once and a link you remove does not come back. You may not add or
+  remove footer columns: the build adds one extra column per service that has keyword pages, so the number
+  of columns cannot be set from here at all — when the owner asks for that, tell them which keyword pages
+  to change; do not point them at a settings screen, there is none. write_file refuses the whole write if
+  you change header.knownPages, make the first footer column differ from header.links, or change how
+  many footer columns there are, so write the complete file with those parts exactly as you read them.
   Keep every field that is already in the file, with the same kind of value. The build reads all of
   them, so deleting one (or turning a piece of text into something that is not text) stops the site
   from building at all. When the owner wants the copyright line or the footer blurb to disappear, set

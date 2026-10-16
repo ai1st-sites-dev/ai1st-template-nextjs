@@ -72,16 +72,23 @@ const base = makeBase();
 // 基底先派生一次（发布模式），让每份拷贝里都已经有「上一版」的派生文件。
 derive(base.work);
 
-console.log('① site/<locale>/navigation.json：按页面重写菜单');
+console.log('① site/<locale>/navigation.json：菜单是老板的列表（#1781：已有就不重算、没有才按页面算一次；页脚第一列 = 菜单）');
 {
   const w = copyOf(base);
   const nav = json(w, 'site/en/navigation.json');
-  nav.header.links = [{ label: 'stale', href: '/nowhere' }];
+  nav.header.links = [{ label: 'Mine', href: '/nowhere' }];
   writeJson(w, 'site/en/navigation.json', nav);
   derive(w);
-  const links = json(w, 'site/en/navigation.json').header.links;
-  check(links.length > 1 && links[0].href === '/' && !links.some((l) => l.href === '/nowhere'),
-    'en 的顶栏链接按页面重算（首页打头、旧的那条没了）', JSON.stringify(links));
+  const after = json(w, 'site/en/navigation.json');
+  check(JSON.stringify(after.header.links) === JSON.stringify([{ label: 'Mine', href: '/nowhere' }]),
+    'en 的顶栏链接是老板写的那一份，构建不重算', JSON.stringify(after.header.links));
+  check(JSON.stringify(after.footer.columns[0].links) === JSON.stringify(after.header.links), '页脚第一列 = 菜单', JSON.stringify(after.footer.columns[0].links));
+  delete after.header.links;
+  writeJson(w, 'site/en/navigation.json', after);
+  derive(w);
+  const seeded = json(w, 'site/en/navigation.json').header.links;
+  check(Array.isArray(seeded) && seeded.length > 1 && seeded[0].href === '/' && !seeded.some((l) => l.href === '/nowhere'),
+    '没有菜单 ⟹ 按页面算一次（首页打头）', JSON.stringify(seeded));
 }
 
 console.log('① 块的 has / shape：经 `ready` 交出去的页面上每块都补了 shape，填了可选槽位的补了 has');

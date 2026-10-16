@@ -27,7 +27,6 @@ const { readSiteBlocks, findBlockInPage, generatedBlockId, normalizeLocalePages 
 const { decorateBlocks } = require('./block-decorate.js');
 const { resolveSiteRegionLayout } = require('./site-regions.js');
 const { readRootValues } = require('./editor-root.js');
-const { navMenuOf } = require('./editor-nav.js');
 
 /**
  * @param {string} rootDir 模板根（`site/` 的上一层）
@@ -217,14 +216,10 @@ function editorBaseline(opts) {
   } catch {
     root = undefined;
   }
-  // #1759 —— 顶栏 Content 页的菜单（能进菜单的页 + 三样分开的值）。从这一刻的盘上读（同 root）：存过菜单之后换页，
-  //    面板里是存下去的那一份，不是构建时烤进编辑器页的那份。🔴 排序 / 筛选都在 §navMenuOf 里（它自己再排一遍），这里给的
-  //    是还没归一化的那一份 —— 上面那份 `localePages` 被 normalizeLocalePages 改过形状，只取它读到的 slug / title / navLabel / navOrder 照样对。
-  const nav = navMenuOf(localePages);
+  // #1781 —— 菜单不再单带一格 `nav`：它是 `navigation.json` 的 `header.links`，跟两颗按钮一起在 `root` 里（`editor-root.js` §readHeaderButtons）。
   return {
     ok: true,
     page: slug,
-    nav,
     locale,
     raw: src.raw,
     siteBlocks: src.siteBlocks,

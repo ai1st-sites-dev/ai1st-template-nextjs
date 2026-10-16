@@ -337,11 +337,11 @@ check('提交里不带 token（推送的凭据只进环境变量）', () => {
 });
 // #1601 × #1598 —— 配方给每页的块序按对象身份记，续跑读回来的是新对象 ⟹ 它要跟着存档走（create-site.js §recipeSnapshot）。
 const RECIPE_SLUGS = ['services', ...SERVICES.map(([id]) => `services/${id}`), 'contact'];
-check('#1601 配方跟着存档走：plan / pages 两个存档都带 recipe（顶部导航 services；首页之外 9 页各有块序）', () => {
+check('#1601 配方跟着存档走：plan / pages 两个存档都带 recipe（顶部导航 services · contact；首页之外 9 页各有块序）', () => {
   for (const ph of ['plan', 'pages']) {
     const r = showJson(A.bare, byPhase[ph], 'site/.build/state.json').recipe;
     assert.ok(r, `${ph} 存档里没有 recipe`);
-    assert.deepStrictEqual(r.nav, ['services'], ph);
+    assert.deepStrictEqual(r.nav, ['services', 'contact'], ph); // #1781：按钮那一页也进菜单
     assert.deepStrictEqual(Object.keys(r.blocks).sort(), [...RECIPE_SLUGS].sort(), ph);
     assert.deepStrictEqual(r.blocks.contact.map((x) => x.type), ['page-header', 'contact'], ph);
   }
@@ -406,7 +406,7 @@ check('建站成功；站级 0 通、每页 N 通（plan 跳过、pages 重跑�
   assertOk(RP);
   assert.strictEqual(count(RP, 'site'), 0);
   assert.strictEqual(count(RP, 'page'), N);
-  assert.ok(RP.stderr.includes('[resume] 整站配方跟着存档回来：9 页的块序；顶部导航 services'), RP.stderr.split('\n').filter((l) => l.includes('[resume]')).join('\n'));
+  assert.ok(RP.stderr.includes('[resume] 整站配方跟着存档回来：9 页的块序；顶部导航 services · contact'), RP.stderr.split('\n').filter((l) => l.includes('[resume]')).join('\n'));
 });
 check('#1601：续跑那几通每页提示词照样锁着配方的块序（首页之外 9 页都有 FIXED 那一行）', () => {
   const fixedPrompts = RP.events.filter((e) => e.event === 'prompt' && /^Page: /.test(e.name) && /This page's sections are FIXED/.test(e.content));

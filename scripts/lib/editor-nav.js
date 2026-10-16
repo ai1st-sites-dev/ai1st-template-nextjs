@@ -2,6 +2,10 @@
 
 // editor-nav.js —— 编辑器顶栏 Content 页的「Navigation links」（#1759）：读哪几页能进菜单，以及存盘时写别的页的 `navLabel` / `navOrder`。
 //
+// 📌 #1781 —— 菜单改成了老板自己的一份列表（`navigation.json` 的 `header.links`，编辑器经 root 字段 `headerLinks` 写，`editor-root.js`）。
+//    编辑器从此不再调这份文件：下面「菜单不单独存一份」那段说的是 #1759 时的样子。写盘那一格 `nav`（write-editor-save.js / manager /
+//    dashboard 一路透传）还在、照旧能用 —— 它改的 navLabel 今天只影响新页第一次进菜单时的名字和页面选择器里的名字，不再动菜单本身。
+//
 // 菜单不单独存一份：构建时从这种语言的每一页推出来（规则在 `lib/nav-menu.js`，`derive-site.js` 与编辑器预览共用）。所以在面板里
 //   改一个链接的名字 = 写那一页的 `navLabel` · 拖顺序 = 重写各页的 `navOrder` · 隐藏 = 删掉那一页的 `navLabel`（不进菜单）·
 //   显示回来 = `navLabel` 写回那一页的标题。

@@ -72,10 +72,14 @@ function useSections(): { value: string; label: string }[] {
   }, [content, api]);
 }
 
-/** 这个站这个语言的页面（`SiteData.pagesByLocale`）：名字 + 站内地址（跟导航同一个 §localeUrl）。 */
-function pagesOf(site: SiteData, locale: string): { value: string; label: string }[] {
+/**
+ * 这个站这个语言的页面（`SiteData.pagesByLocale`）：名字 + 站内地址（跟导航同一个 §localeUrl）。
+ * #1781 —— `bare`：不带语言前缀（`/about`，首页 `/`）。菜单存的就是这一种 —— 构建派生时才按语言加前缀（`shell-data.js` §localizeHref），
+ *   带了前缀再加一次就成了 `/zh/zh/about`。
+ */
+function pagesOf(site: SiteData, locale: string, bare = false): { value: string; label: string }[] {
   const pages = (site.pagesByLocale && site.pagesByLocale[locale]) || [];
-  return pages.map((p) => ({ value: localeUrl(site, p.slug, locale), label: p.navLabel || p.title || p.slug }));
+  return pages.map((p) => ({ value: bare ? (p.slug === 'home' ? '/' : `/${p.slug}`) : localeUrl(site, p.slug, locale), label: p.navLabel || p.title || p.slug }));
 }
 
 /** 下拉：现值不在选项里（页面删了、块删了、手写的地址）也照样显示它，不悄悄换成别的。 */
@@ -102,8 +106,12 @@ export const REGION_LINK_TYPES: readonly LinkType[] = ['page', 'external', 'emai
  * Link Type 那一排 + 所选那一类的一格。`value` 是这颗按钮的 `href`（字符串或 `{source}` 引用），`onChange` 交回新的 `href`。
  * `types`：列哪几类（默认五类全列）。存着的 `href` 推出来的那一类不在里面时（手写过 `#…`）照样亮着它，不悄悄改值。
  */
-export function ButtonLinkFields({ value, onChange, readOnly, site, locale, types = LINK_TYPES }: {
-  value: unknown; onChange: (v: unknown) => void; readOnly?: boolean; site: SiteData; locale: string; types?: readonly LinkType[];
+export function ButtonLinkFields({ value, onChange, readOnly, site, locale, types = LINK_TYPES, barePages = false }: {
+  value: unknown; onChange: (v: unknown) => void; readOnly?: boolean; site: SiteData; locale: string;
+  /** #1781 / #1779 —— 给哪几类（默认五类）。菜单 / 顶栏按钮不给 Page section：它们出现在每一页，「本页某一块」在别的页上指空。 */
+  types?: readonly LinkType[];
+  /** #1781 —— Page link 存不带语言前缀的地址（§pagesOf 的 `bare`）。菜单用。 */
+  barePages?: boolean;
 }) {
   const sections = useSections();
   const env = useContext(ButtonLinkEnvContext);
@@ -128,7 +136,7 @@ export function ButtonLinkFields({ value, onChange, readOnly, site, locale, type
     cell = (
       <div style={ROW}>
         <label style={LABEL}>Page</label>
-        <Choice attr="data-editor-button-page" label="Page" value={inferred.type === 'page' ? inferred.value : ''} options={pagesOf(site, locale)} empty="Choose a page"
+        <Choice attr="data-editor-button-page" label="Page" value={inferred.type === 'page' ? inferred.value : ''} options={pagesOf(site, locale, barePages)} empty="Choose a page"
           onChange={(v) => onChange(hrefFor('page', { value: v }))} readOnly={readOnly} />
       </div>
     );
@@ -230,6 +238,25 @@ export function ButtonEditor({ item, onChange, readOnly, site, locale, types, la
         <input data-editor-button-label="" type="text" aria-label={labelText} value={typeof item.label === 'string' ? item.label : ''} readOnly={readOnly}
           placeholder={labelHint} onChange={(e) => onChange(withButton(item, { label: e.target.value }))} style={INPUT} />
         {labelHint ? <p data-editor-button-label-hint="" style={HINT}>{`Leave it empty to show ${labelHint}.`}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+/** #1781 —— 菜单那一项的四类（没有 Page section，§ButtonLinkFields 的 `types`）。 */
+export const MENU_LINK_TYPES: readonly LinkType[] = ['page', 'external', 'email', 'phone'];
+
+/** #1781 —— 菜单一项整份：Link Type 四选一 + 那一格 + Link label。`item` 是 `{label, href}`，`onChange` 交回换了一样的整项。 */
+export function MenuLinkEditor({ item, onChange, site, locale }: {
+  item: { label: string; href: unknown }; onChange: (next: { label: string; href: unknown }) => void; site: SiteData; locale: string;
+}) {
+  return (
+    <div data-editor-menu-link-editor="">
+      <ButtonLinkFields value={item.href} onChange={(href) => onChange({ ...item, href })} site={site} locale={locale} types={MENU_LINK_TYPES} barePages />
+      <div style={ROW}>
+        <label style={LABEL}>Link label</label>
+        <input data-editor-menu-link-label="" type="text" aria-label="Link label" value={item.label}
+          onChange={(e) => onChange({ ...item, label: e.target.value })} style={INPUT} />
       </div>
     </div>
   );

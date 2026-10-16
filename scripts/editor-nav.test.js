@@ -1,23 +1,24 @@
 #!/usr/bin/env node
 /**
- * editor-nav.test.js — #1759：编辑器顶栏 Content 页的「Navigation links」—— 菜单从页面推出来，面板改的是各页的 navLabel / navOrder。
+ * editor-nav.test.js — #1759 立；#1781 起菜单是老板自己的一份列表（`navigation.json` 的 `header.links`），构建只做合并。
  *
  *   node scripts/editor-nav.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
- * 管三个文件：`lib/nav-menu.js`（菜单规则，构建与编辑器预览共用）· `lib/editor-nav.js`（能进菜单的页 + 写别的页）·
- * `write-editor-save.js` 的 `nav` 那一格（容器里那一步，跟页面 / 外壳一起先全判、再全写）。
+ * 管四个文件：`lib/nav-menu.js`（§syncMenu：构建对菜单做的全部事情）· `lib/nav-editor.js`（浏览器那一侧：能不能存、拖动、画布预览）·
+ * `lib/editor-nav.js`（能进菜单的页 + 写别的页的 navLabel / navOrder —— 编辑器 #1781 起不再调它，写盘那一格 `nav` 还在，照旧量）·
+ * `write-editor-save.js`（容器里那一步，跟页面 / 外壳一起先全判、再全写）。
  *
- * 夹具：仓里那条 skipAI 建站路造一个真站（同 editor-root.test.js），再补三页：一张普通页（第 3 个能进菜单的页）、一张关键词页、
- * 一张服务详情页 —— 后两种按构建的判据不进菜单。
+ * 夹具：仓里那条 skipAI 建站路造一个真站（同 editor-root.test.js），再补三页：一张普通页、一张关键词页、一张服务详情页
+ * —— 后两种按构建的判据不是普通页（不进 knownPages、不会被自动加进菜单）。
  *
- *   ① 能进菜单的页（§navMenuOf）：首页单独给、普通页按 navOrder、关键词页 / 服务详情页不在、隐藏着的（没有 navLabel）在、navLabel 空串
- *   ② 同一条规则：§menuLinks(§navMenuOf(盘上的页)) == 真跑一次 sync-config 之后 navigation.json 里的 header.links / footer.columns[0].links
- *      （改名 / 隐藏 / 重排 / 改按钮链接之后各跑一次）。反向：换一份「页脚也去掉按钮那一页」的规则 ⟹ 这一格红
- *   ③ §planNavWrite：改名 / 隐藏（删键）/ 显示 / 改 navOrder 只动点名的那几页、只动那两个键；拒收与形状不对的几种
- *   ④ write-editor-save.js：nav + root + 页面一起存；nav 点名正在编辑的页 ⟹ 5；一页的文件坏了 ⟹ 整笔一个字节都不写（验收 10）
- *   ⑤ 浏览器那一侧（`lib/nav-editor.js`）：拖动 / 显示隐藏 / 存盘差 / 预览 —— 面板上做一串动作 → 照它算出的那一笔真存进去 →
- *      真跑一次 sync-config ⟹ navigation.json 的顶栏 / 页脚第一列 == 画布预览当场算出来的（验收 2 / 3 / 4 / 5 在这一层的那一半）
+ *   ① 能进菜单的页（§navMenuOf）
+ *   ② #1781 构建对菜单做的事（真跑 sync-config）：第一次构建不改建站时那份菜单、记下 knownPages · 新页追加到末尾（名字 navLabel → title）·
+ *      老板删掉的不回来 · 页面删了菜单里那一项跟着去掉 · 老板的改动构建后还在 · 页脚第一列 = 菜单。反向：「不在菜单里的页都加回来」那种
+ *      朴素规则跟构建对不上（证明这一格量得出差别）
+ *   ③ §planNavWrite · ④ write-editor-save.js 的 `nav` 那一格（同 #1759）
+ *   ⑤ 浏览器那一侧（`lib/nav-editor.js`）：能不能存的那一句 · 拖动 · 照面板那一份经 write-editor-save 的 root `headerLinks` 真存 →
+ *      真跑 sync-config ⟹ 画布预览 == 构建派生（`shell-data.js`）的顶栏 / 页脚菜单；电话引用原样存、原样派生
  */
 
 'use strict';
@@ -133,45 +134,73 @@ console.log('① 能进菜单的页（navMenuOf）');
     '没写 navOrder 的排在后面（同构建的 ?? 99），同分保持原来的顺序；没写就不放这个键', JSON.stringify(noOrder.pages));
 }
 
-// ══ ② 同一条规则：编辑器预览算出来的 == 构建写进 navigation.json 的 ═══════════════════════════════
-console.log('② 预览与构建同一条规则（menuLinks vs sync-config）');
+// ══ ② #1781 构建对菜单做的事（nav-menu.js §syncMenu，真跑 sync-config）═══════════════════════════════════════
+console.log('② 构建对菜单做的事（syncMenu vs 真 sync-config）');
 {
-  const sync = () => cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
-  const preview = (rule) => {
-    const m = menuFromDisk();
-    const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
-    return rule({ homeLabel: navMenu.homeLabelOf(m.home.navLabel, 'en'), regular: m.pages, ctaSlug: navMenu.ctaSlugOf(nav.header.buttons[0].href) });
+  const NAVF = path.join(SITE, 'en', 'navigation.json');
+  const sync = () => {
+    const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
+    if (r.status !== 0) bad(`sync-config 跑不起来（rc=${r.status}）${(r.stderr || '').slice(-300)}`);
+    return JSON.parse(fs.readFileSync(NAVF, 'utf-8'));
   };
-  const built = () => {
-    const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
-    return { header: nav.header.links, footer: nav.footer.columns[0].links };
-  };
-  const cases = [
-    ['原样', () => {}],
-    ['改名 + 隐藏一页', () => { writePage('about', (p) => { p.navLabel = 'Who we are'; }); writePage('services', (p) => { delete p.navLabel; }); }],
-    ['重排（pricing 拖到第一位）+ 首页改名', () => { writePage('pricing', (p) => { p.navOrder = 1; }); writePage('about', (p) => { p.navOrder = 2; }); writePage('home', (p) => { p.navLabel = 'Start'; }); }],
-    ['按钮改指 pricing（contact 回到顶栏、pricing 离开）', () => {
-      const f = path.join(SITE, 'en', 'navigation.json');
-      const nav = JSON.parse(fs.readFileSync(f, 'utf-8'));
-      nav.header.buttons[0].href = '/pricing';
-      fs.writeFileSync(f, `${JSON.stringify(nav, null, 2)}\n`);
-    }],
-  ];
-  let lastBuilt = null;
-  for (const [name, mutate] of cases) {
-    freshSite();
-    mutate();
-    const r = sync();
-    if (r.status !== 0) { bad(`${name}：sync-config 跑不起来（rc=${r.status}）${(r.stderr || '').slice(-300)}`); continue; }
-    const b = built();
-    const p = preview(navMenu.menuLinks);
-    check(JSON.stringify(p) === JSON.stringify(b), `${name} ⟹ 预览 == 构建`, `预览 ${JSON.stringify(p)} · 构建 ${JSON.stringify(b)}`);
-    lastBuilt = b;
-  }
-  // 反向：把规则改成「页脚也去掉按钮那一页」⟹ 上面最后一格对不上（证明这一格比得出差别）。
-  const wrong = (a) => { const r = navMenu.menuLinks(a); const cta = a.ctaSlug; return { header: r.header, footer: r.footer.filter((l) => l.href !== `/${cta}`) }; };
-  const p = preview(wrong);
-  check(lastBuilt && JSON.stringify(p) !== JSON.stringify(lastBuilt), '反向：页脚也去掉按钮那一页的规则 ⟹ 跟构建对不上', JSON.stringify(p));
+  const editNav = (mutate) => { const n = JSON.parse(fs.readFileSync(NAVF, 'utf-8')); mutate(n); fs.writeFileSync(NAVF, `${JSON.stringify(n, null, 2)}\n`); };
+  const hrefs = (n) => n.header.links.map((l) => l.href);
+  const footerIsMenu = (n) => JSON.stringify(n.footer.columns[0].links) === JSON.stringify(n.header.links);
+
+  freshSite();
+  const created = JSON.parse(fs.readFileSync(NAVF, 'utf-8'));
+  check(!('knownPages' in created.header), '（前提）建站写的 navigation.json 里还没有 knownPages', JSON.stringify(Object.keys(created.header)));
+  let n = sync();
+  check(JSON.stringify(n.header.links) === JSON.stringify(created.header.links), '第一次构建：菜单 = 建站时那一份（不重算、不追加）', `${JSON.stringify(created.header.links)} → ${JSON.stringify(n.header.links)}`);
+  check(JSON.stringify(n.header.knownPages) === JSON.stringify(['about', 'services', 'pricing', 'contact']), '第一次构建：knownPages = 这时的普通页（关键词页 / 服务详情页 / 首页不在）', JSON.stringify(n.header.knownPages));
+  check(footerIsMenu(n), '页脚第一列 = 菜单', JSON.stringify(n.footer.columns[0].links));
+  const n1 = n;
+  n = sync();
+  check(JSON.stringify(n) === JSON.stringify(n1), '再构建一次 ⟹ navigation.json 一个字都不变（合并是稳定的）');
+
+  // 验收 4：新的普通页 ⟹ 末尾出现、knownPages 记下；从菜单删了再构建 ⟹ 不回来；删掉那一页再构建 ⟹ 菜单和 knownPages 里都没有它。
+  fs.writeFileSync(path.join(PAGES, 'faq.json'), `${JSON.stringify({ ...readPage('about'), slug: 'faq', title: 'Questions', navLabel: 'FAQ', navOrder: 9 }, null, 2)}\n`);
+  n = sync();
+  check(JSON.stringify(n.header.links[n.header.links.length - 1]) === JSON.stringify({ label: 'FAQ', href: '/faq' }) && n.header.knownPages.includes('faq'),
+    '加一页 faq（navLabel FAQ）⟹ 菜单末尾出现 FAQ、knownPages 含 faq', JSON.stringify(n.header));
+  check(footerIsMenu(n), '页脚第一列跟着有 FAQ');
+  editNav((x) => { x.header.links = x.header.links.filter((l) => l.href !== '/faq'); });
+  n = sync();
+  check(!hrefs(n).includes('/faq') && n.header.knownPages.includes('faq'), '把 FAQ 从菜单删了再构建 ⟹ 不回来（faq 还在 knownPages 里）', JSON.stringify(n.header));
+  // 朴素规则（「普通页里不在菜单里的都加回来」）在这一刻会把 FAQ 加回来 ⟹ 跟构建对不上：这一格量得出 knownPages 的作用。
+  const naive = [...n.header.links, ...['about', 'services', 'pricing', 'contact', 'faq'].filter((sl) => !hrefs(n).includes(`/${sl}`)).map((sl) => ({ href: `/${sl}` }))];
+  check(naive.length !== n.header.links.length, '反向：朴素规则会把删掉的项加回来 ⟹ 跟构建对不上', JSON.stringify(naive.map((l) => l.href)));
+  fs.rmSync(path.join(PAGES, 'faq.json'));
+  n = sync();
+  check(!hrefs(n).includes('/faq') && !n.header.knownPages.includes('faq'), '删掉 faq.json 再构建 ⟹ 菜单和 knownPages 里都没有它', JSON.stringify(n.header));
+
+  // 页面删了、菜单里还有指向它的那一项 ⟹ 一起去掉；没有 navLabel 的新页 ⟹ 名字取标题。
+  fs.writeFileSync(path.join(PAGES, 'faq.json'), `${JSON.stringify({ ...readPage('about'), slug: 'faq', title: 'Questions', navLabel: 'FAQ', navOrder: 9 }, null, 2)}\n`);
+  n = sync();
+  fs.rmSync(path.join(PAGES, 'faq.json'));
+  writePage('pricing', (p) => { delete p.navLabel; });
+  fs.writeFileSync(path.join(PAGES, 'team.json'), `${JSON.stringify({ ...readPage('about'), slug: 'team', title: 'Our Team', navLabel: undefined, navOrder: 10 }, null, 2)}\n`);
+  n = sync();
+  check(!hrefs(n).includes('/faq'), '菜单里有 FAQ、再删掉 faq.json ⟹ 那一项一起去掉', JSON.stringify(hrefs(n)));
+  check(JSON.stringify(n.header.links[n.header.links.length - 1]) === JSON.stringify({ label: 'Our Team', href: '/team' }), '没写 navLabel 的新页 ⟹ 名字取标题', JSON.stringify(n.header.links));
+
+  // 验收 3：老板的改动（About 改指 Contact、改名 Reach us；删 Services）构建后还在，Services 不回来。
+  editNav((x) => {
+    x.header.links = x.header.links.filter((l) => l.href !== '/services')
+      .map((l) => (l.href === '/about' ? { label: 'Reach us', href: '/contact' } : l));
+  });
+  n = sync();
+  check(n.header.links.some((l) => l.label === 'Reach us' && l.href === '/contact') && !hrefs(n).includes('/services') && !hrefs(n).includes('/about'),
+    '验收 3：About 改成 Reach us → /contact、删掉 Services ⟹ 构建后照旧、Services 不回来', JSON.stringify(n.header.links));
+  check(footerIsMenu(n), '页脚第一列仍 = 菜单');
+
+  // #1781 r5（QA3 r4 T2）：菜单里已经有一项指着某页（老板先手填了 /faq），之后才建出那一页 ⟹ 只记进 knownPages，不再追加第二条。
+  editNav((x) => { x.header.links.push({ label: 'Questions?', href: '/faq' }); });
+  fs.writeFileSync(path.join(PAGES, 'faq.json'), `${JSON.stringify({ ...readPage('about'), slug: 'faq', title: 'Questions', navLabel: 'FAQ', navOrder: 9 }, null, 2)}\n`);
+  n = sync();
+  check(hrefs(n).filter((h) => h === '/faq').length === 1 && n.header.links.some((l) => l.label === 'Questions?') && n.header.knownPages.includes('faq'),
+    'T2：菜单已有 /faq、再建 faq 页 ⟹ 只有一条（老板起的名字留着）、knownPages 记下 faq', JSON.stringify(n.header));
+  check(footerIsMenu(n), '页脚第一列也只有一条 /faq');
 }
 
 // ══ ③ planNavWrite ═══════════════════════════════════════════════════════════════════════════════
@@ -272,59 +301,54 @@ console.log('④ write-editor-save.js（容器里那一步）');
     '（对照）那一页修好、同一笔再发 ⟹ 五份都写了', `${s.status} ${JSON.stringify(changedFiles(fixed, snapshot(SITE)))} ${s.stderr}`);
 }
 
-// ══ ⑤ 浏览器那一侧：面板动作 → 存盘差 → 真存 → 真构建 == 预览 ═══════════════════════════════════════
-console.log('⑤ nav-editor（面板动作 · 存盘差 · 预览 == 构建）');
+// ══ ⑤ 浏览器那一侧（nav-editor.js）：能不能存 · 拖动 · 照面板那一份真存 → 真构建 == 画布预览 ═══════════════════════════
+console.log('⑤ nav-editor（能不能存 · 拖动 · 预览 == 构建）');
 {
+  const { shellDataFor } = require('./lib/shell-data.js');
+  check(navEditor.menuItemProblem({ label: 'About', href: '/about' }) === '', '有名字有链接 ⟹ 能存');
+  check(/needs a name/.test(navEditor.menuItemProblem({ label: '  ', href: '/about' })), '名字空 ⟹ Done 时那一句');
+  check(/up to 40/.test(navEditor.menuItemProblem({ label: 'x'.repeat(41), href: '/about' })), '名字超过 40 个字 ⟹ 那一句');
+  check(/needs somewhere to go/.test(navEditor.menuItemProblem({ label: 'About', href: ' ' })), '没链接 ⟹ 那一句');
+  check(navEditor.menuItemProblem({ label: 'Call', href: { source: 'phone' } }) === '' && /needs somewhere/.test(navEditor.menuItemProblem({ label: 'X', href: { source: 'address' } })),
+    '电话引用算有链接；不认识的 source 不算');
+  const list = [{ label: 'A', href: '/a' }, { label: 'B', href: '/b' }, { label: 'C', href: '/c' }];
+  check(JSON.stringify(navEditor.moveItem(list, 2, 0).map((l) => l.label)) === JSON.stringify(['C', 'A', 'B']) && list[0].label === 'A', '拖：C 拖到第一位，入参不变');
+  check(navEditor.moveItem(list, 0, 9) === list, '下标越界 ⟹ 原样');
+
   freshSite();
-  const panel0 = navEditor.navMenuToPanel(menuFromDisk(), 'en');
-  const CTA = '/contact';
-  check(JSON.stringify(navEditor.panelRows(panel0, CTA).map((r) => r.slug)) === JSON.stringify(['about', 'services', 'pricing']), '面板列表不列按钮那一页（contact）', JSON.stringify(navEditor.panelRows(panel0, CTA)));
-  check(navEditor.buttonPage(panel0, CTA).slug === 'contact', '灰字点名的那一页是 contact');
-  check(JSON.stringify(navEditor.panelRows(panel0, '/pricing').map((r) => r.slug)) === JSON.stringify(['about', 'services', 'contact']), '按钮改指 pricing ⟹ pricing 离开列表、contact 回来（验收 5）');
-
-  // 拖：pricing（显示着的第 3 格）拖到第 1 格。按钮那一页（contact）在全部页里的位置不动。
-  let m = navEditor.moveShown(panel0, CTA, 2, 0);
-  check(JSON.stringify(m.items.map((it) => it.slug)) === JSON.stringify(['pricing', 'about', 'services', 'contact']), '拖完：pricing · about · services，contact 原地（最后）', JSON.stringify(m.items.map((it) => it.slug)));
-  // 夹在中间的按钮页：contact 改到第 2 位（navOrder 1.5 那种），拖动不许把它挪走。
-  const mid = { ...panel0, items: [panel0.items[0], panel0.items[3], panel0.items[1], panel0.items[2]] };
-  const mid2 = navEditor.moveShown(mid, CTA, 2, 0);
-  check(JSON.stringify(mid2.items.map((it) => it.slug)) === JSON.stringify(['pricing', 'contact', 'about', 'services']), '按钮页夹在中间 ⟹ 拖完它还在第 2 位', JSON.stringify(mid2.items.map((it) => it.slug)));
-  // 改名 + 隐藏 + 首页改名
-  m = navEditor.setLabel(m, 'about', 'Who we are');
-  m = navEditor.setShown(m, CTA, 'services', false);
-  m = navEditor.setLabel(m, 'home', 'Start');
-  check(JSON.stringify(navEditor.panelRows(m, CTA).map((r) => `${r.slug}:${r.shown}`)) === JSON.stringify(['pricing:true', 'about:true', 'services:false']), '隐藏着的排在最后');
-  check(navEditor.navMenuProblem(m) === '', '名字都在 ⟹ 没问题');
-  check(/needs a name/.test(navEditor.navMenuProblem(navEditor.setLabel(m, 'about', '  '))), '显示着的名字清空 ⟹ Done 时那一句');
-  check(navEditor.navMenuProblem(navEditor.setLabel(m, 'services', '')) === '', '隐藏着的名字清空不算（它不进菜单）');
-
-  // 存盘差：正在编辑的是 about ⟹ about 的两格单独回（并进页面 JSON），别的进 nav。
-  const ch = navEditor.navMenuChanges({ initial: panel0, now: m, slug: 'about' });
-  console.log(`    存盘差 ${JSON.stringify(ch)}`);
-  check(JSON.stringify(ch.page) === JSON.stringify({ navLabel: 'Who we are', navOrder: 2 }), 'about（正在编辑）：名字 + 新序号单独回', JSON.stringify(ch.page));
-  check(JSON.stringify(ch.nav) === JSON.stringify({ services: { navLabel: null, navOrder: 3 }, pricing: { navOrder: 1 }, home: { navLabel: 'Start' } }),
-    'nav：services 隐藏 + 重编号、pricing 重编号、home 改名；contact 序号没变不交', JSON.stringify(ch.nav));
-  check(JSON.stringify(navEditor.navMenuChanges({ initial: panel0, now: panel0, slug: 'about' })) === JSON.stringify({ nav: {}, page: null }), '什么都没动 ⟹ 什么都不交');
-  const shownBack = navEditor.setShown(navEditor.setShown(panel0, CTA, 'about', false), CTA, 'about', true);
-  check(shownBack.items.find((it) => it.slug === 'about').label === 'About Us' && JSON.stringify(navEditor.panelRows(shownBack, CTA).map((r) => r.slug)) === JSON.stringify(['services', 'pricing', 'about']),
-    '显示回来 ⟹ 名字是标题（About Us）、排在显示着的最后', JSON.stringify(navEditor.panelRows(shownBack, CTA)));
-
-  // 照这一笔真存进去（about 是正在编辑的页：它那两格并进页面 JSON），再真构建一次 ⟹ 跟预览一模一样。
-  const aboutFile = path.join(PAGES, 'about.json');
-  const aboutBytes = fs.readFileSync(aboutFile);
-  const s = runScript({ page: 'about', locale: 'en', baseHash: crypto.createHash('sha256').update(aboutBytes).digest('hex') }, {
-    page: navEditor.applyPageNav(JSON.parse(aboutBytes.toString('utf-8')), ch.page),
-    nav: ch.nav,
-  });
-  check(s.status === 0, '照存盘差真存 ⟹ 成功', `${s.status} ${s.stdout} ${s.stderr}`);
+  cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
+  // 面板那一份：加一项外部链接、一项拨本店电话，About 改名，拖一下。
+  const panel = navEditor.moveItem([
+    { label: 'Home', href: '/' }, { label: 'Who we are', href: '/about' }, { label: 'Services', href: '/services' },
+    { label: 'Order online', href: 'https://example.com' }, { label: 'Call us', href: { source: 'phone' } },
+  ], 3, 1);
+  const s = runScript({ page: 'home', locale: 'en' }, { root: { headerLinks: panel } });
+  check(s.status === 0 && s.last && JSON.stringify(s.last.files) === JSON.stringify(['site/en/navigation.json']), '照面板那一份经 root.headerLinks 真存 ⟹ 只写 en/navigation.json', `${s.status} ${s.stdout} ${s.stderr}`);
   const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
   const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
-  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { navMenu: m, headerButtons: nav.header.buttons }, 'en', 'en');
-  check(r.status === 0 && JSON.stringify(preview.header.nav) === JSON.stringify(nav.header.links) && JSON.stringify(preview.footer.nav) === JSON.stringify(nav.footer.columns[0].links),
-    '预览 == 构建（顶栏、页脚第一列逐项）', `预览 ${JSON.stringify(preview)} · 构建 ${JSON.stringify({ h: nav.header.links, f: nav.footer.columns[0].links })}`);
-  check(JSON.stringify(nav.footer.columns[0].links.map((l) => l.label)) === JSON.stringify(['Start', 'Pricing', 'Who we are', 'Contact']),
-    '页脚第一列：首页 · 拖完的顺序 · 按钮那一页还在最后（隐藏的 services 不在）', JSON.stringify(nav.footer.columns[0].links));
-  check(!nav.header.links.some((l) => l.href === '/contact') && !nav.header.links.some((l) => l.href === '/services'), '顶栏里没有按钮那一页、没有隐藏的那一页');
+  check(r.status === 0 && JSON.stringify(nav.header.links) === JSON.stringify(panel), '构建后 header.links = 面板那一份（逐项、电话引用原样）', JSON.stringify(nav.header.links));
+  const brand = JSON.parse(fs.readFileSync(path.join(SITE, 'brand.json'), 'utf-8'));
+  const built = shellDataFor({ nav, brand, brandName: 'x', services: [], pages: [], locale: 'en', defaultLocale: 'en' });
+  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { headerLinks: panel }, 'en', 'en');
+  const strip = (items) => items.map(({ editorIndex, ...rest }) => rest); // eslint-disable-line no-unused-vars
+  check(JSON.stringify(strip(preview.header.nav)) === JSON.stringify(built.header.nav) && JSON.stringify(preview.footer.nav) === JSON.stringify(built.footer.nav),
+    '预览 == 构建派生（顶栏、页脚第一列逐项；电话那一项两边都是同一个引用）', `预览 ${JSON.stringify(preview)} · 构建 ${JSON.stringify({ h: built.header.nav, f: built.footer.nav })}`);
+  check(preview.header.nav.every((it, i) => it.editorIndex === i) && !built.header.nav.some((it) => 'editorIndex' in it) && !preview.footer.nav.some((it) => 'editorIndex' in it),
+    '预览的顶栏每一项带它在面板里的下标（画布上点它用），构建那份和页脚都不带');
+
+  // 写盘那一侧再判一次（编辑器绕过 Done 发过来的东西）：没名字 / 坏引用 / javascript: 都一个字节不写。
+  const before = snapshot(SITE);
+  for (const [name, links, code] of [
+    ['没名字', [{ label: ' ', href: '/a' }], 11],
+    ['不认识的 source', [{ label: 'X', href: { source: 'address' } }], 5],
+    ['javascript: 链接', [{ label: 'X', href: 'javascript:alert(1)' }], 11],
+  ]) {
+    const x = runScript({ page: 'home', locale: 'en' }, { root: { headerLinks: links } });
+    check(x.status === code && changedFiles(before, snapshot(SITE)).length === 0, `写盘那一侧：${name} ⟹ exit ${code}、一个字节不写`, `${x.status} ${x.stdout} ${x.stderr}`);
+  }
+  // 预览不画坏链接（同 shell-data 的白名单）。
+  const bad1 = navEditor.liveShellData({ header: {}, footer: {} }, { headerLinks: [{ label: 'X', href: 'javascript:x' }, { label: '', href: '/a' }, { label: 'Ok', href: '/ok' }] }, 'fr', 'en');
+  check(JSON.stringify(bad1.header.nav) === JSON.stringify([{ label: 'Ok', href: '/fr/ok', editorIndex: 2 }]), '预览：坏链接、没名字的不画；站内链接按语言加前缀', JSON.stringify(bad1.header.nav));
 
   // 预览的按钮 / logo：同 shell-data 一个函数（#1787 `header-buttons.js`：名字和链接都非空、过链接白名单、样子按位置）。
   const base = { header: { buttons: [{ label: 'Old', href: '/x', style: 'solid', at: 0 }], logo: '/old.png', nav: [] }, footer: { logo: '/old.png', nav: [] } };
@@ -348,36 +372,9 @@ console.log('⑤ nav-editor（面板动作 · 存盘差 · 预览 == 构建）')
   // 清空那格要喂一份「构建那份是 true」的底稿 —— 喂 base（本来就没有这个键）时，删不删它都绿。
   const cleared = navEditor.liveShellData({ header: { ...base.header, logoHasWordmark: true }, footer: { ...base.footer, logoHasWordmark: true } }, { logoUrl: '' }, 'en', 'en');
   check(!('logoHasWordmark' in cleared.header) && !('logoHasWordmark' in cleared.footer), '#1784：logo 清空 ⟹ logoHasWordmark 一起去掉', JSON.stringify(cleared));
-}
-
-// ══ ⑥ 首页没写 navLabel 的老站（#1759 QA3 退回）：面板首页那一格跟构建同一条兜底 ═══════════════════════════
-// `nav-menu.js` §HOME_LABELS 那段注释点名的那类站（pre-122a / 翻译半途失败）。面板那一格以前取原值 = ''，
-// §navMenuProblem 就把整个顶栏面板的 Done 拦下 —— 连只换 Layout / Customize 也存不了。
-console.log('⑥ 首页没有 navLabel 的老站');
-{
-  freshSite();
-  writePage('home', (p) => { delete p.navLabel; });
-  const homeBefore = fs.readFileSync(path.join(PAGES, 'home.json'));
-  const disk = menuFromDisk();
-  check(disk.home && disk.home.navLabel === '', '（前提）盘上首页没有 navLabel', JSON.stringify(disk.home));
-  const p0 = navEditor.navMenuToPanel(disk, 'en');
-  check(p0.home.label === 'Home', '面板首页那一格 = Home（同构建 derive-site 的兜底）', JSON.stringify(p0.home));
-  check(navEditor.navMenuProblem(p0) === '', '没动菜单 ⟹ Done 不拦', navEditor.navMenuProblem(p0));
-  check(navEditor.navMenuToPanel(disk, 'zh').home.label === '首页' && navEditor.navMenuToPanel(disk, 'xx').home.label === 'Home', '别的语言按 HOME_LABELS（zh 首页），表里没有的语言 Home');
-  check(JSON.stringify(navEditor.navMenuChanges({ initial: p0, now: p0, slug: 'about' })) === JSON.stringify({ nav: {}, page: null }), '没动 ⟹ 什么都不交（兜底值不被当成改动写进 home.json）');
-  // 只改别的页的名字、真存 ⟹ home.json 一个字节不变；真构建后首项仍是 Home，预览 == 构建。
-  const m = navEditor.setLabel(p0, 'about', 'Who we are');
-  const ch = navEditor.navMenuChanges({ initial: p0, now: m, slug: 'services' });
-  check(JSON.stringify(ch) === JSON.stringify({ nav: { about: { navLabel: 'Who we are' } }, page: null }), '只改 about ⟹ nav 只点名 about，没有 home', JSON.stringify(ch));
-  const s = runScript({ page: 'services', locale: 'en' }, { nav: ch.nav });
-  check(s.status === 0 && Buffer.compare(homeBefore, fs.readFileSync(path.join(PAGES, 'home.json'))) === 0, '真存 ⟹ 成功，home.json 逐字节没变', `${s.status} ${s.stderr}`);
-  const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
-  const nav = JSON.parse(fs.readFileSync(path.join(SITE, 'en', 'navigation.json'), 'utf-8'));
-  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { navMenu: m, headerButtons: nav.header.buttons }, 'en', 'en');
-  check(r.status === 0 && nav.header.links[0].label === 'Home' && JSON.stringify(preview.header.nav) === JSON.stringify(nav.header.links) && JSON.stringify(preview.footer.nav) === JSON.stringify(nav.footer.columns[0].links),
-    '构建首项 = Home，预览 == 构建', `预览 ${JSON.stringify(preview)} · 构建 ${JSON.stringify({ h: nav.header.links, f: nav.footer.columns[0].links })}`);
-  // 老板自己把首页那一格清空 ⟹ 照样拦（兜底只管「打开时没写」，不替老板填）。
-  check(/needs a name/.test(navEditor.navMenuProblem(navEditor.setLabel(p0, 'home', ''))), '老板清空首页名字 ⟹ Done 照样拦');
+  // #1781 —— 菜单不跟着按钮变：主按钮指向哪一页，预览的菜单都一项不少（构建同一条，derive-site 不再扣掉那一页）。
+  const withBtn = navEditor.liveShellData({ header: {}, footer: {} }, { headerLinks: [{ label: 'Home', href: '/' }, { label: 'Contact', href: '/contact' }], headerButtons: [{ label: 'Get a quote', href: '/contact' }] }, 'en', 'en');
+  check(JSON.stringify(withBtn.header.nav.map((l) => l.href)) === JSON.stringify(['/', '/contact']), '主按钮指向 /contact ⟹ 预览菜单里 Contact 照旧在', JSON.stringify(withBtn.header.nav));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

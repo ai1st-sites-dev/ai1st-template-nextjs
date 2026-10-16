@@ -76,6 +76,16 @@ export interface NavLink {
 }
 
 /**
+ * #1781 —— 菜单那一项（`header.links`；页脚第一列是它原样抄过去的，所以页脚每一栏也是这一种）。`href` 是地址字符串，
+ * 或本店电话 / 邮箱的引用 `{source: "phone" | "email", location?}`（同按钮，渲染前 `resolveItemSources` 展开成 `tel:` / `mailto:`）——
+ * 两种都收，所以这里是 `unknown`，由 `scripts/lib/navigation-owned.js` §menuLinkProblems 判。
+ */
+export interface MenuLink {
+  label: string;
+  href: unknown;
+}
+
+/**
  * #1779 —— 按钮的 href 写成电话 / 邮箱引用（同页面块的按钮）：渲染前展开成 `tel:` / `mailto:`（`scripts/lib/item-sources.js`
  * §resolveButtons）。`location` = 第几家门店（0 = 第一家，可省）。
  */
@@ -92,12 +102,14 @@ export interface HeaderButton {
 
 export interface FooterColumn {
   title: string;
-  links: NavLink[];
+  links: MenuLink[];
 }
 
 export interface NavigationConfig {
   header: {
-    links: NavLink[];
+    links: MenuLink[];
+    // #1781 —— 构建记着见过哪些普通页（新页只自动进菜单一次，`scripts/lib/nav-menu.js` §syncMenu）。老站第一次构建之前没有它。
+    knownPages?: string[];
     // #1529 —— 下面 footer 的 `legal` 是可选的：写了才派生进外壳 data（`scripts/lib/shell-data.js`），没写的站一个字节不变。
     // #1787 —— 顶栏按钮：0–3 颗，第 1 颗是主按钮（实心）、第 2 颗描边、第 3 颗文字链接样 —— 样子按位置定，不另存。
     buttons: HeaderButton[];

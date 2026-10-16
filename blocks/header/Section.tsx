@@ -75,7 +75,9 @@ type CtaStyle = 'solid' | 'outline' | 'link';
 export type Logo = 'left' | 'center' | 'right';
 export type Menu = 'beside' | 'center' | 'left' | 'below';
 
-export interface NavItem { label: string; href: string; icon?: string; show?: Show }
+/** `editorIndex`（#1781）：只有编辑器画布那份 data 带（`scripts/lib/nav-editor.js` §liveShellData）—— 这一项在老板那份菜单里的下标，
+ *  据它挂 `data-editor-region-link`，点它开那一项的链接弹窗。构建那份（`shell-data.js`）没有它 ⟹ 发布的网站上不多一个属性。 */
+export interface NavItem { label: string; href: string; icon?: string; show?: Show; editorIndex?: number }
 /** `at`（#1787）：它在老板那份 `header.buttons` 里的下标（0 = 主按钮）—— 编辑器画布上点它开那一颗的弹窗（`data-hdr-cta`）。 */
 export interface Cta { label: string; href: string; style?: CtaStyle; at?: number }
 /** `at`（#1780）：它在老板那份 `topbarLinks` 列表里的下标 —— 编辑器画布上点它开那一项的链接弹窗（`data-editor-region-link`）。 */
@@ -257,7 +259,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     // 图标查不到就按「只有字」画 —— 不然 `show: icon` 的那一项会变成一个看不见的链接。
     const show: Show = icons && item.icon && iconTable[item.icon] ? (item.show || 'both') : 'text';
     return (
-      <li key={key}>
+      <li key={key} {...(typeof item.editorIndex === 'number' ? { 'data-editor-region-link': `nav.${item.editorIndex}` } : {})}>
         <SiteLink className={`nav-link d-inline-flex align-items-center gap-2 ${linkTone}`} href={item.href}>
           {show !== 'text' ? icon(item.icon) : null}
           <span className={show === 'icon' && !vertical ? 'visually-hidden' : undefined}>{item.label}</span>

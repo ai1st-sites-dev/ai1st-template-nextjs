@@ -54,6 +54,9 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
  * 构建拥有的那几处。`read` 取出这一处的值（拿它跟磁盘上那份比），`label` 是回给模型的说法，
  * `syncConfigWrite` 是 `sync-config.js` 里写它的那条语句原文（测试拿它跟真代码两向比对）。
  *
+ * 📌 #1781 —— 菜单（`header.links`）不在这张表里了（老板自己的列表，构建只合并 ⟹ §MERGED）。下面两段讲的「前两项」是 #1104 时的
+ *    菜单 + 页脚第一列；今天这张表是 knownPages · 页脚第一列（= 菜单的拷贝）· 页脚栏数，每项的说法各自钉在 `rebuiltFromCode` 上。
+ *
  * 🔴 第三项是**格数**、不是每一栏的内容：`sync-config.js` 的 `hasKeywordColumns`
  * （`columns.length > 1`）决定构建还要不要追加"关键词分组"那些页脚栏。模型自己加一栏 ⟹ 那个
  * 判断从此恒真 ⟹ 关键词分组永远不会被加上，而这件事是静默的。栏**里面**的标题构建不碰，放行。
@@ -71,22 +74,28 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
  *    （同 `SIDE_EFFECTS[].coupling` 的做法，理由也一样。）
  */
 const OWNED = [
+  // #1781 —— 菜单（`header.links`）从这张表里拿掉了：它是老板自己的一份列表，构建只在缺席时算一次、追加新页、去掉指向已删页的项
+  //    （`nav-menu.js` §syncMenu）—— 写进去的会留着，不是「会被覆盖」。构建对它的那一句写仍在 derive-site.js 里，③ 照它核的是
+  //    下面 §MERGED（「构建会写、但只合并」那一类），不是这张表。
   {
-    key: 'header.links',
-    label: 'the header menu links (header.links)',
-    syncConfigWrite: 'header.links',
-    rebuiltFrom: "each page's own navLabel / navOrder",
-    remediation: "To change a menu entry, change that page's navLabel; to reorder the menu, change its navOrder.",
-    rebuiltFromCode: ['p.navLabel', 'a.navOrder'],
-    read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.links : undefined),
+    key: 'header.knownPages',
+    label: 'the list of pages the build has already seen (header.knownPages)',
+    syncConfigWrite: 'header.knownPages',
+    rebuiltFrom: "the site's pages — it only records which pages the build has seen, so a new page is added to the menu once",
+    remediation: 'Leave it as it is. To add a link to the menu or take one out, change header.links instead.',
+    rebuiltFromCode: ['knownPages: [...known.filter((s) => now.has(s))', 'existingNav.header.knownPages = menu.knownPages'],
+    read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.knownPages : undefined),
   },
   {
     key: 'footer.columns[0].links',
     label: "the first footer column's links (footer.columns[0].links)",
     syncConfigWrite: 'footer.columns[0].links',
-    rebuiltFrom: "each page's own navLabel / navOrder",
-    remediation: "To change one of those links, change that page's navLabel; to reorder them, change its navOrder.",
-    rebuiltFromCode: ['p.navLabel', 'a.navOrder'],
+    // #1781 —— 页脚第一列 = 菜单原样（每次构建抄一份）。所以「跟这次写的 header.links 一样」不是改它 —— 是老板改了菜单、
+    //    模型把两处一起写对了（§buildOwnedChanges 的 `mirrorOf`）；只有跟菜单不一样才是真的会被覆盖。
+    mirrorOf: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.links : undefined),
+    rebuiltFrom: 'the header menu (header.links) — the first footer column is always a copy of it',
+    remediation: 'To change those links, change header.links: the first footer column follows it on the next build.',
+    rebuiltFromCode: ['existingNav.footer.columns[0].links = menu.links.map('],
     read: (nav) => {
       if (!isObj(nav) || !isObj(nav.footer) || !Array.isArray(nav.footer.columns)) return undefined;
       const first = nav.footer.columns[0];
@@ -112,6 +121,20 @@ const OWNED = [
 ];
 
 /**
+ * #1781 —— 构建会写、但只**合并**、不覆盖的那几处：老板写进去的会留着。③ 两向核对时，derive-site.js 里每一处写进
+ * navigation.json 的位置必须落在 `OWNED` 或这张表里，恰好一处 —— 漏登记的写照样红（放宽的不是判据，是多了一个合法的答案）。
+ * `mergedBy` 是 derive-site.js 里让「只合并」成真的那句原文，测试拿它跟真代码比。
+ */
+const MERGED = [
+  {
+    key: 'header.links',
+    syncConfigWrite: 'header.links',
+    mergedBy: ['navMenu.syncMenu(', 'if (!Array.isArray(links)) return'],
+    read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.links : undefined),
+  },
+];
+
+/**
  * 放行之后【别的地方】会跟着变的那些改动 —— 必须说出来。
  *
  * #1104 r2（QA1 中等②）。本票《实施要点》给这几个字段放行的理由原话是「这几个字段构建不覆盖 ——
@@ -128,41 +151,9 @@ const OWNED = [
  * 判据不许写死成散文：`coupling` 是 `sync-config.js` 里那两句的原文，测试拿它跟真代码比 ——
  * 哪天那个过滤被拿掉了，这段话就成了假话，那一格当场红。
  */
-/**
- * #1779 —— 按钮链接给老板看的说法：地址原样加引号；电话 / 邮箱引用（`{source: "phone"}` …）说成人话 ——
- * 原来这里是字符串内插，引用进来会印成 `[object Object]`。
- */
-function buttonLinkWords(v) {
-  if (typeof v === 'string') return `"${v}"`;
-  const where = isObj(v) && Number.isInteger(v.location) && v.location > 0 ? ` of location ${v.location + 1}` : '';
-  if (isObj(v) && v.source === 'phone') return `Phone (the business phone number${where})`;
-  if (isObj(v) && v.source === 'email') return `Email (the business email address${where})`;
-  return 'a link that is not a page';
-}
-
-const SIDE_EFFECTS = [
-  {
-    // #1787 —— 主按钮 = `header.buttons` 的第 1 颗（构建读 `buttons[0].href` 算 ctaSlug，`derive-site.js`）。
-    key: 'header.buttons[0].href',
-    read: (nav) => (isObj(nav) && isObj(nav.header) && Array.isArray(nav.header.buttons) && isObj(nav.header.buttons[0])
-      ? nav.header.buttons[0].href : undefined),
-    coupling: ['const ctaSlug =', 'p.slug !== ctaSlug'],
-    // #1779 —— 只有「是一页」的那一头会动菜单：引用（电话 / 邮箱）不指向任何一页（构建里 `ctaSlug` 为空）。
-    //    两头都不是页 ⟹ 菜单不变，不说（返回 null）。
-    note: (from, to) => {
-      const changes = [];
-      if (typeof to === 'string') changes.push(`the page at "${to}" will drop out of the top menu`);
-      if (typeof from === 'string') changes.push(`the page at "${from}" will appear in it`);
-      if (!changes.length) return null;
-      if (typeof to !== 'string') changes[0] = changes[0].replace(' in it', ' in the top menu');
-      return 'One more thing to tell the owner: the top menu is rebuilt from the site\'s pages every '
-        + 'time, and the page the main header button (the first one) points at is deliberately left out of that menu. Because this edit '
-        + `changed the main button's link from ${buttonLinkWords(from)} to ${buttonLinkWords(to)}, the next build will also change the menu itself — `
-        + `${changes.join(', and ')}. `
-        + 'Nothing else was changed. Say this out loud instead of only reporting that the button was updated.';
-    },
-  },
-];
+// #1781 —— 原来这里有一条：改顶栏主按钮的链接会让菜单跟着变（构建从菜单里去掉按钮指向的那一页，`p.slug !== ctaSlug`）。
+//    那条过滤随 #1781 删了（菜单是老板自己的列表），这句话就成了假话 ⟹ 一起删。今天没有「改了 A、B 跟着变」的字段。
+const SIDE_EFFECTS = [];
 
 /**
  * 放行了、也真的写进了文件，**而这个站的页面根本不读它** —— 必须说出来。
@@ -547,7 +538,8 @@ function navigationEditSideEffects(next, current, rendered) {
 
 /** 哪几处跟磁盘上那份不一样。返回 OWNED 里的那些项。 */
 function buildOwnedChanges(next, current) {
-  return OWNED.filter((o) => !sameValue(o.read(next), o.read(current)));
+  return OWNED.filter((o) => !sameValue(o.read(next), o.read(current))
+    && !(o.mirrorOf && sameValue(o.read(next), o.mirrorOf(next))));
 }
 
 /**
@@ -582,14 +574,18 @@ function buildOwnedChanges(next, current) {
  *    说实话」的通道。别把这一段读成「多出来的键这个模块一个字都不说」—— 那是 #1128 之前的样子。
  */
 const NAV_LINK = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'string' } } };
+// #1781 —— 菜单那一项（`MenuLink`）：`href` 是地址字符串，或本店电话 / 邮箱的引用 `{source: "phone" | "email", location?}`
+//    （同按钮，`item-sources.js` §BUTTON_SOURCES）。`any` 只说「这一格要在」；它是哪一种由 §menuLinkProblems 判。
+//    页脚第一列是菜单原样抄过去的，所以页脚每一栏的链接也是这一种。
+const MENU_LINK = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'any' } } };
 // #1779 —— 顶栏按钮：`href` 是字符串，**或**电话 / 邮箱引用（`{source: "phone" | "email", location?}`，同页面块的按钮，
 //    构建时由 `item-sources.js` §resolveButtons 展开）。类型那头是 `HeaderButton.href: string | ContactRef`（⑩ 认这一种并集）。
 //    不放开的后果：老板在编辑器里把主按钮设成 Phone 之后，AI 每次改 navigation.json 都被这道门拒，
-//    而模型最自然的过门动作是把它改回字符串 —— 老板选的 Phone 被悄悄冲掉。菜单 / 页脚链接仍只收字符串。
+//    而模型最自然的过门动作是把它改回字符串 —— 老板选的 Phone 被悄悄冲掉。菜单项 / 页脚链接的 href 由 §MENU_LINK（#1781）那一格管。
 const HEADER_BUTTON = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'buttonHref' } } };
 const FOOTER_COLUMN = {
   kind: 'object',
-  fields: { title: { kind: 'string' }, links: { kind: 'array', of: NAV_LINK } },
+  fields: { title: { kind: 'string' }, links: { kind: 'array', of: MENU_LINK } },
 };
 // #1529 —— `footer.legal` 是可选的（`NavigationConfig` 里是 `?:`），写在下面那一行。
 // #1787 —— 顶栏按钮是一个列表 `header.buttons`（0–3 颗，`header-buttons.js`）；`max` 是这道门自己的要求（类型只说是数组）。
@@ -599,7 +595,9 @@ const NAV_SHAPE = {
     header: {
       kind: 'object',
       fields: {
-        links: { kind: 'array', of: NAV_LINK },
+        links: { kind: 'array', of: MENU_LINK },
+        // #1781 —— 构建记着见过哪些普通页（`nav-menu.js` §syncMenu）。老站第一次构建之前没有它。
+        knownPages: { kind: 'array', optional: true, of: { kind: 'string' } },
         buttons: { kind: 'array', of: HEADER_BUTTON, max: MAX_HEADER_BUTTONS },
         // #1780 —— 顶栏上面那一行：每项跟顶栏按钮同一个形状（href 是字符串或电话 / 邮箱引用）。
         topbarLinks: { kind: 'array', optional: true, of: HEADER_BUTTON },
@@ -655,6 +653,8 @@ function checkShape(value, shape, at, out) {
     if (!shape.optional) out.push(`${withHint(at)} is missing — ${describeShape(shape, at)}.`);
     return;
   }
+  // #1781 —— `any`：这一格什么值都收（类型那一侧写的是 `unknown`），判它的是别处（§menuLinkProblems）。
+  if (shape.kind === 'any') return;
   if (shape.kind === 'string') {
     const needsText = NON_EMPTY.has(at);
     // 🔴 `.trim()`，不是 `=== ''`：`"   "` 也是一个没有字的按钮（QA3 在 #1104 r2 报的非阻断第 2 条）。
@@ -686,7 +686,26 @@ function describeShape(shape, at) {
   if (shape.kind === 'string') return NON_EMPTY.has(at) ? 'it must be a non-empty string' : 'it must be a string';
   if (shape.kind === 'buttonHref') return `it must be ${NON_EMPTY.has(at) ? 'a non-empty string' : 'a string'} or {"source": "phone"} / {"source": "email"}`;
   if (shape.kind === 'array') return 'it must be an array';
+  if (shape.kind === 'any') return 'it must be present';
   return 'it must be an object';
+}
+
+/**
+ * #1781 —— 菜单每一项的 `href`：地址字符串，或 `{source: "phone" | "email", location?}`（同按钮那条判据，`item-sources.js`）。
+ * 别的（数字、不认识的 source、多余的键）构建画不出一个能点的地址 ⟹ 报。字符串能不能用（`javascript:` 这类）归
+ * `link-href.js`（NAV_LINKS 里登记了 `header.links`），这里只管「是不是这两种之一」。
+ */
+function menuLinkProblems(nav) {
+  const links = isObj(nav) && isObj(nav.header) ? nav.header.links : undefined;
+  if (!Array.isArray(links)) return [];
+  const out = [];
+  links.forEach((l, i) => {
+    if (!isObj(l) || !('href' in l) || typeof l.href === 'string') return;
+    const at = `header.links[${i}].href`;
+    if (!isObj(l.href)) { out.push(`"${at}" must be a string (an address) or {"source": "phone"} / {"source": "email"}.`); return; }
+    out.push(...refProblemsAt(at, BUTTON_SOURCES, l.href));
+  });
+  return out;
 }
 
 /**
@@ -699,6 +718,7 @@ function shapeProblems(nav) {
   if (!isObj(nav)) return ['navigation.json must be a JSON object.'];
   const out = [];
   checkShape(nav, NAV_SHAPE, '', out);
+  out.push(...menuLinkProblems(nav));
   // 模型写了一份完全不成形的文件时，几十条 problem 对它没有用处 —— 前几条已经说清是哪一类错。
   if (out.length > 8) {
     const extra = out.length - 8;
@@ -709,8 +729,9 @@ function shapeProblems(nav) {
 
 /** 这里能改的是哪些 —— 拒绝理由里要带上，否则模型只知道不许改什么、不知道许改什么。 */
 const NAVIGATION_EDITABLE_SUMMARY =
-  'In navigation.json you may change: the header buttons (header.buttons — a list of 0 to 3 {label, href}; '
-  + 'the first one is the main button), the footer copyright, the footer description, the '
+  'In navigation.json you may change: the menu (header.links — a list of {label, href}; href is an address or '
+  + '{"source": "phone"} / {"source": "email"}; the first footer column copies it on the next build), the header buttons '
+  + '(header.buttons — a list of 0 to 3 {label, href}; the first one is the main button), the footer copyright, the footer description, the '
   + 'footer column titles, the footer legal links (footer.legal — a list of {label, href}), and the topbar. '
   + 'Write the complete file with everything else exactly as you read it.';
 
@@ -755,6 +776,8 @@ function navigationEditRejection(next, current) {
 
 module.exports = {
   OWNED,
+  MERGED,
+  menuLinkProblems,
   SIDE_EFFECTS,
   PAGE_READS,
   VARIANTS_BY_REGION,

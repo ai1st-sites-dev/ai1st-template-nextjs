@@ -649,5 +649,30 @@ console.log('⑪ Social links（#1785）');
   check(!r.code && !('socialLinks' in brandOf()), '一条都不剩 ⟹ brand.json 里没有 socialLinks 这个键', JSON.stringify(brandOf().socialLinks));
 }
 
+// ══ #1781 验收 6：多语言站的菜单各自一份 —— 在 zh 改菜单只写 zh/navigation.json；构建后 zh 那份照旧、en / fr 没动；zh 的站内链接带 /zh ══
+console.log('#1781 多语言站：菜单各自一份');
+{
+  freshSite();
+  const site = path.join(TEMPLATE, 'site');
+  const navOf = (l) => JSON.parse(fs.readFileSync(path.join(site, l, 'navigation.json'), 'utf-8'));
+  const enBefore = navOf('en').header.links;
+  const frBefore = navOf('fr').header.links;
+  const before = snapshot(site);
+  const zhMenu = [{ label: '首页', href: '/' }, { label: '联系我们', href: '/contact' }, { label: '打电话', href: { source: 'phone' } }];
+  const r = tryWrite({ headerLinks: zhMenu }, 'zh');
+  check(!r.code && JSON.stringify(changedFiles(before, snapshot(site))) === JSON.stringify(['zh/navigation.json']), '在 zh 改菜单 ⟹ 只写 zh/navigation.json', `${JSON.stringify(r)} ${JSON.stringify(changedFiles(before, snapshot(site)))}`);
+  check(JSON.stringify(readRoot('zh').headerLinks) === JSON.stringify(zhMenu) && JSON.stringify(readRoot('en').headerLinks) === JSON.stringify(enBefore),
+    '读回：zh 是新菜单（电话引用原样）、en 是原来那一份');
+  const b = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 180000 });
+  check(b.status === 0, '构建 rc=0', (b.stderr || '').slice(-300));
+  check(JSON.stringify(navOf('zh').header.links) === JSON.stringify(zhMenu) && JSON.stringify(navOf('zh').footer.columns[0].links) === JSON.stringify(zhMenu),
+    '构建后 zh 菜单照旧、zh 页脚第一列 = zh 菜单', JSON.stringify(navOf('zh').header.links));
+  check(JSON.stringify(navOf('en').header.links) === JSON.stringify(enBefore) && JSON.stringify(navOf('fr').header.links) === JSON.stringify(frBefore), 'en / fr 的菜单没被动');
+  const { shellDataFor } = require(path.join(TEMPLATE, 'scripts', 'lib', 'shell-data.js'));
+  const zhShell = shellDataFor({ nav: navOf('zh'), brand: {}, brandName: 'x', services: [], pages: [], locale: 'zh', defaultLocale: 'en' });
+  check(JSON.stringify(zhShell.header.nav) === JSON.stringify([{ label: '首页', href: '/zh' }, { label: '联系我们', href: '/zh/contact' }, { label: '打电话', href: { source: 'phone' } }]),
+    'zh 顶栏派生：站内链接按语言加 /zh，电话引用原样（渲染前展开）', JSON.stringify(zhShell.header.nav));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

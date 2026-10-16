@@ -811,7 +811,7 @@ check('en 页的块序 = 配方；每块的 options 跟 zh 逐字相同，且含
 check('两种语言的顶部导航都到得了服务列表页、按钮都指 contact（配方的导航与按钮跟到了第二语言）', () => {
   for (const loc of ['zh', 'en']) {
     const nav = JSON.parse(fs.readFileSync(path.join(RG.site, loc, 'navigation.json'), 'utf8'));
-    assert.deepStrictEqual(nav.header.links.map((l) => l.href), ['/', '/services'], loc);
+    assert.deepStrictEqual(nav.header.links.map((l) => l.href), ['/', '/services', '/contact'], loc); // #1781：按钮那一页也进菜单
     assert.strictEqual(nav.header.buttons[0].href, '/contact', loc);
   }
 });
