@@ -43,6 +43,8 @@
 //    bootstrap.js；这里一样都没有）。表单部件跟 hero 共用一份（`src/components/BlockLeadForm.tsx`）：
 //    提交 POST `/api/leads`、原地显示 successMessage —— 那是数据往返不是 HTML 交互，这里只决定它挂在哪儿。
 
+import { island } from '@/islands/island';
+import { pickIcons, publishedIconNames } from '../../scripts/lib/icon-names.js';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
@@ -144,7 +146,7 @@ interface Props {
   logoOptions?: { logoType?: unknown; logoSize?: unknown };
 }
 
-export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = 'en', homeHref = '/', leadForm, logoOptions }: Props) {
+function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = 'en', homeHref = '/', leadForm, logoOptions }: Props) {
   const opts = data.options || {};
   const titles = columnTitles(locale);
   const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
@@ -459,3 +461,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
     </footer>
   );
 }
+
+// #1798 —— 发布出去的静态网页上页脚是一个岛（里面的 BlockLeadForm 是它的普通子树，不另算一个岛 —— `src/islands/island.tsx`）。
+//    图标表收窄同顶栏。
+export default island('footer', FooterNewSection, (p) => ({ ...p, iconTable: pickIcons(p.iconTable, publishedIconNames('footer', p.data)) }));

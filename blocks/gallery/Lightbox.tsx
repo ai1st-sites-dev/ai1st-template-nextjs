@@ -18,10 +18,11 @@
 
 import { useEffect } from 'react';
 import { loadBootstrap } from '@/components/BootstrapJs';
+import { island } from '@/islands/island';
 
 type CarouselCtor = { getOrCreateInstance(el: Element, config?: object): unknown };
 
-export default function GalleryLightbox({ modalId }: { modalId: string }) {
+function GalleryLightbox({ modalId }: { modalId: string }) {
   useEffect(() => {
     const modal = document.getElementById(modalId);
     if (!modal) return;
@@ -53,3 +54,6 @@ export default function GalleryLightbox({ modalId }: { modalId: string }) {
   }, [modalId]);
   return null;
 }
+
+// #1798 —— 发布出去的静态网页上它是一个岛（props 只有 modalId，本来就是 JSON）。
+export default island('gallery-lightbox', GalleryLightbox);

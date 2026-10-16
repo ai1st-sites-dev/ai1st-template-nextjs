@@ -26,6 +26,7 @@
 // 🔴 **图标是内联 SVG**（同 features / milestones）：`iconTable` 由服务端按数据里出现的名字查好传进来
 //    （`scripts/lib/icons.js` §iconTableFor，`check` 勾号登记在 `BLOCK_ICONS['pricing']`），这里用 `InlineIcon` 画。
 
+import { island } from '@/islands/island';
 import { useState, type CSSProperties } from 'react';
 import SiteLink from '@/components/SiteLink';
 import { rowImgs, slotImg } from '@/lib/sections/blockMedia';
@@ -117,7 +118,7 @@ function featuredVars(fc: BgValue | null): { kind: 'solid' | 'gradient'; tone: s
   };
 }
 
-export default function PricingNewSection({ data, block, iconTable = {} }: Props) {
+function PricingNewSection({ data, block, iconTable = {} }: Props) {
   const d: PricingNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: PricingNewOptions = isObj(d.options) ? d.options : {};
@@ -296,3 +297,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
     </BlockSection>
   );
 }
+
+// #1798 —— 发布出去的静态网页上价格表是一个岛（月 / 年切换）。经 `SectionRenderer` 分发时它收到整站 `site`（非 RSC 下
+//    `isClientReference` 为假，#1665）—— 序列化前剥掉；`block` 里那份 `data` 跟 `data` prop 重复，也剥掉（shape / id / role 留着）。
+export default island('pricing', PricingNewSection, ({ site: _site, siteFacts: _facts, pageSlug: _slug, block, ...rest }: Props & { site?: unknown; siteFacts?: unknown; pageSlug?: unknown }) => ({ ...rest, ...(block ? { block: { ...block, data: undefined } } : {}) }) as Props);

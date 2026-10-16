@@ -41,6 +41,7 @@ import ContactMap from './ContactMap';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
+import { pickIcons } from '../../scripts/lib/icon-names.js';
 import { copiesSiteFact, mailtoHref, osmEmbedUrl, siteFactsFrom, telHref, type ContactSiteFacts } from '../../scripts/lib/contact-facts.js';
 
 export type ContactKind = 'phone' | 'email' | 'address' | 'hours' | 'link';
@@ -166,7 +167,8 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
       where={where}
       address={facts.address}
       embedUrl={embedUrl}
-      pin={icon('geo-alt-fill')}
+      pinIcon="geo-alt-fill"
+      icons={pickIcons(iconTable, ['geo-alt-fill'])}
     />
   );
 

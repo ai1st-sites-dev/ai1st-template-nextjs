@@ -11,7 +11,7 @@
 // 🔴 **轮播是 Bootstrap Carousel，也是服务端渲染**（#1494，Chris 2026-09-30：轮播 / 弹窗一律用 Bootstrap 自带的，不手写）：
 //    服务端按 `itemsColumns` 把评价分组，一组一张 `.carousel-item`（里面一个 `.tn-slide` 网格）；每张 slide、每条评价
 //    （`<figure>` + `<blockquote>` + `<figcaption>`）、圆点（`.carousel-indicators`，每张 slide 一个）、前 / 后按钮全在 HTML 里，
-//    搜索和 AI 读得到每一条。唯一的客户端部分是外壳 `Carousel.tsx`：挂载后按需引 Carousel 模块。不自动播放。
+//    搜索和 AI 读得到每一条。唯一的客户端部分是外框里那个 `Carousel.tsx`（#1798 起外框本身也在这里画，它只剩挂载后的初始化）：按需引 Carousel 模块。不自动播放。
 //    以前那条手写轨道（横向滚动 + 自己算位置的圆点）已删。
 //
 // 🔴 **summary 是一组平台（#1500）**，每个 `{source, rating, count, href?, logoUrl?}`，两处摆法按 `summaryStyle` 只出一处：
@@ -43,7 +43,7 @@ import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
-import TestimonialsCarousel from './Carousel';
+import TestimonialsCarouselInit from './Carousel';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
 import { platformLogo } from '../../scripts/lib/review-platforms.js';
@@ -259,7 +259,18 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
           ) : null}
           {carousel ? (
             slides.length ? (
-              <TestimonialsCarousel id={carId} label="Customer reviews">
+              <div
+                id={carId}
+                className="carousel slide tn-carousel"
+                data-part="carousel"
+                data-bs-ride="false"
+                data-bs-interval="false"
+                data-bs-touch="true"
+                data-bs-keyboard="true"
+                tabIndex={0}
+                aria-label="Customer reviews"
+                aria-roledescription="carousel"
+              >
                 <div className="carousel-inner">
                   {slides.map((g, si) => (
                     <div key={si} className={si === 0 ? 'carousel-item active' : 'carousel-item'} data-part="slide">
@@ -286,7 +297,9 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
                     <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="next" aria-label="Next">{icon('chevron-right')}</button>
                   </div>
                 </div>
-              </TestimonialsCarousel>
+                {/* #1798 —— 挂载后的那段行为（Bootstrap 实例 + id 去重）；发布出去的网页上它是一个岛。 */}
+                <TestimonialsCarouselInit />
+              </div>
             ) : null
           ) : (
             <div className="tn-grid" data-part="track">

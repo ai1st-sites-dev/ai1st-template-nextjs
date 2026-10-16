@@ -55,6 +55,8 @@
 //    **编辑器画布里不吸**（`editorCanvas`，由 `SiteShell` 按「收到了编辑器的 ShellOverride」传）：画布里顶栏有自己的
 //    浮动条（#1772），吸住会跟它和选中块的条打架。判据不是 `AI1ST_RENDER` —— 预览和画布都是 preview 渲染。
 
+import { island } from '@/islands/island';
+import { pickIcons, publishedIconNames } from '../../scripts/lib/icon-names.js';
 import { useEffect, useRef, type ReactNode } from 'react';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import { loadBootstrap } from '@/components/BootstrapJs';
@@ -166,7 +168,7 @@ const STICKY_SHADOW_AT = 40;
 
 type CollapseCtor = { getInstance(el: Element): { hide(): void } | null };
 
-export default function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, homeHref = '/', editorCanvas = false }: Props) {
+function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, homeHref = '/', editorCanvas = false }: Props) {
   // 抽屉 = Bootstrap Collapse（§文件头）。按钮和抽屉靠这个 id 对上；一页只有一个顶栏，块没 id 就叫 main。
   const drawerId = `hdr-drawer-${(block && block.id) || 'main'}`;
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -489,3 +491,8 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     </header>
   );
 }
+
+// #1798 —— 发布出去的静态网页上顶栏是一个岛。图标表收窄：画布要常备 9 个社交平台图标（#1785），整表塞进 props 就过 8 KB；
+//    发布出去只带这个块写死要用的 + data 里出现的（`scripts/lib/icon-names.js` §publishedIconNames）。服务端填岛和浏览器 hydrate
+//    用的是收窄后的同一份，两边画出来的一样。
+export default island('header', HeaderNewSection, (p) => ({ ...p, iconTable: pickIcons(p.iconTable, publishedIconNames('header', p.data)) }));

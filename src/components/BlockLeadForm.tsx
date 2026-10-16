@@ -51,6 +51,7 @@
 //    哪个站（`siteId`）、表单库（`forms`）由渲染它的块从站点数据里取好递进来（`config.ts` §leadFormSite）。
 
 import { useState } from 'react';
+import { island } from '@/islands/island';
 import type { CustomFormField, SiteFormConfig } from '@/lib/types/config';
 import { CUSTOM_FIELD_TYPES, FORM_FIELDS, isCustomField, isRequired, optionLabelKey, optionsOf, pickForm } from '../../scripts/lib/site-forms.js';
 import { getLabels } from '@/lib/component-labels';
@@ -87,7 +88,7 @@ export function placeholdersFor(locale: string): Record<LeadField, string> {
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', leadApi = '', services = [], locale, center, align, idPrefix = 'hro', size = 'lg', tone = 'light' }: {
+function BlockLeadForm({ mode, formId, forms = [], siteId = '', leadApi = '', services = [], locale, center, align, idPrefix = 'hro', size = 'lg', tone = 'light' }: {
   mode: LeadFormMode;
   /** 块的 `form.id`；空 ⟹ 表单库第一张。 */
   formId?: string;
@@ -367,3 +368,6 @@ export default function BlockLeadForm({ mode, formId, forms = [], siteId = '', l
     </form>
   );
 }
+
+// #1798 —— 发布出去的静态网页上它是一个岛（`src/islands/island.tsx`）；props 本来就全是可 JSON 的值，不用剥。
+export default island('lead-form', BlockLeadForm);

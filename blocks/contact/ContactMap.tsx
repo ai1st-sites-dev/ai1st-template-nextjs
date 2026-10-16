@@ -14,10 +14,14 @@
 // 🔴 这个 `useState` 管的是**延迟加载**（点之前 iframe 不进 DOM ⟹ 不发站外请求），不是显隐 —— 所以 #1514「HTML 的交互归
 //    bootstrap.js」没有把它换成 Collapse：Collapse 只管 display，元素得先在 DOM 里，换了 #1489 验收 7 当场红。换不换等 Chris 拍。
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import { island } from '@/islands/island';
 
-export default function ContactMap({ where, address, embedUrl, pin }: {
-  where: 'side' | 'bottom'; address: string; embedUrl: string; pin?: ReactNode;
+// #1798 —— 钉子原来是父组件递进来的 React 元素（`pin`）；发布出去的网页上这是一个岛，props 要是 JSON ⟹ 改收图标名 +
+//    只含这一个图标的小表，在这里自己画。
+function ContactMap({ where, address, embedUrl, pinIcon, icons }: {
+  where: 'side' | 'bottom'; address: string; embedUrl: string; pinIcon?: string; icons?: IconTable;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -37,7 +41,7 @@ export default function ContactMap({ where, address, embedUrl, pin }: {
         />
       ) : (
         <div className="ct-map-card h-100 d-flex flex-column align-items-center justify-content-center text-center gap-3 p-6" data-part="map-card">
-          <span className="ct-pin d-inline-flex text-primary" aria-hidden="true">{pin}</span>
+          <span className="ct-pin d-inline-flex text-primary" aria-hidden="true">{pinIcon ? <InlineIcon name={pinIcon} icons={icons} /> : null}</span>
           <div className="ct-map-address fw-semibold" data-part="map-address">{address}</div>
           <button type="button" className="btn btn-sm btn-primary ct-map-open" data-part="map-open" onClick={() => setOpen(true)}>
             Open map
@@ -50,3 +54,5 @@ export default function ContactMap({ where, address, embedUrl, pin }: {
     </div>
   );
 }
+
+export default island('contact-map', ContactMap);
