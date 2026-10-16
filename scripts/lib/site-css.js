@@ -478,10 +478,15 @@ const THEME_COLOR_VARIABLES = [
  *    PurgeCSS 删的只是**没有任何留下来的声明 `var()` 到它**的那些，而这个块的组件里没有 inline
  *    style 读 `--x-*`（inline 读到的变量 PurgeCSS 看不见，写之前先 grep 组件）。
  */
-async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT } = {}) {
+async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT, rawHtml = [] } = {}) {
   const { PurgeCSS } = require('purgecss');
   const [res] = await new PurgeCSS().purge({
-    content: content.map((g) => path.join(rootDir, g)),
+    // #1797 —— `rawHtml`：custom-html 块的 HTML（设计文档 §6.4）。不在模板源码里，PurgeCSS 看不见它们就会把里面用到的
+    //    Bootstrap 类剪掉 ⟹ 冻结块下一次发布就掉样式。
+    content: [
+      ...content.map((g) => path.join(rootDir, g)),
+      ...rawHtml.map((raw) => ({ raw, extension: 'html' })),
+    ],
     css: [{ raw: css }],
     // #1472 —— `greedy: [/data-bs-theme/]`：深色站那几段 `[data-bs-theme=dark]` 规则写死留下。PurgeCSS 只在内容里
     //    **同时**出现 `data-bs-theme` 和 `dark` 两个词时才留这类规则；不写死的话，留不留取决于源码里碰巧有没有这两个词
@@ -499,12 +504,12 @@ async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT }
  * #1666 —— `purge: false` 给预览用（`derive-site.js` 在 `AI1ST_RENDER=preview` 时传）：预览改内容不重建，
  *    按内容剪过的那份会少掉新内容要的规则；没剪的是超集，只多不少。RTL 镜像 / 图标翻转两种都照做。
  */
-async function buildSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr', purge = true }) {
+async function buildSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr', purge = true, rawHtml = [] }) {
   const t0 = Date.now();
   const primary = primaryOf(brand);
   const raw = compileSiteCss(primary, { rootDir });
   const mirrored = dir === 'rtl' ? mirrorSiteCss(raw) : raw;
-  const css = (purge ? await purgeSiteCss(mirrored, { rootDir }) : mirrored)
+  const css = (purge ? await purgeSiteCss(mirrored, { rootDir, rawHtml }) : mirrored)
     + (dir === 'rtl' ? `\n${RTL_ICON_FLIP}` : '');
   return { css, primary, dir, purged: purge, bytes: Buffer.byteLength(css), rawBytes: Buffer.byteLength(raw), ms: Date.now() - t0 };
 }

@@ -73,16 +73,16 @@ for (const [why, id] of [
 
 console.log('\n── 写的一侧与读的一侧那条正则要一样 ──');
 {
-  // #1666 —— readThemeSheet 跟着派生搬进了 derive-site.js。
-  const syncConfig = fs.readFileSync(path.join(__dirname, 'derive-site.js'), 'utf-8');
+  // #1666 —— readThemeSheet 跟着派生搬进了 derive-site.js；#1797 又搬进 lib/derive-core.js。
+  const syncConfig = fs.readFileSync(path.join(__dirname, 'lib', 'derive-core.js'), 'utf-8');
   const m = syncConfig.match(/if \(!(\/\^\[a-z0-9\][^/]*\/)\.test\(name\)\)/);
   if (!m) {
-    bad('在 derive-site.js 里找不到 readThemeSheet 那条 slug 正则了 —— 它被改写过，'
+    bad('在 lib/derive-core.js 里找不到 readThemeSheet 那条 slug 正则了 —— 它被改写过，'
       + '本格量不了两处一不一致，去人工核对 theme-sheet.js 的 SHEET_NAME_OK');
   } else if (m[1] === SHEET_NAME_OK.toString()) {
     ok(`两处逐字相同：${m[1]}`);
   } else {
-    bad(`分叉了 —— derive-site.js 是 ${m[1]}，theme-sheet.js 是 ${SHEET_NAME_OK}。`
+    bad(`分叉了 —— lib/derive-core.js 是 ${m[1]}，theme-sheet.js 是 ${SHEET_NAME_OK}。`
       + '写的一侧宽了 ⟹ 那个站构建不出来');
   }
 }

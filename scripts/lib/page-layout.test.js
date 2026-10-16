@@ -94,12 +94,12 @@ console.log('── ③ 两个消费者读的是同一张表 ──');
   } else {
     bad(`footerVariantsFor 里仍有直接读 layout.repeatVariants 的地方：${body.trim().slice(0, 200)}…`);
   }
-  // #1666 —— 拼 pageLayout 那段跟着派生搬进了 derive-site.js（sync-config.js 拿它的结果写 config-data.ts）。
-  const sync = stripComments(fs.readFileSync(path.join(NEXT, 'scripts', 'derive-site.js'), 'utf-8'));
+  // #1666 —— 拼 pageLayout 那段跟着派生搬进了 derive-site.js（sync-config.js 拿它的结果写 config-data.ts）；#1797 又搬进 lib/derive-core.js。
+  const sync = stripComments(fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'derive-core.js'), 'utf-8'));
   if (/resolveRepeatVariants\(picked\.layout,\s*regions\)/.test(sync)) {
-    ok('derive-site.js 交给产物的也是同一个函数的产出');
+    ok('derive-core.js 交给产物的也是同一个函数的产出');
   } else {
-    bad('derive-site.js 没走 resolveRepeatVariants —— 产物里会是布局原样那份');
+    bad('derive-core.js 没走 resolveRepeatVariants —— 产物里会是布局原样那份');
   }
 }
 

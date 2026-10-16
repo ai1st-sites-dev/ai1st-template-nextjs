@@ -36,7 +36,10 @@ if (!Array.isArray(OWNED) || OWNED.length === 0) die('navigation-owned.js 的 OW
 const TEMPLATE_ROOT = path.join(__dirname, '..', '..');
 // #1666 —— 重写 navigation.json 的那段跟着派生一起搬进了 derive-site.js（sync-config.js 现在只是先跑它、再拼 config-data.ts）。
 //    写回磁盘那一句也换了形状：先记进 §pending（`writeOut(navPath, …)`），全部校验过完才一次写盘 —— 下面认的「写回」两种都算。
-const SYNC_CONFIG = path.join(TEMPLATE_ROOT, 'scripts', 'derive-site.js');
+// #1797 —— 派生正文搬进了 `lib/derive-core.js`（derive-site.js 只剩薄壳），菜单那段是它的 §syncNavigation：读 content 里那份
+//    navigation.json 的拷贝、`writeOut(navPath, …)` 交成补丁、`return` 给调用方（那一处就是下面「写回之后才流走」的唯一一处）。
+//    薄壳把补丁写回 site/ 是逐份整写，不碰字段 ⟹ 「构建改了哪几个位置」仍然只看这一个函数。
+const SYNC_CONFIG = path.join(TEMPLATE_ROOT, 'scripts', 'lib', 'derive-core.js');
 // #1759 —— 菜单那条规则（`p.navLabel` 才进、顶栏去掉 `p.slug !== ctaSlug` 那一页）从 derive-site.js 原样搬进了
 //    `lib/nav-menu.js`（编辑器预览要同一份）。⑨ / ⑭ 钉的是「这句话描述的耦合在构建代码里还在」⟹ 构建代码 = derive-site.js
 //    + 它为这条规则调用的 nav-menu.js。🔴 只有 derive-site.js 里真的调了 `navMenu.syncMenu(`（#1781 起；之前是 `menuLinks(`）
@@ -230,7 +233,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
   }
 
   // 🔴 对象「流到别处去」这件事按【位置】判，不按那行长什么样。
-  // 今天有一处：`navigationByLocale[locale] = existingNav`，它在写回磁盘【之后】，所以通过它做的
+  // 今天有一处：§syncNavigation 末尾的 `return existingNav`（#1797 之前是 `navigationByLocale[locale] = existingNav`），它在写回【之后】，所以通过它做的
   // 改动够不着磁盘上那份 —— 无害。有人把它挪到写回【之前】，这把尺子必须当场说不出来。
   {
     const src = fs.readFileSync(SYNC_CONFIG, 'utf-8');
@@ -243,7 +246,7 @@ const tryWrite = (relPath, next, current = BASE) => writeRejection(relPath, {
     }
     // 反向对照：把它挪到写回之前，这把尺子必须说不出来
     const writeLine = `  writeOut(navPath, JSON.stringify(${V}, null, 2));`;
-    const escLine = `  navigationByLocale[locale] = ${V};`;
+    const escLine = `  return ${V};`;
     if (!src.includes(writeLine) || !src.includes(escLine)) {
       bad('③ 位置对照立不起来：找不到写回那句或流到别处那句');
     } else {

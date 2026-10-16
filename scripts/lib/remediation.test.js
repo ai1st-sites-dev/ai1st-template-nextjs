@@ -249,9 +249,10 @@ function siteWithNav(dir, locale) {
 // ── ⑦ 接线:sync-config.js 真的用这几句话(否则模块再对,报错照样在说假话)──────────────────────
 {
   // #1666 —— 校验和它的报错跟着派生搬进了 derive-site.js（sync-config.js 头一件事就是 require 它；⑦b 真跑的仍是 sync-config.js）。
-  const src = fs.readFileSync(path.join(NEXTJS, 'scripts', 'derive-site.js'), 'utf-8');
+  // #1797 —— 派生正文又搬进了 lib/derive-core.js（derive-site.js 只剩薄壳），它在 lib/ 里 require 的是 `./remediation.js`。
+  const src = fs.readFileSync(path.join(NEXTJS, 'scripts', 'lib', 'derive-core.js'), 'utf-8');
   const bads = [];
-  if (!/require\(['"]\.\/lib\/remediation(\.js)?['"]\)/.test(src)) bads.push('没 require lib/remediation');
+  if (!/require\(['"]\.\/(lib\/)?remediation(\.js)?['"]\)/.test(src)) bads.push('没 require lib/remediation');
   // 📌 #1425（T3）—— topbar 那几句的接线（topbarBullets / flat 传参 / themesWithoutOverlayHeader）随公告条
   //    退役，这里删了；旧假话「不许回来」那几条反向断言照留。
   if (!/howToChangePageLayout\(/.test(src)) bads.push('没调 howToChangePageLayout');
@@ -284,7 +285,7 @@ function siteWithNav(dir, locale) {
   if (/supports\.header 不是 transparent-overlay/.test(src)) {
     bads.push('还留着「supports.header 不是 transparent-overlay 的那些」——那个判据恒为真，一套都排除不掉');
   }
-  if (bads.length === 0) ok('⑦ derive-site.js 接上了换布局那句话，旧那几句假话也不在了');
+  if (bads.length === 0) ok('⑦ derive-core.js 接上了换布局那句话，旧那几句假话也不在了');
   else bads.forEach((b) => bad(`⑦ ${b}`));
 }
 
