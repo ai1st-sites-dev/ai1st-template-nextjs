@@ -505,5 +505,102 @@ console.log('\n⑨ #1784 logoType × logoSize');
   C = loadSection();
 }
 
+// ══ ⑩ #1783：下拉 —— 电脑上 ⌄ 是 Bootstrap Dropdown 的触发器 + 白卡片；抽屉里 ⌄ 是 Collapse；编辑器画布的子项挂 nav.<i>.<j> ══════
+console.log('\n⑩ #1783 菜单下拉');
+{
+  const KIDS = [
+    { label: 'Brakes', href: '/services/brakes', description: 'Pads, rotors and fluid' },
+    { label: 'Tires', href: '/services/tires' },
+    { label: 'Oil change', href: '/services/oil' },
+  ];
+  const withKids = (extra = {}) => {
+    const d = clone(DEMO);
+    d.nav = d.nav.map((it, i) => (i === 1 ? { ...it, children: KIDS.map((k) => ({ ...k })), ...extra } : it));
+    return d;
+  };
+  // 一个 <li …> 起到它配对的 </li>（里面还有 li，按层数数）。
+  const liAt = (h, from) => {
+    let depth = 0;
+    const re = /<li\b[^>]*>|<\/li>/g;
+    re.lastIndex = from;
+    for (let m = re.exec(h); m; m = re.exec(h)) {
+      depth += m[0].startsWith('</') ? -1 : 1;
+      if (depth === 0) return h.slice(from, m.index + 5);
+    }
+    return '';
+  };
+  const dds = (h) => [...h.matchAll(/<li [^>]*class="hdr-dd /g)].map((m) => liAt(h, m.index));
+  const subs = (h) => [...h.matchAll(/<li [^>]*data-hdr-dd=""[^>]*>/g)].map((m) => liAt(h, m.index)).filter((x) => !/class="hdr-dd /.test(x.slice(0, x.indexOf('>'))));
+  const h = render('logo-left', withKids());
+  const [dd] = dds(h);
+  check(dds(h).length === 1 && !!dd, '电脑：带子项的那一项（只有一项）是 li.hdr-dd', `${dds(h).length}`);
+  const btn = (dd.match(/<button[^>]*>/) || [''])[0];
+  const menuId = (dd.match(/<ul id="([^"]+)" class="hdr-dd-menu dropdown-menu"/) || [])[1];
+  check(/data-bs-toggle="dropdown"/.test(btn) && /data-bs-display="static"/.test(btn) && /aria-expanded="false"/.test(btn),
+    '⌄ 是 Bootstrap Dropdown 的触发器（data-bs-toggle="dropdown" · display static · 服务端 aria-expanded="false"）', btn);
+  check(!!menuId && btn.includes(`aria-controls="${menuId}"`), `⌄ 的 aria-controls 指向卡片自己的 id（${menuId}）`);
+  check(/<a [^>]*href="\/services"/.test(dd.slice(0, dd.indexOf('<button'))), '带子项的那一项自己仍是链接（指向 /services），⌄ 在它后面');
+  const items = [...dd.matchAll(/<a class="hdr-dd-item[^"]*" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
+  check(items.length === 3 && JSON.stringify(items.map((m) => m[1])) === JSON.stringify(KIDS.map((k) => k.href)), '卡片里 3 行，链接按顺序', JSON.stringify(items.map((m) => m[1])));
+  check((dd.match(/class="hdr-dd-desc[^"]*">Pads, rotors and fluid</g) || []).length === 1 && (dd.match(/hdr-dd-desc/g) || []).length === 1,
+    '只有写了 description 的那一行多一行灰字');
+  check(/data-bs-theme="light"/.test(dd.slice(dd.indexOf('<ul'), dd.indexOf('>', dd.indexOf('<ul')) + 1)), '卡片挂 data-bs-theme="light"（深色顶栏上也是浅色卡片）');
+  const plain = h.match(/<li[^>]*><a class="nav-link[^"]*" href="\/pricing"/);
+  check(!!plain, '没有子项的那一项照旧是一个普通 li，没有 ⌄');
+
+  // 抽屉：同一项右边 ⌄ 是 Collapse 的触发器，子项缩进的 ul.hdr-sub.collapse，默认收着（服务端 HTML 里没有 .show）。
+  const [sub] = subs(h);
+  const sbtn = (sub && sub.match(/<button[^>]*>/) || [''])[0];
+  const subId = (sub && sub.match(/<ul id="([^"]+)" class="hdr-sub collapse /) || [])[1];
+  check(!!sub && /data-bs-toggle="collapse"/.test(sbtn) && !!subId && sbtn.includes(`data-bs-target="#${subId}"`) && sbtn.includes(`aria-controls="${subId}"`) && /aria-expanded="false"/.test(sbtn),
+    `抽屉：⌄ 是 Collapse 的触发器，target / aria-controls 指向子项列表（${subId}）`, sbtn);
+  check(!!sub && (sub.match(/<a [^>]*href="\/services\/(brakes|tires|oil)"/g) || []).length === 3 && !/class="[^"]*\bshow\b/.test(sub), '抽屉：3 个子项都在、默认收着（没有 .show）');
+  check(!!subId && !!menuId && subId !== menuId && (h.match(new RegExp(`id="${menuId}"`, 'g')) || []).length === 1, '电脑卡片和抽屉列表各有自己的 id，不重复');
+
+  // 六个预设在电脑那一行都画得出下拉（菜单在哪一格都一样）。
+  const presets = MANIFEST.presets.map((p) => p.name);
+  const missing = presets.filter((p) => dds(render(p, withKids())).length !== 1);
+  check(presets.length >= 6 && missing.length === 0, `每个预设（${presets.length} 个）都画一个下拉`, `缺：${missing.join(' ')}`);
+
+  // 编辑器画布那份 data（带 editorIndex）：父项 nav.<i>，子项 nav.<i>.<j>；构建那份不带 ⟹ 一个都没有。
+  const ed = clone(withKids());
+  ed.nav = ed.nav.map((it, i) => ({ ...it, editorIndex: i, ...(it.children ? { children: it.children.map((c, j) => ({ ...c, editorIndex: `${i}.${j}` })) } : {}) }));
+  const he = render('logo-left', ed);
+  check(['nav.1.0', 'nav.1.1', 'nav.1.2'].every((a) => (he.match(new RegExp(`data-editor-region-link="${a.replace(/\./g, '\\.')}"`, 'g')) || []).length === 2)
+    && /<li class="hdr-dd [^"]*"[^>]*data-editor-region-link="nav\.1"|<li data-editor-region-link="nav\.1"[^>]*class="hdr-dd /.test(he),
+  '画布那份：子项挂 nav.1.<j>（电脑 + 抽屉各一处），父项挂 nav.1', (he.match(/data-editor-region-link="nav[^"]*"/g) || []).join(' '));
+  check(!/data-editor-region-link/.test(h), '构建那份不带 editorIndex ⟹ 页面上一个 data-editor-region-link 都没有');
+
+  // 子项是空数组 / 都是坏的 ⟹ 不画 ⌄（照普通项）。
+  const empty = render('logo-left', withKids({ children: [] }));
+  check(dds(empty).length === 0 && !/data-bs-toggle="dropdown"/.test(empty), 'children 是空数组 ⟹ 不画下拉');
+
+  // block.css：悬停只在有悬停的设备、≥992；卡片最小宽 17rem、白底；右对齐那个类；压过 Bootstrap 的 .navbar-nav .dropdown-menu { position: static }。
+  const css = fs.readFileSync(path.join(BLOCK_DIR, 'block.css'), 'utf-8');
+  check(/@media \(hover: hover\) and \(min-width: 992px\) \{\s*\[data-block="header"\] \.hdr-dd:hover > \.hdr-dd-menu \{ display: block; \}/.test(css), 'block.css：鼠标移上出卡片，只在 (hover: hover) 且 ≥992');
+  check(/\.hdr-dd > \.hdr-dd-menu \{[^}]*position: absolute;[^}]*min-width: 17rem;[^}]*background: #fff;/.test(css), 'block.css：卡片 absolute · 最小宽 17rem · 白底');
+  check(/\.hdr-dd > \.hdr-dd-menu \{[^}]*inset-inline-start: 0;[^}]*\}/.test(css)
+    && /\.hdr-dd > \.hdr-dd-menu\.hdr-dd-end \{ inset-inline-start: auto; inset-inline-end: 0; \}/.test(css)
+    && /\.hdr-dd > \.hdr-dd-menu\.show \{ display: block; \}/.test(css),
+  'block.css：默认跟那一项起始边对齐、hdr-dd-end 跟结束边对齐（逻辑属性，阿拉伯语站自动镜像）· Bootstrap 开着时 .show 显示');
+  check(/function alignDropdown\(li: Element\)[\s\S]*?r\.right > menu\.ownerDocument\.documentElement\.clientWidth \|\| r\.left < 0\) menu\.classList\.add\('hdr-dd-end'\)/.test(ORIGINAL)
+    && /addEventListener\('show\.bs\.dropdown'/.test(ORIGINAL) && /onMouseEnter=\{\(e\) => alignDropdown/.test(ORIGINAL),
+  'Section：开卡片之前量一次（悬停 + Bootstrap 的 show.bs.dropdown），超出视口（右边或左边）⟹ hdr-dd-end');
+  check(/loadBootstrap\('dropdown'\)/.test(ORIGINAL), '有下拉才按模块加载 dropdown');
+
+  // 反向对照：⌄ 换成 Collapse 的触发器 ⟹「是 Dropdown 的触发器」那格红；aria-controls 改掉 ⟹「指向卡片」那格红。
+  const s1 = mutate('data-bs-toggle="dropdown" data-bs-display="static"', 'data-bs-toggle="collapse" data-bs-display="static"');
+  const s2 = mutate('data-bs-toggle="dropdown" data-bs-display="static" aria-controls={listId}', 'data-bs-toggle="dropdown" data-bs-display="static" aria-controls="nope"');
+  if (!s1 || !s2) bad('反向对照没改到源码（锚点找不到）');
+  else {
+    const b1 = ((dds(render('logo-left', withKids(), loadSection(s1)))[0] || '').match(/<button[^>]*>/) || [''])[0];
+    check(!/data-bs-toggle="dropdown"/.test(b1), '反向对照：⌄ 不是 Dropdown 的触发器 ⟹ 那一格红得起来');
+    const d2 = dds(render('logo-left', withKids(), loadSection(s2)))[0] || '';
+    const id2 = (d2.match(/<ul id="([^"]+)" class="hdr-dd-menu/) || [])[1];
+    check(!!id2 && !(d2.match(/<button[^>]*>/) || [''])[0].includes(`aria-controls="${id2}"`), '反向对照：aria-controls 不指向卡片 ⟹ 那一格红得起来');
+  }
+  C = loadSection();
+}
+
 console.log(`\n${fail ? '🔴' : '✅'} header-render: ${pass} 过 / ${fail} 不过`);
 process.exit(fail ? 1 : 0);

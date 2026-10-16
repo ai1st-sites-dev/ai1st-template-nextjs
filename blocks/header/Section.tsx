@@ -32,7 +32,8 @@
 // 🔴 **抽屉的展开 / 收起是 Bootstrap Collapse**（#1514，Chris 2026-10-01：HTML 的交互归 bootstrap.js）：汉堡按钮只写
 //    `data-bs-toggle="collapse"` + `data-bs-target`，抽屉一直在 HTML 里、挂 `.collapse`，藏 / 显 / 动画 / `aria-expanded`
 //    全是 Bootstrap 的事；模块按需加载（`src/components/BootstrapJs.tsx` §loadBootstrap('collapse')）。Collapse 自己
-//    不管 Esc，所以下面挂了一个 keydown 调它的 hide —— 这是本文件里唯一一行事件处理。
+//    不管 Esc，所以下面挂了一个 keydown 调它的 hide。#1783 起菜单的下拉多两处：卡片出来之前量一次对齐（鼠标移上 = onMouseEnter，
+//    点 ⌄ = 听 Bootstrap 的 `show.bs.dropdown`）—— 只量位置，开关仍全归 Bootstrap（下拉是 Dropdown，抽屉里的子项是 Collapse）。
 //    深底上的字色仍是工具类（`link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
 // 🔴 **不挂 `.navbar-collapse`，也不给 nav 挂 `.navbar-expand-*`**：#1514 复现过 ——Webpixels 的
 //    `.navbar-expand-lg .navbar-collapse { display: flex !important }` 住在 `@media (min-width: 992px)` 里，<992 它
@@ -79,7 +80,9 @@ export type Menu = 'beside' | 'center' | 'left' | 'below';
 
 /** `editorIndex`（#1781）：只有编辑器画布那份 data 带（`scripts/lib/nav-editor.js` §liveShellData）—— 这一项在老板那份菜单里的下标，
  *  据它挂 `data-editor-region-link`，点它开那一项的链接弹窗。构建那份（`shell-data.js`）没有它 ⟹ 发布的网站上不多一个属性。 */
-export interface NavItem { label: string; href: string; icon?: string; show?: Show; editorIndex?: number }
+export interface NavItem { label: string; href: string; icon?: string; show?: Show; editorIndex?: number; children?: NavChild[] }
+/** #1783 —— 下拉里的一项（只一层）。`editorIndex` 是 `"<i>.<j>"`（编辑器画布那份才有，挂 `data-editor-region-link="nav.<i>.<j>"`）。 */
+export interface NavChild { label: string; href: string; description?: string; editorIndex?: string }
 /** `at`（#1787）：它在老板那份 `header.buttons` 里的下标（0 = 主按钮）—— 编辑器画布上点它开那一颗的弹窗（`data-hdr-cta`）。 */
 export interface Cta { label: string; href: string; style?: CtaStyle; at?: number }
 /** `at`（#1780）：它在老板那份 `topbarLinks` 列表里的下标 —— 编辑器画布上点它开那一项的链接弹窗（`data-editor-region-link`）。 */
@@ -163,6 +166,23 @@ interface Props {
   editorCanvas?: boolean;
 }
 
+/**
+ * #1783 —— 下拉卡片对齐：默认跟那一项的起始边对齐（左往右的站是左边，阿拉伯语站是右边，block.css 写的是 inset-inline-*）；
+ * 这样放会超出视口（左往右的站超出右边、阿拉伯语站超出左边）⟹ 改成跟那一项的结束边对齐（`hdr-dd-end`）。
+ * 开卡片那一刻量（鼠标移上 · 点 ⌄，都在卡片出来之前调）：卡片那时可能还是 display:none ⟹ 临时撑开、藏着量一次再还原。
+ * 视口宽取卡片所在那份文档的（编辑器画布是 iframe）。
+ */
+function alignDropdown(li: Element) {
+  const menu = li.querySelector(':scope > .hdr-dd-menu') as HTMLElement | null;
+  if (!menu) return;
+  menu.classList.remove('hdr-dd-end');
+  const hidden = getComputedStyle(menu).display === 'none';
+  if (hidden) { menu.style.visibility = 'hidden'; menu.style.display = 'block'; }
+  const r = menu.getBoundingClientRect();
+  if (hidden) { menu.style.removeProperty('visibility'); menu.style.removeProperty('display'); }
+  if (r.right > menu.ownerDocument.documentElement.clientWidth || r.left < 0) menu.classList.add('hdr-dd-end');
+}
+
 /** #1786 —— 滚过多少 px 底边细线换阴影。 */
 const STICKY_SHADOW_AT = 40;
 
@@ -186,6 +206,20 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
   const opts = data.options || {};
   const sticky = opts.sticky === true && !editorCanvas;
   const rootRef = useRef<HTMLElement>(null);
+  // #1783 —— 菜单有下拉才加载 Dropdown（⌄ 按钮的点 / 回车开关、Esc、点外面关、`aria-expanded` 全是它的事）。点 ⌄ 开卡片之前
+  //    Bootstrap 会发 `show.bs.dropdown`（冒泡）：在那一刻量一次对齐（§alignDropdown）—— 不挂点击处理，开关仍不是 React 的事。
+  const hasDropdown = (Array.isArray(data.nav) ? data.nav : []).some((it) => !!it && Array.isArray(it.children) && it.children.length > 0);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!hasDropdown || !root) return;
+    void loadBootstrap('dropdown');
+    const onShow = (e: Event) => {
+      const li = e.target instanceof Element ? e.target.closest('.hdr-dd') : null;
+      if (li) alignDropdown(li);
+    };
+    root.addEventListener('show.bs.dropdown', onShow);
+    return () => root.removeEventListener('show.bs.dropdown', onShow);
+  }, [hasDropdown]);
   const topbarRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   // #1786 —— 吸住时要的两个量（§文件头）：顶条高 → `--hdr-sticky-top`，主行高 → `--hdr-nav-h`；滚动 > 40 → 阴影类。
@@ -257,15 +291,70 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
   const lineTone = deep ? 'border-secondary' : '';
   const icon = (name?: string, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
 
+  const regionAt = (at: number | string | undefined) => ((typeof at === 'number' || typeof at === 'string') && at !== '' ? { 'data-editor-region-link': `nav.${at}` } : {});
+  const kidsOf = (item: NavItem) => (Array.isArray(item.children) ? item.children.filter((c) => !!c && typeof c === 'object' && !!c.label) : []);
+
+  // #1783 —— 菜单项后面那个 ⌄（电脑上那一个、抽屉里那一个同一枚图标）。开着时转 180°（block.css §hdr-chev，按 aria-expanded）。
+  const chevron = (
+    <svg className="hdr-chev" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+      <path d="M3.5 6l4.5 4.5L12.5 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
   const navItem = (item: NavItem, key: string, vertical = false) => {
     // 图标查不到就按「只有字」画 —— 不然 `show: icon` 的那一项会变成一个看不见的链接。
     const show: Show = icons && item.icon && iconTable[item.icon] ? (item.show || 'both') : 'text';
+    const kids = kidsOf(item);
+    const link = (
+      <SiteLink className={`nav-link d-inline-flex align-items-center gap-2 ${linkTone}`} href={item.href}>
+        {show !== 'text' ? icon(item.icon) : null}
+        <span className={show === 'icon' && !vertical ? 'visually-hidden' : undefined}>{item.label}</span>
+      </SiteLink>
+    );
+    if (!kids.length) return <li key={key} {...regionAt(item.editorIndex)}>{link}</li>;
+    const listId = `${drawerId}-${key}`;
+    if (vertical) {
+      // 抽屉：名字照旧能点进页面；右边 ⌄ 是 Bootstrap Collapse 的触发器，子项缩进列在下面、左边一条细竖线（markup 上的 border-start）。
+      return (
+        <li key={key} {...regionAt(item.editorIndex)} data-hdr-dd="">
+          <div className="d-flex align-items-center justify-content-between gap-2">
+            {link}
+            <button type="button" className={`hdr-sub-toggle btn btn-sm px-2 ${deep ? 'text-white' : ''}`}
+              data-bs-toggle="collapse" data-bs-target={`#${listId}`} aria-controls={listId} aria-expanded="false" aria-label={`Show links under ${item.label}`}>
+              {chevron}
+            </button>
+          </div>
+          <ul id={listId} className={`hdr-sub collapse list-unstyled mb-2 ms-2 ps-3 border-start ${lineTone}`}>
+            {kids.map((c, j) => (
+              <li key={j} {...regionAt(c.editorIndex)}>
+                <SiteLink className={`nav-link py-1 ${linkTone}`} href={c.href}>{c.label}</SiteLink>
+              </li>
+            ))}
+          </ul>
+        </li>
+      );
+    }
+    // 电脑：鼠标移上去 ⟹ 卡片出来（CSS，block.css §hdr-dd）；⌄ 是 Bootstrap Dropdown 的触发器 —— 点它 / 回车开关，Esc、点外面关，
+    //   `aria-expanded` 由它翻（Tab 落上去不自动开，同汉堡）。`data-bs-display="static"`：位置归 block.css，不要 Popper 写行内样式。
+    //   开卡片之前量一次（§alignDropdown）：跟这一项起始边对齐会超出视口 ⟹ 改成跟它的结束边对齐。卡片是白底，深色顶栏上也一样（字色写死在 block.css）。
     return (
-      <li key={key} {...(typeof item.editorIndex === 'number' ? { 'data-editor-region-link': `nav.${item.editorIndex}` } : {})}>
-        <SiteLink className={`nav-link d-inline-flex align-items-center gap-2 ${linkTone}`} href={item.href}>
-          {show !== 'text' ? icon(item.icon) : null}
-          <span className={show === 'icon' && !vertical ? 'visually-hidden' : undefined}>{item.label}</span>
-        </SiteLink>
+      <li key={key} {...regionAt(item.editorIndex)} className="hdr-dd d-flex align-items-center" data-hdr-dd=""
+        onMouseEnter={(e) => alignDropdown(e.currentTarget)}>
+        {link}
+        <button type="button" className={`hdr-dd-toggle btn btn-link p-1 lh-1 ${deep ? 'link-light' : 'link-body-emphasis'}`}
+          data-bs-toggle="dropdown" data-bs-display="static" aria-controls={listId} aria-expanded="false" aria-label={`Show links under ${item.label}`}>
+          {chevron}
+        </button>
+        <ul id={listId} className="hdr-dd-menu dropdown-menu" data-bs-theme="light">
+          {kids.map((c, j) => (
+            <li key={j} {...regionAt(c.editorIndex)}>
+              <SiteLink className="hdr-dd-item d-block text-decoration-none" href={c.href}>
+                <span className="hdr-dd-label d-block fw-semibold">{c.label}</span>
+                {c.description ? <span className="hdr-dd-desc d-block">{c.description}</span> : null}
+              </SiteLink>
+            </li>
+          ))}
+        </ul>
       </li>
     );
   };

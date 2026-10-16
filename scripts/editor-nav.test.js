@@ -19,6 +19,8 @@
  *   ③ §planNavWrite · ④ write-editor-save.js 的 `nav` 那一格（同 #1759）
  *   ⑤ 浏览器那一侧（`lib/nav-editor.js`）：能不能存的那一句 · 拖动 · 照面板那一份经 write-editor-save 的 root `headerLinks` 真存 →
  *      真跑 sync-config ⟹ 画布预览 == 构建派生（`shell-data.js`）的顶栏 / 页脚菜单；电话引用原样存、原样派生
+ *   ⑥ #1783 下拉（`children`）：只一层 · 说明 ≤ 80 字（81 拒 / 80 收）· 写盘真存 + 真构建 · 页脚第一列只抄顶层 · 预览 == 构建 ·
+ *      删页连子项一起去 · 子项指着的新页不再往顶层追加 · syncMenu 不改入参 · AI 改站那道门（navigation-owned）同一句话
  */
 
 'use strict';
@@ -378,6 +380,106 @@ console.log('⑤ nav-editor（能不能存 · 拖动 · 预览 == 构建）');
   // #1781 —— 菜单不跟着按钮变：主按钮指向哪一页，预览的菜单都一项不少（构建同一条，derive-site 不再扣掉那一页）。
   const withBtn = navEditor.liveShellData({ header: {}, footer: {} }, { headerLinks: [{ label: 'Home', href: '/' }, { label: 'Contact', href: '/contact' }], headerButtons: [{ label: 'Get a quote', href: '/contact' }] }, 'en', 'en');
   check(JSON.stringify(withBtn.header.nav.map((l) => l.href)) === JSON.stringify(['/', '/contact']), '主按钮指向 /contact ⟹ 预览菜单里 Contact 照旧在', JSON.stringify(withBtn.header.nav));
+}
+
+console.log('⑥ #1783 下拉（children：只一层 · 说明 ≤ 80 字 · 页脚只抄顶层 · 删页连子项 · 预览 == 构建）');
+{
+  const { shellDataFor } = require('./lib/shell-data.js');
+  const owned = require('./lib/navigation-owned.js');
+  const NAVF = path.join(SITE, 'en', 'navigation.json');
+  const sync = () => {
+    const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 240000 });
+    if (r.status !== 0) bad(`sync-config 跑不起来（rc=${r.status}）${(r.stderr || '').slice(-300)}`);
+    return JSON.parse(fs.readFileSync(NAVF, 'utf-8'));
+  };
+  const kid = (label, href, description) => (description === undefined ? { label, href } : { label, href, description });
+  const svc = (children) => ({ label: 'Services', href: '/services', children });
+
+  // 判据（编辑器 Done / 写盘 / AI 改站三处共用 §childrenProblem）。
+  const cp1 = navEditor.childrenProblem;
+  check(cp1(svc([kid('Drains', '/drains', 'Same-day unclogging'), kid('Call', { source: 'phone' })])) === '', '子项有名字有链接、说明可空 ⟹ 能存');
+  check(/one level/.test(cp1(svc([{ ...kid('Drains', '/drains'), children: [kid('x', '/x')] }]))), '子项再带 children（两层）⟹ 拒、说一句', cp1(svc([{ ...kid('Drains', '/drains'), children: [] }])));
+  check(/up to 80/.test(cp1(svc([kid('Drains', '/drains', 'x'.repeat(81))]))) && cp1(svc([kid('Drains', '/drains', 'x'.repeat(80))])) === '',
+    '说明 81 字 ⟹ 拒；80 字 ⟹ 能存（PM 定的量法）');
+  check(/must be text/.test(cp1(svc([kid('Drains', '/drains', 7)]))), '说明不是字符串 ⟹ 拒');
+  check(/needs a name/.test(cp1(svc([kid(' ', '/drains')]))) && /needs somewhere/.test(cp1(svc([kid('Drains', '')]))), '子项没名字 / 没链接 ⟹ 同顶层那一句');
+  check(/needs a name/.test(navEditor.menuLinksProblem([{ label: 'Home', href: '/' }, svc([kid('', '/x')])])), '整份菜单的那一句连下拉一起判');
+
+  // 写盘：面板那一份（Services 下 3 个子项、1 个带说明）经 root.headerLinks 真存 → 真构建。
+  freshSite();
+  sync();
+  const panel = [{ label: 'Home', href: '/' }, svc([kid(' Drains ', '/services', '  Same-day unclogging  '), kid('Water heaters', '/pricing'), kid('Call us', { source: 'phone' })]),
+    { label: 'Contact', href: '/contact' }];
+  const s1 = runScript({ page: 'home', locale: 'en' }, { root: { headerLinks: panel } });
+  check(s1.status === 0, '带下拉的菜单经 root.headerLinks 真存 ⟹ exit 0', `${s1.status} ${s1.stdout} ${s1.stderr}`);
+  let nav = sync();
+  const want = [{ label: 'Home', href: '/' }, { label: 'Services', href: '/services', children: [
+    { label: 'Drains', href: '/services', description: 'Same-day unclogging' }, { label: 'Water heaters', href: '/pricing' }, { label: 'Call us', href: { source: 'phone' } },
+  ] }, { label: 'Contact', href: '/contact' }];
+  check(JSON.stringify(nav.header.links) === JSON.stringify(want), '构建后 header.links 带 children（名字 / 说明去首尾空格、空说明不写键、电话引用原样）', JSON.stringify(nav.header.links));
+  check(JSON.stringify(nav.footer.columns[0].links) === JSON.stringify(navMenu.topLevelLinks(want)) && !nav.footer.columns[0].links.some((l) => 'children' in l),
+    '页脚第一列 = 菜单的顶层，不含子项（验收 5）', JSON.stringify(nav.footer.columns[0].links));
+  const brand = JSON.parse(fs.readFileSync(path.join(SITE, 'brand.json'), 'utf-8'));
+  const built = shellDataFor({ nav, brand, brandName: 'x', services: [], pages: [], locale: 'en', defaultLocale: 'en' });
+  const preview = navEditor.liveShellData({ header: {}, footer: {} }, { headerLinks: want }, 'en', 'en');
+  const strip = (items) => items.map(({ editorIndex, children, ...rest }) => (children ? { ...rest, children: children.map(({ editorIndex: _e, ...c }) => c) } : rest)); // eslint-disable-line no-unused-vars
+  check(JSON.stringify(strip(preview.header.nav)) === JSON.stringify(built.header.nav) && JSON.stringify(preview.footer.nav) === JSON.stringify(built.footer.nav),
+    '预览 == 构建派生（顶栏带下拉、页脚只顶层）', `预览 ${JSON.stringify(preview)} · 构建 ${JSON.stringify({ h: built.header.nav, f: built.footer.nav })}`);
+  check(built.header.nav[1].children.length === 3 && !built.footer.nav.some((l) => 'children' in l), '构建派生：顶栏 Services 带 3 个子项；页脚一项都不带');
+  check(JSON.stringify(preview.header.nav[1].children.map((c) => c.editorIndex)) === JSON.stringify(['1.0', '1.1', '1.2']) && !JSON.stringify(built).includes('editorIndex'),
+    '预览的子项带 "<i>.<j>"（画布上点它开那一个子项的弹窗），构建那份不带', JSON.stringify(preview.header.nav[1]));
+  const fr = shellDataFor({ nav, brand, brandName: 'x', services: [], pages: [], locale: 'fr', defaultLocale: 'en' });
+  check(fr.header.nav[1].children[1].href === '/fr/pricing', '子项的站内链接按语言加前缀', JSON.stringify(fr.header.nav[1]));
+  const junk = shellDataFor({ nav: { header: { links: [svc([kid('Bad', 'javascript:x'), kid('', '/a')])] }, footer: {} }, brand, brandName: 'x', services: [], pages: [], locale: 'en', defaultLocale: 'en' });
+  check(!('children' in junk.header.nav[0]), '子项全都画不出（坏链接 / 没名字）⟹ 那一项不带 children（不画 ⌄）', JSON.stringify(junk.header.nav));
+
+  // 写盘那一侧再判一次：两层 / 说明 81 字 ⟹ 拒收、一个字节不写；80 字 ⟹ 存得进。
+  const before = snapshot(SITE);
+  for (const [name, links] of [
+    ['两层', [svc([{ ...kid('Drains', '/drains'), children: [kid('x', '/x')] }])]],
+    ['说明 81 字', [svc([kid('Drains', '/services', 'x'.repeat(81))])]],
+    ['子项 javascript: 链接', [svc([kid('X', 'javascript:alert(1)')])]],
+  ]) {
+    const x = runScript({ page: 'home', locale: 'en' }, { root: { headerLinks: links } });
+    check(x.status === 11 && changedFiles(before, snapshot(SITE)).length === 0, `写盘那一侧：${name} ⟹ exit 11、一个字节不写`, `${x.status} ${x.stdout} ${x.stderr}`);
+  }
+  const x80 = runScript({ page: 'home', locale: 'en' }, { root: { headerLinks: [svc([kid('Drains', '/services', 'x'.repeat(80))])] } });
+  check(x80.status === 0, '写盘那一侧：说明正好 80 字 ⟹ 存得进', `${x80.status} ${x80.stderr}`);
+
+  // 构建：页面删了 ⟹ 指向它的子项一起去掉；子项已经指着一张新页 ⟹ 不再往顶层追加它；syncMenu 不改入参（连 children 数组）。
+  freshSite();
+  sync();
+  const s2 = runScript({ page: 'home', locale: 'en' }, { root: { headerLinks: [{ label: 'Home', href: '/' }, svc([kid('Prices', '/pricing'), kid('FAQ', '/faq'), kid('Contact', '/contact')])] } });
+  check(s2.status === 0, '（前提）存一份 Services 下有 /pricing、/faq、/contact 的菜单', `${s2.status} ${s2.stderr}`);
+  fs.writeFileSync(path.join(PAGES, 'faq.json'), `${JSON.stringify({ ...readPage('about'), slug: 'faq', title: 'Questions', navLabel: 'FAQ', navOrder: 9 }, null, 2)}\n`);
+  nav = sync();
+  check(nav.header.links.filter((l) => l.href === '/faq').length === 0 && nav.header.links[1].children.some((c) => c.href === '/faq') && nav.header.knownPages.includes('faq'),
+    '新建 faq 页、下拉里已经有一项指着它 ⟹ 顶层不追加、knownPages 记下', JSON.stringify(nav.header));
+  fs.rmSync(path.join(PAGES, 'pricing.json'));
+  nav = sync();
+  check(JSON.stringify(nav.header.links[1].children.map((c) => c.href)) === JSON.stringify(['/faq', '/contact']), '删掉 pricing.json ⟹ 下拉里指向它的子项从 navigation.json 消失（验收 5）', JSON.stringify(nav.header.links));
+  const input = [{ label: 'S', href: '/s', children: [{ label: 'G', href: '/gone' }, { label: 'K', href: '/k' }] }];
+  const snap = JSON.stringify(input);
+  const out = navMenu.syncMenu({ links: input, knownPages: ['gone', 'k'], homeLabel: 'Home', regular: [{ slug: 'k' }] });
+  check(JSON.stringify(input) === snap && out.links[0].children !== input[0].children && JSON.stringify(out.links[0].children) === JSON.stringify([{ label: 'K', href: '/k' }]),
+    'syncMenu 不改入参（children 也拷了一份）', `${JSON.stringify(input)} → ${JSON.stringify(out.links)}`);
+
+  // AI 改站那道门（navigation-owned）：带下拉 + 页脚照写顶层 ⟹ 放行、不报「没人读」；两层 / 说明超长 ⟹ 拒、话同编辑器。
+  const cur = JSON.parse(fs.readFileSync(NAVF, 'utf-8'));
+  const withKids = JSON.parse(JSON.stringify(cur));
+  withKids.header.links = [{ label: 'Home', href: '/' }, svc([kid('Contact', '/contact', 'Talk to us')])];
+  withKids.footer.columns[0].links = navMenu.topLevelLinks(withKids.header.links);
+  check(owned.navigationEditRejection(withKids, cur) === null && owned.undeclaredKeyPaths(withKids).length === 0,
+    'AI 改站：带下拉、页脚第一列照写顶层 ⟹ 放行，也不报「这几个键没人读」', `${owned.navigationEditRejection(withKids, cur)} · ${JSON.stringify(owned.undeclaredKeyPaths(withKids))}`);
+  const twoLevel = JSON.parse(JSON.stringify(withKids));
+  twoLevel.header.links[1].children[0].children = [kid('x', '/x')];
+  check(/one level/.test(owned.navigationEditRejection(twoLevel, cur) || ''), 'AI 改站：写两层 ⟹ 拒，话同编辑器', owned.navigationEditRejection(twoLevel, cur));
+  const longDesc = JSON.parse(JSON.stringify(withKids));
+  longDesc.header.links[1].children[0].description = 'x'.repeat(81);
+  check(/up to 80/.test(owned.navigationEditRejection(longDesc, cur) || ''), 'AI 改站：说明 81 字 ⟹ 拒', owned.navigationEditRejection(longDesc, cur));
+  const footerWithKids = JSON.parse(JSON.stringify(withKids));
+  footerWithKids.footer.columns[0].links = withKids.header.links;
+  check(/first footer column/.test(owned.navigationEditRejection(footerWithKids, cur) || ''), 'AI 改站：页脚第一列连子项一起抄（跟构建不一样）⟹ 照旧拒，说会被覆盖', owned.navigationEditRejection(footerWithKids, cur));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

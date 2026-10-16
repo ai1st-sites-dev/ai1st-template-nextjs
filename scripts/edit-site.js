@@ -1120,10 +1120,13 @@ The site is defined by JSON configuration files:
   owner asks to change where that button goes; to make a button call the business, write it that way.
   The header menu (header.links) is the owner's own list: you MAY add, change, reorder or remove its
   entries, each {"label", "href"} — href is an address (a page like "/contact", or https://…) or
-  {"source": "phone"} / {"source": "email"} for the business phone / email. The owner can also edit it in
-  the page editor (the header's Content tab, Navigation links). The first footer column's links are a copy
-  of header.links made on every build: change header.links and leave that column as you read it (or write
-  the same list there). Leave header.knownPages exactly as you read it — the build keeps it, so a new
+  {"source": "phone"} / {"source": "email"} for the business phone / email. An entry may have a dropdown:
+  "children": [{"label", "href", "description"}] — one level only (a dropdown link cannot have its own
+  "children"), href written the same way, description optional, one short line of up to 80 characters; the
+  entry itself keeps its own href. The owner can also edit it in the page editor (the header's Content tab,
+  Navigation links). The first footer column's links are a copy of header.links' top-level entries (without
+  "children") made on every build: change header.links and leave that column as you read it (or write the
+  same top-level list there). Leave header.knownPages exactly as you read it — the build keeps it, so a new
   page is added to the end of the menu once and a link you remove does not come back. You may not add or
   remove footer columns: the build adds one extra column per service that has keyword pages, so the number
   of columns cannot be set from here at all — when the owner asks for that, tell them which keyword pages

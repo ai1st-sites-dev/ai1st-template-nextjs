@@ -246,9 +246,13 @@ export function ButtonEditor({ item, onChange, readOnly, site, locale, types, la
 /** #1781 —— 菜单那一项的四类（没有 Page section，§ButtonLinkFields 的 `types`）。 */
 export const MENU_LINK_TYPES: readonly LinkType[] = ['page', 'external', 'email', 'phone'];
 
-/** #1781 —— 菜单一项整份：Link Type 四选一 + 那一格 + Link label。`item` 是 `{label, href}`，`onChange` 交回换了一样的整项。 */
-export function MenuLinkEditor({ item, onChange, site, locale }: {
-  item: { label: string; href: unknown }; onChange: (next: { label: string; href: unknown }) => void; site: SiteData; locale: string;
+/**
+ * #1781 —— 菜单一项整份：Link Type 四选一 + 那一格 + Link label。`item` 是 `{label, href}`，`onChange` 交回换了一样的整项。
+ * #1783 —— 下拉里的子项（`withDescription`）多一格可空的 Description（一行灰色小字，≤ `maxDescription` 个字）。
+ */
+export function MenuLinkEditor({ item, onChange, site, locale, withDescription = false, maxDescription }: {
+  item: { label: string; href: unknown; description?: string }; onChange: (next: { label: string; href: unknown; description?: string }) => void;
+  site: SiteData; locale: string; withDescription?: boolean; maxDescription?: number;
 }) {
   return (
     <div data-editor-menu-link-editor="">
@@ -258,6 +262,14 @@ export function MenuLinkEditor({ item, onChange, site, locale }: {
         <input data-editor-menu-link-label="" type="text" aria-label="Link label" value={item.label}
           onChange={(e) => onChange({ ...item, label: e.target.value })} style={INPUT} />
       </div>
+      {withDescription ? (
+        <div style={ROW}>
+          <label style={LABEL}>Description</label>
+          <input data-editor-menu-link-description="" type="text" aria-label="Description" value={item.description || ''}
+            placeholder="Optional — one short line under the name" onChange={(e) => onChange({ ...item, description: e.target.value })} style={INPUT} />
+          {maxDescription ? <p style={HINT}>{`Up to ${maxDescription} characters.`}</p> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

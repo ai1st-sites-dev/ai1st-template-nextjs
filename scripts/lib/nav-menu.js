@@ -47,6 +47,28 @@ function menuLinks({ homeLabel, regular }) {
 
 const pageHref = (slug) => `/${slug}`;
 
+const isItem = (l) => !!l && typeof l === 'object' && !Array.isArray(l);
+
+/** 一项的拷贝：#1783 起连 `children` 那个数组（和里面每一项）一起拷 —— §syncMenu 不改入参。 */
+function copyItem(l) {
+  if (!isItem(l)) return l;
+  const c = { ...l };
+  if (Array.isArray(l.children)) c.children = l.children.map((x) => (isItem(x) ? { ...x } : x));
+  return c;
+}
+
+/**
+ * #1783 —— 页脚第一列 = 菜单的**顶层**（下拉里的子项不进页脚）。构建写页脚（`derive-site.js`）和 AI 改站那道门判「页脚第一列跟着菜单」
+ * （`navigation-owned.js` 的 `mirrorOf`）用的是这一个函数。不改入参。
+ */
+function topLevelLinks(links) {
+  return Array.isArray(links) ? links.map((l) => {
+    if (!isItem(l)) return l;
+    const { children, ...rest } = l; // eslint-disable-line no-unused-vars
+    return rest;
+  }) : links;
+}
+
 /**
  * #1781 —— 每次构建对菜单做的全部事情。菜单是老板的数据（`header.links`），构建只做三件事：
  *   · 还没有菜单（新站第一次构建）⟹ 按 §menuLinks 算一份（今天的结果）。
@@ -54,6 +76,8 @@ const pageHref = (slug) => `/${slug}`;
  *     （它的 slug 已经在 `knownPages` 里）。菜单里已经有一项指着它（老板先手填了 `/faq`、或 AI 同一笔建页 + 加菜单项）⟹ 只记进
  *     `knownPages`、不再追加（#1781 r5，QA3 r4 T2：否则顶栏和页脚各多一条重复的）。
  *   · 页面没了（在 `knownPages` 里、这次不在普通页里）⟹ 菜单里指向它的那几项一起去掉。
+ *     #1783 —— 下拉里（`children`）指向它的子项也一起去掉；新页面只追加到顶层。子项指着的页也算「菜单里已经有一项指着它」
+ *     （否则老板放进下拉的那一页，下一次构建又在顶层多出一条）。
  * `knownPages` 还不在（#1781 之前的站、或新站第一次构建）⟹ 当成「现在这些普通页都见过了」：老站已有的菜单一项不加、一项不减。
  * 🔴 纯函数，**不改入参**（`navigation-owned.test.js` ③ 认得出把 navigation.json 的值传给它，前提就是这一条，那份测试里有一格专门量它）。
  * @param {object} a
@@ -67,14 +91,17 @@ function syncMenu({ links, knownPages, homeLabel, regular }) {
   const slugs = regular.map((p) => p.slug);
   const now = new Set(slugs);
   if (!Array.isArray(links)) return { links: menuLinks({ homeLabel, regular }), knownPages: slugs };
-  const copy = links.map((l) => (l && typeof l === 'object' && !Array.isArray(l) ? { ...l } : l));
+  const copy = links.map(copyItem);
   if (!Array.isArray(knownPages)) return { links: copy, knownPages: slugs };
   const known = knownPages.filter((s) => typeof s === 'string');
   const knownSet = new Set(known);
   const gone = new Set(known.filter((s) => !now.has(s)).map(pageHref));
-  const kept = copy.filter((l) => !(l && typeof l === 'object' && typeof l.href === 'string' && gone.has(l.href)));
+  const alive = (l) => !(l && typeof l === 'object' && typeof l.href === 'string' && gone.has(l.href));
+  const kept = copy.filter(alive);
+  for (const l of kept) if (isItem(l) && Array.isArray(l.children)) l.children = l.children.filter(alive);
   const added = regular.filter((p) => !knownSet.has(p.slug));
-  const pointedAt = new Set(kept.map((l) => (l && typeof l === 'object' ? l.href : undefined)).filter((h) => typeof h === 'string'));
+  const pointedAt = new Set(kept.flatMap((l) => (isItem(l) ? [l, ...(Array.isArray(l.children) ? l.children : [])] : []))
+    .map((l) => (l && typeof l === 'object' ? l.href : undefined)).filter((h) => typeof h === 'string'));
   for (const p of added) {
     if (!pointedAt.has(pageHref(p.slug))) kept.push({ label: p.navLabel || p.title || p.slug, href: pageHref(p.slug) });
   }
@@ -94,4 +121,4 @@ function localizeHref(href, locale, defaultLocale) {
   return `/${locale}${href}`;
 }
 
-module.exports = { HOME_LABELS, homeLabelOf, menuLinks, syncMenu, localizeHref };
+module.exports = { HOME_LABELS, homeLabelOf, menuLinks, syncMenu, topLevelLinks, localizeHref };

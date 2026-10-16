@@ -67,7 +67,8 @@ const NAV_LINKS = [
   { key: ['header', 'topbarLinks'], list: true, block: 'header', slot: 'topbar', where: 'the top bar' },
   // #1781 —— 菜单是老板自己的一份列表了（编辑器 Content 页 · AI 改站都能写），派生成 header 的 `nav`（shell-data.js）。
   //    引用写法的那几项（`{source: "phone"}`）`href` 不是字符串，不归这里判（§linksOf 只收字符串）。页脚第一列是构建从它抄的，不另登记。
-  { key: ['header', 'links'], list: true, block: 'header', slot: 'nav', where: 'the menu' },
+  //    #1783 —— 下拉里的子项（`children`）同样是老板写的链接、同样画到页面上 ⟹ `children: true`：每一项的子项也查。
+  { key: ['header', 'links'], list: true, children: true, block: 'header', slot: 'nav', where: 'the menu' },
 ];
 
 let nameCache = null;
@@ -159,7 +160,8 @@ function linksOf(kind, doc) {
     for (const n of NAV_LINKS) {
       let v = doc;
       for (const k of n.key) v = isObj(v) ? v[k] : undefined;
-      const items = n.list ? (Array.isArray(v) ? v : []) : [v];
+      const top = n.list ? (Array.isArray(v) ? v : []) : [v];
+      const items = n.children ? top.flatMap((it) => [it, ...(isObj(it) && Array.isArray(it.children) ? it.children : [])]) : top;
       for (const it of items) {
         if (isObj(it) && typeof it.href === 'string') out.push({ place: n.key.join('.'), where: n.where, label: it.label, href: it.href });
       }

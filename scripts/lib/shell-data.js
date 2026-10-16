@@ -63,6 +63,20 @@ function links(list, loc) {
 }
 
 /**
+ * #1783 —— 顶栏菜单：同 §links，再带一层下拉 —— 每项的 `children` 按同一条规则过一遍（画不出的子项不进），非空的
+ * `description` 原样带上；一个子项都不剩 ⟹ 不写 `children`（那一项就不画 ⌄）。页脚第一列不走这里（只画顶层，§links）。
+ */
+function menuNav(list, loc) {
+  const src = (Array.isArray(list) ? list : []).filter((l) => isObj(l) && str(l.label) && (menuRef(l.href) || (str(l.href) && hrefAllowed(l.href))));
+  return links(src, loc).map((it, i) => {
+    const raw = Array.isArray(src[i].children) ? src[i].children : [];
+    const ok = raw.filter((c) => isObj(c) && str(c.label) && (menuRef(c.href) || (str(c.href) && hrefAllowed(c.href))));
+    const kids = links(ok, loc).map((k, j) => (str(ok[j].description) ? { ...k, description: str(ok[j].description) } : k));
+    return kids.length ? { ...it, children: kids } : it;
+  });
+}
+
+/**
  * #1529 那几格用的链接判据：label / href 都是非空字符串，**且** href 过写盘那一关的白名单（`href-allowed.js`）。
  * 🔴 这几格在 #1529 之前不在写盘检查里（navigation.json 的陌生键照写），那时写进去的 `javascript:` 不许因为
  *    本票开始画它而上页面 ⟹ 不过白名单的那一项当没写。
@@ -117,7 +131,7 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   if (logo) header.logo = logo;
   if (wordmark) header.logoHasWordmark = true;
   if (name) header.brandName = name;
-  header.nav = links(h.links, loc);
+  header.nav = menuNav(h.links, loc);
   // #1787 —— 顶栏按钮：画不出的那一颗不进 data；电话 / 邮箱引用原样交下去（`SiteShell` 渲染前 `resolveItemSources` 展开，
   //    跟页面块的按钮同一条路），站内地址按语言加前缀。
   header.buttons = headerButtonsData(h.buttons, loc);

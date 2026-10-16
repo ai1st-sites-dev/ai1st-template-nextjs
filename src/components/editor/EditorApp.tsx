@@ -128,7 +128,7 @@ import { imageField, imageRowField, imageUrlField, ImageUrlControl } from './Ima
 import { ButtonEditor, ButtonLinkEnvContext, MenuLinkEditor, REGION_LINK_TYPES, buttonHrefField, contactText } from './ButtonLink';
 import { externalUrl } from '../../../scripts/lib/button-link.js';
 import {
-  liveShellData, menuItemProblem, menuLinksProblem, moveItem, type MenuItem,
+  liveShellData, menuItemProblem, menuLinksProblem, childrenProblem, moveItem, NAV_DESC_MAX, type MenuItem, type MenuChild,
 } from '../../../scripts/lib/nav-editor.js';
 import type { ContactRef, SiteData } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -2056,13 +2056,16 @@ function RegionBars({ doc }: { doc: Document }) {
   }, [doc]);
   // #1781 —— 画布上点菜单某一项（顶栏块据 `editorIndex` 挂的 `data-editor-region-link="nav.<i>"`）⟹ 开那一项的链接弹窗。
   //   不跳转（同画布上别的链接）；别的弹层开着先 Cancel（§openDesign 的规矩）；AI 上锁时什么都不做（同 Design）。
+  //   #1783 —— 下拉里的子项挂的是 `nav.<i>.<j>`，开那一个子项的弹窗；点 ⌄（Bootstrap 的触发器）不归这里，照常开关下拉。
   const uiRef = useRef(ui);
   uiRef.current = ui;
   useEffect(() => {
     const onClick = (e: Event) => {
       const t = e.target;
-      const el = t && typeof (t as Element).closest === 'function' ? (t as Element).closest('[data-editor-region-link]') : null;
-      const m = el ? /^nav\.(\d+)$/.exec(el.getAttribute('data-editor-region-link') || '') : null;
+      const isEl = !!t && typeof (t as Element).closest === 'function';
+      if (isEl && (t as Element).closest('[data-bs-toggle]')) return;
+      const el = isEl ? (t as Element).closest('[data-editor-region-link]') : null;
+      const m = el ? /^nav\.(\d+(?:\.\d+)?)$/.exec(el.getAttribute('data-editor-region-link') || '') : null;
       const u = uiRef.current;
       if (!m || !u) return;
       e.preventDefault();
@@ -2585,19 +2588,39 @@ export function DesignContent({ component, item, ui, readOnly }: { component: Ed
  */
 function NavLinkDialog({ focus, links, ui, site, locale }: { focus: string; links: MenuItem[]; ui: EditorUi; site: SiteData; locale: string }) {
   const fromContent = focus.endsWith('@content');
-  const m = /^nav\.(\d+|new)/.exec(focus);
+  // #1783 —— `nav.<i>.<j>` / `nav.<i>.new` = 第 i 项下拉里的子项（改第 j 个 / 加到末尾）；子项的弹窗多一格 Description。
+  const m = /^nav\.(\d+|new)(?:\.(\d+|new))?/.exec(focus);
   const index = m && m[1] !== 'new' ? Number(m[1]) : -1;
-  const existing = index >= 0 && index < links.length ? links[index] : null;
-  const [draft, setDraft] = useState<MenuItem>(() => (existing ? { label: existing.label, href: existing.href } : { label: '', href: '' }));
+  const parent = index >= 0 && index < links.length ? links[index] : null;
+  const isChild = !!m && m[2] !== undefined && !!parent;
+  const kids: MenuChild[] = parent && Array.isArray(parent.children) ? parent.children : [];
+  const childIndex = isChild && m && m[2] !== 'new' ? Number(m[2]) : -1;
+  const existing: MenuChild | null = isChild ? (childIndex >= 0 && childIndex < kids.length ? kids[childIndex] : null) : parent;
+  const [draft, setDraft] = useState<MenuChild>(() => (existing
+    ? { label: existing.label, href: existing.href, ...(isChild ? { description: existing.description || '' } : {}) }
+    : { label: '', href: '', ...(isChild ? { description: '' } : {}) }));
   const [error, setError] = useState('');
   const back = () => ui.openDesign(REGION_DESIGN_ID.header, 'content', 'headerLinks');
   const cancel = () => (fromContent ? back() : ui.cancelDesign());
   /** 这一项交回 `headerLinks`。不能存 ⟹ 说一句、原地不动（`draft` 还在弹窗里）、回 false。 */
   const apply = () => {
+    if (isChild && parent) {
+      const d = (draft.description || '').trim();
+      const item: MenuChild = { label: draft.label, href: draft.href, ...(d ? { description: d } : {}) };
+      const nextKids = kids.slice();
+      if (existing) nextKids[childIndex] = item; else nextKids.push(item);
+      const why = menuItemProblem(item) || childrenProblem({ ...parent, children: [item] });
+      if (why) { setError(why); return false; }
+      const next = links.slice();
+      next[index] = { ...parent, children: nextKids };
+      ui.changeHeader({ headerLinks: next });
+      return true;
+    }
     const why = menuItemProblem(draft);
     if (why) { setError(why); return false; }
     const next = links.slice();
-    if (existing) next[index] = draft; else next.push(draft);
+    // 顶层那一项只改名字和链接：它下面的下拉（`children`）原样留着。
+    if (parent) next[index] = { ...parent, label: draft.label, href: draft.href }; else next.push({ label: draft.label, href: draft.href });
     ui.changeHeader({ headerLinks: next });
     return true;
   };
@@ -2613,10 +2636,14 @@ function NavLinkDialog({ focus, links, ui, site, locale }: { focus: string; link
   const env = useMemo(() => (outer ? { ...outer, openBusinessInfo: () => { if (apply()) outer.openBusinessInfo(); } } : null), [outer, draft, links]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
-      <div data-editor-navlink-title="" style={{ padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>{existing ? 'Navigation link' : 'Add navigation link'}</div>
+      <div data-editor-navlink-title="" style={{ padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>
+        {isChild ? (existing ? 'Dropdown link' : 'Add dropdown link') : (existing ? 'Navigation link' : 'Add navigation link')}
+      </div>
+      {isChild && parent ? <div data-editor-navlink-parent="" style={{ padding: '2px 16px 0', fontSize: 12, color: '#667085' }}>{`Under “${parent.label}”`}</div> : null}
       <div data-editor-navlink-body="" style={{ padding: POPOVER_PAD, overflowY: 'auto' }}>
         <ButtonLinkEnvContext.Provider value={env}>
-          <MenuLinkEditor item={draft} site={site} locale={locale} onChange={(next) => { setDraft(next); setError(''); }} />
+          <MenuLinkEditor item={draft} site={site} locale={locale} withDescription={isChild} maxDescription={NAV_DESC_MAX}
+            onChange={(next) => { setDraft(next); setError(''); }} />
         </ButtonLinkEnvContext.Provider>
       </div>
       {error || ui.designError ? (
@@ -2792,8 +2819,18 @@ const HEADER_ROW_BTN: CSSProperties = { padding: '4px 8px', border: '1px solid #
  */
 function HeaderContent({ props, ui, site, locale }: { props: Record<string, unknown>; ui: EditorUi; site: SiteData; locale: string }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // #1783 —— 正在拖的那个子项（`p` = 它在第几项的下拉里，`j` = 下拉里第几个）：只许拖到同一个下拉里。
+  const [kidDrag, setKidDrag] = useState<{ p: number; j: number } | null>(null);
   const [topDrag, setTopDrag] = useState<number | null>(null);
   const links = Array.isArray(props.headerLinks) ? (props.headerLinks as MenuItem[]) : null;
+  /** #1783 —— 第 `i` 项的下拉换成 `kids`（一个都不剩 ⟹ 去掉 `children` 这个键）。 */
+  const setKids = (i: number, kids: MenuChild[]) => {
+    if (!links) return;
+    const next = links.slice();
+    const { children, ...rest } = next[i]; // eslint-disable-line @typescript-eslint/no-unused-vars
+    next[i] = kids.length ? { ...rest, children: kids } : rest;
+    set({ headerLinks: next });
+  };
   const buttons = Array.isArray(props.headerButtons) ? (props.headerButtons as unknown[]).map(asButtonValue) : null;
   const [btnDrag, setBtnDrag] = useState<number | null>(null);
   // #1784 r7 —— Logo 子页开着没有（← 回 Content；切到别的页再回来就是 Content 本页）。
@@ -2893,11 +2930,37 @@ function HeaderContent({ props, ui, site, locale }: { props: Record<string, unkn
                   style={{ width: 18, cursor: draggable ? 'grab' : 'default', color: draggable ? '#98a2b3' : 'transparent', userSelect: 'none' }}>⋮⋮</span>
                 <span data-editor-header-link-label={i} title={name}
                   style={{ flex: 1, minWidth: 0, fontSize: 14, color: '#101828', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                <button type="button" data-editor-header-link-add-child={i} aria-label={`Add dropdown link under ${name}`} title="Add dropdown link"
+                  onClick={() => edit(`nav.${i}.new`)} style={HEADER_ROW_BTN}>＋</button>
                 <button type="button" data-editor-header-link-edit={i} aria-label={`Edit ${name}`} onClick={() => edit(`nav.${i}`)} style={HEADER_ROW_BTN}>✎ Edit</button>
                 <button type="button" data-editor-header-link-delete={i} aria-label={`Delete ${name}`} title="Delete"
                   onClick={() => set({ headerLinks: links.filter((_, k) => k !== i) })} style={HEADER_ROW_BTN}>🗑</button>
               </div>
             );
+          }).flatMap((row, i) => {
+            // #1783 —— 下拉里的子项缩进排在它那一项下面：⠿ 拖动（只在同一个下拉里）· 名字 · ✎ · 🗑。
+            const kids = Array.isArray(links[i].children) ? (links[i].children as MenuChild[]) : [];
+            const kidDraggable = kids.length > 1;
+            return [row, ...kids.map((c, j) => {
+              const cname = typeof c.label === 'string' && c.label.trim() ? c.label : '(no name)';
+              const at = `${i}.${j}`;
+              return (
+                <div key={`${i}-${j}`} data-editor-header-link-child={at}
+                  onDragOver={(e) => { if (kidDrag && kidDrag.p === i) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                  onDrop={(e) => { e.preventDefault(); if (kidDrag && kidDrag.p === i) setKids(i, moveItem(kids, kidDrag.j, j)); setKidDrag(null); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 6px 24px', paddingLeft: 8, borderLeft: '2px solid #eaecf0', opacity: kidDrag && kidDrag.p === i && kidDrag.j === j ? 0.5 : 1 }}>
+                  <span data-editor-header-link-child-handle="" draggable={kidDraggable} aria-hidden="true" title={kidDraggable ? 'Drag to reorder' : undefined}
+                    onDragStart={(e) => { setKidDrag({ p: i, j }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', at); }}
+                    onDragEnd={() => setKidDrag(null)}
+                    style={{ width: 18, cursor: kidDraggable ? 'grab' : 'default', color: kidDraggable ? '#98a2b3' : 'transparent', userSelect: 'none' }}>⋮⋮</span>
+                  <span data-editor-header-link-child-label={at} title={cname}
+                    style={{ flex: 1, minWidth: 0, fontSize: 13, color: '#344054', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cname}</span>
+                  <button type="button" data-editor-header-link-child-edit={at} aria-label={`Edit ${cname}`} onClick={() => edit(`nav.${at}`)} style={HEADER_ROW_BTN}>✎</button>
+                  <button type="button" data-editor-header-link-child-delete={at} aria-label={`Delete ${cname}`} title="Delete"
+                    onClick={() => setKids(i, kids.filter((_, k) => k !== j))} style={HEADER_ROW_BTN}>🗑</button>
+                </div>
+              );
+            })];
           })}
           <button type="button" data-editor-header-link-add="" onClick={() => edit('nav.new')} style={{ ...HEADER_ROW_BTN, marginTop: 2 }}>+ Add navigation link</button>
         </div>

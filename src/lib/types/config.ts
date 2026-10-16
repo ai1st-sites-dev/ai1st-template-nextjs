@@ -83,6 +83,15 @@ export interface NavLink {
 export interface MenuLink {
   label: string;
   href: unknown;
+  // #1783 —— 下拉里的那几项（只一层：子项不能再有子项）。页脚第一列只抄顶层，不带它（`scripts/derive-site.js`）。
+  children?: MenuChildLink[];
+}
+
+/** #1783 —— 下拉里的一项：同菜单项，多一行可空的说明（≤ 80 字，`scripts/lib/nav-editor.js` §NAV_DESC_MAX）。 */
+export interface MenuChildLink {
+  label: string;
+  href: unknown;
+  description?: string;
 }
 
 /**

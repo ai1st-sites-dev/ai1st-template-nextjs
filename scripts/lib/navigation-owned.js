@@ -49,6 +49,7 @@ function sameValue(a, b) {
 }
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const { topLevelLinks } = require('./nav-menu');
 
 /**
  * 构建拥有的那几处。`read` 取出这一处的值（拿它跟磁盘上那份比），`label` 是回给模型的说法，
@@ -92,10 +93,11 @@ const OWNED = [
     syncConfigWrite: 'footer.columns[0].links',
     // #1781 —— 页脚第一列 = 菜单原样（每次构建抄一份）。所以「跟这次写的 header.links 一样」不是改它 —— 是老板改了菜单、
     //    模型把两处一起写对了（§buildOwnedChanges 的 `mirrorOf`）；只有跟菜单不一样才是真的会被覆盖。
-    mirrorOf: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.links : undefined),
-    rebuiltFrom: 'the header menu (header.links) — the first footer column is always a copy of it',
+    // #1783 —— 抄的是菜单的**顶层**（下拉里的子项不进页脚），跟构建同一个函数（`nav-menu.js` §topLevelLinks）。
+    mirrorOf: (nav) => (isObj(nav) && isObj(nav.header) ? topLevelLinks(nav.header.links) : undefined),
+    rebuiltFrom: 'the header menu (header.links) — the first footer column is always a copy of its top-level links (dropdown links are not copied)',
     remediation: 'To change those links, change header.links: the first footer column follows it on the next build.',
-    rebuiltFromCode: ['existingNav.footer.columns[0].links = menu.links.map('],
+    rebuiltFromCode: ['existingNav.footer.columns[0].links = navMenu.topLevelLinks(menu.links)'],
     read: (nav) => {
       if (!isObj(nav) || !isObj(nav.footer) || !Array.isArray(nav.footer.columns)) return undefined;
       const first = nav.footer.columns[0];
@@ -196,6 +198,7 @@ const { shapesOf, REGION_BLOCK } = require('../region-layout');
 const { REQUIRED_KINDS } = require('./page-layout');
 const { BUTTON_SOURCES, refProblemsAt } = require('./item-sources');
 const { MAX_HEADER_BUTTONS } = require('./header-buttons');
+const { childrenProblem } = require('./nav-editor');
 
 /** 每一类区一共有哪些形态。唯一出处是**块的形态目录**（`blocks/<块>/<形态>/`）。现取，不在加载时固化。 */
 const VARIANTS_BY_REGION = new Proxy({}, {
@@ -577,7 +580,16 @@ const NAV_LINK = { kind: 'object', fields: { label: { kind: 'string' }, href: { 
 // #1781 —— 菜单那一项（`MenuLink`）：`href` 是地址字符串，或本店电话 / 邮箱的引用 `{source: "phone" | "email", location?}`
 //    （同按钮，`item-sources.js` §BUTTON_SOURCES）。`any` 只说「这一格要在」；它是哪一种由 §menuLinkProblems 判。
 //    页脚第一列是菜单原样抄过去的，所以页脚每一栏的链接也是这一种。
-const MENU_LINK = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'any' } } };
+// #1783 —— 菜单项可以带一层下拉 `children`（`MenuChildLink`：同菜单项，多一行可空的 `description`）。只一层、说明多长这些
+//    业务规矩不在形状里（类型只说是数组）—— 由 §menuLinkProblems 调编辑器那一份（`nav-editor.js` §childrenProblem）判。
+const MENU_CHILD = {
+  kind: 'object',
+  fields: { label: { kind: 'string' }, href: { kind: 'any' }, description: { kind: 'string', optional: true } },
+};
+const MENU_LINK = {
+  kind: 'object',
+  fields: { label: { kind: 'string' }, href: { kind: 'any' }, children: { kind: 'array', optional: true, of: MENU_CHILD } },
+};
 // #1779 —— 顶栏按钮：`href` 是字符串，**或**电话 / 邮箱引用（`{source: "phone" | "email", location?}`，同页面块的按钮，
 //    构建时由 `item-sources.js` §resolveButtons 展开）。类型那头是 `HeaderButton.href: string | ContactRef`（⑩ 认这一种并集）。
 //    不放开的后果：老板在编辑器里把主按钮设成 Phone 之后，AI 每次改 navigation.json 都被这道门拒，
@@ -699,11 +711,18 @@ function menuLinkProblems(nav) {
   const links = isObj(nav) && isObj(nav.header) ? nav.header.links : undefined;
   if (!Array.isArray(links)) return [];
   const out = [];
-  links.forEach((l, i) => {
+  const hrefOf = (l, at) => {
     if (!isObj(l) || !('href' in l) || typeof l.href === 'string') return;
-    const at = `header.links[${i}].href`;
     if (!isObj(l.href)) { out.push(`"${at}" must be a string (an address) or {"source": "phone"} / {"source": "email"}.`); return; }
     out.push(...refProblemsAt(at, BUTTON_SOURCES, l.href));
+  };
+  links.forEach((l, i) => {
+    hrefOf(l, `header.links[${i}].href`);
+    // #1783 —— 下拉：子项的 href 同上；只一层 · 说明 ≤ 80 字 · 名字 / 链接不能空，跟编辑器存盘同一句（`nav-editor.js` §childrenProblem）。
+    if (!isObj(l) || l.children === undefined) return;
+    if (Array.isArray(l.children)) l.children.forEach((c, j) => hrefOf(c, `header.links[${i}].children[${j}].href`));
+    const why = childrenProblem(l);
+    if (why) out.push(`"header.links[${i}].children": ${why}`);
   });
   return out;
 }
@@ -730,7 +749,8 @@ function shapeProblems(nav) {
 /** 这里能改的是哪些 —— 拒绝理由里要带上，否则模型只知道不许改什么、不知道许改什么。 */
 const NAVIGATION_EDITABLE_SUMMARY =
   'In navigation.json you may change: the menu (header.links — a list of {label, href}; href is an address or '
-  + '{"source": "phone"} / {"source": "email"}; the first footer column copies it on the next build), the header buttons '
+  + '{"source": "phone"} / {"source": "email"}; a link may have a dropdown, "children": [{label, href, description?}], one level only, '
+  + 'description up to 80 characters; the first footer column copies its top-level links on the next build), the header buttons '
   + '(header.buttons — a list of 0 to 3 {label, href}; the first one is the main button), the footer copyright, the footer description, the '
   + 'footer column titles, the footer legal links (footer.legal — a list of {label, href}), and the topbar. '
   + 'Write the complete file with everything else exactly as you read it.';

@@ -727,7 +727,7 @@ for (const locale of locales) {
   // Use the home page's own navLabel (already translated by AI / 122b
   // translatePageWithClaude); fall back to a native-language map if missing.
   // #1781 —— 菜单是老板自己的一份列表（`header.links`）：构建只在它还不在时算一次、追加新出现的普通页、去掉指向已删页面的项
-  //    （`header.knownPages` 记着见过哪些页，规则全在 `lib/nav-menu.js` §syncMenu）。页脚第一列 = 菜单原样。
+  //    （`header.knownPages` 记着见过哪些页，规则全在 `lib/nav-menu.js` §syncMenu）。页脚第一列 = 菜单的顶层（#1783：不带下拉里的子项）。
   //    🔴 读 `existingNav.header.links` 只经 §syncMenu：`navigation-owned.test.js` ③ 只认得它这一个「传出去不会被改」的函数。
   const homeLabel = navMenu.homeLabelOf(homePage.navLabel, locale);
   const menu = navMenu.syncMenu({
@@ -737,7 +737,8 @@ for (const locale of locales) {
   existingNav.header.links = menu.links;
   existingNav.header.knownPages = menu.knownPages;
   if (existingNav.footer.columns.length > 0) {
-    existingNav.footer.columns[0].links = menu.links.map((l) => ({ ...l }));
+    // #1783 —— 页脚第一列只抄顶层，下拉里的子项不进页脚（`nav-menu.js` §topLevelLinks）。
+    existingNav.footer.columns[0].links = navMenu.topLevelLinks(menu.links);
   }
 
   // Group keyword pages by service — one footer column per service.

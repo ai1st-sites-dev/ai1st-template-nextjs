@@ -49,7 +49,7 @@ const { topbarLinksOf, topbarLinksProblem } = require('./topbar-links');
 const { isButtonRef, socialPairs, BUTTON_SOURCES, refProblemsAt } = require('./item-sources');
 const { hrefAllowed } = require('./href-allowed');
 const { headerButtonsProblem } = require('./header-buttons');
-const { isMenuRef, menuItemProblem } = require('./nav-editor');
+const { isMenuRef, menuItemProblem, childrenProblem } = require('./nav-editor');
 
 /** 老板在编辑器里可能收到的拒收码。worker 把它原样换成状态栏那句话（`blocks_task.go`）。 */
 const REFUSED = 11;
@@ -150,9 +150,16 @@ function readHeaderButtons(localeDir) {
   const h = isObj(nav) && isObj(nav.header) ? nav.header : {};
   // #1781 —— 菜单原样（每项 `{label, href}`，href 是字符串或引用）；形状不对的那一项跳过（编辑器那头不画它，存盘也就不带它）。
   //    `header.links` 不在（还没构建过的站）⟹ 不回这一格（同上：不回空值去盖构建时那份）。
+  //    #1783 —— 下拉（`children`）同一条：形状对的子项原样回（`description` 是字符串才带），一个都不剩 ⟹ 不带 `children`。
+  const okLink = (l) => isObj(l) && typeof l.label === 'string' && (typeof l.href === 'string' || isMenuRef(l.href));
+  const linkOf = (l) => ({ label: l.label, href: typeof l.href === 'string' ? l.href : { ...l.href } });
   const links = Array.isArray(h.links)
-    ? { headerLinks: h.links.filter((l) => isObj(l) && typeof l.label === 'string' && (typeof l.href === 'string' || isMenuRef(l.href)))
-      .map((l) => ({ label: l.label, href: typeof l.href === 'string' ? l.href : { ...l.href } })) }
+    ? { headerLinks: h.links.filter(okLink).map((l) => {
+      const kids = Array.isArray(l.children)
+        ? l.children.filter(okLink).map((c) => (typeof c.description === 'string' ? { ...linkOf(c), description: c.description } : linkOf(c)))
+        : [];
+      return kids.length ? { ...linkOf(l), children: kids } : linkOf(l);
+    }) }
     : {};
   // #1780 —— 顶栏上面那一行：没写过 ⟹ 今天的样子（电话 + 邮箱），编辑器那头显示的就是页面上画的那两项。
   return { headerButtons: (Array.isArray(h.buttons) ? h.buttons : []).map(buttonOf), headerTopbar: topbarLinksOf(h.topbarLinks), ...links };
@@ -255,19 +262,33 @@ function checkShape(root, layouts) {
     const list = root.headerLinks;
     if (!Array.isArray(list)) bad(`headerLinks 必须是数组：${JSON.stringify(list)}`);
     if (list.length > MENU_MAX) refuse(`The menu can have up to ${MENU_MAX} links. Nothing was changed.`);
-    list.forEach((v, i) => {
-      if (!isObj(v) || Object.keys(v).some((k) => k !== 'label' && k !== 'href') || typeof v.label !== 'string') {
-        bad(`headerLinks[${i}] 必须是 {label: string, href}：${JSON.stringify(v)}`);
-      }
+    const hrefShape = (v, at) => {
       if (isObj(v.href)) {
-        const p = refProblemsAt(`headerLinks[${i}].href`, BUTTON_SOURCES, v.href);
+        const p = refProblemsAt(`${at}.href`, BUTTON_SOURCES, v.href);
         if (p.length) bad(p.join(' · '));
       } else if (typeof v.href !== 'string') {
-        bad(`headerLinks[${i}].href 必须是字符串或电话 / 邮箱引用：${JSON.stringify(v.href)}`);
+        bad(`${at}.href 必须是字符串或电话 / 邮箱引用：${JSON.stringify(v.href)}`);
       }
+    };
+    list.forEach((v, i) => {
+      if (!isObj(v) || Object.keys(v).some((k) => k !== 'label' && k !== 'href' && k !== 'children') || typeof v.label !== 'string') {
+        bad(`headerLinks[${i}] 必须是 {label: string, href, children?}：${JSON.stringify(v)}`);
+      }
+      hrefShape(v, `headerLinks[${i}]`);
+      // #1783 —— 下拉：`children` 是 `[{label, href, description?}]`。子项再带 `children`（两层）不在这里当形状错 —— 它是老板能做出来的
+      //    （AI 写的、或别处带进来的），话同编辑器 Done（下面 §childrenProblem 拒收并说一句）。
+      if (v.children === undefined) return;
+      if (!Array.isArray(v.children)) bad(`headerLinks[${i}].children 必须是数组：${JSON.stringify(v.children)}`);
+      v.children.forEach((c, j) => {
+        const at = `headerLinks[${i}].children[${j}]`;
+        if (!isObj(c) || Object.keys(c).some((k) => !['label', 'href', 'description', 'children'].includes(k)) || typeof c.label !== 'string') {
+          bad(`${at} 必须是 {label: string, href, description?}：${JSON.stringify(c)}`);
+        }
+        hrefShape(c, at);
+      });
     });
     for (const v of list) {
-      const why = menuItemProblem(v);
+      const why = menuItemProblem(v) || childrenProblem(v);
       if (why) refuse(`${why} Nothing was changed.`);
     }
   }
@@ -398,7 +419,15 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
     }
     if (f.field === 'headerLinks') {
       // #1781 —— 名字和字符串链接去首尾空格（同按钮）；引用原样。
-      setAt(entry.doc, key, v.map((l) => ({ label: l.label.trim(), href: typeof l.href === 'string' ? l.href.trim() : { ...l.href } })));
+      //    #1783 —— 子项同样；`description` 去首尾空格，空了就不写这个键；一个子项都没有 ⟹ 不写 `children`。
+      const one = (l) => ({ label: l.label.trim(), href: typeof l.href === 'string' ? l.href.trim() : { ...l.href } });
+      setAt(entry.doc, key, v.map((l) => {
+        const kids = Array.isArray(l.children) ? l.children.map((c) => {
+          const d = typeof c.description === 'string' ? c.description.trim() : '';
+          return d ? { ...one(c), description: d } : one(c);
+        }) : [];
+        return kids.length ? { ...one(l), children: kids } : one(l);
+      }));
       continue;
     }
     setAt(entry.doc, key, BRAND_FIELDS.includes(f.field) && f.field !== 'brandName' && !v.trim() ? null : v);

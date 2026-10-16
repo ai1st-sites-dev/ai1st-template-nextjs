@@ -12,6 +12,9 @@
 //   · 每一项要有名字（≤ §NAV_LABEL_MAX 个字）和链接（字符串非空，或电话 / 邮箱引用）。不过 ⟹ Done 被拒并说一句（§menuLinksProblem）。
 //     写盘那一侧（`editor-root.js` §checkShape）照样再判一次，话是同一句。
 //   · 预览（§liveShellData）：顶栏和页脚第一列都画这一份（构建时页脚第一列 = 菜单原样，`derive-site.js`）。
+//   · #1783 —— 每一项可以带一层下拉 `children: [{label, href, description?}]`：子项的名字 / 链接规矩同顶层，`description` 可空、
+//     ≤ §NAV_DESC_MAX 个字；子项不能再有子项（§childrenProblem）。AI 改站那道门（`navigation-owned.js` §menuLinkProblems）用同一个函数。
+//     页脚第一列只画顶层。
 
 const { localizeHref } = require('./nav-menu');
 const { hrefAllowed } = require('./href-allowed');
@@ -21,6 +24,8 @@ const { topbarContact } = require('./topbar-links');
 
 /** 跟写盘那一侧（`lib/editor-root.js` 的菜单检查）同一个数：顶栏一行放得下的名字。 */
 const NAV_LABEL_MAX = 40;
+/** #1783 —— 下拉子项那一行灰色小字的上限（票正文「一行字、可空、最多 80 字符」）。 */
+const NAV_DESC_MAX = 80;
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v : '');
@@ -44,11 +49,29 @@ function menuItemProblem(item) {
   return '';
 }
 
-/** 整份菜单不能存时那一句（'' = 能存；不是数组 = 这一笔不带菜单，不管）。 */
+/**
+ * #1783 —— 一项的下拉（`children`）不能存时那一句（'' = 能存；没有 `children` = 能存）。只一层：子项再带 `children` ⟹ 拒。
+ * 子项的名字 / 链接同顶层（§menuItemProblem）；`description` 不是字符串、或超过 §NAV_DESC_MAX 个字 ⟹ 拒。
+ */
+function childrenProblem(item) {
+  if (!isObj(item) || item.children === undefined) return '';
+  const parent = str(item.label).trim() || 'this link';
+  if (!Array.isArray(item.children)) return `The dropdown under "${parent}" must be a list of links.`;
+  for (const c of item.children) {
+    if (isObj(c) && c.children !== undefined) return `Dropdown links can't have their own dropdown — "${parent}" can only have one level of links under it.`;
+    const why = menuItemProblem(c);
+    if (why) return why;
+    if (c.description !== undefined && typeof c.description !== 'string') return `The description of "${str(c.label).trim()}" must be text.`;
+    if (str(c.description).trim().length > NAV_DESC_MAX) return `Dropdown link descriptions can be up to ${NAV_DESC_MAX} characters.`;
+  }
+  return '';
+}
+
+/** 整份菜单不能存时那一句（'' = 能存；不是数组 = 这一笔不带菜单，不管）。#1783：连下拉一起判（§childrenProblem）。 */
 function menuLinksProblem(links) {
   if (!Array.isArray(links)) return '';
   for (const it of links) {
-    const why = menuItemProblem(it);
+    const why = menuItemProblem(it) || childrenProblem(it);
     if (why) return why;
   }
   return '';
@@ -91,17 +114,31 @@ function liveShellData(data, p, locale, defaultLocale) {
     header.topbar = { ...tb, contact: topbarContact(p.headerTopbar, loc) };
   }
   if (Array.isArray(p.headerLinks)) {
+    // 名字非空、链接是白名单里的字符串或引用的那一项（同 `shell-data.js` §links）；画不出的 ⟹ null。
+    const one = (l, at) => {
+      const label = isObj(l) ? str(l.label).trim() : '';
+      if (!label) return null;
+      if (isMenuRef(l.href)) return { label, href: { ...l.href }, editorIndex: at };
+      if (str(l.href).trim() && hrefAllowed(str(l.href).trim())) return { label, href: loc(str(l.href).trim()), editorIndex: at };
+      return null;
+    };
     const items = [];
     p.headerLinks.forEach((l, i) => {
-      const label = isObj(l) ? str(l.label).trim() : '';
-      if (!label) return;
-      if (isMenuRef(l.href)) items.push({ label, href: { ...l.href }, editorIndex: i });
-      else if (str(l.href).trim() && hrefAllowed(str(l.href).trim())) items.push({ label, href: loc(str(l.href).trim()), editorIndex: i });
+      const it = one(l, i);
+      if (!it) return;
+      // #1783 —— 下拉：子项的 `editorIndex` 是 `"<i>.<j>"`（顶栏块据它挂 `data-editor-region-link="nav.<i>.<j>"`）。
+      const kids = isObj(l) && Array.isArray(l.children) ? l.children.map((c, j) => {
+        const k = one(c, `${i}.${j}`);
+        if (k && isObj(c) && str(c.description).trim()) k.description = str(c.description).trim();
+        return k;
+      }).filter(Boolean) : [];
+      if (kids.length) it.children = kids;
+      items.push(it);
     });
     header.nav = items;
-    footer.nav = items.map(({ editorIndex, ...rest }) => rest); // eslint-disable-line no-unused-vars
+    footer.nav = items.map(({ editorIndex, children, ...rest }) => rest); // eslint-disable-line no-unused-vars
   }
   return { header, footer };
 }
 
-module.exports = { NAV_LABEL_MAX, isMenuRef, menuItemProblem, menuLinksProblem, moveItem, liveShellData };
+module.exports = { NAV_LABEL_MAX, NAV_DESC_MAX, isMenuRef, menuItemProblem, childrenProblem, menuLinksProblem, moveItem, liveShellData };

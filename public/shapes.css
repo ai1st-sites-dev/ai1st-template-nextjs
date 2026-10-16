@@ -5651,6 +5651,62 @@
   [data-block="header"] .hdr-brand .hdr-logo-img { height: min(var(--hdr-logo-h, 40px), 44px); }
 }
 
+/* ═══ 下拉（#1783）：菜单项带一层 `children` ═══════════════════════════════════════════════════════════════════════
+   电脑（≥992）：`li.hdr-dd` = 链接 + ⌄ 按钮（Bootstrap Dropdown 的触发器，开着时给卡片挂 `.show`）+ 卡片 `.hdr-dd-menu`。
+   鼠标移上去也出卡片（只在真有悬停的设备上：触屏没有悬停，走 ⌄）。卡片：白底、圆角、阴影、细边，最小宽 17rem，
+   默认跟那一项的起始边对齐（从左往右的站是左边，阿拉伯语站是右边 —— 写的是 inset-inline-*）；Section §alignDropdown 量出会超出
+   视口时挂 `hdr-dd-end` 改成跟那一项的结束边对齐。圆角跟 Corner style 走（`--radius-card`）。深色顶栏上照样白底
+   （字色写死在这里，不跟顶栏反白）。卡片离那一项 .5rem：中间那条缝由 `::before` 垫上，鼠标移过去时悬停不断。
+   🔴 位置不交给 Bootstrap：⌄ 上写了 `data-bs-display="static"`，它不建 Popper；而 `.navbar-nav .dropdown-menu { position: static }`
+      （Bootstrap 给不带 navbar-expand 的菜单写的）在这里要压掉 ⟹ 选择器带 `.hdr-dd >`，class 数比它多。
+   抽屉（<992）：子项是 Collapse（`.hdr-sub`），缩进、左边一条细竖线（border-start，markup 上）。 */
+[data-block="header"] .hdr-dd { position: relative; }
+[data-block="header"] .hdr-dd > .hdr-dd-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + .5rem);
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+  z-index: 1030;
+  min-width: 17rem;
+  margin: 0;
+  padding: .5rem;
+  list-style: none;
+  text-align: start;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-card);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+}
+[data-block="header"] .hdr-dd > .hdr-dd-menu::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: -.5rem;
+  height: .5rem;
+}
+[data-block="header"] .hdr-dd > .hdr-dd-menu.hdr-dd-end { inset-inline-start: auto; inset-inline-end: 0; }
+[data-block="header"] .hdr-dd > .hdr-dd-menu.show { display: block; }
+@media (hover: hover) and (min-width: 992px) {
+  [data-block="header"] .hdr-dd:hover > .hdr-dd-menu { display: block; }
+}
+[data-block="header"] .hdr-dd-item {
+  padding: .5rem .75rem;
+  border-radius: var(--radius-card);
+  color: #0f172a !important;
+}
+[data-block="header"] .hdr-dd-item:hover,
+[data-block="header"] .hdr-dd-item:focus-visible { background: #f1f5f9; }
+[data-block="header"] .hdr-dd-label { font-size: .9375rem; line-height: 1.35; }
+[data-block="header"] .hdr-dd-desc { margin-top: .125rem; font-size: .8125rem; line-height: 1.4; color: #64748b; }
+/* ⌄ 贴着名字（nav-link 自带左右内边距，按钮再带一圈就离得太远）；抽屉里那枚是 flex 项，名字再长也不被挤缩。
+   抽屉里的子项比顶层小一号，看得出是「Services 下面的」。 */
+[data-block="header"] .hdr-dd-toggle { margin-inline-start: -.25rem; }
+[data-block="header"] .hdr-sub-toggle { flex: 0 0 auto; line-height: 1; }
+[data-block="header"] .hdr-sub .nav-link { font-size: .9375rem; }
+[data-block="header"] .hdr-chev { transition: transform .15s ease; }
+[data-block="header"] [aria-expanded="true"] > .hdr-chev { transform: rotate(180deg); }
+
 /* ── header · logo-left = 预设（logo=left · menu=beside · topbar 关）──────────────────────
    🔴 #1462 起这个文件夹**只是一个名字**：预设 = 两个旋钮 + topbar 开关的一组值（manifest 的 `presets`，#1468），排版全在
       `blocks/header/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）

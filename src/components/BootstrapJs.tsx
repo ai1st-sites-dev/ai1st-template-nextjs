@@ -23,8 +23,9 @@
 //    不在这里逐字列一遍，打开弹窗那一刻它们的规则已经被删掉了（弹窗不显示、背景不变暗、轮播不滑、抽屉收不起）：
 //      show fade modal-open modal-backdrop modal-static carousel-item-next carousel-item-prev
 //      carousel-item-start carousel-item-end pointer-event active collapse collapsing collapsed
-//    写成常量而不是只写注释，是为了让删这段的人看得见它有用途。dropdown / offcanvas / tooltip 今天没有块用，
-//    它们的运行时类（`dropdown-menu.show` / `offcanvas-backdrop` / `tooltip.show` …）等第一个用到的块来补。
+//    写成常量而不是只写注释，是为了让删这段的人看得见它有用途。dropdown 由 header 的菜单下拉用（#1783）：它只往触发器和
+//    `.dropdown-menu` 上加 `show`（上面已列），卡片显 / 藏的规则写在 `blocks/header/block.css`。offcanvas / tooltip 今天没有块用，
+//    它们的运行时类（`offcanvas-backdrop` / `tooltip.show` …）等第一个用到的块来补。
 
 import { useEffect } from 'react';
 

@@ -82,9 +82,15 @@ function headerContent(nav: { header?: { buttons?: unknown; topbarLinks?: unknow
   });
   const list = Array.isArray(nav.header?.buttons) ? (nav.header.buttons as unknown[]) : [];
   const headerButtons = list.filter((b): b is { label?: string; href?: unknown } => !!b && typeof b === 'object' && !Array.isArray(b)).map(btn);
+  // #1783 —— 下拉（`children`）原样带进编辑器（名字是字符串的子项；`description` 是字符串才带）。漏了它，打开编辑器存一次顶栏就把下拉抹掉。
+  type Kid = { label: string; href: unknown; description?: unknown };
+  const named = <T,>(l: unknown): l is T => !!l && typeof l === 'object' && typeof (l as { label?: unknown }).label === 'string';
   const links = Array.isArray(nav.header?.links)
-    ? (nav.header!.links as unknown[]).filter((l): l is { label: string; href: unknown } => !!l && typeof l === 'object' && typeof (l as { label?: unknown }).label === 'string')
-      .map((l) => ({ label: l.label, href: l.href }))
+    ? (nav.header!.links as unknown[]).filter((l): l is Kid & { children?: unknown } => named(l)).map((l) => {
+      const kids = Array.isArray(l.children) ? (l.children as unknown[]).filter((c): c is Kid => named(c))
+        .map((c) => ({ label: c.label, href: c.href, ...(typeof c.description === 'string' ? { description: c.description } : {}) })) : [];
+      return kids.length ? { label: l.label, href: l.href, children: kids } : { label: l.label, href: l.href };
+    })
     : null;
   return { headerButtons, headerTopbar: topbarLinksOf(nav.header?.topbarLinks), ...(links ? { headerLinks: links } : {}) };
 }
