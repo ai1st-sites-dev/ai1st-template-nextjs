@@ -83,19 +83,25 @@ const SOCIAL_LABELS = { linkedin: 'LinkedIn', tiktok: 'TikTok', youtube: 'YouTub
 // #1785 —— 图标名跟平台名不同的那几个：Bootstrap Icons 里 `x` 是关闭叉，X（原 Twitter）的标是 `twitter-x`。
 const SOCIAL_ICONS = { x: 'twitter-x', twitter: 'twitter-x' };
 /**
- * #1785 —— 编辑器 Website settings 里 Social links 那一组能选的平台（顺序 = 下拉的顺序，叫法照 Chris 2026-10-14 定稿）。
+ * #1785 —— 编辑器 Website settings 里 Social links 那一组能选的平台（顺序 = 下拉的顺序，叫法照 Chris 2026-10-14 定稿；
+ * 末尾四个 Pinterest / Threads / Telegram / Medium 是 Chris 2026-10-15 加的，Bootstrap Icons 1.13.1 里都有同名图标）。
  * 存的是 `platform` 那个键；读的时候别的平台名照旧认（建站 AI 写过的老数据），只是编辑器下拉里不列。
+ * `placeholder` 是编辑器弹窗 Link 框空着时的占位字（只是占位，不预填；Chris 2026-10-15 定的那张表）。
  */
 const SOCIAL_PLATFORMS = [
-  { platform: 'facebook', label: 'Facebook' },
-  { platform: 'instagram', label: 'Instagram' },
-  { platform: 'google', label: 'Google' },
-  { platform: 'x', label: 'X' },
-  { platform: 'linkedin', label: 'LinkedIn' },
-  { platform: 'youtube', label: 'YouTube' },
-  { platform: 'tiktok', label: 'TikTok' },
-  { platform: 'whatsapp', label: 'WhatsApp' },
-  { platform: 'yelp', label: 'Yelp' },
+  { platform: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/yourpage' },
+  { platform: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourname' },
+  { platform: 'google', label: 'Google', placeholder: 'https://g.page/r/…' },
+  { platform: 'x', label: 'X', placeholder: 'https://x.com/yourname' },
+  { platform: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourcompany' },
+  { platform: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@yourchannel' },
+  { platform: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@yourname' },
+  { platform: 'whatsapp', label: 'WhatsApp', placeholder: 'https://wa.me/16475550123' },
+  { platform: 'yelp', label: 'Yelp', placeholder: 'https://yelp.com/biz/your-business' },
+  { platform: 'pinterest', label: 'Pinterest', placeholder: 'https://pinterest.com/yourname' },
+  { platform: 'threads', label: 'Threads', placeholder: 'https://threads.net/@yourname' },
+  { platform: 'telegram', label: 'Telegram', placeholder: 'https://t.me/yourname' },
+  { platform: 'medium', label: 'Medium', placeholder: 'https://medium.com/@yourname' },
 ];
 /** #1785 —— 一个平台名画哪个图标（顶栏、页脚、编辑器的图标清单都问它）。 */
 const socialIcon = (platform) => SOCIAL_ICONS[platform] || platform;

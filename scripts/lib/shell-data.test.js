@@ -305,5 +305,25 @@ console.log('── ③e 顶栏社交图标（#1785）：站里有带网址的�
   check(!('social' in d2.header.topbar), 'topbar 里照旧不写 social（顶条里画不画由组件按版式定，数据只有 header.social 一份）');
 }
 
+console.log('── ③f 平台清单（#1785 r5，Chris 2026-10-15 加 Pinterest / Threads / Telegram / Medium）：13 个、顺序和叫法照定稿；每个都有占位字、图标在 bootstrap-icons 里真有、并且进了顶栏 / 页脚的常备图标表');
+{
+  const fs = require('fs');
+  const { SOCIAL_PLATFORMS, socialIcon } = require('./item-sources');
+  const { BLOCK_ICONS, readIcon, ICON_DIR } = require('./icons');
+  const want = ['Facebook', 'Instagram', 'Google', 'X', 'LinkedIn', 'YouTube', 'TikTok', 'WhatsApp', 'Yelp', 'Pinterest', 'Threads', 'Telegram', 'Medium'];
+  check(JSON.stringify(SOCIAL_PLATFORMS.map((p) => p.label)) === JSON.stringify(want), `13 个，顺序和叫法照定稿：${JSON.stringify(SOCIAL_PLATFORMS.map((p) => p.label))}`);
+  check(SOCIAL_PLATFORMS.every((p) => typeof p.placeholder === 'string' && p.placeholder.startsWith('https://')), '每个平台都有以 https:// 开头的占位字');
+  const ph = Object.fromEntries(SOCIAL_PLATFORMS.map((p) => [p.platform, p.placeholder]));
+  check(ph.youtube === 'https://youtube.com/@yourchannel' && ph.pinterest === 'https://pinterest.com/yourname' && ph.threads === 'https://threads.net/@yourname'
+    && ph.telegram === 'https://t.me/yourname' && ph.medium === 'https://medium.com/@yourname', '占位字逐字照 Chris 那张表（抽 5 个）');
+  const dir = ICON_DIR;
+  const missing = SOCIAL_PLATFORMS.map((p) => socialIcon(p.platform)).filter((n) => !fs.existsSync(path.join(dir, `${n}.svg`)) || !readIcon(n, { warn: () => {} }));
+  check(missing.length === 0, `每个平台的图标在装着的 bootstrap-icons 里都有（不会落回 link-45deg）：缺 ${JSON.stringify(missing)}`);
+  for (const r of ['header', 'footer']) {
+    const absent = ['pinterest', 'threads', 'telegram', 'medium'].filter((n) => !BLOCK_ICONS[r].includes(n));
+    check(absent.length === 0, `${r} 的常备图标表带上了四个新平台（编辑器里刚加、没重建时画布也画得对）：缺 ${JSON.stringify(absent)}`);
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

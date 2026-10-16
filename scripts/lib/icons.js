@@ -27,7 +27,7 @@ const ICON_REL = path.join('node_modules', 'bootstrap-icons', 'icons');
 const ICON_DIR = [path.resolve(__dirname, '..', '..', ICON_REL), path.join(process.cwd(), ICON_REL)]
   .find((d) => fs.existsSync(d)) || path.resolve(__dirname, '..', '..', ICON_REL);
 const NAME = /^[a-z0-9-]+$/;
-// #1785 —— Social links 那 9 个平台的图标名（平台表和平台名 → 图标名都住在 item-sources.js，这里不抄一份）。
+// #1785 —— Social links 那几个平台的图标名（平台表和平台名 → 图标名都住在 item-sources.js，这里不抄一份）。
 const { SOCIAL_PLATFORMS, socialIcon } = require('./item-sources');
 const SOCIAL_ICON_NAMES = SOCIAL_PLATFORMS.map((p) => socialIcon(p.platform));
 
@@ -72,7 +72,7 @@ function iconNamesIn(value, out = new Set()) {
  */
 const BLOCK_ICONS = {
   // #1780 —— 顶栏上面那一行的三类图标都常备（电话 / 信封 / 链接）：老板在编辑器里新加一项，画布不用等重建就画得出图标。
-  // #1785 —— 两行都带上 Social links 那 9 个平台的图标（item-sources.js §SOCIAL_PLATFORMS / §socialIcon）：表是构建时按数据里
+  // #1785 —— 两行都带上 Social links 那几个平台的图标（item-sources.js §SOCIAL_PLATFORMS / §socialIcon）：表是构建时按数据里
   //    出现的名字查的，老板在编辑器里刚加一条、还没重建时，画布上也要画对那个图标，不是落回 link-45deg。
   'header': ['list', 'x-lg', 'telephone', 'envelope', 'link-45deg', ...SOCIAL_ICON_NAMES],
   'footer': ['telephone', 'geo-alt', 'clock', 'envelope', 'link-45deg', ...SOCIAL_ICON_NAMES],

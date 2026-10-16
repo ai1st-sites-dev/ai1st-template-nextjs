@@ -113,7 +113,7 @@ import { MAX_TOPBAR_LINKS, isContactRef, linkKindOf, topbarLinksProblem } from '
 import BgPicker from '../BgPicker';
 import { FormsContext, FormIdField, FormCopyDialog, applyFormCopyEdit, type BusinessContact, type EditorFormChoice, type FormCopyEdit } from './FormCopyEditor';
 import { placeholdersFor } from '@/components/BlockLeadForm';
-import { SOCIAL_PLATFORMS, describeRef, isButtonRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
+import { SOCIAL_PLATFORMS, socialIcon, describeRef, isButtonRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 import { setAt, getAt } from '../../../scripts/lib/inline-edit.js';
 import { editorImagePrompt, editorImageTarget } from '../../../scripts/lib/slot-prompt.js';
 import { designAiRounds, designAiWater } from '../../../scripts/lib/design-ai-rounds.js';
@@ -131,7 +131,7 @@ import {
   liveShellData, menuItemProblem, menuLinksProblem, moveItem, type MenuItem,
 } from '../../../scripts/lib/nav-editor.js';
 import type { ContactRef, SiteData } from '@/lib/types/config';
-import type { IconTable } from '@/components/InlineIcon';
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 
 export interface EditorAppProps {
   /** #1665 —— 这个站的内容（编辑器页在服务端用加载器读的那份）。画布上的块、外壳、列表槽的引用展开都用它。 */
@@ -400,16 +400,25 @@ const asSocialLinks = (v: unknown): SocialLink[] => (Array.isArray(v) ? v : [])
   .filter((l): l is Record<string, unknown> => !!l && typeof l === 'object' && !Array.isArray(l))
   .map((l) => ({ platform: typeof l.platform === 'string' ? l.platform : '', url: typeof l.url === 'string' ? l.url : '' }));
 
+/** #1785 r5 —— 列表那一行画平台图标用的表：顶栏那张（`regions.header.iconTableByLocale`，`icons.js` §BLOCK_ICONS 让它常备全部平台的图标）。 */
+const SocialIconsContext = createContext<IconTable | undefined>(undefined);
+/** #1785 r5 —— 列表第二行显示的网址：去掉 `https://`（`http://` 一并），完整的那份在 `title` 里。 */
+const shortUrl = (url: string) => url.replace(/^https?:\/\//i, '');
+const socialPlatformOf = (platform: string) => SOCIAL_PLATFORMS.find((p) => p.platform === platform);
+
 /**
- * #1785 —— Website settings 里的 Social links：一行一条（平台下拉 + 网址），能加、删、拖把手排序（同 §StringListControl）。
- *   值是 `brand.json` 的 `socialLinks`（`[{platform, url}]`，`editor-root.js` 读写）。网址空的那一行照样留在面板上，写盘时不存。
- *   离开网址那一格补协议（同按钮弹窗的 External link，`button-link.js` §externalUrl）。
+ * #1785 —— Website settings 里的 Social links。r5（Chris 2026-10-15 打回「太挤了」，照 Durable）：右栏里只是列表，一行一条、两行字
+ *   （平台图标 + 平台名 · ✎ 🗑 / 灰色小字的网址），⋮⋮ 拖排序；改和加都在 §SocialLinkDialog 里做。
+ *   值是 `brand.json` 的 `socialLinks`（`[{platform, url}]`，`editor-root.js` 读写）。网址空的不让进列表（弹窗 Done 当场挡）；
+ *   写盘那一侧「网址空的那一行不存」照留，兜老数据。
  *   平台下拉只列 §SOCIAL_PLATFORMS；老数据里别的平台名照旧显示成它自己那一项，不悄悄换掉。
  */
 function SocialLinksControl({ value, onChange, readOnly }: { value: unknown; onChange: (v: SocialLink[]) => void; readOnly?: boolean }) {
   const list = asSocialLinks(value);
+  const icons = useContext(SocialIconsContext);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const set = (i: number, patch: Partial<SocialLink>) => onChange(list.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  // 弹窗开着时：改第几条（-1 = 新加一条）。
+  const [editing, setEditing] = useState<number | null>(null);
   const move = (from: number, to: number) => {
     if (from === to) return;
     const next = list.slice();
@@ -417,40 +426,123 @@ function SocialLinksControl({ value, onChange, readOnly }: { value: unknown; onC
     next.splice(to, 0, x);
     onChange(next);
   };
-  const unused = SOCIAL_PLATFORMS.find((p) => !list.some((l) => l.platform === p.platform)) || SOCIAL_PLATFORMS[0];
+  // 新加一条时下拉里只列还没用过的平台（今天的规则）；一个都不剩就不出「+ Add social link」。
+  const unusedFor = (except: number) => SOCIAL_PLATFORMS.filter((p) => !list.some((l, j) => j !== except && l.platform === p.platform));
+  const canAdd = !readOnly && list.length < MAX_SOCIAL_LINKS && unusedFor(-1).length > 0;
   const small = { padding: '4px 8px', border: '1px solid #d0d5dd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } as const;
+  const iconBtn = { padding: '2px 6px', border: 0, borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 13, color: '#475467', flex: '0 0 auto' } as const;
   return (
     <div data-editor-social-links="">
       <strong style={{ fontSize: 14 }}>Social links</strong>
       <p style={{ ...NOTE_STYLE, marginTop: 4, marginBottom: 8 }}>Shown as icons in the header and footer of every page. Leave this empty for no icons.</p>
-      {list.map((l, i) => (
-        <div key={i} data-editor-social-row={i}
-          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-          onDrop={(e) => { e.preventDefault(); if (dragFrom !== null && !readOnly) move(dragFrom, i); setDragFrom(null); }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, opacity: dragFrom === i ? 0.5 : 1 }}>
-          <span data-editor-social-handle="" draggable={!readOnly} aria-hidden="true" title="Drag to reorder"
-            onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }}
-            onDragEnd={() => setDragFrom(null)}
-            style={{ cursor: readOnly ? 'default' : 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none' }}>⋮⋮</span>
-          <select data-editor-social-platform={i} aria-label={`Social link ${i + 1} platform`} value={l.platform} disabled={readOnly}
-            onChange={(e) => set(i, { platform: e.target.value })} style={{ ...INPUT_STYLE, width: 'auto', flex: '0 0 auto', background: '#fff' }}>
-            {SOCIAL_PLATFORMS.map((p) => <option key={p.platform} value={p.platform}>{p.label}</option>)}
-            {!SOCIAL_PLATFORMS.some((p) => p.platform === l.platform) && <option value={l.platform}>{l.platform}</option>}
-          </select>
-          <input data-editor-social-url={i} type="text" value={l.url} readOnly={readOnly} placeholder="https://…" aria-label={`Social link ${i + 1} address`}
-            onChange={(e) => set(i, { url: e.target.value })}
-            onBlur={(e) => { const v = externalUrl(e.target.value); if (v !== e.target.value) set(i, { url: v }); }}
-            style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }} />
-          {!readOnly && (
-            <button type="button" data-editor-social-remove={i} aria-label={`Remove social link ${i + 1}`} title="Remove"
-              onClick={() => onChange(list.filter((_, j) => j !== i))} style={small}>✕</button>
-          )}
-        </div>
-      ))}
-      {!readOnly && list.length < MAX_SOCIAL_LINKS && (
-        <button type="button" data-editor-social-add="" onClick={() => onChange([...list, { platform: unused.platform, url: '' }])} style={small}>+ Add social link</button>
+      {list.map((l, i) => {
+        const known = socialPlatformOf(l.platform);
+        return (
+          <div key={i} data-editor-social-row={i} data-editor-social-platform={l.platform}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+            onDrop={(e) => { e.preventDefault(); if (dragFrom !== null && !readOnly) move(dragFrom, i); setDragFrom(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, padding: '6px 4px', border: '1px solid #eaecf0', borderRadius: 8, background: '#fff', opacity: dragFrom === i ? 0.5 : 1 }}>
+            <span data-editor-social-handle="" draggable={!readOnly} aria-hidden="true" title="Drag to reorder"
+              onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); }}
+              onDragEnd={() => setDragFrom(null)}
+              style={{ cursor: readOnly ? 'default' : 'grab', color: '#98a2b3', padding: '0 2px', userSelect: 'none', flex: '0 0 auto' }}>⋮⋮</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span data-editor-social-name="" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: '#101828' }}>
+                  <InlineIcon name={socialIcon(l.platform)} icons={icons} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{known ? known.label : l.platform}</span>
+                </span>
+                {!readOnly && (
+                  <>
+                    <button type="button" data-editor-social-edit={i} aria-label={`Edit social link ${i + 1}`} title="Edit"
+                      onClick={() => setEditing(i)} style={iconBtn}>✎ Edit</button>
+                    <button type="button" data-editor-social-remove={i} aria-label={`Remove social link ${i + 1}`} title="Remove"
+                      onClick={() => onChange(list.filter((_, j) => j !== i))} style={iconBtn}>🗑</button>
+                  </>
+                )}
+              </div>
+              <div data-editor-social-url={i} title={l.url}
+                style={{ fontSize: 12, color: '#667085', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortUrl(l.url)}</div>
+            </div>
+          </div>
+        );
+      })}
+      {canAdd && (
+        <button type="button" data-editor-social-add="" onClick={() => setEditing(-1)} style={small}>+ Add social link</button>
+      )}
+      {editing !== null && !readOnly && (
+        <SocialLinkDialog
+          start={editing >= 0 ? list[editing] : { platform: unusedFor(-1)[0]?.platform || SOCIAL_PLATFORMS[0].platform, url: '' }}
+          choices={unusedFor(editing)}
+          onCancel={() => setEditing(null)}
+          onDone={(row) => {
+            onChange(editing >= 0 ? list.map((l, j) => (j === editing ? row : l)) : [...list, row]);
+            setEditing(null);
+          }} />
       )}
     </div>
+  );
+}
+
+/**
+ * #1785 r5 —— 改 / 加一条社交链接的弹窗（标题 `Social link`：Social app 下拉 + 整行宽的 Link 框，底部 Cancel / Done）。
+ *   样子和宽度跟按钮弹窗同一组（§POPOVER / §POPOVER_W / §POPOVER_BTN）。按钮弹窗挂在画布里、跟着画布上那颗按钮定位；这一个是从右栏点开的，
+ *   没有画布上的锚点 ⟹ 画在编辑器页面上、居中、带遮罩（同 `FormCopyEditor.tsx` 的表单弹窗）；窗口窄于 POPOVER_W + 两边各 POPOVER_EDGE 时缩到放得下。
+ *   Done：网址空着 ⟹ 不收，框下说 `Add the link first.`；不空 ⟹ 补协议（§externalUrl，同按钮弹窗的 External link）交回列表。Cancel / Esc / 点遮罩：什么都不变。
+ */
+function SocialLinkDialog({ start, choices, onCancel, onDone }: {
+  start: SocialLink; choices: { platform: string; label: string; placeholder: string }[]; onCancel: () => void; onDone: (row: SocialLink) => void;
+}) {
+  const [platform, setPlatform] = useState(start.platform);
+  const [url, setUrl] = useState(start.url);
+  const [missing, setMissing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  const known = socialPlatformOf(platform);
+  const done = () => {
+    const v = externalUrl(url.trim());
+    if (!v) { setMissing(true); inputRef.current?.focus(); return; }
+    onDone({ platform, url: v });
+  };
+  const label = { display: 'block', fontSize: 13, fontWeight: 500, color: '#344054', marginBottom: 6 } as const;
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div data-editor-social-dialog-backdrop=""
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }}
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(16,24,40,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div data-editor-social-dialog="" role="dialog" aria-modal="true" aria-label="Social link" {...EDITOR_LIGHT}
+        style={{ ...EDITOR_LIGHT_STYLE, ...POPOVER, position: 'relative', zIndex: 'auto', maxWidth: `calc(100vw - ${2 * POPOVER_EDGE}px)`, maxHeight: `calc(100vh - ${2 * POPOVER_EDGE}px)` }}>
+        <div data-editor-social-dialog-title="" style={{ padding: '12px 16px 0', fontSize: 16, fontWeight: 600, color: '#101828' }}>Social link</div>
+        <div style={{ padding: '12px 16px', overflowY: 'auto' }}>
+          <label style={{ display: 'block', marginBottom: 14 }}>
+            <span style={label}>Social app</span>
+            <select data-editor-social-dialog-platform="" value={platform} onChange={(e) => setPlatform(e.target.value)}
+              style={{ ...INPUT_STYLE, background: '#fff' }}>
+              {choices.map((p) => <option key={p.platform} value={p.platform}>{p.label}</option>)}
+              {!choices.some((p) => p.platform === platform) && <option value={platform}>{known ? known.label : platform}</option>}
+            </select>
+          </label>
+          <label style={{ display: 'block' }}>
+            <span style={label}>Link</span>
+            <input ref={inputRef} data-editor-social-dialog-url="" type="text" value={url} placeholder={known ? known.placeholder : 'https://…'}
+              onChange={(e) => { setUrl(e.target.value); if (missing && e.target.value.trim()) setMissing(false); }}
+              onBlur={(e) => { const v = externalUrl(e.target.value); if (v !== e.target.value) setUrl(v); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); done(); } }}
+              aria-invalid={missing || undefined}
+              style={{ ...INPUT_STYLE, width: '100%', boxSizing: 'border-box', ...(missing ? { borderColor: '#d92d20' } : {}) }} />
+          </label>
+          {missing && <p data-editor-social-dialog-error="" role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: '#d92d20' }}>Add the link first.</p>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 12px', borderTop: '1px solid #eaecf0' }}>
+          <button type="button" data-editor-social-dialog-cancel="" onClick={onCancel}
+            style={{ ...POPOVER_BTN, border: '1px solid #d0d5dd', background: '#fff', color: '#344054' }}>Cancel</button>
+          <button type="button" data-editor-social-dialog-done="" onClick={done}
+            style={{ ...POPOVER_BTN, border: 0, background: '#1d4ed8', color: '#fff' }}>Done</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -4598,6 +4690,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
     <InlineFreezeContext.Provider value={freeze}>
     <FillingContext.Provider value={filling}>
     <IconTablesContext.Provider value={iconTables || NO_ICON_TABLES}>
+    <SocialIconsContext.Provider value={site.regions?.header?.iconTableByLocale?.[locale]}>
     {/* #1740 —— 编辑器页这一侧固定浅色（§EDITOR_LIGHT：挂这一层，不挂 <html>）。 */}
     <div data-editor-root data-editor-dialog-open={ui.dialogOpen ? '' : undefined} {...EDITOR_LIGHT} style={{ ...EDITOR_LIGHT_STYLE, height: '100vh' }}>
       <Puck
@@ -4630,6 +4723,7 @@ export default function EditorApp({ site, iconTables, locale, page, raw, baseHas
         />
       )}
     </div>
+    </SocialIconsContext.Provider>
     </IconTablesContext.Provider>
     </FillingContext.Provider>
     </InlineFreezeContext.Provider>
