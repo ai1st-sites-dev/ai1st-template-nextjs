@@ -67,6 +67,7 @@ for (const ext of ['.tsx', '.ts']) {
 }
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, parent, ...rest) {
+  if (typeof req === 'string' && req.startsWith('@template/')) req = '@/' + req.slice(10); // #1801：模板别名改名，测试里的桩和解析仍按 @/ 认
   if (STUBS[req]) return STUBS[req];
   if (req === './config-data' && parent && parent.filename === CONFIG) return CONFIG_DATA;
   if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), parent, ...rest);
@@ -193,7 +194,7 @@ console.log('\n── AC5 块不出结构化数据');
   const all = M.presets.map((p) => render(p.shape, clone(DEMO))).join('\n');
   check(count(all, 'BreadcrumbList') === 0 && count(all, 'application/ld+json') === 0, '5 个预设的渲染里 BreadcrumbList 0 段、ld+json 0 段');
   const srcTxt = fs.readFileSync(SECTION, 'utf-8');
-  check(!/BreadcrumbJsonLd|from '@\/components\/JsonLd'/.test(srcTxt.replace(/^\s*\/\/.*$/gm, '')), 'Section.tsx 不引 BreadcrumbJsonLd');
+  check(!/BreadcrumbJsonLd|from '@(template)?\/components\/JsonLd'/.test(srcTxt.replace(/^\s*\/\/.*$/gm, '')), 'Section.tsx 不引 BreadcrumbJsonLd');
   // #1630 —— 整站都不出：原来出 BreadcrumbList 的三个页面组件和那个函数、那份算法文件都没了（剥掉注释再查）。
   const code = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf-8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   for (const rel of ['components/pages/SubPage.tsx', 'components/pages/BlogIndexPage.tsx', 'components/pages/BlogPostPage.tsx', 'components/JsonLd.tsx']) {

@@ -31,19 +31,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import path from 'path';
+import type { ComponentProps } from 'react';
 import EditorApp from '@/components/editor/EditorApp';
-import { getPage, getForms, getBrandName, getNavigation } from '@/lib/config';
 import { isPreviewRender } from '@/lib/render-mode';
 import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
-import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
-import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
-import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
 import { editorPages } from '../../../../scripts/lib/editor-pages.js';
-import { topbarLinksOf } from '../../../../scripts/lib/topbar-links.js';
-import { iconTableFor, usesIconTable } from '../../../../scripts/lib/icons.js';
-import { seedProps } from '../../../../scripts/lib/block-placeholders.js';
-import { isButtonRef, itemSourceContext, resolveItemSources, socialPairs } from '@/lib/sections/item-sources';
-import type { IconTable } from '@/components/InlineIcon';
+// #1801 —— props 的算法搬进了 `src/lib/editor-props.ts`（`scripts/site.js editor-data` 调同一份）。
+import { editorProps } from '@/lib/editor-props';
 
 
 // #1448 —— 哪些页有编辑器页（保留字 `blog` / `_next` 那两类没有）只在 `editor-pages.js` 一处：这里导出的，
@@ -73,134 +67,20 @@ function trustedOrigin(leadApi: string): string {
   }
 }
 
-/** #1759 —— 构建这一份里的顶栏按钮（#1787：`header.buttons`，0–3 颗）+ 菜单（#1781：`header.links` 原样，老板自己的一份列表）；#1780 加顶栏上面那一行的链接列表。 */
-// #1779 —— href 可以是电话 / 邮箱引用（`{source: "phone"}`）：原样带进编辑器（按钮弹窗认它），别的形状当空。
-function headerContent(nav: { header?: { buttons?: unknown; topbarLinks?: unknown; links?: unknown } }) {
-  const btn = (b?: { label?: string; href?: unknown }) => ({
-    label: typeof b?.label === 'string' ? b.label : '',
-    href: typeof b?.href === 'string' ? b.href : isButtonRef(b?.href) ? { ...b.href } : '',
-  });
-  const list = Array.isArray(nav.header?.buttons) ? (nav.header.buttons as unknown[]) : [];
-  const headerButtons = list.filter((b): b is { label?: string; href?: unknown } => !!b && typeof b === 'object' && !Array.isArray(b)).map(btn);
-  // #1783 —— 下拉（`children`）原样带进编辑器（名字是字符串的子项；`description` 是字符串才带）。漏了它，打开编辑器存一次顶栏就把下拉抹掉。
-  type Kid = { label: string; href: unknown; description?: unknown };
-  const named = <T,>(l: unknown): l is T => !!l && typeof l === 'object' && typeof (l as { label?: unknown }).label === 'string';
-  const links = Array.isArray(nav.header?.links)
-    ? (nav.header!.links as unknown[]).filter((l): l is Kid & { children?: unknown } => named(l)).map((l) => {
-      const kids = Array.isArray(l.children) ? (l.children as unknown[]).filter((c): c is Kid => named(c))
-        .map((c) => ({ label: c.label, href: c.href, ...(typeof c.description === 'string' ? { description: c.description } : {}) })) : [];
-      return kids.length ? { label: l.label, href: l.href, children: kids } : { label: l.label, href: l.href };
-    })
-    : null;
-  return { headerButtons, headerTopbar: topbarLinksOf(nav.header?.topbarLinks), ...(links ? { headerLinks: links } : {}) };
-}
-
 export default async function EditorPage({ params }: { params: Promise<{ target: string[] }> }) {
   const { target } = await params;
   const [locale, ...rest] = target;
   const slug = rest.join('/');
   const site = await requestSiteData();
-  const { locales, pagesByLocale, pageLayout, regions } = site;
-  if (!locales.includes(locale) || !slug) notFound();
-  const page = getPage(site, slug, locale);
-  if (!page) notFound();
+  if (!slug) notFound();
 
   // #1599 —— 站点文件从 sync-config 读的**同一份**目录读（同 `sync-config.js` 那行 `SYNC_SITE_DIR`）：分段预览构建的输入是
   // 一份快照，那一刻 `site/` 里的页面还没写出来（实测 appdev site-fd7e9c78：`en/home → no-page`，两次阶段构建全红、
   // `preview-viewable` 没发）。读 `site/` 就是拿别的时刻的站去配这次构建的 config。
   const root = process.cwd();
   const siteDir = process.env.SYNC_SITE_DIR ? path.resolve(process.env.SYNC_SITE_DIR) : path.join(root, 'site');
-  const src = editorSource(root, locale, slug, siteDir);
-  if ('error' in src) {
-    // 构建时读不到这一页的文件 = 配置和磁盘对不上。让构建红，别导出一个存不了盘的编辑器。
-    throw new Error(`#1409 editor: ${locale}/${slug} → ${src.error}`);
-  }
+  const r = editorProps({ site, root, siteDir, locale, slug });
+  if (!r.ok) notFound();
 
-  // #1404 —— 组件清单 / 字段 / 形态下拉从**这个站自己的**区块库算（构建就在站自己的仓里跑，
-  // `blocks/` 就是它建站那天的版本）。整页每一块都上画布，顺序 = 构建里的顺序。
-  // 🔴 路径从 `process.cwd()` 起算、显式传进去：那几个脚本默认按自己的 `__dirname` 找 `blocks/` 与
-  //    注册表，而被打进 Next 服务端包之后 `__dirname` 是产物目录（实测报 `ENOENT …/.next/server/app/src/
-  //    lib/sections/registry.generated.ts`）—— 跟 `/__catalog` 的 `CATALOG_PATHS` 同一个坑。
-  const schema = editorSchema({
-    rootDir: root,
-    siteDir,
-    registryPath: path.join(root, 'src', 'lib', 'sections', 'registry.generated.ts'),
-    blocksDir: path.join(root, 'blocks'),
-    layoutsDir: path.join(root, 'page-layouts'),
-  });
-  const located = page.blocks.map((b) => locateInRaw(src.raw, src.siteBlocks, slug, b));
-  // #1405 —— 外壳三样的初值取的是**这次构建算出来、站上正在画的那一份**（config 里的 `pageLayout` /
-  // `regions` / 这种语言的 `navigation`），不是另读一遍站级文件：形态要经过主题选择单 + `regionLayout`
-  // 覆盖那一层解析，而那一层在构建里已经算过了（`sync-config.js`），在这里重算一遍就是第二份实现。
-  // 🔴 这份初值就是存盘时逐字段比的那个「打开时的值」（做什么 7），它必须跟底稿一起、在打开时定下来。
-  const initialData = {
-    ...pageToPuck({
-      raw: src.raw,
-      blocks: page.blocks,
-      located,
-      schema,
-      weights: effectiveWeights(src.raw, src.siteBlocks, page.blocks, located),
-      siteBlocks: src.siteBlocks,
-    }),
-    root: {
-      props: rootToPuck({
-        layout: pageLayout.id,
-        headerShape: regions.header.shape,
-        footerShape: regions.footer.shape,
-        // #1738 —— 顶栏 / 页脚的底色 + 旋钮：同一份构建算出来的（`regions.<区>.options`，没存过 = {}）。
-        headerOptions: regions.header.options || {},
-        footerOptions: regions.footer.options || {},
-        // #1681 —— Business info 四样：同一份构建算出来的 brand（名字取这种语言那一格，同站上顶栏的读法）。
-        brandName: getBrandName(site, locale),
-        phone: site.brand.locations?.[0]?.phone ?? '',
-        email: site.brand.email ?? '',
-        address: site.brand.locations?.[0]?.address ?? '',
-        // #1759 —— 顶栏 Content 页：logo、按钮（#1787）、菜单（#1781）—— 按钮和菜单都在这种语言的 navigation.json。
-        logoUrl: site.brand.logoUrl ?? '',
-        // #1785 —— Social links：读法同站里 `editor-root.js` §readBrandValues（两种老形状都读成数组、平台名小写）。
-        socialLinks: socialPairs(site.brand.socialLinks).map(([platform, url]) => ({ platform: platform.toLowerCase(), url })),
-        ...headerContent(getNavigation(site, locale)),
-      }),
-    },
-  };
-
-  // #1714 —— 画布上的页面块要的图标表（真站在 HomePage / SubPage 用 §iconTablesFor 算的那一份）：`iconTableFor` 读文件，
-  // 只能在这里（服务端）算。🔴 按块类型给（`{ [type]: 表 }`），不按下标：画布上的块会拖、会增删。每一类 = 组件写死的那几个名字
-  // （`BLOCK_ICONS`）∪ 这一页该类块数据里的 `icon`（跟真站同一个顺序：先展开引用列表，展开出来的 `icon` 也要进表）。
-  // 这一页没有的类型也给一张（只有写死的那几个），从 Blocks 抽屉拖进来的新块照样画箭头 / 勾。编辑中新冒出来的名字不在表里 ⟹ 不画（票正文「不做」1）。
-  const pageSlug = slug === 'home' ? undefined : slug;
-  const resolved = resolveItemSources(page.blocks, itemSourceContext(site, locale, pageSlug));
-  const iconTables: Record<string, IconTable> = {};
-  for (const c of schema.components) {
-    if (!usesIconTable(c.type)) continue;
-    // #1767 —— 再加上「拖下这种块时播的那一份」（`block-placeholders.js` §seedProps 写的示例图标）：它们是编辑中新冒出来的名字，
-    //    不在这一页的数据里，不并进来的话新块的图标位照样是空的。
-    const seeded = seedProps(c, locale);
-    iconTables[c.type] = iconTableFor(c.type, [...resolved.filter((b) => b.type === c.type).map((b) => b.data), seeded]) as IconTable;
-  }
-
-  return (
-    <EditorApp
-      site={site}
-      iconTables={iconTables}
-      locale={locale}
-      page={slug}
-      raw={src.raw}
-      baseHash={src.baseHash}
-      schema={schema}
-      initialData={initialData}
-      trustedOrigin={trustedOrigin(site.leadApi)}
-      siteBlocks={src.siteBlocks}
-      refs={src.refs}
-      slugs={src.slugs}
-      pages={editorPages(locales, pagesByLocale)}
-      // #1634 —— 「Edit this form」面板要三句文字的现值（没写的键 = 用默认，面板里那格就是空的）。
-      // #1769 —— 自定义字段（`fields` 里的 `{ id, type }`）和 `required` 一起递：面板的 Add custom / Required 要它们。
-      forms={getForms(site, locale).map((f) => ({
-        id: f.id, name: f.name, fields: f.fields, primary: f.primary, ...(f.required ? { required: f.required } : {}),
-        ...(f.buttonText ? { buttonText: f.buttonText } : {}), ...(f.successMessage ? { successMessage: f.successMessage } : {}),
-        ...(f.labels ? { labels: f.labels } : {}),
-      }))}
-    />
-  );
+  return <EditorApp {...(r.props as unknown as ComponentProps<typeof EditorApp>)} trustedOrigin={trustedOrigin(site.leadApi)} />;
 }

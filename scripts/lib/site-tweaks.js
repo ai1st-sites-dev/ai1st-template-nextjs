@@ -14,9 +14,9 @@
 //    而函数作用域里的表测试够不到 —— 钉不住的表等于没钉。
 //
 // 🔴 也不能反过来把它塞进 `scripts/tweaks.js`：那个文件是**送进浏览器**的（Customize 弹窗用它算
-//    预览，`dashboard/vite.config.ts` §ai1st-tweaks-engine），而那个插件给它的是一份手写的两行
-//    require 垫片 —— `requireMap` 里 `tweaks` 一项都没有 ⟹ 它多一个 `require('./themes')` 就会让
-//    **dashboard 构建按名字报错**。本文件是 node-only，不在那条通路上。
+//    预览，`dashboard/vite.config.ts` §ai1st-tweaks-engine）—— 它 require 到的每一份都跟着进浏览器包
+//    （#1801 起经 §templateCjs 转），多一个 `require('./themes')` 就把整张主题表塞进 dashboard。
+//    本文件是 node-only，不在那条通路上。
 //
 // 📌 派生**加了盐**（`h('tweak:'+siteId)`，不是裸的 `h(siteId)`），而这一条我要说清它的分量，
 //    因为它很容易被写成一句听起来很有道理的假话：

@@ -50,11 +50,12 @@
 // 🔴 #1665 —— 这里不再 import `@/lib/config`：站点内容是服务端每次请求读的，浏览器端拿不到。往哪儿提交（`leadApi`）、
 //    哪个站（`siteId`）、表单库（`forms`）由渲染它的块从站点数据里取好递进来（`config.ts` §leadFormSite）。
 
-import { useState } from 'react';
-import { island } from '@/islands/island';
-import type { CustomFormField, SiteFormConfig } from '@/lib/types/config';
+import { useContext, useState } from 'react';
+import { EditorCanvasContext } from '@template/lib/editor-canvas';
+import { island } from '@template/islands/island';
+import type { CustomFormField, SiteFormConfig } from '@template/lib/types/config';
 import { CUSTOM_FIELD_TYPES, FORM_FIELDS, isCustomField, isRequired, optionLabelKey, optionsOf, pickForm } from '../../scripts/lib/site-forms.js';
-import { getLabels } from '@/lib/component-labels';
+import { getLabels } from '@template/lib/component-labels';
 
 export type LeadField = 'name' | 'phone' | 'email' | 'message' | 'service';
 export type LeadFormMode = 'teaser' | 'full';
@@ -81,6 +82,9 @@ const DEFAULT_SUCCESS = (locale: string) => getLabels(locale).formThanks;
  * 那张表 14 种、没有 zh-tw ⟹ 繁体站这里回英文，跟改之前一样（已知，票面「做什么」3）。逐键回退英文。
  * #1768 r5 —— `service` 取它自己那一句 `formService`（原来跟 `message` 共用一句，编辑器里两格同名）。
  */
+/** #1801 —— 编辑器画布里表单下面那一句（设计文档 §5.4 / 票正文做什么 9 的英文定稿）。 */
+export const CANVAS_NOTE = 'Forms work on your preview link and your published website.';
+
 export function placeholdersFor(locale: string): Record<LeadField, string> {
   const l = getLabels(locale);
   return { name: l.formName, phone: l.formPhone, email: l.formEmail, message: l.formMessage, service: l.formService };
@@ -136,6 +140,7 @@ function BlockLeadForm({ mode, formId, forms = [], siteId = '', leadApi = '', se
   const [state, setState] = useState<SubmitState>('idle');
   const [error, setError] = useState('');
   const [invalid, setInvalid] = useState<string[]>([]);
+  const inCanvas = useContext(EditorCanvasContext);
   const set = (k: string, id = k) => (e: { target: { value: string } }) => {
     setValues((v) => ({ ...v, [k]: e.target.value }));
     if (invalid.includes(id)) setInvalid((xs) => xs.filter((x) => x !== id));
@@ -181,6 +186,7 @@ function BlockLeadForm({ mode, formId, forms = [], siteId = '', leadApi = '', se
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (inCanvas) return; // #1801 —— 画布里回车也不发
     setError('');
     // #1769 —— 必填没填（只有空白也算没填）⟹ 不发，标出来。浏览器自己的 `required` 拦不住只有空白的那种，这里补上。
     const missing = fields.filter((f) => required(f) && !valueOf(f).trim()).map(idOf);
@@ -322,13 +328,17 @@ function BlockLeadForm({ mode, formId, forms = [], siteId = '', leadApi = '', se
       <input id={`${idPrefix}-hp`} type="text" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} />
     </div>
   );
-  const errorLine = error ? <div className="text-sm text-danger mt-2" data-part="form-error" role="alert">{error}</div> : null;
+  // #1801 —— 编辑器画布里不提交（设计文档 §5.4）：按钮灰，按钮那一块下面一句话说表单在哪儿能用（跟出错那一行同一个位置）。
+  //    站上 / 预览 / 发布 ⟹ inCanvas 恒 false，HTML 跟以前逐字节相同。
+  const errorLine = inCanvas
+    ? <div className="text-sm text-body-secondary mt-2" data-part="form-canvas-note">{CANVAS_NOTE}</div>
+    : error ? <div className="text-sm text-danger mt-2" data-part="form-error" role="alert">{error}</div> : null;
   // 浅底不挂这个属性：浅底上的 HTML 跟改前逐字相同。
   const toneAttr = tone === 'light' ? {} : { 'data-tone': tone };
   // 用的是哪一张（没有表单库时不挂）—— 看页面就知道块选中了谁。
   const formAttr = form ? { 'data-form-id': form.id } : {};
   const button = (cls: string) => (
-    <button className={cls} type="submit" disabled={state === 'submitting'}>
+    <button className={cls} type="submit" disabled={state === 'submitting' || inCanvas}>
       {state === 'submitting' ? L.formSending : buttonText}
     </button>
   );

@@ -4,7 +4,7 @@
  * #1757 —— 底部面板 AI 页显示哪几轮：面板这一次打开以来、从这一页发出去的那几句，和各自后面 AI 的回答。
  *
  * 聊天记录只有左边那一份（dashboard 递进来的 `ai1st:chat-state` 的 `messages`），这里只是从里面挑。
- * `ai1st:chat-sent` 不回 messageId（`dashboard/src/components/VisualEditorPanel.tsx` §chat-send）⟹ 认不了 id，按 PM 定的判据认：
+ * `ai1st:chat-sent` 不回 messageId（`dashboard/src/editor/EditorPanel.tsx` §chat-send，#1801 之前是 VisualEditorPanel）⟹ 认不了 id，按 PM 定的判据认：
  *   `water` = 面板打开那一刻的水位线（§designAiWater）：记录里最大的 messageId，和当时已经在的那几条不带 messageId 的行的 key；`sent` = 从这一页发出去的那几句，按发出的顺序。
  *   messageId 大于水位线的 user 行，按顺序跟「这一页发过、还没配上的」那几句比字（两边都去掉首尾空白），
  *   从还没配上的第一句往后找，找到一样的就配上 —— 它前面那几句跳过、不再等；

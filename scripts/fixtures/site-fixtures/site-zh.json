@@ -1,0 +1,4897 @@
+{
+  "ar/forms.json": [
+    {
+      "id": "contact",
+      "name": "اتصل بنا",
+      "fields": [
+        "name",
+        "phone",
+        "email",
+        "message"
+      ],
+      "primary": "phone",
+      "buttonText": "تواصل معنا",
+      "successMessage": "شكرًا — سنتواصل معك قريبًا."
+    }
+  ],
+  "ar/navigation.json": {
+    "header": {
+      "links": [
+        {
+          "label": "Home",
+          "href": "/"
+        },
+        {
+          "label": "About",
+          "href": "/about"
+        },
+        {
+          "label": "Services",
+          "href": "/services"
+        },
+        {
+          "label": "Contact",
+          "href": "/contact"
+        }
+      ],
+      "buttons": [
+        {
+          "label": "Get a Quote",
+          "href": "/contact"
+        }
+      ]
+    },
+    "footer": {
+      "description": "Demo Company — Your trusted local business.",
+      "columns": [
+        {
+          "title": "Quick Links",
+          "links": [
+            {
+              "label": "Home",
+              "href": "/"
+            },
+            {
+              "label": "About",
+              "href": "/about"
+            },
+            {
+              "label": "Services",
+              "href": "/services"
+            },
+            {
+              "label": "Contact",
+              "href": "/contact"
+            }
+          ]
+        }
+      ],
+      "copyright": "© 2026 Demo Company. All rights reserved."
+    }
+  },
+  "ar/pages/about.json": {
+    "slug": "about",
+    "title": "About Us",
+    "description": "Learn about Demo Company",
+    "navLabel": "About",
+    "navOrder": 1,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "blocks": [
+      {
+        "id": "about-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "About",
+            "style": "pill"
+          },
+          "headline": "About Us",
+          "subheadline": "Learn more about our company and mission",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "about-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "shape": "image-right",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "About us",
+            "style": "pill"
+          },
+          "headline": "Family-run since 2009",
+          "body": "莲花针灸诊所 started with one bay and a rule: **tell people the price before you touch the car**. Fifteen years later we have six bays, and the rule has not changed.\n\nEvery technician on the team is licensed and on our payroll — we never hand your car to a subcontractor. That is why the same faces keep showing up when you [book a service](/contact).\n\n- Written quotes before any work starts\n- Two-year warranty on parts and labour\n- Same-day service when you drop off before noon",
+          "ctas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Meet the team",
+              "href": "/about",
+              "style": "outline"
+            },
+            {
+              "label": "Read our warranty in full before you book",
+              "href": "/contact",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Services",
+              "href": "/services",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          }
+        }
+      },
+      {
+        "id": "about-team-2",
+        "type": "team",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Our team",
+            "style": "pill"
+          },
+          "headline": "The people who work on your car",
+          "body": "Licensed, local and the same small crew every visit, so you always know who is looking after your car.",
+          "members": [
+            {
+              "name": "Marcus Oyelaran",
+              "role": "Owner · Licensed technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Marcus Oyelaran"
+              },
+              "bio": "Bought the shop from his old boss in 1998 and still takes the hard diagnostic jobs himself.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                },
+                {
+                  "icon": "envelope",
+                  "href": "mailto:marcus@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Dana Krol",
+              "role": "Shop foreman",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Dana Krol"
+              },
+              "bio": "Drivetrain and transmissions.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                }
+              ]
+            },
+            {
+              "name": "Yusuf Rahimi",
+              "role": "Diagnostic technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yusuf Rahimi"
+              },
+              "bio": "Factory-trained on German makes; the one who finds the intermittent electrical faults nobody else can reproduce.",
+              "links": [
+                {
+                  "icon": "envelope",
+                  "href": "mailto:yusuf@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Eleni Papas",
+              "role": "Service advisor",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Eleni Papas"
+              },
+              "bio": "Writes the estimates you can read and texts you when the car is ready.",
+              "links": [
+                {
+                  "icon": "telephone",
+                  "href": "tel:+14165550142"
+                },
+                {
+                  "icon": "envelope",
+                  "href": "mailto:eleni@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Ray Bhatti",
+              "role": "Tire and alignment",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Ray Bhatti"
+              },
+              "bio": "Road-force balancing.",
+              "links": [
+                {
+                  "icon": "instagram",
+                  "href": "https://www.instagram.com/"
+                }
+              ]
+            },
+            {
+              "name": "Nina Sorensen",
+              "role": "Apprentice technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Nina Sorensen"
+              },
+              "bio": "Third-year apprentice, Centennial College, on the hoists Tuesday through Saturday.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                }
+              ]
+            }
+          ],
+          "join": {
+            "title": "Join our crew",
+            "body": "We are hiring licensed technicians and apprentices. Steady hours, paid training and a shop that fixes things properly.",
+            "cta": {
+              "label": "See open roles",
+              "href": "/contact",
+              "style": "outline"
+            }
+          }
+        }
+      },
+      {
+        "id": "about-gallery-3",
+        "type": "gallery",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Our work",
+            "style": "pill"
+          },
+          "headline": "Recent jobs from our bays",
+          "body": "Real photos from real jobs — every one done by our own licensed technicians.",
+          "items": [
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Fleet service day"
+              },
+              "title": "Fleet service day",
+              "caption": "North York · 6 vans"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A technician going over the inspection sheet"
+              },
+              "title": "Pre-purchase inspection",
+              "caption": "Willowdale"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "New brake rotors and pads on the bench"
+              },
+              "title": "Brake job",
+              "caption": "Front pads & rotors"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Diagnostics running on a laptop in bay two"
+              },
+              "title": "Check-engine diagnosis",
+              "caption": "Thornhill · same day"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "The front desk on a Saturday morning"
+              },
+              "title": "Saturday walk-ins",
+              "caption": "Front desk"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Winter tires on the rack"
+              },
+              "title": "Winter changeover",
+              "caption": "Tires & storage"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Paperwork for a warranty repair"
+              },
+              "title": "Warranty repair",
+              "caption": "Don Mills"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "ar/pages/contact.json": {
+    "slug": "contact",
+    "title": "Contact Us",
+    "description": "Get in touch with Demo Company",
+    "navLabel": "Contact",
+    "navOrder": 4,
+    "changeFrequency": "monthly",
+    "priority": 0.7,
+    "blocks": [
+      {
+        "id": "contact-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Contact",
+            "style": "pill"
+          },
+          "headline": "Contact Us",
+          "subheadline": "Send us a message and we'll get back to you shortly.",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "contact-contact-1",
+        "type": "contact",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "shape": "form-beside",
+        "data": {
+          "options": {
+            "form": "full"
+          },
+          "introEyebrow": {
+            "text": "Contact",
+            "style": "pill"
+          },
+          "headline": "Talk to a technician today",
+          "body": "Call, email or send the form — a licensed technician gets back to you within the hour while the shop is open.",
+          "items": [
+            {
+              "kind": "phone",
+              "title": "Call us",
+              "hint": "Fastest way to book"
+            },
+            {
+              "kind": "email",
+              "title": "Email us",
+              "hint": "Photos of the problem help us quote"
+            },
+            {
+              "kind": "address",
+              "title": "Visit us",
+              "hint": "Drop-off bays on the north side of the building"
+            },
+            {
+              "kind": "hours",
+              "title": "Hours",
+              "hint": "Closed Sundays"
+            },
+            {
+              "kind": "link",
+              "title": "Text us on WhatsApp",
+              "hint": "Replies within 15 minutes",
+              "href": "https://wa.me/14165550142"
+            },
+            {
+              "kind": "link",
+              "title": "Book online",
+              "hint": "Pick a time",
+              "href": "/contact"
+            }
+          ],
+          "form": {
+            "id": "contact"
+          },
+          "bg": "#ffffff"
+        }
+      }
+    ]
+  },
+  "ar/pages/home.json": {
+    "slug": "home",
+    "title": "Home",
+    "description": "Welcome to Demo Company",
+    "navLabel": "Home",
+    "navOrder": 0,
+    "changeFrequency": "weekly",
+    "priority": 1,
+    "blocks": [
+      {
+        "id": "home-hero-0",
+        "type": "hero",
+        "role": "lead",
+        "region": "content",
+        "weight": 0,
+        "shape": "split",
+        "data": {
+          "options": {
+            "image": "left"
+          },
+          "bg": "#ffffff",
+          "proof": {
+            "avatars": [
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              }
+            ],
+            "rating": 4.9,
+            "text": "612 Google reviews"
+          },
+          "stats": [
+            {
+              "value": "1998",
+              "label": "On Yonge Street since"
+            },
+            {
+              "value": "14,000+",
+              "label": "Cars back on the road"
+            },
+            {
+              "value": "2 yr",
+              "label": "Warranty on every repair"
+            },
+            {
+              "value": "Same day",
+              "label": "Most jobs"
+            },
+            {
+              "value": "4.9",
+              "label": "Average Google rating across 612 reviews"
+            },
+            {
+              "value": "6",
+              "label": "Bays"
+            }
+          ],
+          "logos": {
+            "caption": "Certified by and rated on",
+            "items": [
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "OMVIC"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "CAA Approved Auto Repair"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Google"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yelp"
+              }
+            ]
+          },
+          "band": [
+            {
+              "alt": "A technician on the hoist checking brake lines"
+            },
+            {
+              "alt": "Rear rotors"
+            },
+            {
+              "alt": "Diagnostic scan running on a sedan in bay two"
+            },
+            {
+              "alt": "Alignment rack"
+            },
+            {
+              "alt": "Oil change underway, drain pan and fresh filter ready"
+            },
+            {
+              "alt": "Safety inspection"
+            }
+          ],
+          "eyebrow": {
+            "text": "North York · Licensed & insured",
+            "style": "pill"
+          },
+          "headline": "Honest auto repair, done the same day",
+          "subheadline": "Written estimates before we touch anything and a two-year warranty on every repair. Most jobs are back on the road by closing.",
+          "ctas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid",
+              "icon": "calendar-check"
+            },
+            {
+              "label": "Call us",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See what we charge for brakes, tires and diagnostics",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "Bay two at 莲花针灸诊所 with a car on the hoist"
+          }
+        }
+      },
+      {
+        "id": "home-logos-1",
+        "type": "logos",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Certified & rated",
+            "style": "pill"
+          },
+          "headline": "Certified by the people who check the checkers",
+          "body": "Licensed by OMVIC, approved by CAA and rated on every platform drivers actually read.",
+          "introCta": {
+            "label": "See our certifications →",
+            "href": "/about",
+            "style": "link"
+          },
+          "items": [
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "OMVIC",
+              "href": "https://www.omvic.ca"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "CAA Approved Auto Repair",
+              "href": "https://www.caa.ca"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Google"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Yelp"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Automotive Service Excellence"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Better Business Bureau"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "shape": "intro-photo",
+        "data": {
+          "options": {
+            "introImage": "right"
+          },
+          "introEyebrow": {
+            "text": "What we fix",
+            "style": "pill"
+          },
+          "headline": "Honest car care that keeps your family moving",
+          "body": "Licensed technicians, factory-grade parts and a written quote before any work starts.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See every service we offer and what each one costs",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "items": [
+            {
+              "icon": "disc",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "New brake rotors and pads"
+              },
+              "title": "Brakes",
+              "text": "Pads, rotors and callipers — with a road test before you pick it up.",
+              "link": {
+                "label": "Brake service",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "snow",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Winter tires on a rack"
+              },
+              "title": "Tires & changeovers",
+              "text": "Seasonal swaps, balancing and storage for your second set.",
+              "bullets": [
+                "Changeovers in under an hour"
+              ],
+              "link": {
+                "label": "Tire service",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "speedometer2",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A scan tool plugged into a dashboard"
+              },
+              "title": "Diagnostics",
+              "text": "Check-engine light on? We read the codes, find the cause and explain it in plain words before quoting a single repair.",
+              "bullets": [
+                "Free code read with any repair",
+                "Photos of the worn parts",
+                "Same-day results"
+              ],
+              "link": {
+                "label": "Diagnostics",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "droplet",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Fresh oil"
+              },
+              "title": "Oil changes",
+              "text": "Synthetic or conventional, done in 30 minutes.",
+              "link": {
+                "label": "Oil change",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "battery-charging",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A battery tester on a car battery"
+              },
+              "title": "Batteries & electrical",
+              "text": "Free battery test, replacements and alternator repairs.",
+              "link": {
+                "label": "Electrical",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "shield-check",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "An inspection checklist on a clipboard"
+              },
+              "title": "Safety inspections",
+              "text": "Ontario safety certificates and pre-purchase checks for used cars.",
+              "link": {
+                "label": "Inspections",
+                "href": "/services",
+                "arrow": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-milestones-3",
+        "type": "milestones",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "introImage": "left"
+          },
+          "introEyebrow": {
+            "text": "By the numbers",
+            "style": "pill"
+          },
+          "headline": "Trusted by drivers across Northside",
+          "body": "Fifteen years of honest repairs, written quotes and a two-year warranty on every job.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "Read what our customers say about their repairs",
+              "href": "/contact",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Services",
+              "href": "/services",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "stats": [
+            {
+              "value": "2009",
+              "label": "Serving Northside since",
+              "icon": "calendar-check"
+            },
+            {
+              "value": "14,000+",
+              "label": "Jobs completed",
+              "icon": "wrench-adjustable"
+            },
+            {
+              "value": "60 min",
+              "label": "Average arrival",
+              "icon": "stopwatch"
+            },
+            {
+              "value": "4.9",
+              "label": "Google rating",
+              "icon": "star-fill"
+            },
+            {
+              "value": "2 yr",
+              "label": "Warranty on parts and labour for every repair we do",
+              "icon": "shield-check"
+            },
+            {
+              "value": "24/7",
+              "label": "Towing",
+              "icon": "truck"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-testimonials-4",
+        "type": "testimonials",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Reviews",
+            "style": "pill"
+          },
+          "headline": "Drivers who trusted us with their car",
+          "body": "Real reviews from customers across Northside. We read every one and reply to most.",
+          "summary": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 312,
+              "href": "https://www.google.com/maps"
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 46
+            },
+            {
+              "source": "HomeStars",
+              "rating": 4.7,
+              "count": 28
+            },
+            {
+              "source": "Facebook",
+              "rating": 5,
+              "count": 19
+            }
+          ],
+          "items": [
+            {
+              "quote": "Van died on the 401 on a Tuesday. They had it diagnosed by noon and back on the road before my evening run. That is a day of work they saved me.",
+              "name": "Daniel Osei",
+              "role": "North York · Emergency diagnostics",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Daniel Osei"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Clear quote, no upsell, and they washed it.",
+              "name": "Mei Lin Chow",
+              "role": "Lawrence Park · Brakes",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Mei Lin Chow"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "We run four delivery vans through Northside now. They text me photos before any extra work and the invoice matches the quote every time. That alone is worth it.",
+              "name": "Priya Raman",
+              "role": "Fleet manager",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Priya Raman"
+              },
+              "rating": 5,
+              "source": "Yelp"
+            },
+            {
+              "quote": "They found the rattle two other shops missed — a loose heat shield — and did not charge me for the diagnosis.",
+              "name": "Tom Reilly",
+              "role": "Leaside · Exhaust",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Tom Reilly"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Booked online at 7pm, confirmed in ten minutes.",
+              "name": "Sam Patel",
+              "role": "Midtown · Oil change",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Honest advice: they told me my brakes had another season in them and only replaced the pads. Took a day longer than promised, but I will be back.",
+              "name": "Ana Rodrigues",
+              "role": "Don Mills · Brake inspection",
+              "rating": 4,
+              "source": "HomeStars"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-reviews-5",
+        "type": "reviews",
+        "role": "optional",
+        "region": "content",
+        "weight": 50,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Reviews",
+            "style": "pill"
+          },
+          "headline": "Rated 4.9 by Northside drivers",
+          "body": "Real reviews on the sites you already trust. We reply to every one.",
+          "platforms": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 312,
+              "href": "https://www.google.com/maps"
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 46
+            },
+            {
+              "source": "HomeStars",
+              "rating": 4.7,
+              "count": 28
+            },
+            {
+              "source": "Facebook",
+              "rating": 5,
+              "count": 19
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-blog-6",
+        "type": "blog",
+        "role": "optional",
+        "region": "content",
+        "weight": 60,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "From the shop",
+            "style": "pill"
+          },
+          "headline": "Car care tips from the crew",
+          "body": "Short, practical guides written by the technicians who do the work.",
+          "introCta": {
+            "label": "All articles",
+            "href": "/blog",
+            "style": "outline"
+          },
+          "postCount": "3"
+        }
+      },
+      {
+        "id": "home-cta-7",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 70,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "left"
+          },
+          "eyebrow": {
+            "text": "Free 15-minute check",
+            "style": "pill"
+          },
+          "headline": "Car making a noise you do not like?",
+          "body": "Bring it in and we will tell you what it is and what it costs before any work starts.",
+          "ctas": [
+            {
+              "label": "Book a free check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call us",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for brakes, tires and diagnostics",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician on the hoist checking brake lines"
+          }
+        }
+      }
+    ]
+  },
+  "ar/pages/services.json": {
+    "slug": "services",
+    "title": "Our Services",
+    "description": "Professional services by Demo Company",
+    "navLabel": "Services",
+    "navOrder": 2,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "blocks": [
+      {
+        "id": "services-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Services",
+            "style": "pill"
+          },
+          "headline": "Our Services",
+          "subheadline": "Discover what we can do for you",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "services-features-1",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "shape": "intro-photo",
+        "data": {
+          "options": {
+            "introImage": "right"
+          },
+          "introEyebrow": {
+            "text": "What we fix",
+            "style": "pill"
+          },
+          "headline": "What we do",
+          "body": "Licensed technicians, factory-grade parts and a written quote before any work starts.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See every service we offer and what each one costs",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "items": {
+            "source": "services"
+          }
+        }
+      },
+      {
+        "id": "services-pricing-2",
+        "type": "pricing",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Maintenance plans",
+            "style": "pill"
+          },
+          "headline": "Car care that pays for itself",
+          "body": "Pick a plan, skip the surprise bills. Every plan includes a written quote before we touch your car.",
+          "highlights": [
+            {
+              "icon": "shield-check",
+              "title": "Licensed technicians",
+              "text": "Every tech is Red Seal certified."
+            },
+            {
+              "icon": "clock",
+              "title": "Same-day service",
+              "text": "Book before noon and drive home tonight."
+            },
+            {
+              "icon": "receipt",
+              "title": "Upfront pricing",
+              "text": "You approve the quote before we start, and the price never moves after that."
+            },
+            {
+              "icon": "award",
+              "title": "Two-year warranty",
+              "text": "Parts and labour."
+            }
+          ],
+          "proof": {
+            "avatars": [
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              }
+            ],
+            "rating": "4.9",
+            "text": "312 Google reviews"
+          },
+          "logos": {
+            "caption": "Approved by",
+            "items": [
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "OMVIC"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "CAA Approved Auto Repair"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Google"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yelp"
+              }
+            ]
+          },
+          "billing": {
+            "monthlyLabel": "Monthly",
+            "yearlyLabel": "Yearly",
+            "yearlyNote": "2 months free"
+          },
+          "plans": [
+            {
+              "name": "Essential",
+              "price": {
+                "monthly": "$19",
+                "yearly": "$16"
+              },
+              "period": "/ month",
+              "description": "Oil changes and a check-up, done on time.",
+              "features": [
+                "Two synthetic oil changes a year",
+                "Multi-point inspection",
+                "10% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Essential",
+                "href": "/contact"
+              }
+            },
+            {
+              "name": "Complete",
+              "price": {
+                "monthly": "$39",
+                "yearly": "$32"
+              },
+              "period": "/ month",
+              "description": "Everything a daily driver needs, with priority booking.",
+              "features": [
+                "Everything in Essential",
+                "Seasonal tire swap and storage",
+                "Brake inspection twice a year",
+                "Priority same-day booking",
+                "15% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Complete",
+                "href": "/contact"
+              },
+              "featured": true,
+              "badge": "Most popular"
+            },
+            {
+              "name": "Premium",
+              "price": {
+                "monthly": "$69",
+                "yearly": "$57"
+              },
+              "period": "/ month",
+              "description": "For drivers who put on serious kilometres every year and want a loaner car while theirs is in the shop.",
+              "features": [
+                "Everything in Complete",
+                "Free loaner car",
+                "Free towing within 25 km",
+                "20% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Premium",
+                "href": "/contact"
+              }
+            },
+            {
+              "name": "Fleet",
+              "price": {
+                "monthly": "$149",
+                "yearly": "$124"
+              },
+              "period": "/ month",
+              "description": "Up to five vehicles on one plan.",
+              "features": [
+                "Complete for every vehicle",
+                "One monthly invoice"
+              ],
+              "cta": {
+                "label": "Talk to us",
+                "href": "/contact"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "services-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "FAQ",
+            "style": "pill"
+          },
+          "headline": "Questions we get at the counter",
+          "body": "Straight answers about pricing, timing and warranty. Still not sure? Call us — a real person picks up.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Talk to a licensed technician, not a call centre. Free advice, no obligation.",
+            "cta": {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Do you charge for estimates?",
+              "answer": "No. You get a written quote before any work starts, and nothing happens until you approve it. Diagnostic time is one hour, credited back if you go ahead with the repair here."
+            },
+            {
+              "question": "Do I need an appointment?",
+              "answer": "Not for oil changes or tire swaps — walk in. Book ahead for anything diagnostic."
+            },
+            {
+              "question": "How long does a brake job take?",
+              "answer": "Two to three hours for a standard front or rear axle."
+            },
+            {
+              "question": "Is the work guaranteed?",
+              "answer": "Parts and labour are guaranteed for two years on every repair, at any of our partner shops across Ontario."
+            },
+            {
+              "question": "Which cars do you work on?",
+              "answer": "Every make, domestic and import, including hybrids. We do not service commercial trucks over one tonne."
+            },
+            {
+              "question": "Can I wait while you work?",
+              "answer": "Yes — there is a waiting room with Wi-Fi and coffee. For longer jobs we offer a free ride within Northside."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "ar/seo.json": {
+    "domain": "https://example.com",
+    "locale": "ar_SA",
+    "siteTitle": "Demo Company — Professional Services",
+    "siteDescription": "Demo Company provides professional services in the Greater Toronto Area.",
+    "verification": {},
+    "schema": {
+      "areaServed": [
+        {
+          "type": "City",
+          "name": "Toronto, ON"
+        }
+      ],
+      "addresses": [
+        {
+          "locality": "Toronto",
+          "region": "ON",
+          "country": "CA"
+        }
+      ],
+      "openingHours": {
+        "days": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "opens": "09:00",
+        "closes": "17:00"
+      },
+      "priceRange": "$$",
+      "offerCatalogName": "Demo Services"
+    }
+  },
+  "ar/services.json": [
+    {
+      "id": "demo-service",
+      "name": "Demo Service",
+      "shortDescription": "Our core service offering.",
+      "fullDescription": "We provide professional demo services to businesses of all sizes.",
+      "icon": "lightbulb",
+      "features": [
+        "Fast turnaround",
+        "Quality results",
+        "Affordable pricing"
+      ],
+      "products": []
+    }
+  ],
+  "brand.json": {
+    "name": {
+      "zh": "莲花针灸诊所"
+    },
+    "tagline": {
+      "zh": "Your trusted local business",
+      "ar": "Your trusted local business",
+      "zh-tw": "Your trusted local business"
+    },
+    "logoIcon": "shield-check",
+    "logoUrl": "",
+    "colors": {
+      "primary": {
+        "50": "#f9f5ec",
+        "100": "#efe5cf",
+        "200": "#e2d1a9",
+        "300": "#cfb270",
+        "400": "#bf9840",
+        "500": "#907230",
+        "600": "#796028",
+        "700": "#624e21",
+        "800": "#4b3c19",
+        "900": "#2e250f"
+      },
+      "accent": {
+        "50": "#faf9ef",
+        "100": "#f3f0d8",
+        "200": "#e9e5b9",
+        "300": "#dad38b",
+        "400": "#cec464",
+        "500": "#c2b63d",
+        "600": "#a39933"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "email": "hello@demo.com",
+    "locations": [
+      {
+        "label": "Main Office",
+        "address": "123 Demo Street, Toronto, ON",
+        "phone": "416-555-0000",
+        "geo": {
+          "lat": 43.6532,
+          "lng": -79.3832
+        }
+      }
+    ],
+    "socialLinks": {},
+    "googleFormUrl": "",
+    "googleFormEntries": {
+      "source": "",
+      "services": "",
+      "propertyType": "",
+      "urgency": ""
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "buttonShape": "square"
+    }
+  },
+  "site_meta.json": {
+    "siteId": "site-1660a7c3",
+    "leadApi": "",
+    "defaultLocale": "zh",
+    "locales": [
+      "zh",
+      "ar",
+      "zh-tw"
+    ]
+  },
+  "theme.json": {
+    "themeId": "ember-12",
+    "applied": false,
+    "css": "ember-12",
+    "tweaks": {
+      "hueShift": 9,
+      "radiusScale": 0.85,
+      "densityScale": 1.15
+    }
+  },
+  "zh-tw/forms.json": [
+    {
+      "id": "contact",
+      "name": "聯絡我們",
+      "fields": [
+        "name",
+        "phone",
+        "email",
+        "message"
+      ],
+      "primary": "phone",
+      "buttonText": "與我們聯絡",
+      "successMessage": "謝謝！我們會盡快與您聯絡。"
+    }
+  ],
+  "zh-tw/navigation.json": {
+    "header": {
+      "links": [
+        {
+          "label": "Home",
+          "href": "/"
+        },
+        {
+          "label": "About",
+          "href": "/about"
+        },
+        {
+          "label": "Services",
+          "href": "/services"
+        },
+        {
+          "label": "Contact",
+          "href": "/contact"
+        }
+      ],
+      "buttons": [
+        {
+          "label": "Get a Quote",
+          "href": "/contact"
+        }
+      ]
+    },
+    "footer": {
+      "description": "Demo Company — Your trusted local business.",
+      "columns": [
+        {
+          "title": "Quick Links",
+          "links": [
+            {
+              "label": "Home",
+              "href": "/"
+            },
+            {
+              "label": "About",
+              "href": "/about"
+            },
+            {
+              "label": "Services",
+              "href": "/services"
+            },
+            {
+              "label": "Contact",
+              "href": "/contact"
+            }
+          ]
+        }
+      ],
+      "copyright": "© 2026 Demo Company. All rights reserved."
+    }
+  },
+  "zh-tw/pages/about.json": {
+    "slug": "about",
+    "title": "About Us",
+    "description": "Learn about Demo Company",
+    "navLabel": "About",
+    "navOrder": 1,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "blocks": [
+      {
+        "id": "about-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "About",
+            "style": "pill"
+          },
+          "headline": "About Us",
+          "subheadline": "Learn more about our company and mission",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "about-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "shape": "image-right",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "About us",
+            "style": "pill"
+          },
+          "headline": "Family-run since 2009",
+          "body": "莲花针灸诊所 started with one bay and a rule: **tell people the price before you touch the car**. Fifteen years later we have six bays, and the rule has not changed.\n\nEvery technician on the team is licensed and on our payroll — we never hand your car to a subcontractor. That is why the same faces keep showing up when you [book a service](/contact).\n\n- Written quotes before any work starts\n- Two-year warranty on parts and labour\n- Same-day service when you drop off before noon",
+          "ctas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Meet the team",
+              "href": "/about",
+              "style": "outline"
+            },
+            {
+              "label": "Read our warranty in full before you book",
+              "href": "/contact",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Services",
+              "href": "/services",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          }
+        }
+      },
+      {
+        "id": "about-team-2",
+        "type": "team",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Our team",
+            "style": "pill"
+          },
+          "headline": "The people who work on your car",
+          "body": "Licensed, local and the same small crew every visit, so you always know who is looking after your car.",
+          "members": [
+            {
+              "name": "Marcus Oyelaran",
+              "role": "Owner · Licensed technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Marcus Oyelaran"
+              },
+              "bio": "Bought the shop from his old boss in 1998 and still takes the hard diagnostic jobs himself.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                },
+                {
+                  "icon": "envelope",
+                  "href": "mailto:marcus@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Dana Krol",
+              "role": "Shop foreman",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Dana Krol"
+              },
+              "bio": "Drivetrain and transmissions.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                }
+              ]
+            },
+            {
+              "name": "Yusuf Rahimi",
+              "role": "Diagnostic technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yusuf Rahimi"
+              },
+              "bio": "Factory-trained on German makes; the one who finds the intermittent electrical faults nobody else can reproduce.",
+              "links": [
+                {
+                  "icon": "envelope",
+                  "href": "mailto:yusuf@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Eleni Papas",
+              "role": "Service advisor",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Eleni Papas"
+              },
+              "bio": "Writes the estimates you can read and texts you when the car is ready.",
+              "links": [
+                {
+                  "icon": "telephone",
+                  "href": "tel:+14165550142"
+                },
+                {
+                  "icon": "envelope",
+                  "href": "mailto:eleni@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Ray Bhatti",
+              "role": "Tire and alignment",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Ray Bhatti"
+              },
+              "bio": "Road-force balancing.",
+              "links": [
+                {
+                  "icon": "instagram",
+                  "href": "https://www.instagram.com/"
+                }
+              ]
+            },
+            {
+              "name": "Nina Sorensen",
+              "role": "Apprentice technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Nina Sorensen"
+              },
+              "bio": "Third-year apprentice, Centennial College, on the hoists Tuesday through Saturday.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                }
+              ]
+            }
+          ],
+          "join": {
+            "title": "Join our crew",
+            "body": "We are hiring licensed technicians and apprentices. Steady hours, paid training and a shop that fixes things properly.",
+            "cta": {
+              "label": "See open roles",
+              "href": "/contact",
+              "style": "outline"
+            }
+          }
+        }
+      },
+      {
+        "id": "about-gallery-3",
+        "type": "gallery",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Our work",
+            "style": "pill"
+          },
+          "headline": "Recent jobs from our bays",
+          "body": "Real photos from real jobs — every one done by our own licensed technicians.",
+          "items": [
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Fleet service day"
+              },
+              "title": "Fleet service day",
+              "caption": "North York · 6 vans"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A technician going over the inspection sheet"
+              },
+              "title": "Pre-purchase inspection",
+              "caption": "Willowdale"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "New brake rotors and pads on the bench"
+              },
+              "title": "Brake job",
+              "caption": "Front pads & rotors"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Diagnostics running on a laptop in bay two"
+              },
+              "title": "Check-engine diagnosis",
+              "caption": "Thornhill · same day"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "The front desk on a Saturday morning"
+              },
+              "title": "Saturday walk-ins",
+              "caption": "Front desk"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Winter tires on the rack"
+              },
+              "title": "Winter changeover",
+              "caption": "Tires & storage"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Paperwork for a warranty repair"
+              },
+              "title": "Warranty repair",
+              "caption": "Don Mills"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "zh-tw/pages/contact.json": {
+    "slug": "contact",
+    "title": "Contact Us",
+    "description": "Get in touch with Demo Company",
+    "navLabel": "Contact",
+    "navOrder": 4,
+    "changeFrequency": "monthly",
+    "priority": 0.7,
+    "blocks": [
+      {
+        "id": "contact-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Contact",
+            "style": "pill"
+          },
+          "headline": "Contact Us",
+          "subheadline": "Send us a message and we'll get back to you shortly.",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "contact-contact-1",
+        "type": "contact",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "shape": "form-beside",
+        "data": {
+          "options": {
+            "form": "full"
+          },
+          "introEyebrow": {
+            "text": "Contact",
+            "style": "pill"
+          },
+          "headline": "Talk to a technician today",
+          "body": "Call, email or send the form — a licensed technician gets back to you within the hour while the shop is open.",
+          "items": [
+            {
+              "kind": "phone",
+              "title": "Call us",
+              "hint": "Fastest way to book"
+            },
+            {
+              "kind": "email",
+              "title": "Email us",
+              "hint": "Photos of the problem help us quote"
+            },
+            {
+              "kind": "address",
+              "title": "Visit us",
+              "hint": "Drop-off bays on the north side of the building"
+            },
+            {
+              "kind": "hours",
+              "title": "Hours",
+              "hint": "Closed Sundays"
+            },
+            {
+              "kind": "link",
+              "title": "Text us on WhatsApp",
+              "hint": "Replies within 15 minutes",
+              "href": "https://wa.me/14165550142"
+            },
+            {
+              "kind": "link",
+              "title": "Book online",
+              "hint": "Pick a time",
+              "href": "/contact"
+            }
+          ],
+          "form": {
+            "id": "contact"
+          },
+          "bg": "#ffffff"
+        }
+      }
+    ]
+  },
+  "zh-tw/pages/home.json": {
+    "slug": "home",
+    "title": "Home",
+    "description": "Welcome to Demo Company",
+    "navLabel": "Home",
+    "navOrder": 0,
+    "changeFrequency": "weekly",
+    "priority": 1,
+    "blocks": [
+      {
+        "id": "home-hero-0",
+        "type": "hero",
+        "role": "lead",
+        "region": "content",
+        "weight": 0,
+        "shape": "split",
+        "data": {
+          "options": {
+            "image": "left"
+          },
+          "bg": "#ffffff",
+          "proof": {
+            "avatars": [
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              }
+            ],
+            "rating": 4.9,
+            "text": "612 Google reviews"
+          },
+          "stats": [
+            {
+              "value": "1998",
+              "label": "On Yonge Street since"
+            },
+            {
+              "value": "14,000+",
+              "label": "Cars back on the road"
+            },
+            {
+              "value": "2 yr",
+              "label": "Warranty on every repair"
+            },
+            {
+              "value": "Same day",
+              "label": "Most jobs"
+            },
+            {
+              "value": "4.9",
+              "label": "Average Google rating across 612 reviews"
+            },
+            {
+              "value": "6",
+              "label": "Bays"
+            }
+          ],
+          "logos": {
+            "caption": "Certified by and rated on",
+            "items": [
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "OMVIC"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "CAA Approved Auto Repair"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Google"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yelp"
+              }
+            ]
+          },
+          "band": [
+            {
+              "alt": "A technician on the hoist checking brake lines"
+            },
+            {
+              "alt": "Rear rotors"
+            },
+            {
+              "alt": "Diagnostic scan running on a sedan in bay two"
+            },
+            {
+              "alt": "Alignment rack"
+            },
+            {
+              "alt": "Oil change underway, drain pan and fresh filter ready"
+            },
+            {
+              "alt": "Safety inspection"
+            }
+          ],
+          "eyebrow": {
+            "text": "North York · Licensed & insured",
+            "style": "pill"
+          },
+          "headline": "Honest auto repair, done the same day",
+          "subheadline": "Written estimates before we touch anything and a two-year warranty on every repair. Most jobs are back on the road by closing.",
+          "ctas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid",
+              "icon": "calendar-check"
+            },
+            {
+              "label": "Call us",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See what we charge for brakes, tires and diagnostics",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "Bay two at 莲花针灸诊所 with a car on the hoist"
+          }
+        }
+      },
+      {
+        "id": "home-logos-1",
+        "type": "logos",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Certified & rated",
+            "style": "pill"
+          },
+          "headline": "Certified by the people who check the checkers",
+          "body": "Licensed by OMVIC, approved by CAA and rated on every platform drivers actually read.",
+          "introCta": {
+            "label": "See our certifications →",
+            "href": "/about",
+            "style": "link"
+          },
+          "items": [
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "OMVIC",
+              "href": "https://www.omvic.ca"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "CAA Approved Auto Repair",
+              "href": "https://www.caa.ca"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Google"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Yelp"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Automotive Service Excellence"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Better Business Bureau"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "shape": "intro-photo",
+        "data": {
+          "options": {
+            "introImage": "right"
+          },
+          "introEyebrow": {
+            "text": "What we fix",
+            "style": "pill"
+          },
+          "headline": "Honest car care that keeps your family moving",
+          "body": "Licensed technicians, factory-grade parts and a written quote before any work starts.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See every service we offer and what each one costs",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "items": [
+            {
+              "icon": "disc",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "New brake rotors and pads"
+              },
+              "title": "Brakes",
+              "text": "Pads, rotors and callipers — with a road test before you pick it up.",
+              "link": {
+                "label": "Brake service",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "snow",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Winter tires on a rack"
+              },
+              "title": "Tires & changeovers",
+              "text": "Seasonal swaps, balancing and storage for your second set.",
+              "bullets": [
+                "Changeovers in under an hour"
+              ],
+              "link": {
+                "label": "Tire service",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "speedometer2",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A scan tool plugged into a dashboard"
+              },
+              "title": "Diagnostics",
+              "text": "Check-engine light on? We read the codes, find the cause and explain it in plain words before quoting a single repair.",
+              "bullets": [
+                "Free code read with any repair",
+                "Photos of the worn parts",
+                "Same-day results"
+              ],
+              "link": {
+                "label": "Diagnostics",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "droplet",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Fresh oil"
+              },
+              "title": "Oil changes",
+              "text": "Synthetic or conventional, done in 30 minutes.",
+              "link": {
+                "label": "Oil change",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "battery-charging",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A battery tester on a car battery"
+              },
+              "title": "Batteries & electrical",
+              "text": "Free battery test, replacements and alternator repairs.",
+              "link": {
+                "label": "Electrical",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "shield-check",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "An inspection checklist on a clipboard"
+              },
+              "title": "Safety inspections",
+              "text": "Ontario safety certificates and pre-purchase checks for used cars.",
+              "link": {
+                "label": "Inspections",
+                "href": "/services",
+                "arrow": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-milestones-3",
+        "type": "milestones",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "introImage": "left"
+          },
+          "introEyebrow": {
+            "text": "By the numbers",
+            "style": "pill"
+          },
+          "headline": "Trusted by drivers across Northside",
+          "body": "Fifteen years of honest repairs, written quotes and a two-year warranty on every job.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "Read what our customers say about their repairs",
+              "href": "/contact",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Services",
+              "href": "/services",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "stats": [
+            {
+              "value": "2009",
+              "label": "Serving Northside since",
+              "icon": "calendar-check"
+            },
+            {
+              "value": "14,000+",
+              "label": "Jobs completed",
+              "icon": "wrench-adjustable"
+            },
+            {
+              "value": "60 min",
+              "label": "Average arrival",
+              "icon": "stopwatch"
+            },
+            {
+              "value": "4.9",
+              "label": "Google rating",
+              "icon": "star-fill"
+            },
+            {
+              "value": "2 yr",
+              "label": "Warranty on parts and labour for every repair we do",
+              "icon": "shield-check"
+            },
+            {
+              "value": "24/7",
+              "label": "Towing",
+              "icon": "truck"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-testimonials-4",
+        "type": "testimonials",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Reviews",
+            "style": "pill"
+          },
+          "headline": "Drivers who trusted us with their car",
+          "body": "Real reviews from customers across Northside. We read every one and reply to most.",
+          "summary": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 312,
+              "href": "https://www.google.com/maps"
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 46
+            },
+            {
+              "source": "HomeStars",
+              "rating": 4.7,
+              "count": 28
+            },
+            {
+              "source": "Facebook",
+              "rating": 5,
+              "count": 19
+            }
+          ],
+          "items": [
+            {
+              "quote": "Van died on the 401 on a Tuesday. They had it diagnosed by noon and back on the road before my evening run. That is a day of work they saved me.",
+              "name": "Daniel Osei",
+              "role": "North York · Emergency diagnostics",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Daniel Osei"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Clear quote, no upsell, and they washed it.",
+              "name": "Mei Lin Chow",
+              "role": "Lawrence Park · Brakes",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Mei Lin Chow"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "We run four delivery vans through Northside now. They text me photos before any extra work and the invoice matches the quote every time. That alone is worth it.",
+              "name": "Priya Raman",
+              "role": "Fleet manager",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Priya Raman"
+              },
+              "rating": 5,
+              "source": "Yelp"
+            },
+            {
+              "quote": "They found the rattle two other shops missed — a loose heat shield — and did not charge me for the diagnosis.",
+              "name": "Tom Reilly",
+              "role": "Leaside · Exhaust",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Tom Reilly"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Booked online at 7pm, confirmed in ten minutes.",
+              "name": "Sam Patel",
+              "role": "Midtown · Oil change",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Honest advice: they told me my brakes had another season in them and only replaced the pads. Took a day longer than promised, but I will be back.",
+              "name": "Ana Rodrigues",
+              "role": "Don Mills · Brake inspection",
+              "rating": 4,
+              "source": "HomeStars"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-reviews-5",
+        "type": "reviews",
+        "role": "optional",
+        "region": "content",
+        "weight": 50,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Reviews",
+            "style": "pill"
+          },
+          "headline": "Rated 4.9 by Northside drivers",
+          "body": "Real reviews on the sites you already trust. We reply to every one.",
+          "platforms": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 312,
+              "href": "https://www.google.com/maps"
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 46
+            },
+            {
+              "source": "HomeStars",
+              "rating": 4.7,
+              "count": 28
+            },
+            {
+              "source": "Facebook",
+              "rating": 5,
+              "count": 19
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-blog-6",
+        "type": "blog",
+        "role": "optional",
+        "region": "content",
+        "weight": 60,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "From the shop",
+            "style": "pill"
+          },
+          "headline": "Car care tips from the crew",
+          "body": "Short, practical guides written by the technicians who do the work.",
+          "introCta": {
+            "label": "All articles",
+            "href": "/blog",
+            "style": "outline"
+          },
+          "postCount": "3"
+        }
+      },
+      {
+        "id": "home-cta-7",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 70,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "left"
+          },
+          "eyebrow": {
+            "text": "Free 15-minute check",
+            "style": "pill"
+          },
+          "headline": "Car making a noise you do not like?",
+          "body": "Bring it in and we will tell you what it is and what it costs before any work starts.",
+          "ctas": [
+            {
+              "label": "Book a free check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call us",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for brakes, tires and diagnostics",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician on the hoist checking brake lines"
+          }
+        }
+      }
+    ]
+  },
+  "zh-tw/pages/services.json": {
+    "slug": "services",
+    "title": "Our Services",
+    "description": "Professional services by Demo Company",
+    "navLabel": "Services",
+    "navOrder": 2,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "blocks": [
+      {
+        "id": "services-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Services",
+            "style": "pill"
+          },
+          "headline": "Our Services",
+          "subheadline": "Discover what we can do for you",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "services-features-1",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "shape": "intro-photo",
+        "data": {
+          "options": {
+            "introImage": "right"
+          },
+          "introEyebrow": {
+            "text": "What we fix",
+            "style": "pill"
+          },
+          "headline": "What we do",
+          "body": "Licensed technicians, factory-grade parts and a written quote before any work starts.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See every service we offer and what each one costs",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "items": {
+            "source": "services"
+          }
+        }
+      },
+      {
+        "id": "services-pricing-2",
+        "type": "pricing",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Maintenance plans",
+            "style": "pill"
+          },
+          "headline": "Car care that pays for itself",
+          "body": "Pick a plan, skip the surprise bills. Every plan includes a written quote before we touch your car.",
+          "highlights": [
+            {
+              "icon": "shield-check",
+              "title": "Licensed technicians",
+              "text": "Every tech is Red Seal certified."
+            },
+            {
+              "icon": "clock",
+              "title": "Same-day service",
+              "text": "Book before noon and drive home tonight."
+            },
+            {
+              "icon": "receipt",
+              "title": "Upfront pricing",
+              "text": "You approve the quote before we start, and the price never moves after that."
+            },
+            {
+              "icon": "award",
+              "title": "Two-year warranty",
+              "text": "Parts and labour."
+            }
+          ],
+          "proof": {
+            "avatars": [
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              }
+            ],
+            "rating": "4.9",
+            "text": "312 Google reviews"
+          },
+          "logos": {
+            "caption": "Approved by",
+            "items": [
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "OMVIC"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "CAA Approved Auto Repair"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Google"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yelp"
+              }
+            ]
+          },
+          "billing": {
+            "monthlyLabel": "Monthly",
+            "yearlyLabel": "Yearly",
+            "yearlyNote": "2 months free"
+          },
+          "plans": [
+            {
+              "name": "Essential",
+              "price": {
+                "monthly": "$19",
+                "yearly": "$16"
+              },
+              "period": "/ month",
+              "description": "Oil changes and a check-up, done on time.",
+              "features": [
+                "Two synthetic oil changes a year",
+                "Multi-point inspection",
+                "10% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Essential",
+                "href": "/contact"
+              }
+            },
+            {
+              "name": "Complete",
+              "price": {
+                "monthly": "$39",
+                "yearly": "$32"
+              },
+              "period": "/ month",
+              "description": "Everything a daily driver needs, with priority booking.",
+              "features": [
+                "Everything in Essential",
+                "Seasonal tire swap and storage",
+                "Brake inspection twice a year",
+                "Priority same-day booking",
+                "15% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Complete",
+                "href": "/contact"
+              },
+              "featured": true,
+              "badge": "Most popular"
+            },
+            {
+              "name": "Premium",
+              "price": {
+                "monthly": "$69",
+                "yearly": "$57"
+              },
+              "period": "/ month",
+              "description": "For drivers who put on serious kilometres every year and want a loaner car while theirs is in the shop.",
+              "features": [
+                "Everything in Complete",
+                "Free loaner car",
+                "Free towing within 25 km",
+                "20% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Premium",
+                "href": "/contact"
+              }
+            },
+            {
+              "name": "Fleet",
+              "price": {
+                "monthly": "$149",
+                "yearly": "$124"
+              },
+              "period": "/ month",
+              "description": "Up to five vehicles on one plan.",
+              "features": [
+                "Complete for every vehicle",
+                "One monthly invoice"
+              ],
+              "cta": {
+                "label": "Talk to us",
+                "href": "/contact"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "services-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "FAQ",
+            "style": "pill"
+          },
+          "headline": "Questions we get at the counter",
+          "body": "Straight answers about pricing, timing and warranty. Still not sure? Call us — a real person picks up.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Talk to a licensed technician, not a call centre. Free advice, no obligation.",
+            "cta": {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Do you charge for estimates?",
+              "answer": "No. You get a written quote before any work starts, and nothing happens until you approve it. Diagnostic time is one hour, credited back if you go ahead with the repair here."
+            },
+            {
+              "question": "Do I need an appointment?",
+              "answer": "Not for oil changes or tire swaps — walk in. Book ahead for anything diagnostic."
+            },
+            {
+              "question": "How long does a brake job take?",
+              "answer": "Two to three hours for a standard front or rear axle."
+            },
+            {
+              "question": "Is the work guaranteed?",
+              "answer": "Parts and labour are guaranteed for two years on every repair, at any of our partner shops across Ontario."
+            },
+            {
+              "question": "Which cars do you work on?",
+              "answer": "Every make, domestic and import, including hybrids. We do not service commercial trucks over one tonne."
+            },
+            {
+              "question": "Can I wait while you work?",
+              "answer": "Yes — there is a waiting room with Wi-Fi and coffee. For longer jobs we offer a free ride within Northside."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "zh-tw/seo.json": {
+    "domain": "https://example.com",
+    "locale": "zh_TW",
+    "siteTitle": "Demo Company — Professional Services",
+    "siteDescription": "Demo Company provides professional services in the Greater Toronto Area.",
+    "verification": {},
+    "schema": {
+      "areaServed": [
+        {
+          "type": "City",
+          "name": "Toronto, ON"
+        }
+      ],
+      "addresses": [
+        {
+          "locality": "Toronto",
+          "region": "ON",
+          "country": "CA"
+        }
+      ],
+      "openingHours": {
+        "days": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "opens": "09:00",
+        "closes": "17:00"
+      },
+      "priceRange": "$$",
+      "offerCatalogName": "Demo Services"
+    }
+  },
+  "zh-tw/services.json": [
+    {
+      "id": "demo-service",
+      "name": "Demo Service",
+      "shortDescription": "Our core service offering.",
+      "fullDescription": "We provide professional demo services to businesses of all sizes.",
+      "icon": "lightbulb",
+      "features": [
+        "Fast turnaround",
+        "Quality results",
+        "Affordable pricing"
+      ],
+      "products": []
+    }
+  ],
+  "zh/blog/battery-cold-start.json": {
+    "slug": "battery-cold-start",
+    "title": "Why batteries die on the first cold morning",
+    "excerpt": "",
+    "content": "<p>Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. Cold slows the chemistry inside a battery. </p>",
+    "category": "Electrical",
+    "tags": [
+      "battery"
+    ],
+    "author": "",
+    "publishedAt": "2026-07-12",
+    "seo": {
+      "metaTitle": "Why batteries die in the cold",
+      "metaDescription": "Cold starts."
+    }
+  },
+  "zh/blog/brake-noise.json": {
+    "slug": "brake-noise",
+    "title": "Squeal, grind or click: what your brakes are telling you",
+    "excerpt": "Three sounds, three very different repair bills.",
+    "content": "<p>A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. A squeal is usually the wear indicator doing its job; a grind means metal on metal. </p>",
+    "category": "Brakes",
+    "tags": [
+      "brakes"
+    ],
+    "author": "Priya Nair",
+    "authorAvatarUrl": "/images/grid-pattern.svg",
+    "publishedAt": "2026-08-21",
+    "coverImage": {
+      "imageUrl": "/images/grid-pattern.svg",
+      "alt": "A brake rotor and caliper"
+    },
+    "seo": {
+      "metaTitle": "What your brakes are telling you",
+      "metaDescription": "Squeal, grind or click."
+    }
+  },
+  "zh/blog/check-engine-light.json": {
+    "slug": "check-engine-light",
+    "title": "What a check engine light actually means",
+    "excerpt": "A code tells you which circuit reported a problem. It does not tell you which part failed — and that difference is most of the diagnostic bill.",
+    "content": "<p>A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. A check engine light is the car telling you a sensor reported something out of range. </p>",
+    "category": "Diagnostics",
+    "tags": [
+      "engine",
+      "diagnostics"
+    ],
+    "author": "Dana Whitfield",
+    "authorAvatarUrl": "/images/grid-pattern.svg",
+    "publishedAt": "2026-09-18",
+    "coverImage": {
+      "imageUrl": "/images/grid-pattern.svg",
+      "alt": "A technician reading a diagnostic scanner"
+    },
+    "seo": {
+      "metaTitle": "What a check engine light actually means",
+      "metaDescription": "Codes, circuits and what the diagnostic bill pays for."
+    }
+  },
+  "zh/blog/oil-change-intervals.json": {
+    "slug": "oil-change-intervals",
+    "title": "How often you really need an oil change",
+    "excerpt": "The 5,000 km sticker is a habit, not a rule. Your owner’s manual and your driving decide it.",
+    "content": "<p>Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. Modern synthetic oil lasts longer than the old sticker suggests. </p>",
+    "category": "Maintenance",
+    "tags": [
+      "oil"
+    ],
+    "author": "Dana Whitfield",
+    "publishedAt": "2026-07-30",
+    "seo": {
+      "metaTitle": "How often you need an oil change",
+      "metaDescription": "Intervals explained."
+    }
+  },
+  "zh/blog/winter-tires.json": {
+    "slug": "winter-tires",
+    "title": "When to swap to winter tires in Toronto",
+    "excerpt": "Tread depth and the 7 °C rule, not the calendar.",
+    "content": "<p>Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. </p>",
+    "category": "Tires",
+    "tags": [
+      "tires",
+      "winter"
+    ],
+    "author": "Marcus Lee",
+    "authorAvatarUrl": "/images/grid-pattern.svg",
+    "publishedAt": "2026-09-04",
+    "coverImage": {
+      "imageUrl": "/images/grid-pattern.svg",
+      "alt": "A stack of winter tires in the shop"
+    },
+    "seo": {
+      "metaTitle": "When to swap to winter tires",
+      "metaDescription": "The 7 °C rule."
+    }
+  },
+  "zh/forms.json": [
+    {
+      "id": "contact",
+      "name": "联系我们",
+      "fields": [
+        "name",
+        "phone",
+        "email",
+        "message"
+      ],
+      "primary": "phone",
+      "buttonText": "与我们联系",
+      "successMessage": "谢谢！我们会尽快与您联系。"
+    }
+  ],
+  "zh/navigation.json": {
+    "header": {
+      "links": [
+        {
+          "label": "Home",
+          "href": "/"
+        },
+        {
+          "label": "About",
+          "href": "/about"
+        },
+        {
+          "label": "Services",
+          "href": "/services"
+        },
+        {
+          "label": "Contact",
+          "href": "/contact"
+        }
+      ],
+      "buttons": [
+        {
+          "label": "Get a Quote",
+          "href": "/contact"
+        }
+      ]
+    },
+    "footer": {
+      "description": "Demo Company — Your trusted local business.",
+      "columns": [
+        {
+          "title": "Quick Links",
+          "links": [
+            {
+              "label": "Home",
+              "href": "/"
+            },
+            {
+              "label": "About",
+              "href": "/about"
+            },
+            {
+              "label": "Services",
+              "href": "/services"
+            },
+            {
+              "label": "Contact",
+              "href": "/contact"
+            }
+          ]
+        }
+      ],
+      "copyright": "© 2026 Demo Company. All rights reserved."
+    }
+  },
+  "zh/pages/about.json": {
+    "slug": "about",
+    "title": "About Us",
+    "description": "Learn about Demo Company",
+    "navLabel": "About",
+    "navOrder": 1,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "blocks": [
+      {
+        "id": "about-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "About",
+            "style": "pill"
+          },
+          "headline": "About Us",
+          "subheadline": "Learn more about our company and mission",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "about-content-1",
+        "type": "content",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "shape": "image-right",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "About us",
+            "style": "pill"
+          },
+          "headline": "Family-run since 2009",
+          "body": "莲花针灸诊所 started with one bay and a rule: **tell people the price before you touch the car**. Fifteen years later we have six bays, and the rule has not changed.\n\nEvery technician on the team is licensed and on our payroll — we never hand your car to a subcontractor. That is why the same faces keep showing up when you [book a service](/contact).\n\n- Written quotes before any work starts\n- Two-year warranty on parts and labour\n- Same-day service when you drop off before noon",
+          "ctas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Meet the team",
+              "href": "/about",
+              "style": "outline"
+            },
+            {
+              "label": "Read our warranty in full before you book",
+              "href": "/contact",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Services",
+              "href": "/services",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          }
+        }
+      },
+      {
+        "id": "about-team-2",
+        "type": "team",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Our team",
+            "style": "pill"
+          },
+          "headline": "The people who work on your car",
+          "body": "Licensed, local and the same small crew every visit, so you always know who is looking after your car.",
+          "members": [
+            {
+              "name": "Marcus Oyelaran",
+              "role": "Owner · Licensed technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Marcus Oyelaran"
+              },
+              "bio": "Bought the shop from his old boss in 1998 and still takes the hard diagnostic jobs himself.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                },
+                {
+                  "icon": "envelope",
+                  "href": "mailto:marcus@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Dana Krol",
+              "role": "Shop foreman",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Dana Krol"
+              },
+              "bio": "Drivetrain and transmissions.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                }
+              ]
+            },
+            {
+              "name": "Yusuf Rahimi",
+              "role": "Diagnostic technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yusuf Rahimi"
+              },
+              "bio": "Factory-trained on German makes; the one who finds the intermittent electrical faults nobody else can reproduce.",
+              "links": [
+                {
+                  "icon": "envelope",
+                  "href": "mailto:yusuf@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Eleni Papas",
+              "role": "Service advisor",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Eleni Papas"
+              },
+              "bio": "Writes the estimates you can read and texts you when the car is ready.",
+              "links": [
+                {
+                  "icon": "telephone",
+                  "href": "tel:+14165550142"
+                },
+                {
+                  "icon": "envelope",
+                  "href": "mailto:eleni@northsideauto.example"
+                }
+              ]
+            },
+            {
+              "name": "Ray Bhatti",
+              "role": "Tire and alignment",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Ray Bhatti"
+              },
+              "bio": "Road-force balancing.",
+              "links": [
+                {
+                  "icon": "instagram",
+                  "href": "https://www.instagram.com/"
+                }
+              ]
+            },
+            {
+              "name": "Nina Sorensen",
+              "role": "Apprentice technician",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Nina Sorensen"
+              },
+              "bio": "Third-year apprentice, Centennial College, on the hoists Tuesday through Saturday.",
+              "links": [
+                {
+                  "icon": "linkedin",
+                  "href": "https://www.linkedin.com/"
+                }
+              ]
+            }
+          ],
+          "join": {
+            "title": "Join our crew",
+            "body": "We are hiring licensed technicians and apprentices. Steady hours, paid training and a shop that fixes things properly.",
+            "cta": {
+              "label": "See open roles",
+              "href": "/contact",
+              "style": "outline"
+            }
+          }
+        }
+      },
+      {
+        "id": "about-gallery-3",
+        "type": "gallery",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Our work",
+            "style": "pill"
+          },
+          "headline": "Recent jobs from our bays",
+          "body": "Real photos from real jobs — every one done by our own licensed technicians.",
+          "items": [
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Fleet service day"
+              },
+              "title": "Fleet service day",
+              "caption": "North York · 6 vans"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A technician going over the inspection sheet"
+              },
+              "title": "Pre-purchase inspection",
+              "caption": "Willowdale"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "New brake rotors and pads on the bench"
+              },
+              "title": "Brake job",
+              "caption": "Front pads & rotors"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Diagnostics running on a laptop in bay two"
+              },
+              "title": "Check-engine diagnosis",
+              "caption": "Thornhill · same day"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "The front desk on a Saturday morning"
+              },
+              "title": "Saturday walk-ins",
+              "caption": "Front desk"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Winter tires on the rack"
+              },
+              "title": "Winter changeover",
+              "caption": "Tires & storage"
+            },
+            {
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Paperwork for a warranty repair"
+              },
+              "title": "Warranty repair",
+              "caption": "Don Mills"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "zh/pages/contact.json": {
+    "slug": "contact",
+    "title": "Contact Us",
+    "description": "Get in touch with Demo Company",
+    "navLabel": "Contact",
+    "navOrder": 4,
+    "changeFrequency": "monthly",
+    "priority": 0.7,
+    "blocks": [
+      {
+        "id": "contact-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Contact",
+            "style": "pill"
+          },
+          "headline": "Contact Us",
+          "subheadline": "Send us a message and we'll get back to you shortly.",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "contact-contact-1",
+        "type": "contact",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "shape": "form-beside",
+        "data": {
+          "options": {
+            "form": "full"
+          },
+          "introEyebrow": {
+            "text": "Contact",
+            "style": "pill"
+          },
+          "headline": "Talk to a technician today",
+          "body": "Call, email or send the form — a licensed technician gets back to you within the hour while the shop is open.",
+          "items": [
+            {
+              "kind": "phone",
+              "title": "Call us",
+              "hint": "Fastest way to book"
+            },
+            {
+              "kind": "email",
+              "title": "Email us",
+              "hint": "Photos of the problem help us quote"
+            },
+            {
+              "kind": "address",
+              "title": "Visit us",
+              "hint": "Drop-off bays on the north side of the building"
+            },
+            {
+              "kind": "hours",
+              "title": "Hours",
+              "hint": "Closed Sundays"
+            },
+            {
+              "kind": "link",
+              "title": "Text us on WhatsApp",
+              "hint": "Replies within 15 minutes",
+              "href": "https://wa.me/14165550142"
+            },
+            {
+              "kind": "link",
+              "title": "Book online",
+              "hint": "Pick a time",
+              "href": "/contact"
+            }
+          ],
+          "form": {
+            "id": "contact"
+          },
+          "bg": "#ffffff"
+        }
+      }
+    ]
+  },
+  "zh/pages/home.json": {
+    "slug": "home",
+    "title": "Home",
+    "description": "Welcome to Demo Company",
+    "navLabel": "Home",
+    "navOrder": 0,
+    "changeFrequency": "weekly",
+    "priority": 1,
+    "blocks": [
+      {
+        "id": "home-hero-0",
+        "type": "hero",
+        "role": "lead",
+        "region": "content",
+        "weight": 0,
+        "shape": "split",
+        "data": {
+          "options": {
+            "image": "left"
+          },
+          "bg": "#ffffff",
+          "proof": {
+            "avatars": [
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              }
+            ],
+            "rating": 4.9,
+            "text": "612 Google reviews"
+          },
+          "stats": [
+            {
+              "value": "1998",
+              "label": "On Yonge Street since"
+            },
+            {
+              "value": "14,000+",
+              "label": "Cars back on the road"
+            },
+            {
+              "value": "2 yr",
+              "label": "Warranty on every repair"
+            },
+            {
+              "value": "Same day",
+              "label": "Most jobs"
+            },
+            {
+              "value": "4.9",
+              "label": "Average Google rating across 612 reviews"
+            },
+            {
+              "value": "6",
+              "label": "Bays"
+            }
+          ],
+          "logos": {
+            "caption": "Certified by and rated on",
+            "items": [
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "OMVIC"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "CAA Approved Auto Repair"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Google"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yelp"
+              }
+            ]
+          },
+          "band": [
+            {
+              "alt": "A technician on the hoist checking brake lines"
+            },
+            {
+              "alt": "Rear rotors"
+            },
+            {
+              "alt": "Diagnostic scan running on a sedan in bay two"
+            },
+            {
+              "alt": "Alignment rack"
+            },
+            {
+              "alt": "Oil change underway, drain pan and fresh filter ready"
+            },
+            {
+              "alt": "Safety inspection"
+            }
+          ],
+          "eyebrow": {
+            "text": "North York · Licensed & insured",
+            "style": "pill"
+          },
+          "headline": "Honest auto repair, done the same day",
+          "subheadline": "Written estimates before we touch anything and a two-year warranty on every repair. Most jobs are back on the road by closing.",
+          "ctas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid",
+              "icon": "calendar-check"
+            },
+            {
+              "label": "Call us",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See what we charge for brakes, tires and diagnostics",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "Bay two at 莲花针灸诊所 with a car on the hoist"
+          }
+        }
+      },
+      {
+        "id": "home-logos-1",
+        "type": "logos",
+        "role": "optional",
+        "region": "content",
+        "weight": 10,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Certified & rated",
+            "style": "pill"
+          },
+          "headline": "Certified by the people who check the checkers",
+          "body": "Licensed by OMVIC, approved by CAA and rated on every platform drivers actually read.",
+          "introCta": {
+            "label": "See our certifications →",
+            "href": "/about",
+            "style": "link"
+          },
+          "items": [
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "OMVIC",
+              "href": "https://www.omvic.ca"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "CAA Approved Auto Repair",
+              "href": "https://www.caa.ca"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Google"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Yelp"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Automotive Service Excellence"
+            },
+            {
+              "imageUrl": "/images/grid-pattern.svg",
+              "alt": "Better Business Bureau"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-features-2",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 20,
+        "shape": "intro-photo",
+        "data": {
+          "options": {
+            "introImage": "right"
+          },
+          "introEyebrow": {
+            "text": "What we fix",
+            "style": "pill"
+          },
+          "headline": "Honest car care that keeps your family moving",
+          "body": "Licensed technicians, factory-grade parts and a written quote before any work starts.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See every service we offer and what each one costs",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "items": [
+            {
+              "icon": "disc",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "New brake rotors and pads"
+              },
+              "title": "Brakes",
+              "text": "Pads, rotors and callipers — with a road test before you pick it up.",
+              "link": {
+                "label": "Brake service",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "snow",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Winter tires on a rack"
+              },
+              "title": "Tires & changeovers",
+              "text": "Seasonal swaps, balancing and storage for your second set.",
+              "bullets": [
+                "Changeovers in under an hour"
+              ],
+              "link": {
+                "label": "Tire service",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "speedometer2",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A scan tool plugged into a dashboard"
+              },
+              "title": "Diagnostics",
+              "text": "Check-engine light on? We read the codes, find the cause and explain it in plain words before quoting a single repair.",
+              "bullets": [
+                "Free code read with any repair",
+                "Photos of the worn parts",
+                "Same-day results"
+              ],
+              "link": {
+                "label": "Diagnostics",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "droplet",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Fresh oil"
+              },
+              "title": "Oil changes",
+              "text": "Synthetic or conventional, done in 30 minutes.",
+              "link": {
+                "label": "Oil change",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "battery-charging",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "A battery tester on a car battery"
+              },
+              "title": "Batteries & electrical",
+              "text": "Free battery test, replacements and alternator repairs.",
+              "link": {
+                "label": "Electrical",
+                "href": "/services",
+                "arrow": true
+              }
+            },
+            {
+              "icon": "shield-check",
+              "image": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "An inspection checklist on a clipboard"
+              },
+              "title": "Safety inspections",
+              "text": "Ontario safety certificates and pre-purchase checks for used cars.",
+              "link": {
+                "label": "Inspections",
+                "href": "/services",
+                "arrow": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-milestones-3",
+        "type": "milestones",
+        "role": "optional",
+        "region": "content",
+        "weight": 30,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "introImage": "left"
+          },
+          "introEyebrow": {
+            "text": "By the numbers",
+            "style": "pill"
+          },
+          "headline": "Trusted by drivers across Northside",
+          "body": "Fifteen years of honest repairs, written quotes and a two-year warranty on every job.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "Read what our customers say about their repairs",
+              "href": "/contact",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Services",
+              "href": "/services",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "stats": [
+            {
+              "value": "2009",
+              "label": "Serving Northside since",
+              "icon": "calendar-check"
+            },
+            {
+              "value": "14,000+",
+              "label": "Jobs completed",
+              "icon": "wrench-adjustable"
+            },
+            {
+              "value": "60 min",
+              "label": "Average arrival",
+              "icon": "stopwatch"
+            },
+            {
+              "value": "4.9",
+              "label": "Google rating",
+              "icon": "star-fill"
+            },
+            {
+              "value": "2 yr",
+              "label": "Warranty on parts and labour for every repair we do",
+              "icon": "shield-check"
+            },
+            {
+              "value": "24/7",
+              "label": "Towing",
+              "icon": "truck"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-testimonials-4",
+        "type": "testimonials",
+        "role": "optional",
+        "region": "content",
+        "weight": 40,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Reviews",
+            "style": "pill"
+          },
+          "headline": "Drivers who trusted us with their car",
+          "body": "Real reviews from customers across Northside. We read every one and reply to most.",
+          "summary": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 312,
+              "href": "https://www.google.com/maps"
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 46
+            },
+            {
+              "source": "HomeStars",
+              "rating": 4.7,
+              "count": 28
+            },
+            {
+              "source": "Facebook",
+              "rating": 5,
+              "count": 19
+            }
+          ],
+          "items": [
+            {
+              "quote": "Van died on the 401 on a Tuesday. They had it diagnosed by noon and back on the road before my evening run. That is a day of work they saved me.",
+              "name": "Daniel Osei",
+              "role": "North York · Emergency diagnostics",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Daniel Osei"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Clear quote, no upsell, and they washed it.",
+              "name": "Mei Lin Chow",
+              "role": "Lawrence Park · Brakes",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Mei Lin Chow"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "We run four delivery vans through Northside now. They text me photos before any extra work and the invoice matches the quote every time. That alone is worth it.",
+              "name": "Priya Raman",
+              "role": "Fleet manager",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Priya Raman"
+              },
+              "rating": 5,
+              "source": "Yelp"
+            },
+            {
+              "quote": "They found the rattle two other shops missed — a loose heat shield — and did not charge me for the diagnosis.",
+              "name": "Tom Reilly",
+              "role": "Leaside · Exhaust",
+              "photo": {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Tom Reilly"
+              },
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Booked online at 7pm, confirmed in ten minutes.",
+              "name": "Sam Patel",
+              "role": "Midtown · Oil change",
+              "rating": 5,
+              "source": "Google"
+            },
+            {
+              "quote": "Honest advice: they told me my brakes had another season in them and only replaced the pads. Took a day longer than promised, but I will be back.",
+              "name": "Ana Rodrigues",
+              "role": "Don Mills · Brake inspection",
+              "rating": 4,
+              "source": "HomeStars"
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-reviews-5",
+        "type": "reviews",
+        "role": "optional",
+        "region": "content",
+        "weight": 50,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Reviews",
+            "style": "pill"
+          },
+          "headline": "Rated 4.9 by Northside drivers",
+          "body": "Real reviews on the sites you already trust. We reply to every one.",
+          "platforms": [
+            {
+              "source": "Google",
+              "rating": 4.9,
+              "count": 312,
+              "href": "https://www.google.com/maps"
+            },
+            {
+              "source": "Yelp",
+              "rating": 4.8,
+              "count": 46
+            },
+            {
+              "source": "HomeStars",
+              "rating": 4.7,
+              "count": 28
+            },
+            {
+              "source": "Facebook",
+              "rating": 5,
+              "count": 19
+            }
+          ]
+        }
+      },
+      {
+        "id": "home-blog-6",
+        "type": "blog",
+        "role": "optional",
+        "region": "content",
+        "weight": 60,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "From the shop",
+            "style": "pill"
+          },
+          "headline": "Car care tips from the crew",
+          "body": "Short, practical guides written by the technicians who do the work.",
+          "introCta": {
+            "label": "All articles",
+            "href": "/blog",
+            "style": "outline"
+          },
+          "postCount": "3"
+        }
+      },
+      {
+        "id": "home-cta-7",
+        "type": "cta",
+        "role": "optional",
+        "region": "content",
+        "weight": 70,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "left"
+          },
+          "eyebrow": {
+            "text": "Free 15-minute check",
+            "style": "pill"
+          },
+          "headline": "Car making a noise you do not like?",
+          "body": "Bring it in and we will tell you what it is and what it costs before any work starts.",
+          "ctas": [
+            {
+              "label": "Book a free check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call us",
+              "href": {
+                "source": "phone"
+              },
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for brakes, tires and diagnostics",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician on the hoist checking brake lines"
+          }
+        }
+      }
+    ]
+  },
+  "zh/pages/services.json": {
+    "slug": "services",
+    "title": "Our Services",
+    "description": "Professional services by Demo Company",
+    "navLabel": "Services",
+    "navOrder": 2,
+    "changeFrequency": "monthly",
+    "priority": 0.8,
+    "blocks": [
+      {
+        "id": "services-page-header-0",
+        "type": "page-header",
+        "role": "optional",
+        "region": "content",
+        "weight": 0,
+        "shape": "photo",
+        "data": {
+          "options": {
+            "image": "right"
+          },
+          "introEyebrow": {
+            "text": "Services",
+            "style": "pill"
+          },
+          "headline": "Our Services",
+          "subheadline": "Discover what we can do for you",
+          "ctas": [
+            {
+              "label": "Book a brake check",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline"
+            },
+            {
+              "label": "See what we charge for pads, rotors and a full brake-fluid flush",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "image": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "A technician measuring a brake rotor"
+          }
+        }
+      },
+      {
+        "id": "services-features-1",
+        "type": "features",
+        "role": "essential",
+        "region": "content",
+        "weight": 10,
+        "shape": "intro-photo",
+        "data": {
+          "options": {
+            "introImage": "right"
+          },
+          "introEyebrow": {
+            "text": "What we fix",
+            "style": "pill"
+          },
+          "headline": "What we do",
+          "body": "Licensed technicians, factory-grade parts and a written quote before any work starts.",
+          "introCtas": [
+            {
+              "label": "Book a service",
+              "href": "/contact",
+              "style": "solid"
+            },
+            {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "outline",
+              "icon": "telephone"
+            },
+            {
+              "label": "See every service we offer and what each one costs",
+              "href": "/services",
+              "style": "link",
+              "arrow": true
+            },
+            {
+              "label": "Warranty",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Reviews",
+              "href": "/contact",
+              "style": "link"
+            },
+            {
+              "label": "Directions",
+              "href": "/contact",
+              "style": "link"
+            }
+          ],
+          "introImage": {
+            "imageUrl": "/images/grid-pattern.svg",
+            "alt": "The 莲花针灸诊所 workshop with two cars on hoists"
+          },
+          "items": {
+            "source": "services"
+          }
+        }
+      },
+      {
+        "id": "services-pricing-2",
+        "type": "pricing",
+        "role": "optional",
+        "region": "content",
+        "weight": 20,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "Maintenance plans",
+            "style": "pill"
+          },
+          "headline": "Car care that pays for itself",
+          "body": "Pick a plan, skip the surprise bills. Every plan includes a written quote before we touch your car.",
+          "highlights": [
+            {
+              "icon": "shield-check",
+              "title": "Licensed technicians",
+              "text": "Every tech is Red Seal certified."
+            },
+            {
+              "icon": "clock",
+              "title": "Same-day service",
+              "text": "Book before noon and drive home tonight."
+            },
+            {
+              "icon": "receipt",
+              "title": "Upfront pricing",
+              "text": "You approve the quote before we start, and the price never moves after that."
+            },
+            {
+              "icon": "award",
+              "title": "Two-year warranty",
+              "text": "Parts and labour."
+            }
+          ],
+          "proof": {
+            "avatars": [
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg"
+              }
+            ],
+            "rating": "4.9",
+            "text": "312 Google reviews"
+          },
+          "logos": {
+            "caption": "Approved by",
+            "items": [
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "OMVIC"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "CAA Approved Auto Repair"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Google"
+              },
+              {
+                "imageUrl": "/images/grid-pattern.svg",
+                "alt": "Yelp"
+              }
+            ]
+          },
+          "billing": {
+            "monthlyLabel": "Monthly",
+            "yearlyLabel": "Yearly",
+            "yearlyNote": "2 months free"
+          },
+          "plans": [
+            {
+              "name": "Essential",
+              "price": {
+                "monthly": "$19",
+                "yearly": "$16"
+              },
+              "period": "/ month",
+              "description": "Oil changes and a check-up, done on time.",
+              "features": [
+                "Two synthetic oil changes a year",
+                "Multi-point inspection",
+                "10% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Essential",
+                "href": "/contact"
+              }
+            },
+            {
+              "name": "Complete",
+              "price": {
+                "monthly": "$39",
+                "yearly": "$32"
+              },
+              "period": "/ month",
+              "description": "Everything a daily driver needs, with priority booking.",
+              "features": [
+                "Everything in Essential",
+                "Seasonal tire swap and storage",
+                "Brake inspection twice a year",
+                "Priority same-day booking",
+                "15% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Complete",
+                "href": "/contact"
+              },
+              "featured": true,
+              "badge": "Most popular"
+            },
+            {
+              "name": "Premium",
+              "price": {
+                "monthly": "$69",
+                "yearly": "$57"
+              },
+              "period": "/ month",
+              "description": "For drivers who put on serious kilometres every year and want a loaner car while theirs is in the shop.",
+              "features": [
+                "Everything in Complete",
+                "Free loaner car",
+                "Free towing within 25 km",
+                "20% off repairs"
+              ],
+              "cta": {
+                "label": "Choose Premium",
+                "href": "/contact"
+              }
+            },
+            {
+              "name": "Fleet",
+              "price": {
+                "monthly": "$149",
+                "yearly": "$124"
+              },
+              "period": "/ month",
+              "description": "Up to five vehicles on one plan.",
+              "features": [
+                "Complete for every vehicle",
+                "One monthly invoice"
+              ],
+              "cta": {
+                "label": "Talk to us",
+                "href": "/contact"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "services-faq-3",
+        "type": "faq",
+        "role": "essential",
+        "region": "content",
+        "weight": 30,
+        "data": {
+          "options": {},
+          "introEyebrow": {
+            "text": "FAQ",
+            "style": "pill"
+          },
+          "headline": "Questions we get at the counter",
+          "body": "Straight answers about pricing, timing and warranty. Still not sure? Call us — a real person picks up.",
+          "help": {
+            "headline": "Still have a question?",
+            "body": "Talk to a licensed technician, not a call centre. Free advice, no obligation.",
+            "cta": {
+              "label": "Call (416) 555-0142",
+              "href": "tel:+14165550142",
+              "style": "solid"
+            }
+          },
+          "items": [
+            {
+              "question": "Do you charge for estimates?",
+              "answer": "No. You get a written quote before any work starts, and nothing happens until you approve it. Diagnostic time is one hour, credited back if you go ahead with the repair here."
+            },
+            {
+              "question": "Do I need an appointment?",
+              "answer": "Not for oil changes or tire swaps — walk in. Book ahead for anything diagnostic."
+            },
+            {
+              "question": "How long does a brake job take?",
+              "answer": "Two to three hours for a standard front or rear axle."
+            },
+            {
+              "question": "Is the work guaranteed?",
+              "answer": "Parts and labour are guaranteed for two years on every repair, at any of our partner shops across Ontario."
+            },
+            {
+              "question": "Which cars do you work on?",
+              "answer": "Every make, domestic and import, including hybrids. We do not service commercial trucks over one tonne."
+            },
+            {
+              "question": "Can I wait while you work?",
+              "answer": "Yes — there is a waiting room with Wi-Fi and coffee. For longer jobs we offer a free ride within Northside."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "zh/seo.json": {
+    "domain": "https://example.com",
+    "locale": "zh_CN",
+    "siteTitle": "Demo Company — Professional Services",
+    "siteDescription": "Demo Company provides professional services in the Greater Toronto Area.",
+    "verification": {},
+    "schema": {
+      "areaServed": [
+        {
+          "type": "City",
+          "name": "Toronto, ON"
+        }
+      ],
+      "addresses": [
+        {
+          "locality": "Toronto",
+          "region": "ON",
+          "country": "CA"
+        }
+      ],
+      "openingHours": {
+        "days": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "opens": "09:00",
+        "closes": "17:00"
+      },
+      "priceRange": "$$",
+      "offerCatalogName": "Demo Services"
+    },
+    "targetKeywords": {
+      "primary": null,
+      "byService": {}
+    }
+  },
+  "zh/services.json": [
+    {
+      "id": "demo-service",
+      "name": "Demo Service",
+      "shortDescription": "Our core service offering.",
+      "fullDescription": "We provide professional demo services to businesses of all sizes.",
+      "icon": "lightbulb",
+      "features": [
+        "Fast turnaround",
+        "Quality results",
+        "Affordable pricing"
+      ],
+      "products": []
+    }
+  ]
+}

@@ -21,7 +21,7 @@
 //    对到数据里那一格空着的槽（`scripts/lib/inline-edit.js` §resolveInlineSlot）；真图一个字节不多。
 
 import type { Key } from 'react';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
 
 export interface SlotImage { imageUrl?: string; alt?: string }
 type Attrs = Record<string, unknown>;

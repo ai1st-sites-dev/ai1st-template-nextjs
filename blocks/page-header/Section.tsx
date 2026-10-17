@@ -21,16 +21,16 @@
 // 🔴 **底色与字色**走 `scripts/lib/contrast.js` 那两个共用函数（§bgCss 写成 CSS、§toneForBg 按亮度反白）；
 //    `image=background` 一律按深底处理（照片 + 深色遮罩）。
 
-import { knobImg, slotImg } from '@/lib/sections/blockMedia';
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
-import Icon from '@/components/Icon';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
-import Button from '@/components/Button';
+import { knobImg, slotImg } from '@template/lib/sections/blockMedia';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig } from '@template/lib/types/config';
+import Icon from '@template/components/Icon';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
+import Button from '@template/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
-import { itemPath } from '@/lib/sections/itemPath';
+import { itemPath } from '@template/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 

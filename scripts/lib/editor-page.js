@@ -147,7 +147,7 @@ function effectiveWeights(raw, siteBlocks, blocks, located) {
  *   · `located` / `weights` —— §locateInRaw / §effectiveWeights，跟 page.tsx 同一对调用
  * 浏览器那一侧只做 `editor-convert.js` §pageToPuck（纯函数）—— 归一化与定位要读磁盘，不许搬去客户端。
  *
- * @param {{ rootDir?: string, page: string, locale?: string }} opts  `locale` 空 = 默认语言；扁平站不看它
+ * @param {{ rootDir?: string, siteDir?: string, page: string, locale?: string }} opts  `locale` 空 = 默认语言；扁平站不看它
  *   · `refs` / `slugs` —— #1406：共用块被哪几页 `ref`（§sharedRefs）、这种语言现有哪些页（算 N 时 `visibility`
  *     里写了不存在的页不算，跟构建丢掉它们同一个判法）
  *   · `root` —— #1452：外壳四样（布局 / 顶栏形态 / 页脚形态 / 公告条）的**现值**，`editor-root.js` §readRootValues
@@ -164,7 +164,8 @@ function editorBaseline(opts) {
   const rootDir = o.rootDir || process.cwd();
   const slug = typeof o.page === 'string' ? o.page : '';
   if (!slug) return { ok: false, reason: 'bad-request', message: 'no page was named' };
-  const siteDir = path.join(rootDir, 'site');
+  // #1801 —— `siteDir` 可另给（`site.js editor-data` 把库里那份铺在一个临时目录里；块库 / 布局库仍从模板根 `rootDir` 读）。
+  const siteDir = o.siteDir || path.join(rootDir, 'site');
   const shape = readSiteShape(siteDir);
   if (!shape) return { ok: false, reason: 'no-site', message: 'this repository has no site/ folder' };
   let locale = '';
@@ -182,7 +183,7 @@ function editorBaseline(opts) {
       return { ok: false, reason: 'no-locale', message: `this website has no language ${JSON.stringify(locale)}` };
     }
   }
-  const src = editorSource(rootDir, locale, slug);
+  const src = editorSource(rootDir, locale, slug, siteDir);
   if ('error' in src) return { ok: false, reason: src.error, message: `could not read this page (${src.error})` };
 
   // 扁平站在构建里的 locale 是 'en'（sync-config 的 legacy 分支），归一化 / 补字段只拿它当标签。

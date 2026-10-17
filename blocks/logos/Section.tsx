@@ -17,16 +17,16 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认；
 //    这里不自己算亮度、不自己拼渐变。深底 + mono 的 logo 反白写在 `block.css`（按 `data-tone`）。
 
-import { knobImg, slotImg } from '@/lib/sections/blockMedia';
-import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
-import BlockSection from '@/components/BlockSection';
-import SiteLink from '@/components/SiteLink';
-import type { BlockConfig } from '@/lib/types/config';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import { knobImg, slotImg } from '@template/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@template/lib/sections/emptyList';
+import BlockSection from '@template/components/BlockSection';
+import SiteLink from '@template/components/SiteLink';
+import type { BlockConfig } from '@template/lib/types/config';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
-import { itemPath } from '@/lib/sections/itemPath';
+import { itemPath } from '@template/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 

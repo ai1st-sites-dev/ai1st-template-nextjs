@@ -26,19 +26,19 @@
 // 🔴 **图标是内联 SVG**（同 features / milestones）：`iconTable` 由服务端按数据里出现的名字查好传进来
 //    （`scripts/lib/icons.js` §iconTableFor，`check` 勾号登记在 `BLOCK_ICONS['pricing']`），这里用 `InlineIcon` 画。
 
-import { island } from '@/islands/island';
+import { island } from '@template/islands/island';
 import { useState, type CSSProperties } from 'react';
-import SiteLink from '@/components/SiteLink';
-import { rowImgs, slotImg } from '@/lib/sections/blockMedia';
-import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import SiteLink from '@template/components/SiteLink';
+import { rowImgs, slotImg } from '@template/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@template/lib/sections/emptyList';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig } from '@template/lib/types/config';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, normalizeBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
-import { itemPath } from '@/lib/sections/itemPath';
+import { itemPath } from '@template/lib/sections/itemPath';
 
 export interface PricingNewImage { imageUrl?: string; alt?: string }
 export interface PricingNewButton { label?: string; href?: string; style?: 'solid' | 'outline' }

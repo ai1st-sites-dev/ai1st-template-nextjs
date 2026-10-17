@@ -1,7 +1,7 @@
-import type { SiteData } from '@/lib/types/config';
-import { getSeo, getServices, getInLanguage, getBrandName, localeUrl } from '@/lib/config';
-import type { BlogPostConfig } from '@/lib/types/config';
-import type { BlockConfig, DynamicPageConfig } from '@/lib/types/config';
+import type { SiteData } from '@template/lib/types/config';
+import { getSeo, getServices, getInLanguage, getBrandName, localeUrl } from '@template/lib/config';
+import type { BlogPostConfig } from '@template/lib/types/config';
+import type { BlockConfig, DynamicPageConfig } from '@template/lib/types/config';
 import { faqItems } from '@blocks/faq/Section';
 import { hoursSegments } from '../../scripts/lib/local-business-facts.js';
 import { keywordServiceFor } from '../../scripts/lib/keyword-service.js';

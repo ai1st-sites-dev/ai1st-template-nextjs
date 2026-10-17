@@ -162,6 +162,7 @@ for (const ext of ['.tsx', '.ts']) {
 }
 const origResolve = require('module')._resolveFilename;
 require('module')._resolveFilename = function (request, ...rest) {
+  if (typeof request === 'string' && request.startsWith('@template/')) request = '@/' + request.slice(10); // #1801：模板别名改名，测试里的桩和解析仍按 @/ 认
   if (request.startsWith('@/')) {
     const base = path.join(NEXT, 'src', request.slice(2));
     for (const ext of ['', '.ts', '.tsx', '.js']) if (fs.existsSync(base + ext) && fs.statSync(base + ext).isFile()) return base + ext;

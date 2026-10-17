@@ -1,0 +1,10 @@
+{
+  "siteId": "site-1660a7c3",
+  "siteUrl": "https://example.com",
+  "companyName": "莲花针灸诊所",
+  "industry": "acupuncture",
+  "location": "Calgary, AB",
+  "language": "zh",
+  "secondaryLocales": ["ar", "zh-tw"],
+  "skipAI": true
+}

@@ -433,6 +433,7 @@ console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
       'manager/search_console_stats.go': '§gscRepoPages —— 列站仓页面时读 site_meta.json 的 defaultLocale / locales（#1606），走 §gscGitHubGet 只发 GET，只读',
       'manager/resume_point.go': '§siteResumePoint —— GET /api/admin/sites/{id}/resume-point 读 site_meta.json 的 buildPhase 判能不能续建（#1649），走 §githubRepoFile 只发 GET，只读',
       'manager/site_content.go': '§commitSiteContent 上面那条注释提到 content 里的 site_meta.siteId 会被 --site-id 覆盖（#1796 §6.1）—— 全文只有这一处命中而且是注释，没有一行读它或写它',
+      'dashboard/src/editor/EditorApp.tsx': '#1801 从模板搬进 dashboard 的编辑器：文件头一行注释说行业不在 site_meta.json 里（所以宿主另带），没有代码碰这个文件',
     };
     const isTest = (f) => /(_test\.go|\.test\.[jt]sx?|\.spec\.[jt]sx?)$/.test(f);
     // 🔴 先校准尺子：拿同一把尺量一个**真存在**的东西。少了这一步，一个坏掉的 grep 会打出 0，

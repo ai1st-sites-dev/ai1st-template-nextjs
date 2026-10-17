@@ -1,5 +1,5 @@
 import SiteLink from './SiteLink';
-import { localeUrl, switchLocaleHref, type LocaleSwitchIndex } from '@/lib/config';
+import { localeUrl, switchLocaleHref, type LocaleSwitchIndex } from '@template/lib/config';
 
 // TICKET-134 v2: native language name + globe icon. Following Vercel / Stripe /
 // Notion convention — flag emojis are an i18n anti-pattern (W3C: en ≠ Canada,

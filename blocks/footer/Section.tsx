@@ -43,14 +43,14 @@
 //    bootstrap.js；这里一样都没有）。表单部件跟 hero 共用一份（`src/components/BlockLeadForm.tsx`）：
 //    提交 POST `/api/leads`、原地显示 successMessage —— 那是数据往返不是 HTML 交互，这里只决定它挂在哪儿。
 
-import { island } from '@/islands/island';
+import { island } from '@template/islands/island';
 import { pickIcons, publishedIconNames } from '../../scripts/lib/icon-names.js';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import SiteLink from '@/components/SiteLink';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
-import { getLabels } from '@/lib/component-labels';
-import type { BlockConfig, SiteFormConfig } from '@/lib/types/config';
-import BlockLeadForm from '@/components/BlockLeadForm';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import SiteLink from '@template/components/SiteLink';
+import { blockAttrs } from '@template/lib/sections/blockAttrs';
+import { getLabels } from '@template/lib/component-labels';
+import type { BlockConfig, SiteFormConfig } from '@template/lib/types/config';
+import BlockLeadForm from '@template/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '../../scripts/lib/header-knobs.js';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';

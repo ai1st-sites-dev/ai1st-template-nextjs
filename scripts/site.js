@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// #1802 —— 站点脚本的命令行入口（设计文档 §3：`site.js <render|…>`；本票只做 `render` 和它要的 `bundle`）。
+// #1802 / #1801 —— 站点脚本的命令行入口（设计文档 §3：`site.js <命令> …`）。#1802 加了 `render` 和它要的 `bundle`，#1801 加了编辑器那四条（下面）。
 //
 //   node scripts/site.js bundle [--out-dir <dir>]
 //       打 `render/dist/`：整页渲染的 bundle + 平台文件（带内容哈希的三份样式表 + runtime）+ manifest。`render` 发现没打过会先打一次。
@@ -25,6 +25,23 @@
 //       --bundle-dir <目录>   用这一份 bundle（`bundle --out-dir` 打的；必须在模板树里，react 这些包按它的位置解析）。不给 = render/dist。
 //     标准输出：一行 JSON（`{"event":"rendered", …}`，含页数、平台文件清单、耗时）。派生的日志走标准错误。失败 ⟹ 退出码 1。
 //
+// #1801（T1）—— 编辑器那几条，manager spawn（工作目录 = 平台那份模板，`template.dir`），实现在 `lib/site-editor.js`：
+//   node scripts/site.js editor-data --site <站 JSON> [--geo <JSON>] [--locale <语言>] [--page <slug>] [--cache-dir <目录>] [--build-version <v>]
+//       --geo 是 `sites.geo`（`{lat, lng, address}`），并进第一家门店的规矩同上面 render 的 --geo。
+//       编辑器的初始 props + 画布样式（theme.css / custom.css）+ site.css 的缓存键。`--site` 的内容是 null ⟹ {"ok":true,"content":null}。
+//   node scripts/site.js save --site <站 JSON> --changes <编辑器那一笔> [--keep]
+//       {"ok":true,"content":{…},"summary":"…","files":[…],"hash"?,"notice"?,"shared"?,"addressChanged"?}
+//   node scripts/site.js site-css --site <站 JSON> [--cache-dir <目录>] [--build-version <v>]
+//       {"ok":true,"key":"…","cached":true|false,"css":"…"}（不剪，画布用）
+//   node scripts/site.js geocode --address <地址>
+//       {"ok":true,"address":"…","lat":…,"lng":…}（查不到 lat / lng 是 null）
+//   这四条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
+//     成功          标准输出一行 {"ok":true, …}                                  退出码 0
+//     拒收 / 不合法  标准输出一行 {"ok":false,"code":"refused|bad|stale","message":"…","field"?}   退出码 3
+//                   （`field`：这一笔里有编辑器改不了的字段时，那个字段名）
+//     崩了          标准错误里的堆栈                                              退出码 1
+//   `--site` / `--changes`：内联 JSON，或一个文件路径（manager 传文件：一个参数在 Linux 上最多 128 KB）。
+//
 // 🔴 渲染只读不写：拿到的 content 不回写（菜单同步、custom.css 的补丁只用在这一次的输出里，设计文档 §6.1「渲染任务只读库」）。
 const fs = require('fs');
 const os = require('os');
@@ -33,12 +50,16 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { DEFAULT_OUTDIR } = require('./lib/render-bundle');
 
+// 不带值的开关（只有 `save --keep`）。不登记在这里的 `--x` 一律要跟一个值。
+const BOOLEAN_FLAGS = new Set(['keep']);
+
 function parseArgs(argv) {
   const out = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith('--')) { out._.push(a); continue; }
     const key = a.slice(2);
+    if (BOOLEAN_FLAGS.has(key)) { out[key] = true; continue; }
     const val = argv[i + 1];
     if (val === undefined || val.startsWith('--')) throw new Error(`${a} 后面要跟一个值`);
     out[key] = val;
@@ -47,11 +68,45 @@ function parseArgs(argv) {
   return out;
 }
 
-/** 内联 JSON 或一个文件路径。 */
+/** 内联 JSON 或一个文件路径。没给 ⟹ undefined（render 的 --geo / --last-modified 是可选的）；编辑器那几条要必给的用 `requiredJsonArg`。 */
 function jsonArg(v, name) {
   if (v === undefined) return undefined;
-  const text = /^\s*[{[]/.test(v) ? v : fs.readFileSync(v, 'utf-8');
+  const text = /^\s*([{[]|null\s*$)/.test(v) ? v : fs.readFileSync(v, 'utf-8');
   try { return JSON.parse(text); } catch (e) { throw new Error(`--${name} 不是合法 JSON：${e.message}`); }
+}
+
+function requiredJsonArg(v, name) {
+  if (v === undefined) throw new Error(`要给 --${name}`);
+  return jsonArg(v, name);
+}
+
+// #1801 —— 编辑器那四条（输出约定见文件头）。
+const EDITOR_COMMANDS = {
+  'editor-data': (a, ed) => ed.editorData({ content: requiredJsonArg(a.site, 'site'), geo: jsonArg(a.geo, 'geo'), locale: a.locale, page: a.page, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
+  save: (a, ed) => ed.save({ content: requiredJsonArg(a.site, 'site'), changes: requiredJsonArg(a.changes, 'changes'), keep: !!a.keep }),
+  'site-css': (a, ed) => ed.siteCss({ content: requiredJsonArg(a.site, 'site'), cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
+  geocode: (a, ed) => ed.geocode({ address: a.address }),
+};
+
+/** 跑一条编辑器命令，返回退出码（0 / 3 / 1）。参数解析的错也算「不合法」⟹ ok:false + 3，manager 照样拿得到一行 JSON。 */
+async function runEditorCommand(cmd, rest) {
+  const ed = require('./lib/site-editor');
+  try {
+    const out = await EDITOR_COMMANDS[cmd](parseArgs(rest), ed);
+    process.stdout.write(`${JSON.stringify({ ok: true, ...out })}\n`);
+    return 0;
+  } catch (e) {
+    if (e instanceof ed.SiteEditorError) {
+      process.stdout.write(`${JSON.stringify({ ok: false, code: e.code, message: e.message, ...(e.field ? { field: e.field } : {}) })}\n`);
+      return 3;
+    }
+    if (e instanceof Error && /^--|后面要跟一个值|不是合法 JSON|要给 --/.test(e.message)) {
+      process.stdout.write(`${JSON.stringify({ ok: false, code: 'bad', message: e.message })}\n`);
+      return 3;
+    }
+    process.stderr.write(`${e && e.stack ? e.stack : e}\n`);
+    return 1;
+  }
 }
 
 const parsed = (content, rel) => (typeof content[rel] === 'string' ? JSON.parse(content[rel]) : content[rel]);
@@ -169,6 +224,10 @@ async function render({
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
+  if (Object.prototype.hasOwnProperty.call(EDITOR_COMMANDS, cmd)) {
+    process.exitCode = await runEditorCommand(cmd, rest);
+    return;
+  }
   const a = parseArgs(rest);
   if (cmd === 'bundle') {
     const m = await bundle(a['out-dir'] ? path.resolve(a['out-dir']) : DEFAULT_OUTDIR);
@@ -199,7 +258,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ event: 'rendered', ...result })}\n`);
     return;
   }
-  throw new Error(`用法：node scripts/site.js <bundle|render> …（拿到的是 ${JSON.stringify(cmd)}）`);
+  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
 }
 
 if (require.main === module) {

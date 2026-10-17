@@ -22,17 +22,17 @@
 //    （`scripts/lib/image-urls.js`）。`alt` 空时用 `title`。
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认。
-import { knobImg, slotImg } from '@/lib/sections/blockMedia';
-import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
+import { knobImg, slotImg } from '@template/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@template/lib/sections/emptyList';
 
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig } from '@template/lib/types/config';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
 import manifest from './manifest.json';
 import GalleryLightbox from './Lightbox';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
-import { itemPath } from '@/lib/sections/itemPath';
+import { itemPath } from '@template/lib/sections/itemPath';
 
 export interface GalleryImage { imageUrl?: string; alt?: string }
 export interface GalleryItem { image?: GalleryImage; title?: string; caption?: string }

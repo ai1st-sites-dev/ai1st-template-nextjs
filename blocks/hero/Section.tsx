@@ -29,16 +29,16 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss 写成 CSS、§toneForBg 按亮度反白；#1477，
 //    跟 footer / header / cta 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
 //    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
-import { knobImg, rowImgs, slotImg } from '@/lib/sections/blockMedia';
-import { itemPath } from '@/lib/sections/itemPath';
+import { knobImg, rowImgs, slotImg } from '@template/lib/sections/blockMedia';
+import { itemPath } from '@template/lib/sections/itemPath';
 
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig, SiteData } from '@/lib/types/config';
-import { getServices, leadFormSite } from '@/lib/config';
-import Icon from '@/components/Icon';
-import BlockLeadForm from '@/components/BlockLeadForm';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
-import Button from '@/components/Button';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig, SiteData } from '@template/lib/types/config';
+import { getServices, leadFormSite } from '@template/lib/config';
+import Icon from '@template/components/Icon';
+import BlockLeadForm from '@template/components/BlockLeadForm';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
+import Button from '@template/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import type { BgValue } from '../../scripts/lib/contrast.js';

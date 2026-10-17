@@ -57,6 +57,7 @@ const origResolve = Module._resolveFilename;
 // #1665 —— 这里原来有一份 `@/lib/config` 的替身（#1464：表单部件要 siteId / leadApi / getServices）。页脚块和表单部件
 // 都不再 import 它了 —— 表单要的那几样由 SiteShell 在服务端取好、经 `leadForm` prop 递进来 —— 替身随之删掉。
 Module._resolveFilename = function resolve(req, ...rest) {
+  if (typeof req === 'string' && req.startsWith('@template/')) req = '@/' + req.slice(10); // #1801：模板别名改名，测试里的桩和解析仍按 @/ 认
   if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), ...rest);
   if (req.startsWith('@blocks/')) return origResolve.call(this, path.join(NEXT, 'blocks', req.slice(8)), ...rest);
   return origResolve.call(this, req, ...rest);

@@ -10,8 +10,8 @@
 // 外壳块（header / footer）不写 `<section>`，不走这里。
 
 import type { CSSProperties, ReactNode } from 'react';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
-import type { BlockConfig } from '@/lib/types/config';
+import { blockAttrs } from '@template/lib/sections/blockAttrs';
+import type { BlockConfig } from '@template/lib/types/config';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type Attrs = Record<string, string | number | boolean | undefined>;

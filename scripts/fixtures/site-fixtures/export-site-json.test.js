@@ -12,7 +12,7 @@ const { execFileSync, execSync } = require('child_process');
 const here = __dirname;
 const script = path.join(here, 'export-site-json.js');
 const NEXT = path.resolve(here, '..', '..', '..');
-const FIXTURES = ['site-0448c807', 'site-bbc4ff97', 'site-multilang', 'site-blog', 'site-rtl'];
+const FIXTURES = ['site-0448c807', 'site-bbc4ff97', 'site-multilang', 'site-blog', 'site-rtl', 'site-zh'];
 const load = (name) => JSON.parse(fs.readFileSync(path.join(here, `${name}.json`), 'utf-8'));
 
 for (const name of FIXTURES) {

@@ -19,18 +19,18 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，同 milestones / cta）。
 
 import type { ReactNode } from 'react';
-import { knobImg, slotImg } from '@/lib/sections/blockMedia';
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import SiteLink from '@/components/SiteLink';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
-import Button from '@/components/Button';
+import { knobImg, slotImg } from '@template/lib/sections/blockMedia';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig } from '@template/lib/types/config';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import SiteLink from '@template/components/SiteLink';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
+import Button from '@template/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
 import { parseRichtext, type RichInline } from '../../scripts/lib/richtext.js';
-import { itemPath } from '@/lib/sections/itemPath';
+import { itemPath } from '@template/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 

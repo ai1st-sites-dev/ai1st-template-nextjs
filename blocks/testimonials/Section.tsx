@@ -36,18 +36,18 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
 
 import type { ReactNode } from 'react';
-import { slotImg, ratingStars } from '@/lib/sections/blockMedia';
-import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import { slotImg, ratingStars } from '@template/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@template/lib/sections/emptyList';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig } from '@template/lib/types/config';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
 import manifest from './manifest.json';
 import TestimonialsCarouselInit from './Carousel';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
 import { platformLogo } from '../../scripts/lib/review-platforms.js';
-import { itemPath } from '@/lib/sections/itemPath';
+import { itemPath } from '@template/lib/sections/itemPath';
 
 export interface TestimonialsNewImage { imageUrl?: string; alt?: string }
 export interface TestimonialsNewItem {

@@ -17,8 +17,8 @@
 //    `tabIndex={-1}`（没有它 focus() 不生效）。这同时是无障碍问题，不只是手感。
 
 import { useEffect } from 'react';
-import { loadBootstrap } from '@/components/BootstrapJs';
-import { island } from '@/islands/island';
+import { loadBootstrap } from '@template/components/BootstrapJs';
+import { island } from '@template/islands/island';
 
 type CarouselCtor = { getOrCreateInstance(el: Element, config?: object): unknown };
 

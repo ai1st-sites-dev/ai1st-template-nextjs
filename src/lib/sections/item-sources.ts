@@ -9,9 +9,9 @@
 // #1506 —— 按钮 / 页头顶条 / 页脚里的联系方式引用（`{source: "phone"}` …）也在同一个 `resolveItemSources` 里展开，
 //    站点数据多带一份 `brand`（电话 / 邮箱 / 地址 / 社交链接都住在 brand.json）。
 
-import type { BlockConfig, BrandConfig, ContactRef, DynamicPageConfig, ServiceConfig, SiteData } from '@/lib/types/config';
-import { getServices, localeUrl } from '@/lib/config';
-import { getLabels } from '@/lib/component-labels';
+import type { BlockConfig, BrandConfig, ContactRef, DynamicPageConfig, ServiceConfig, SiteData } from '@template/lib/types/config';
+import { getServices, localeUrl } from '@template/lib/config';
+import { getLabels } from '@template/lib/component-labels';
 import * as impl from '../../../scripts/lib/item-sources.js';
 
 export interface ItemSourceContext {

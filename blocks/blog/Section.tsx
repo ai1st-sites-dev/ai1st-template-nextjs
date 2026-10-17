@@ -19,13 +19,13 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，同 milestones / cta）。
 
-import SiteLink from '@/components/SiteLink';
-import { getBlogPosts, localeUrl } from '@/lib/config';
-import BlockSection from '@/components/BlockSection';
+import SiteLink from '@template/components/SiteLink';
+import { getBlogPosts, localeUrl } from '@template/lib/config';
+import BlockSection from '@template/components/BlockSection';
 import type { BgValue } from '../../scripts/lib/contrast.js';
-import type { BlockConfig, BlogPostConfig, SiteData } from '@/lib/types/config';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
-import Button from '@/components/Button';
+import type { BlockConfig, BlogPostConfig, SiteData } from '@template/lib/types/config';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
+import Button from '@template/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 

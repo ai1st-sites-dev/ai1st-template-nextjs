@@ -1553,6 +1553,7 @@ function flattenShape(shape, at = '', out = []) {
     require.extensions[ext] = (m, filename) => m._compile(ts2.transpileModule(fs.readFileSync(filename, 'utf-8'), compileOpts(filename)).outputText, filename);
   }
   Module._resolveFilename = function resolveWithStubs(req, ...rest) {
+    if (typeof req === 'string' && req.startsWith('@template/')) req = '@/' + req.slice(10); // #1801：模板别名改名，测试里的桩和解析仍按 @/ 认
     if (STUBS[req]) return STUBS[req];
     if (req.startsWith('@blocks/')) return savedResolve.call(this, path.join(TEMPLATE_ROOT, 'blocks', req.slice(8)), ...rest);
     if (req.startsWith('@/')) return savedResolve.call(this, path.join(SRC_DIR, req.slice(2)), ...rest);

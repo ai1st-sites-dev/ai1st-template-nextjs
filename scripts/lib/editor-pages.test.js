@@ -66,7 +66,9 @@ const gsp = code.match(/function publishedParams\(\)[\s\S]*?\n}/);
 check(!!gsp && /editorPages\(locales, pagesByLocale\)/.test(gsp[0])
   && /export const generateStaticParams = isPreviewRender \? undefined : publishedParams;/.test(code),
 'generateStaticParams（发布模式 = publishedParams）调 editorPages(locales, pagesByLocale)', gsp ? gsp[0] : '找不到 publishedParams');
-check(/pages=\{editorPages\(locales, pagesByLocale\)\}/.test(code), '传给 EditorApp 的 pages 调同一个');
+// #1801 —— props 的算法搬进了 `src/lib/editor-props.ts`（路由和 `site.js editor-data` 调同一份）：路由用它，它的 pages 调同一个函数。
+const propsSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'lib', 'editor-props.ts'), 'utf-8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+check(/editorProps\(\{ site, root, siteDir, locale, slug \}\)/.test(code) && /pages: editorPages\(locales, pagesByLocale\)/.test(propsSrc), '传给 EditorApp 的 pages 调同一个（路由 → editorProps → editorPages）');
 check(!/['"]blog['"]\s*,\s*['"]_next['"]/.test(code), '路由文件里没有第二份保留字表');
 
 console.log(`\n${pass} 过 · ${fail} 失败`);

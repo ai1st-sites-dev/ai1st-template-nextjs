@@ -16,7 +16,7 @@
 //    必须是 JSON：children 是整段引言，要么在服务端渲染当中再套一次渲染转成字符串、要么把每条引言在 props 里再存一遍。
 //    改成外框归 Section、这里只放一个「挂载后初始化」的小件：props 是空的，页面上的字只出现一次。
 import { useEffect, useRef } from 'react';
-import { island } from '@/islands/island';
+import { island } from '@template/islands/island';
 
 let seq = 0;
 

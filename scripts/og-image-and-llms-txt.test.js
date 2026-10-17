@@ -40,6 +40,7 @@ for (const ext of ['.tsx', '.ts']) {
 }
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, parent, ...rest) {
+  if (typeof req === 'string' && req.startsWith('@template/')) req = '@/' + req.slice(10); // #1801：模板别名改名，测试里的桩和解析仍按 @/ 认
   if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), parent, ...rest);
   return origResolve.call(this, req, parent, ...rest);
 };

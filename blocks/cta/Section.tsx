@@ -26,19 +26,19 @@
 // 🔴 **表单用共用的 `src/components/BlockLeadForm.tsx`**（hero / footer 同一份），不另造：
 //    `mode` = 旋钮 form（teaser 露站级表单的 primary + 按钮，full 整张），`formId` = 槽 form.id（#1471）。
 //    `form` 槽今天只有 `{ id? }`（选哪张站级表单，#1471 落地前不读），字段 / 按钮字 / 成功提示用组件内置默认。
-import { knobImg, slotImg } from '@/lib/sections/blockMedia';
+import { knobImg, slotImg } from '@template/lib/sections/blockMedia';
 
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig, SiteData } from '@/lib/types/config';
-import Icon from '@/components/Icon';
-import BlockLeadForm from '@/components/BlockLeadForm';
-import { getServices, leadFormSite } from '@/lib/config';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
-import Button from '@/components/Button';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig, SiteData } from '@template/lib/types/config';
+import Icon from '@template/components/Icon';
+import BlockLeadForm from '@template/components/BlockLeadForm';
+import { getServices, leadFormSite } from '@template/lib/config';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
+import Button from '@template/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, type BgValue } from '../../scripts/lib/contrast.js';
-import { itemPath } from '@/lib/sections/itemPath';
+import { itemPath } from '@template/lib/sections/itemPath';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 

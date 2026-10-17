@@ -14,7 +14,7 @@
 // 而这种失败是静默的：页面照样好看，只是 theme 的 CSS 点不到它。`blockRootCoverage()`（978 的 spec）
 // 逐支数这件事。
 import blockRoles from './block-roles.json';
-import type { BlockConfig } from '@/lib/types/config';
+import type { BlockConfig } from '@template/lib/types/config';
 
 export type BlockRole = 'essential' | 'lead' | 'optional';
 

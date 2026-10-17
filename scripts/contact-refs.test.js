@@ -99,6 +99,7 @@ for (const ext of ['.tsx', '.ts']) {
 }
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, ...rest) {
+  if (typeof req === 'string' && req.startsWith('@template/')) req = '@/' + req.slice(10); // #1801：模板别名改名，测试里的桩和解析仍按 @/ 认
   if (STUBS[req]) return STUBS[req];
   if (req.startsWith('@blocks/')) return origResolve.call(this, path.join(NEXT, 'blocks', req.slice(8)), ...rest);
   if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), ...rest);
@@ -590,7 +591,7 @@ const STUBS={'next/link':st('link',"const React=require('react');const L=({href,
  'next/navigation':st('nav',"module.exports={notFound(){throw new Error('notFound')},redirect(u){throw new Error('redirect '+u)},usePathname:()=>'/'};"),
  '@/components/ServiceIcon':st('icon',"const React=require('react');const C=()=>React.createElement('span');module.exports=C;module.exports.default=C;")};
 for(const ext of ['.tsx','.ts'])require.extensions[ext]=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf-8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true,resolveJsonModule:true},fileName:f}).outputText,f);
-const o=Module._resolveFilename;Module._resolveFilename=function(r,...a){if(STUBS[r])return STUBS[r];if(r.startsWith('@blocks/'))return o.call(this,path.join(NEXT,'blocks',r.slice(8)),...a);if(r.startsWith('@/'))return o.call(this,path.join(SRC,r.slice(2)),...a);return o.call(this,r,...a);};
+const o=Module._resolveFilename;Module._resolveFilename=function(r,...a){if(typeof r==='string'&&r.startsWith('@template/'))r='@/'+r.slice(10);if(STUBS[r])return STUBS[r];if(r.startsWith('@blocks/'))return o.call(this,path.join(NEXT,'blocks',r.slice(8)),...a);if(r.startsWith('@/'))return o.call(this,path.join(SRC,r.slice(2)),...a);return o.call(this,r,...a);};
 const warn=console.warn;console.warn=()=>{};
 const Home=require(path.join(SRC,'components','pages','HomePage.tsx')).default;
 const Shell=require(path.join(SRC,'components','SiteShell.tsx')).default;

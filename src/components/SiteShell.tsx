@@ -4,9 +4,9 @@ import Footer, { type FooterNewData } from '@blocks/footer/Section';
 import type { IconTable } from './InlineIcon';
 import LanguageSwitcher from './LanguageSwitcher';
 import { LocalBusinessJsonLd, WebSiteJsonLd } from './JsonLd';
-import { getServices, leadFormSite, localeSwitchIndex } from '@/lib/config';
-import { itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
-import type { BlockConfig, SiteData } from '@/lib/types/config';
+import { getServices, leadFormSite, localeSwitchIndex } from '@template/lib/config';
+import { itemSourceContext, resolveItemSources } from '@template/lib/sections/item-sources';
+import type { BlockConfig, SiteData } from '@template/lib/types/config';
 import { applyRegionOptions } from '../../scripts/lib/region-options.js';
 
 // TICKET-129: shared layout wrapper used by [locale]/layout.tsx and the

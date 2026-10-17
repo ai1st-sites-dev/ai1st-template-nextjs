@@ -15,8 +15,8 @@
 //    bootstrap.js」没有把它换成 Collapse：Collapse 只管 display，元素得先在 DOM 里，换了 #1489 验收 7 当场红。换不换等 Chris 拍。
 
 import { useState } from 'react';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import { island } from '@/islands/island';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import { island } from '@template/islands/island';
 
 // #1798 —— 钉子原来是父组件递进来的 React 元素（`pin`）；发布出去的网页上这是一个岛，props 要是 JSON ⟹ 改收图标名 +
 //    只含这一个图标的小表，在这里自己画。

@@ -56,15 +56,15 @@
 //    **编辑器画布里不吸**（`editorCanvas`，由 `SiteShell` 按「收到了编辑器的 ShellOverride」传）：画布里顶栏有自己的
 //    浮动条（#1772），吸住会跟它和选中块的条打架。判据不是 `AI1ST_RENDER` —— 预览和画布都是 preview 渲染。
 
-import { island } from '@/islands/island';
+import { island } from '@template/islands/island';
 import { pickIcons, publishedIconNames } from '../../scripts/lib/icon-names.js';
 import { useEffect, useRef, type ReactNode } from 'react';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import { loadBootstrap } from '@/components/BootstrapJs';
-import SiteLink from '@/components/SiteLink';
-import { buttonClass, resolveButtonStyle } from '@/components/Button';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
-import type { BlockConfig } from '@/lib/types/config';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import { loadBootstrap } from '@template/components/BootstrapJs';
+import SiteLink from '@template/components/SiteLink';
+import { buttonClass, resolveButtonStyle } from '@template/components/Button';
+import { blockAttrs } from '@template/lib/sections/blockAttrs';
+import type { BlockConfig } from '@template/lib/types/config';
 import manifest from './manifest.json';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import {

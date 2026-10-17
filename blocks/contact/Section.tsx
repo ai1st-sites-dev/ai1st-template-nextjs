@@ -30,13 +30,13 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg）；这里不自己算亮度、不自己拼渐变。
 
-import { getSeo, getServices, leadFormSite } from '@/lib/config';
-import SiteLink from '@/components/SiteLink';
-import BlockLeadForm from '@/components/BlockLeadForm';
-import BlockSection, { blockTone } from '@/components/BlockSection';
-import type { BlockConfig, SiteData } from '@/lib/types/config';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import { getSeo, getServices, leadFormSite } from '@template/lib/config';
+import SiteLink from '@template/components/SiteLink';
+import BlockLeadForm from '@template/components/BlockLeadForm';
+import BlockSection, { blockTone } from '@template/components/BlockSection';
+import type { BlockConfig, SiteData } from '@template/lib/types/config';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
 import ContactMap from './ContactMap';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';

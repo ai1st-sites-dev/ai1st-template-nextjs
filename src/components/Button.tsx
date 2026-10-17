@@ -13,7 +13,7 @@
 // 图标 / 箭头 / 文字由块自己放进 children：各块今天用的图标件不同（`Icon` 与按站图标表的 `InlineIcon`），
 // 统一它会改 DOM，不在本票（「对老板和建站 AI 没有区别」—— 生成的 HTML 结构不变）。
 
-import SiteLink from '@/components/SiteLink';
+import SiteLink from '@template/components/SiteLink';
 import type { ReactNode } from 'react';
 
 export type ButtonStyle = 'solid' | 'outline' | 'link';

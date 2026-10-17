@@ -1,7 +1,7 @@
-import type { BlockConfig, SiteData } from '@/lib/types/config';
-import type { IconTable } from '@/components/InlineIcon';
+import type { BlockConfig, SiteData } from '@template/lib/types/config';
+import type { IconTable } from '@template/components/InlineIcon';
 import type { ContactSiteFacts } from '../../scripts/lib/contact-facts.js';
-import { sectionRegistry } from '@/lib/sections/registry.generated';
+import { sectionRegistry } from '@template/lib/sections/registry.generated';
 
 interface SectionRendererProps {
   /**

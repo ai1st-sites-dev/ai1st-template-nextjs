@@ -64,7 +64,7 @@ const { isServiceDetailPage } = require('./service-detail-page');
 // 键的引号可有可无、单双都行，末尾逗号可有可无 —— 这些都是格式，改了不该让这里失明。真正卡住的
 // 是右边那个名字：它必须是本文件 import 进来的某个组件（下面 componentPath 查得到），所以文件里
 // 别的对象字面量不会被误当成注册表。
-const IMPORT_RE = /^import\s+([A-Za-z0-9_$]+)\s+from\s+'(@(?:\/|blocks\/)[^']+)';/gm;
+const IMPORT_RE = /^import\s+([A-Za-z0-9_$]+)\s+from\s+'(@(?:\/|blocks\/|template\/)[^']+)';/gm;
 const ENTRY_RE = /^\s*['"]?([a-z0-9-]+)['"]?\s*:\s*([A-Za-z0-9_$]+)\s*,?\s*$/gm;
 
 // 组件拿服务数据的唯一入口（src/lib/config.ts 导出）。
@@ -111,9 +111,9 @@ function walkSources(dir, out) {
 }
 
 function resolveAlias(rootDir, spec) {
-  // tsconfig 里两个别名：`@/*` → `./src/*`，`@blocks/*` → `./blocks/*`（#1387 加的后者）。
+  // tsconfig 里三个别名：`@/*` 与 `@template/*` → `./src/*`（#1801 加的后者，dashboard 的编辑器引模板文件用它），`@blocks/*` → `./blocks/*`（#1387）。
   const base = spec.startsWith('@blocks/') ? 'blocks' : 'src';
-  const rel = spec.replace(/^@blocks\//, '').replace(/^@\//, '');
+  const rel = spec.replace(/^@blocks\//, '').replace(/^@template\//, '').replace(/^@\//, '');
   for (const ext of ['.tsx', '.ts']) {
     const p = path.join(rootDir, base, rel + ext);
     if (fs.existsSync(p)) return p;

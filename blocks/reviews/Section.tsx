@@ -22,14 +22,14 @@
 //    没有 `source`、分数不是 0–5 的数、条数不是正数的那一项不画。
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
-import { ratingStars } from '@/lib/sections/blockMedia';
-import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
+import { ratingStars } from '@template/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@template/lib/sections/emptyList';
 
-import BlockSection from '@/components/BlockSection';
-import type { BlockConfig } from '@/lib/types/config';
-import InlineIcon, { type IconTable } from '@/components/InlineIcon';
-import SiteLink from '@/components/SiteLink';
-import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import BlockSection from '@template/components/BlockSection';
+import type { BlockConfig } from '@template/lib/types/config';
+import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
+import SiteLink from '@template/components/SiteLink';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';

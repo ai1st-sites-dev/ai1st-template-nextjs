@@ -66,6 +66,7 @@ for (const ext of ['.tsx', '.ts']) {
 }
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, ...rest) {
+  if (typeof req === 'string' && req.startsWith('@template/')) req = '@/' + req.slice(10); // #1801：模板别名改名，测试里的桩和解析仍按 @/ 认
   if (STUBS[req]) return STUBS[req];
   if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), ...rest);
   return origResolve.call(this, req, ...rest);
@@ -306,7 +307,7 @@ console.log('\n── 判据 8 表单');
   check(!/<form\b/.test(none), 'none ⟹ 没有 <form>');
   check(/id="ct-/.test(full) && !/id="(hro|ftr|cta)-/.test(teaser + full), 'id 前缀 ct-（不跟 hero / footer / cta 撞）');
   const formSrc = fs.readFileSync(path.join(SRC, 'components', 'BlockLeadForm.tsx'), 'utf-8');
-  check(/import BlockLeadForm from '@\/components\/BlockLeadForm'/.test(SRC_TEXT) && /'\/api\/leads'/.test(formSrc), '表单用共用的 BlockLeadForm，提交走 /api/leads（真提交在 e2e 里）');
+  check(/import BlockLeadForm from '@template\/components\/BlockLeadForm'/.test(SRC_TEXT) && /'\/api\/leads'/.test(formSrc), '表单用共用的 BlockLeadForm，提交走 /api/leads（真提交在 e2e 里）');
 
   // #1654 —— stacked 里连续的半行字段（姓名 / 电话 / 邮箱）两个一排，段里奇数个时最后一个整行；按 fields 当前顺序算。
   const LeadForm = require(path.join(SRC, 'components', 'BlockLeadForm.tsx')).default;
