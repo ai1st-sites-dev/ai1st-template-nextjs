@@ -21,9 +21,19 @@
 //                             🔴 缓存键里有 `--build-version`：平台发版换模板之后要换一个值，否则命中的是旧模板编出来的那份。
 //       --last-modified <JSON | 文件>  `{ "<站内相对路径>": ISO 时间 }`，sitemap 的 <lastmod>（T2c 从 site_versions 取）。不给 = 渲染时刻。
 //       --platform-out <目录> 把这个站要的平台文件（三份样式表、runtime、它的 site.css）拷到这里，按 `_platform/…` 的路径。
-//                             不给就不拷 —— 平台文件由 deploy 传（T2c），站的输出目录里没有它们。
+//                             不给就不拷，站的输出目录里没有它们。#1826：manager 每次渲染都给它，拿回来的每份按名字 Head 一次、
+//                             R2 上缺哪份补传哪份（manager/site_render.go §uploadMissingPlatformFiles）—— 平台文件不另由 deploy 传。
 //       --bundle-dir <目录>   用这一份 bundle（`bundle --out-dir` 打的；必须在模板树里，react 这些包按它的位置解析）。不给 = render/dist。
-//     标准输出：一行 JSON（`{"event":"rendered", …}`，含页数、平台文件清单、耗时）。派生的日志走标准错误。失败 ⟹ 退出码 1。
+//       --only-blocks <id,id> #1826：只画这几个块（T4d 自愈用旧包画一个新包已不认识的块）。🔴 输出合同从第一份包起定死，改不得：
+//                             `<out>/blocks/<语言>/<块 id>.html`（`<section>` 里面那段）+ 同名 `.css`（这个块类型在 shapes.css 里
+//                             那一段：生成的网格 / 图位 / 块头规则 + block.css + 各形态 shape.css）+ 同名 `.attrs.json`（`<section>`
+//                             容器自己的属性）；同一个 id 在几种语言里都有就每种语言一份。不编 Sass、不扫不认识的块（别的块
+//                             这份包不认识也照画这几个）；页面数据仍由派生组出来（派生对不认识的块只警告）。没找到的 id ⟹ 退出码 1。
+//     标准输出：一行 JSON（`{"event":"rendered", …}`，含页数、平台文件清单、耗时）。派生的日志走标准错误。
+//     失败 ⟹ 退出码 1；content 里有这份包画不出来的块 ⟹ 退出码 3，`--out` 一个文件都不写，标准错误每块一行
+//       `unknown block type <t> at <文件>#<块 id>` / `unsupported schemaVersion <n> of <t> at <文件>#<块 id>`（§content-blocks.js）。
+//     🔴 `--out` 由调用方每次 mkdtemp 新建（#1802 终审：预置的软链会顺着写到外面去、残留文件会混进产物）；`--site` 给文件路径，
+//       不内联（单个 argv 上限 128 KiB）。两者带 `.` / `..` / 空段的一律拒（路径要原样就是它自己）。
 //
 // #1801（T1）—— 编辑器那几条，manager spawn（工作目录 = 平台那份模板，`template.dir`），实现在 `lib/site-editor.js`：
 //   node scripts/site.js editor-data --site <站 JSON> [--geo <JSON>] [--locale <语言>] [--page <slug>] [--cache-dir <目录>] [--build-version <v>]
@@ -35,6 +45,9 @@
 //       {"ok":true,"key":"…","cached":true|false,"css":"…"}（不剪，画布用）
 //   node scripts/site.js geocode --address <地址>
 //       {"ok":true,"address":"…","lat":…,"lng":…}（查不到 lat / lng 是 null）
+//       #1826：manager 改地址时排 `kind=geocode` 任务调它（site_render.go §runSiteGeocode）。每次是一个新进程，`lib/geocode.js`
+//       进程内的 1.1 秒节流管不到别的进程 ⟹ 跨站的间隔由 manager 那一把锁管（§takeGeocodeTurn）。lat 为 null ⟹ manager 把
+//       sites.geo 清掉：地址改了，钉子不能还扎在老地方。
 //   这四条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
 //     成功          标准输出一行 {"ok":true, …}                                  退出码 0
 //     拒收 / 不合法  标准输出一行 {"ok":false,"code":"refused|bad|stale","message":"…","field"?}   退出码 3
@@ -136,14 +149,29 @@ function copyTree(src, dst) {
  * 渲染一个站。命令行和测试都调它。返回 `{ pages, files, platform, siteCssKey, ms }`。
  * `content` 是「库里一行 JSON」的形状（键 = site/ 下的相对路径，`export-site-json.js`）。
  */
+class UnrenderableContentError extends Error {
+  constructor(problems) {
+    super(problems.join('\n'));
+    this.problems = problems;
+  }
+}
+
 async function render({
   content: input, out, siteId, geo, siteUrl, leadApi, gscToken, indexnowKey, version = 0, buildVersion = '',
-  target = 'live', cacheDir, lastModified = {}, platformOut, bundleDir = DEFAULT_OUTDIR,
+  target = 'live', cacheDir, lastModified = {}, platformOut, bundleDir = DEFAULT_OUTDIR, onlyBlocks,
 }) {
   const t0 = Date.now();
   if (target !== 'live' && target !== 'preview') throw new Error(`--target 只认 live / preview：${JSON.stringify(target)}`);
   if (!out) throw new Error('要给 --out');
   const content = { ...input };
+
+  // #1826 —— 先整体扫一遍，有这份包画不出来的块就整跑不出产物（设计文档 §8.3；为什么在这里不在 SectionRenderer，见 content-blocks.js）。
+  //    --only-blocks 不扫：它就是拿旧包去画「新包不认识」的那几块，content 里别的块这份旧包不认识是常态。
+  if (!onlyBlocks) {
+    const { knownBlockTypes, unrenderableBlocks } = require('./lib/content-blocks');
+    const problems = unrenderableBlocks(content, knownBlockTypes(ROOT));
+    if (problems.length) throw new UnrenderableContentError(problems);
+  }
 
   if (siteId !== undefined && Object.prototype.hasOwnProperty.call(content, 'site_meta.json')) {
     content['site_meta.json'] = { ...parsed(content, 'site_meta.json'), siteId };
@@ -164,7 +192,7 @@ async function render({
   try {
     console.log = (...a) => console.error(...a);
     derived = await deriveSite({
-      content, outDir: work, cacheDir, purge: target === 'live', lastModified, buildVersion, siteLabel: 'site',
+      content, outDir: work, cacheDir, purge: target === 'live', lastModified, buildVersion, siteLabel: 'site', skipSiteCss: Boolean(onlyBlocks),
     });
   } finally {
     console.log = consoleLog;
@@ -187,6 +215,13 @@ async function render({
   // react 留在包外、由 Node 现 require：它按 NODE_ENV 挑生产 / 开发版（开发版慢、还会打 key 之类的警告）。Next 发布构建是生产版。
   if (process.env.NODE_ENV === undefined) process.env.NODE_ENV = 'production';
   const { manifest, render: r } = loadBundle(bundleDir);
+  if (onlyBlocks) {
+    try {
+      return { ...renderOnlyBlocks(r, site, onlyBlocks, { out, target, version, platform: manifest.platform }), ms: Date.now() - t0 };
+    } finally {
+      fs.rmSync(work, { recursive: true, force: true });
+    }
+  }
   const siteCssRel = `_platform/css/${derived.siteCss.key}.css`;
   const { files, pages } = r.renderSite(site, { target, version, platform: manifest.platform, siteCssHref: `/${siteCssRel}` });
 
@@ -222,6 +257,84 @@ async function render({
   };
 }
 
+/** `<section …>` 开始标签里的属性 → 对象（值按 HTML 转义还原）。 */
+function sectionAttrs(openTag) {
+  const unescape = (v) => v.replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const attrs = {};
+  for (const m of openTag.replace(/^<section\b/, '').matchAll(/([^\s=>\/]+)(?:="([^"]*)")?/g)) attrs[m[1]] = m[2] === undefined ? '' : unescape(m[2]);
+  return attrs;
+}
+
+/** 一页 HTML 里 `data-block-id="<id>"` 那个块：`{ attrs, inner }`；没有 ⟹ null。按 `<section` / `</section>` 配对数深度。 */
+function extractSection(html, id) {
+  const esc = id.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const open = new RegExp(`<section\\b[^>]*\\sdata-block-id="${esc}"[^>]*>`).exec(html);
+  if (!open) return null;
+  const tag = /<(\/?)section\b[^>]*>/g;
+  tag.lastIndex = open.index + open[0].length;
+  let depth = 1;
+  for (let m = tag.exec(html); m; m = tag.exec(html)) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return { attrs: sectionAttrs(open[0]), inner: html.slice(open.index + open[0].length, m.index) };
+  }
+  return null;
+}
+
+/** shapes.css 里这个块类型那一段（`build-blocks.js` §buildShapesCss 每个块一段，以 `/* ══ <类型> ═…` 打头）。 */
+function blockTypeCss(type) {
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'shapes.css'), 'utf-8');
+  const parts = css.split(/(?=^\/\* ══ [^ ]+ ═+ \*\/$)/m);
+  return parts.find((p) => p.startsWith(`/* ══ ${type} ═`)) || '';
+}
+
+/** `--only-blocks`：只把这几块画出来（输出合同见文件头）。 */
+function renderOnlyBlocks(r, site, ids, { out, target, version, platform }) {
+  const wanted = [...new Set(ids)];
+  const found = new Map(); // `${locale}/${id}` → { attrs, inner }
+  const opts = { target, version, platform, siteCssHref: '' };
+  const pagesByLocale = new Map();
+  for (const route of r.pageRoutes(site)) {
+    if (route.kind !== 'home' && route.kind !== 'subpage') continue; // 块只在首页和子页上（博客 / 跳转小页 / 404 没有页面块）
+    if (!pagesByLocale.has(route.locale)) pagesByLocale.set(route.locale, []);
+    pagesByLocale.get(route.locale).push(route);
+  }
+  for (const [locale, routes] of pagesByLocale) {
+    for (const route of routes) {
+      if (wanted.every((id) => found.has(`${locale}/${id}`))) break;
+      const { html } = r.renderRoute(site, route, opts);
+      for (const id of wanted) {
+        if (found.has(`${locale}/${id}`)) continue;
+        const sec = extractSection(html, id);
+        if (sec) found.set(`${locale}/${id}`, sec);
+      }
+    }
+  }
+  const missing = wanted.filter((id) => ![...found.keys()].some((k) => k.endsWith(`/${id}`)));
+  if (missing.length) throw new Error(`--only-blocks：这几个块在页面上找不到：${missing.join(', ')}`);
+  const outAbs = path.resolve(out);
+  const written = [];
+  for (const [k, { attrs, inner }] of found) {
+    const [locale, ...rest] = k.split('/');
+    const id = rest.join('/');
+    const base = path.resolve(outAbs, 'blocks', locale, id);
+    if (!base.startsWith(path.join(outAbs, 'blocks') + path.sep) || /[\\/]/.test(id)) throw new Error(`块 id 不能当文件名：${JSON.stringify(id)}`);
+    fs.mkdirSync(path.dirname(base), { recursive: true });
+    fs.writeFileSync(`${base}.html`, inner);
+    fs.writeFileSync(`${base}.css`, blockTypeCss(attrs['data-block']));
+    fs.writeFileSync(`${base}.attrs.json`, `${JSON.stringify(attrs, null, 2)}\n`);
+    written.push(`blocks/${locale}/${id}`);
+  }
+  return { blocks: written.sort() };
+}
+
+/** `--out` / `--site` 原样就得是它自己：带 `.` / `..` / 空段的拒（绝对路径开头那一个 `/` 不算空段）。 */
+function checkPathArg(name, v) {
+  if (typeof v !== 'string' || v === '') throw new Error(`要给 --${name}`);
+  const segs = v.split('/');
+  if (segs[0] === '') segs.shift();
+  if (segs.some((s) => s === '' || s === '.' || s === '..')) throw new Error(`--${name} 不能带 . / .. / 空段：${JSON.stringify(v)}`);
+}
+
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   if (Object.prototype.hasOwnProperty.call(EDITOR_COMMANDS, cmd)) {
@@ -235,10 +348,13 @@ async function main() {
     return;
   }
   if (cmd === 'render') {
-    if (!a.site) throw new Error('要给 --site <站 JSON>');
     // 先判再 resolve：path.resolve('') 是当前目录，下面 render() 里那句 `if (!out)` 就永远打不着了。
-    if (typeof a.out !== 'string' || a.out === '') throw new Error('要给 --out <目录>');
+    checkPathArg('site', a.site);
+    checkPathArg('out', a.out);
+    const onlyBlocks = a['only-blocks'] === undefined ? undefined : a['only-blocks'].split(',').map((x) => x.trim()).filter(Boolean);
+    if (onlyBlocks && onlyBlocks.length === 0) throw new Error('--only-blocks 要给至少一个块 id');
     const result = await render({
+      onlyBlocks,
       content: JSON.parse(fs.readFileSync(a.site, 'utf-8')),
       out: path.resolve(a.out),
       siteId: a['site-id'],
@@ -262,7 +378,14 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((e) => { console.error(`site.js: ${e && e.message ? e.message : e}`); process.exit(1); });
+  main().catch((e) => {
+    if (e instanceof UnrenderableContentError) {
+      for (const p of e.problems) console.error(p);
+      process.exit(3);
+    }
+    console.error(`site.js: ${e && e.message ? e.message : e}`);
+    process.exit(1);
+  });
 }
 
-module.exports = { render, bundle };
+module.exports = { render, bundle, UnrenderableContentError, extractSection, checkPathArg };

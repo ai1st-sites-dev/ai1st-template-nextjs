@@ -17,6 +17,7 @@
 //       lastModified  `{ '<相对路径>': ISO 时间 }`，按文件。一页的 <lastmod> = 它读的所有文件里最晚的那个（§page-deps）。
 //       customHtml    custom-html 块的 HTML（字符串数组，或带 `html` 字段的块数组）—— PurgeCSS 要看见它们（设计文档 §6.4）。
 //       buildVersion  平台 build 版本，进缓存键。
+//       skipSiteCss   #1826：不编 site.css（`site.js render --only-blocks` 只要页面数据），返回的 siteCss 是 null。
 //     → { contentPatches, data, siteCss }。`data` 就是今天 `require('./derive-site.js').ready` 交出去的那份 `d`。
 //
 //   contentPatchesOf(content, { globalsCssPath }) → { '<locale>/navigation.json': 原文, 'custom.css': 原文 | null }
@@ -430,7 +431,7 @@ function homePageMissing(locale) {
  */
 async function deriveSite({
   content, outDir, cacheDir, purge = true, lastModified = {}, customHtml = [], buildVersion = '',
-  templateDir = TEMPLATE_DIR, siteLabel = 'site', buildTime = new Date().toISOString(),
+  templateDir = TEMPLATE_DIR, siteLabel = 'site', buildTime = new Date().toISOString(), skipSiteCss = false,
 } = {}) {
   if (!content || typeof content !== 'object' || Array.isArray(content)) {
     throw new TypeError('deriveSite: content 必须是对象（键 = site/ 下的相对路径）');
@@ -443,7 +444,7 @@ async function deriveSite({
   const warn = (m) => console.error(scrub(m));
   try {
     return await runDerive({
-      content, siteDir, rootDir: templateDir, outDir, cacheDir, purge, lastModified, customHtml, buildVersion, buildTime, log, warn,
+      content, siteDir, rootDir: templateDir, outDir, cacheDir, purge, lastModified, customHtml, buildVersion, buildTime, log, warn, skipSiteCss,
     });
   } catch (e) {
     if (e && typeof e.message === 'string') {
@@ -458,7 +459,7 @@ async function deriveSite({
 }
 
 async function runDerive({
-  content, siteDir, rootDir, outDir, cacheDir, purge, lastModified, customHtml, buildVersion, buildTime, log, warn,
+  content, siteDir, rootDir, outDir, cacheDir, purge, lastModified, customHtml, buildVersion, buildTime, log, warn, skipSiteCss,
 }) {
   if (!Object.prototype.hasOwnProperty.call(content, 'brand.json')) fail(`Site config not found: ${siteDir}/brand.json`);
   materialize(content, siteDir);
@@ -1384,7 +1385,8 @@ async function runDerive({
   const siteCssBrand = sitePrimary === brandPrimary ? brand
     : { ...brand, colors: { ...brand.colors, primary: { ...brand.colors.primary, 500: sitePrimary } } };
   let siteCss = null;
-  const siteCssDone = buildSiteCssCached({ brand: siteCssBrand, rootDir, dir, purge, customHtml, buildVersion, cacheDir })
+  // #1826 —— `site.js render --only-blocks` 只要页面数据、不要 site.css（设计文档 §8.3「跳过 Sass」）：不编，siteCss 留 null。
+  const siteCssDone = skipSiteCss ? Promise.resolve() : buildSiteCssCached({ brand: siteCssBrand, rootDir, dir, purge, customHtml, buildVersion, cacheDir })
     .then((r) => {
       writeOut(siteCssPath, r.css);
       siteCss = { key: r.key, cached: r.cached, bytes: r.bytes };
