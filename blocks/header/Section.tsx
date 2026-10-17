@@ -288,7 +288,7 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
   const subTone = deep ? 'link-light' : 'link-secondary';
   // 深底上的弱化文字不用半透明灰：白 .92（`block.css` §hdr-muted-on-deep，照 footer 那条同形的规则）。
   const mutedTone = deep ? 'hdr-muted-on-deep' : 'text-body-secondary';
-  const lineTone = deep ? 'border-secondary' : '';
+  const lineTone = deep ? 'border-white border-opacity-10' : '';
   const icon = (name?: string, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
 
   const regionAt = (at: number | string | undefined) => ((typeof at === 'number' || typeof at === 'string') && at !== '' ? { 'data-editor-region-link': `nav.${at}` } : {});
