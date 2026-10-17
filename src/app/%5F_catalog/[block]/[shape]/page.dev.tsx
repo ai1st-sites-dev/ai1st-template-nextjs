@@ -22,10 +22,10 @@
 //    主题 id 不该让整页消失。落回哪一套写在根元素的 `data-catalog-theme` 上，页面自己说得出来。
 
 import { notFound } from 'next/navigation';
-import CellOptions from './CellOptions';
+import CellOptions from '@template/components/catalog/CellOptions';
 import type { IconTable } from '@/components/InlineIcon';
-import type { Preset, Widget } from './CellOptions';
-import KnobBar from './KnobBar';
+import type { Preset, Widget } from '@template/components/catalog/CellOptions';
+import KnobBar from '@template/components/catalog/KnobBar';
 import SectionRenderer from '@/components/SectionRenderer';
 import { requestSiteData } from '@/lib/site-data.server';
 import type { BlockConfig } from '@/lib/types/config';

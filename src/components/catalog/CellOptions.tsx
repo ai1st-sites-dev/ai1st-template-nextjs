@@ -24,12 +24,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import FooterNewSection, { type FooterNewData } from '@blocks/footer/Section';
 import HeaderNewSection, { type HeaderNewData } from '@blocks/header/Section';
-import type { IconTable } from '@/components/InlineIcon';
-import type { BlockConfig } from '@/lib/types/config';
-import { normalizeKnobs, presetBooleans, presetBooleansOf, presetOf } from '../../../../../scripts/lib/header-knobs.js';
-import type { BgValue } from '../../../../../scripts/lib/contrast.js';
-import BgPicker from '@/components/BgPicker';
-import { arrangeToolbar } from '../../../../../scripts/lib/block-knobs.js';
+import type { IconTable } from '@template/components/InlineIcon';
+import type { BlockConfig } from '@template/lib/types/config';
+import { normalizeKnobs, presetBooleans, presetBooleansOf, presetOf } from '../../../scripts/lib/header-knobs.js';
+import type { BgValue } from '../../../scripts/lib/contrast.js';
+import BgPicker from '@template/components/BgPicker';
+import { arrangeToolbar } from '../../../scripts/lib/block-knobs.js';
 
 export interface CellOptionsInitial {
   knobs: Record<string, string>;

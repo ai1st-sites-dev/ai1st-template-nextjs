@@ -9,9 +9,9 @@
 // 🔴 被 admin 嵌着（`embed=1`）时不画 —— admin 那条块级工具条认枚举旋钮是 #1462 的活（PM #1463 r3 b）。
 
 import { useEffect, useState, type ReactNode } from 'react';
-import type { BgValue } from '../../../../../scripts/lib/contrast.js';
-import BgPicker from '@/components/BgPicker';
-import { arrangeToolbar } from '../../../../../scripts/lib/block-knobs.js';
+import type { BgValue } from '../../../scripts/lib/contrast.js';
+import BgPicker from '@template/components/BgPicker';
+import { arrangeToolbar } from '../../../scripts/lib/block-knobs.js';
 
 export interface KnobBarProps {
   knobs: { name: string; values: string[] }[];

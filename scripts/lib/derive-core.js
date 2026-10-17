@@ -1517,4 +1517,5 @@ async function runDerive({
   };
 }
 
-module.exports = { deriveSite, contentPatchesOf, siteCssKey, DeriveError };
+// #1828 —— `buildSiteCssCached` 也转出：图册按主题（不按站）编一份 site.css（`site.js catalog-site-css`），同一个缓存键。
+module.exports = { deriveSite, contentPatchesOf, siteCssKey, buildSiteCssCached, DeriveError };

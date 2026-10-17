@@ -64,3 +64,5 @@ site/build-report.json
 
 # #1802 —— `scripts/site.js` 的预打包产物（`node scripts/site.js bundle` 现打，不进仓）
 /render/dist/
+# #1828 —— `site.js render-catalog` 每次现打一份 bundle 的临时目录（跑完删；被打断时留下的不进仓）
+/render/.catalog-*/

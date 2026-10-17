@@ -2,6 +2,13 @@
 'use strict';
 // #1802 / #1801 —— 站点脚本的命令行入口（设计文档 §3：`site.js <命令> …`）。#1802 加了 `render` 和它要的 `bundle`，#1801 加了编辑器那四条（下面）。
 //
+//   node scripts/site.js render-catalog --out <目录> [--build-version <v>]
+//       #1828 发版检查：块图册的每个 (块, 形态)（`blocks/<块>/<形态>/shape.css` 的全集，§block-catalog.js blockShapeCatalog）用演示数据
+//       渲一张 `<out>/<块>/<形态>/index.html`（dashboard 的 `/admin/catalog/<块>/<形态>` 画的是同一份：`src/lib/catalog/cell.ts` +
+//       `CatalogCell`）。有一格渲不出来（块组件抛错 / 画出来不带 `data-block="<块>"`）⟹ 退出码 1，标准错误每格一行。产物不传 R2。
+//       🔴 每次现打一份 bundle（模板树里的临时目录，跑完删）：拿 `render/dist` 里一份旧包来判，读到的是旧源码。
+//       标准输出：一行 `{"event":"catalog-rendered","cells":N,"failed":M,"ms":…}`。
+//
 //   node scripts/site.js bundle [--out-dir <dir>]
 //       打 `render/dist/`：整页渲染的 bundle + 平台文件（带内容哈希的三份样式表 + runtime）+ manifest。`render` 发现没打过会先打一次。
 //
@@ -48,7 +55,12 @@
 //       #1826：manager 改地址时排 `kind=geocode` 任务调它（site_render.go §runSiteGeocode）。每次是一个新进程，`lib/geocode.js`
 //       进程内的 1.1 秒节流管不到别的进程 ⟹ 跨站的间隔由 manager 那一把锁管（§takeGeocodeTurn）。lat 为 null ⟹ manager 把
 //       sites.geo 清掉：地址改了，钉子不能还扎在老地方。
-//   这四条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
+//   node scripts/site.js catalog-site-css --theme <主题 id> [--cache-dir <目录>] [--build-version <v>]
+//       #1828：块图册用的 site.css —— 按**主题**（不按站）编：那套主题的 `colors`（`$primary` = `primary['500']`）、ltr、不剪，
+//       走 `derive-core.js` §buildSiteCssCached（同一个 `siteCssKey` 缓存）。{"ok":true,"key":"…","cached":…,"css":"…","theme":"<id>"}
+//       主题不在池里 ⟹ ok:false + code bad。manager `GET /api/admin/catalog/site.css?theme=` spawn 它。
+//       📌 不走上面那条 `site-css`：它跑整站 `deriveSite`，喂一份只带配色的站 JSON 会被拒（`Required file missing: site/seo.json`）。
+//   这五条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
 //     成功          标准输出一行 {"ok":true, …}                                  退出码 0
 //     拒收 / 不合法  标准输出一行 {"ok":false,"code":"refused|bad|stale","message":"…","field"?}   退出码 3
 //                   （`field`：这一笔里有编辑器改不了的字段时，那个字段名）
@@ -93,13 +105,25 @@ function requiredJsonArg(v, name) {
   return jsonArg(v, name);
 }
 
-// #1801 —— 编辑器那四条（输出约定见文件头）。
+// #1801 —— 编辑器那四条 + #1828 图册的 catalog-site-css（输出约定见文件头）。
 const EDITOR_COMMANDS = {
   'editor-data': (a, ed) => ed.editorData({ content: requiredJsonArg(a.site, 'site'), geo: jsonArg(a.geo, 'geo'), locale: a.locale, page: a.page, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   save: (a, ed) => ed.save({ content: requiredJsonArg(a.site, 'site'), changes: requiredJsonArg(a.changes, 'changes'), keep: !!a.keep }),
   'site-css': (a, ed) => ed.siteCss({ content: requiredJsonArg(a.site, 'site'), cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   geocode: (a, ed) => ed.geocode({ address: a.address }),
+  'catalog-site-css': (a, ed) => catalogSiteCss({ theme: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }, ed),
 };
+
+/** #1828 —— 图册按主题编的 site.css（见文件头）。 */
+async function catalogSiteCss({ theme, cacheDir, buildVersion = '' }, ed) {
+  const pool = require('./theme-pool.json');
+  if (typeof theme !== 'string' || !Object.prototype.hasOwnProperty.call(pool, theme)) {
+    throw new ed.SiteEditorError('bad', `--theme 不是池里的主题：${JSON.stringify(theme)}（池里有 ${Object.keys(pool).join(' / ')}）`);
+  }
+  const { buildSiteCssCached } = require('./lib/derive-core');
+  const r = await buildSiteCssCached({ brand: { colors: pool[theme].colors }, rootDir: ROOT, dir: 'ltr', purge: false, customHtml: [], buildVersion, cacheDir });
+  return { key: r.key, cached: Boolean(r.cached), css: r.css, theme };
+}
 
 /** 跑一条编辑器命令，返回退出码（0 / 3 / 1）。参数解析的错也算「不合法」⟹ ok:false + 3，manager 照样拿得到一行 JSON。 */
 async function runEditorCommand(cmd, rest) {
@@ -327,6 +351,47 @@ function renderOnlyBlocks(r, site, ids, { out, target, version, platform }) {
   return { blocks: written.sort() };
 }
 
+/**
+ * #1828 —— 发版检查：块图册的每一格用演示数据渲一遍（见文件头 `render-catalog`）。返回 `{ cells, failed, problems, ms }`，
+ * 不抛 —— 哪一格坏了逐格记下来，一次报全（只报第一格的话修一格跑一次）。
+ */
+async function renderCatalog({ out, buildVersion = '' }) {
+  const t0 = Date.now();
+  if (!out) throw new Error('要给 --out');
+  const { blockShapeCatalog } = require('./lib/block-catalog');
+  const { iconTableFor } = require('./lib/icons');
+  const pool = require('./theme-pool.json');
+  const { pairs, manifests } = blockShapeCatalog();
+  const dir = fs.mkdtempSync(path.join(ROOT, 'render', '.catalog-'));
+  let r;
+  try {
+    await bundle(dir);
+    if (process.env.NODE_ENV === undefined) process.env.NODE_ENV = 'production';
+    r = loadBundle(dir).render;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  const themeId = Object.keys(pool)[0] || '';
+  const problems = [];
+  const warn = () => {};
+  for (const { block, shape } of pairs) {
+    try {
+      const html = r.renderCatalogCell({
+        manifest: manifests.get(block), block, shape, themeId, iconTable: (b, data) => iconTableFor(b, data, { warn }),
+      });
+      if (html === null) { problems.push(`${block}/${shape}: 清单里有这一格，渲染层却说没有`); continue; }
+      if (!html.includes(`data-block="${block}"`)) { problems.push(`${block}/${shape}: 画出来不带 data-block="${block}"（块没画出来）`); continue; }
+      const file = path.join(out, block, shape, 'index.html');
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${block} / ${shape}</title>`
+        + `<meta name="ai1st-build" content="${String(buildVersion).replace(/[^\w.-]/g, '')}"></head><body class="site-body">${html}</body></html>\n`);
+    } catch (e) {
+      problems.push(`${block}/${shape}: ${e && e.message ? e.message.split('\n')[0] : e}`);
+    }
+  }
+  return { cells: pairs.length, failed: problems.length, problems, ms: Date.now() - t0 };
+}
+
 /** `--out` / `--site` 原样就得是它自己：带 `.` / `..` / 空段的拒（绝对路径开头那一个 `/` 不算空段）。 */
 function checkPathArg(name, v) {
   if (typeof v !== 'string' || v === '') throw new Error(`要给 --${name}`);
@@ -345,6 +410,14 @@ async function main() {
   if (cmd === 'bundle') {
     const m = await bundle(a['out-dir'] ? path.resolve(a['out-dir']) : DEFAULT_OUTDIR);
     process.stdout.write(`${JSON.stringify({ event: 'bundled', ...m })}\n`);
+    return;
+  }
+  if (cmd === 'render-catalog') {
+    checkPathArg('out', a.out);
+    const { problems, ...result } = await renderCatalog({ out: path.resolve(a.out), buildVersion: a['build-version'] ?? '' });
+    for (const p of problems) console.error(`render-catalog: ${p}`);
+    process.stdout.write(`${JSON.stringify({ event: 'catalog-rendered', ...result })}\n`);
+    if (problems.length) process.exitCode = 1;
     return;
   }
   if (cmd === 'render') {
@@ -374,7 +447,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ event: 'rendered', ...result })}\n`);
     return;
   }
-  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
+  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
 }
 
 if (require.main === module) {
@@ -388,4 +461,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { render, bundle, UnrenderableContentError, extractSection, checkPathArg };
+module.exports = { render, renderCatalog, bundle, UnrenderableContentError, extractSection, checkPathArg };

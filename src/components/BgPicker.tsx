@@ -2,8 +2,8 @@
 // BgPicker —— 颜色槽（`kind: "color"`，如 `bg`）的色板：纯色一排 + 任意取色器 + 三档预设渐变 + 自定义渐变 + 「无」（#1477）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 🔴 **四个地方用的是这一份**，不各画一份：单格页的页面块工具条（`_catalog/…/KnobBar.tsx`）、外壳块工具条
-//    （`_catalog/…/CellOptions.tsx`）、Puck 编辑器的字段（`src/components/editor/EditorApp.tsx` §ColorField）、
+// 🔴 **四个地方用的是这一份**，不各画一份：单格页的页面块工具条（`src/components/catalog/KnobBar.tsx`）、外壳块工具条
+//    （`src/components/catalog/CellOptions.tsx`）、Puck 编辑器的字段（`src/components/editor/EditorApp.tsx` §ColorField）、
 //    admin › Blocks & Themes 的块级工具栏（`dashboard/src/pages/admin/CatalogPage.tsx`，经 dashboard 的 vite 配置引过去）。
 //    预设渐变只从 `contrast.js` §GRADIENT_SWATCHES 来，纯色色板是调用方从 manifest 的 `swatches` 读的。
 // #1698 —— 两排里都有跟主题走的名字（`brand-soft` / `soft-gradient` …，`contrast.js` §THEME_BGS）：色块画成 §bgCss 给的

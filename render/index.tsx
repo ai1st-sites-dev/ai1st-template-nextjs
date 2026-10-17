@@ -10,6 +10,10 @@ import { rootTextFiles } from './seo-files';
 import { renderWithIslands } from '@/islands/render';
 import { rootMetadata } from '@/lib/metadata';
 import type { SiteData } from '@/lib/types/config';
+import { renderToStaticMarkup } from 'react-dom/server';
+import CatalogCell from '@/components/catalog/CatalogCell';
+import { catalogCellModel, queryOf, type CatalogManifest } from '@/lib/catalog/cell';
+import type { IconTable } from '@/components/InlineIcon';
 
 export interface RenderOptions {
   target: 'live' | 'preview';
@@ -38,6 +42,20 @@ export function renderSite(site: SiteData, opts: RenderOptions): { files: Record
   for (const p of pages) files[p.file] = p.html;
   Object.assign(files, rootTextFiles(site, opts.target));
   return { files, pages };
+}
+
+/**
+ * #1828 —— 块图册的一格，画成一段 HTML（`site.js render-catalog` 发版检查用：每个形态画一次，画不出来就是红）。
+ * 跟 dashboard 的 `/admin/catalog/<块>/<形态>` 是同一份数据（`src/lib/catalog/cell.ts`）、同一个组件（`CatalogCell`）。
+ * (块, 形态) 不在 manifest 的清单里 ⟹ null。块组件抛错原样往外抛（调用方据此判红）。
+ */
+export function renderCatalogCell({ manifest, block, shape, search = '', themeId = '', iconTable }: {
+  manifest: CatalogManifest | undefined; block: string; shape: string; search?: string; themeId?: string;
+  iconTable: (block: string, data: unknown) => IconTable;
+}): string | null {
+  const model = catalogCellModel({ manifest, block, shape, query: queryOf(search) });
+  if (!model) return null;
+  return renderToStaticMarkup(<CatalogCell model={model} themeId={themeId} iconTable={iconTable} />);
 }
 
 export { pageRoutes, routeFile, pageMeta, renderDocument };

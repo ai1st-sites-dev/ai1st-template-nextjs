@@ -59,13 +59,8 @@ function layoutIntentProblems(intent) {
   return out;
 }
 
-/**
- * 一个槽位「填了没」。🔴 三处用同一把尺（#1331）：第 ① 条（必填槽）、第 ⑥ 条（形态的 needs）、
- * 构建时写到块上的 `data-has-*`。分成三份实现的失败方向是静默的：校验放行、构建落回、DOM 又说填了。
- */
-function slotFilled(v) {
-  return !(v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0));
-}
+// #1828 —— slotFilled / filledOptionalSlots 挪到 `slot-filled.js`（纯函数，浏览器里的块图册也要用），这里原样转出。
+const { slotFilled, filledOptionalSlots } = require('./slot-filled');
 
 /** manifest 的默认形态 —— `shapes[0].name`；没有清单就 undefined（别造兜底值，理由在 sync-config §shapeForBlock）。 */
 function defaultShapeOf(m) {
@@ -83,17 +78,6 @@ function shapeNeedsGap(m, shapeName, data) {
   if (!sh) return null;
   const d = data || {};
   return (Array.isArray(sh.needs) ? sh.needs : []).filter((slot) => !slotFilled(d[slot]));
-}
-
-/**
- * manifest 里 `required: false` 且在 `data` 里填了的槽位名 —— `data-has-<槽位>` 的来源（#1331）。
- * 🔴 名字沿用 manifest 的键原样（`imageUrl` 不改 kebab），shapes.css 和守卫两边才对得上。
- */
-function filledOptionalSlots(m, data) {
-  const d = data || {};
-  return Object.entries((m && m.slots) || {})
-    .filter(([slot, spec]) => spec && !spec.required && slotFilled(d[slot]))
-    .map(([slot]) => slot);
 }
 
 /**
