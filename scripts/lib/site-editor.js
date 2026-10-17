@@ -226,7 +226,8 @@ function addressOf(content) {
  *   `files`   这一笔写了 content 的哪几个键（含 contentPatchesOf 的补丁）
  *   `hash`    写了页面时，写进去那份页面字节的 sha256（编辑器的下一次 baseHash，同 write-editor-save.js）
  *   `shared`  这一页写完之后的共用块三样（`siteBlocks / refs / slugs`，编辑器「在 N 个页面上」要它，#1406）
- *   `addressChanged` 第一家门店的地址变了 ⟹ 新地址（manager 据此 spawn geocode，不进这一笔）
+ *   `addressChanged` 第一家门店的地址变了 ⟹ 新地址（不进这一笔；manager 不读它 —— 写 content 时自己比地址、排 geocode，
+ *                    manager/site_content.go §afterSiteContentWrite）
  * 拒收（给老板看的那句话）⟹ throw `refused`；页面在别处改过（只在不 keep 时可能）⟹ throw `stale`；形状不对 ⟹ `bad`。
  */
 async function save({ content, changes, keep = false }) {
