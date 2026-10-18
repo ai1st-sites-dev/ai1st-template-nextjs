@@ -176,14 +176,15 @@ class FakeAnthropic {
 }
 FakeAnthropic.default = FakeAnthropic;
 FakeAnthropic.Anthropic = FakeAnthropic;
-// #1613 —— cfg.failRevParse：「Site created」锚点读 HEAD 的那一次 `git rev-parse --short HEAD` 失败（下面 r2 那一格的触发器）。
-//    create-site.js 在加载时解构 `execSync` ⟹ 这里先换掉模块上那个属性。
-if (cfg.failRevParse) {
-  const childProcess = require('child_process');
-  const realExecSync = childProcess.execSync;
-  childProcess.execSync = function (cmd) {
-    if (String(cmd) === 'git rev-parse --short HEAD') { const e = new Error('rev-parse refused by test stub'); e.stderr = Buffer.from('fatal: rev-parse refused by test stub\n'); throw e; }
-    return realExecSync.apply(this, arguments);
+// #1829 —— cfg.failLastCheckpoint：最后一个阶段（secondaryLocales）的存档点写盘失败（下面 r2 那一格的触发器）。#1829 之前用的是
+//    「Site created」锚点读 HEAD 失败，git 那一段删了之后这是全部提示词发完之后仍会 fatal 的那一处（main 的 catch）。
+//    create-site.js 调的是 `buildPhases.writePhaseFiles(…)`（每次按属性取）⟹ 换掉同一个模块对象上的那个属性就够。
+if (cfg.failLastCheckpoint) {
+  const bp = require(require('path').join(require('path').dirname(process.argv[1]), 'lib', 'build-phases.js'));
+  const real = bp.writePhaseFiles;
+  bp.writePhaseFiles = function (siteDir, phase) {
+    if (phase === 'secondaryLocales') throw new Error('last checkpoint refused by test stub');
+    return real.apply(this, arguments);
   };
 }
 const orig = Module._load;
@@ -437,19 +438,12 @@ check(`AC 重试：两次都失败 ⟹ 建站成功，那一页发骨架页 + �
   assert.strictEqual(pg.seo && pg.seo.placeholder, true);
 });
 // r2 那一格守的是 fatal() 退出前把 stdout 冲干净。要一个仍然会 fatal、而且在全部提示词发完之后才 fatal 的地方：
-// #1596 之后「一页两次都失败」不再 fatal，#1613 之后阶段提交失败也不再 fatal ⟹ 用最后那一处：五个阶段都提交完之后，
-// 「Site created」锚点读 HEAD 失败（`Reading the site commit failed`）。工作树做成真 git 仓（提交都放行），桩让那一次 rev-parse 失败。
-const gitRepo = (work) => {
-  const git = (...a) => cp.execFileSync('git', a, { cwd: work, stdio: 'pipe' });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.email', 'stub@example.com');
-  git('config', 'user.name', 'stub');
-};
-const Cx = run('flush', PAYLOAD({ repoUrl: 'https://github.com/test/not-a-repo.git' }), { failRevParse: true }, gitRepo);
+// #1596 之后「一页两次都失败」不再 fatal，#1829 删了 git 那一段 ⟹ 用最后一个阶段的存档点写盘失败（桩让它抛，main 的 catch 走 fatal）。
+const Cx = run('flush', PAYLOAD(), { failLastCheckpoint: true });
 check('r2：建站失败退出时 stdout 没丢尾巴 —— 全部 1 + N 份 Call 1 提示词都到了，最后一条事件就是 error', () => {
   // 失败前一口气发了 1 + N 份大提示词事件；stdout 不是阻塞写时 process.exit 会丢掉还没冲出去的尾巴（含 error 那条）。
   assert.notStrictEqual(Cx.rc, 0);
-  assert.ok(Cx.error.startsWith('Reading the site commit failed'), Cx.error);
+  assert.ok(Cx.error.includes('last checkpoint refused by test stub'), Cx.error);
   assert.strictEqual(call1Prompts(Cx.events).length, 1 + N, call1Prompts(Cx.events).map((p) => p.name).join(' · '));
   assert.strictEqual(Cx.events[Cx.events.length - 1].event, 'error');
 });

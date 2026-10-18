@@ -19,7 +19,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 const { parseRefSections, parseRefNavLinks } = require('./ref-section-mapping');
 // #924: the theme registry (colors + fonts + layout preferences + logo style adjective)
@@ -100,6 +99,7 @@ const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 //    而 #1502 之后新 page-header 不读它（面包屑按页面路径算，`src/lib/breadcrumbs.ts`）—— 那两步已经是空操作，本票不再调。
 //    文件本身留着：`package.json` 的 `lint:scripts` 清单点了它的名，而本票要求 package.json 一字不动。
 const kwPages = require('./lib/keyword-pages');
+const { pageFilePath } = require('./lib/page-files');
 const { mostSimilarPages } = require('./lib/similarity');
 // FastBuild T2 #1596 第 4 条先行落地（2026-10-06 site-87c53d50 站级回包 3/3 没转义引号）：先严格解析、失败再修一次；
 // 修不好才算一次重试，并把原始回包存到 /tmp/ai-raw（§ai-json.js 头注）。
@@ -118,8 +118,6 @@ const { scrubRowImageUrls } = require('./lib/row-image-urls');
 // #1593 —— 一次调用产出全部语言（第二语言按主语言骨架拼）+ 建站的四个数（耗时 / 费用 / 修补页数 / 页数）。
 const localesLib = require('./lib/all-locales');
 const { createBuildStats } = require('./lib/build-stats');
-// #1599 —— 三段式建站：每个阶段做完就构建一版预览（lib/staged-preview.js 文件头）。
-const stagedPreviewLib = require('./lib/staged-preview');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 // 🔴 下面 MODEL_PRICING 不是文档,是【记账输入】:getModelPricing(model) 的结果乘 token 数写进 operation_runs.cost(manager/db.go 的 insertOperationRun),写错一行不报错、只静默虚记。改它之前去 https://platform.claude.com/docs/en/about-claude/pricing 现取一次,别凭记忆 —— #1249 修的两行原来逐字是【已退役】型号的真价钱,不是打错。
@@ -996,7 +994,12 @@ async function main() {
   }
 
   const rootDir = path.resolve(__dirname, '..');
-  const siteDir = path.join(rootDir, 'site');
+  // #1829 (SiteAsData T3a) —— 输出目录。manager 每次建站给一个 mkdtemp 临时目录（`site.js create --out-dir`）：站点文件写
+  //    `<outDir>/site/`、照片 `<outDir>/photos/`、logo `<outDir>/logo.png`。manager 机上只有一份模板，写死模板根的话两个站
+  //    同时建会互相踩。没给 ⟹ 模板根（`site/` + `public/`），给直接跑这个脚本的测试用。
+  const outDir = input.outDir ? path.resolve(String(input.outDir)) : rootDir;
+  const siteDir = path.join(outDir, 'site');
+  const publicOutDir = input.outDir ? outDir : path.join(rootDir, 'public');
   buildReport = buildReportLib.createReport({ path: input.skipAI ? 'skipAI' : 'ai' });
 
   // #1598 —— 续跑：只有任务带 `resume: true`（admin 的 Resume，manager §handleResumeSite）才读存档；不带就照旧先删 site/
@@ -1344,29 +1347,9 @@ async function main() {
       writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand, input.uploadsDomain);
       debug(`Demo secondary locale "${secLocale}" written (verbatim copy of primary)`);
     }
-    if (input.repoUrl) {
-      progress('Committing to git...', 80);
-      try {
-        const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-        // TICKET-170: include public/ so AI-generated logo (159) + business photos
-        // (161/164) persist into the per-site git repo. Without this, container
-        // restart → fresh clone → public/ empty → preview / deploy break image.
-        execSync('git add site/ public/', gitOpts);
-        execSync(`git commit -m "Generate site: ${siteId} (demo)"`, gitOpts);
-        // TICKET-142: emit chat-message anchor for the initial commit so the
-        // dashboard's first user edit can Revert back to the AI-generated site.
-        const initialCommitHash = execSync('git rev-parse --short HEAD', gitOpts).toString().trim();
-        emit('chat-message', { role: 'system', content: 'Site created', commit_hash: initialCommitHash });
-        const repoPageUrl = input.repoUrl.replace(/\.git$/, '');
-        emit('repo', { url: repoPageUrl });
-      } catch (e) {
-        debug('Git commit failed:', e.stderr?.toString() || e.message);
-        fatal('Git commit failed: ' + (e.stderr?.toString()?.split('\n')[0] || e.message));
-      }
-    }
     // #1600 —— skipAI 走不到关键词页和 SEO 检查 ⟹ seo / repair / keywordPages 三格是 null（那条路的正常态）。
     finishBuildReport(siteDir);
-    progress('Demo site generated, starting preview...', 85);
+    progress('Demo site generated', 85);
     return;
   }
 
@@ -1421,65 +1404,33 @@ async function main() {
   if (resume && resume.state) localeBook.restore(buildPhases.pagesOfState(resume.state), resume.state.locales);
 
   // ── #1598 存档点 ──────────────────────────────────────────────────────────────────────────────────────
-  // 每个阶段做完：标记 + 存档 + 这个阶段的产物进**同一个提交**（lib/build-phases.js 文件头写着为什么必须同一个），再推送一次。
-  // 🔴 推送失败不终止建站、也不回滚标记：没推上去的那个提交在别的克隆里连标记一起不存在，续跑按构造读不到「有标记没产物」。
-  //    这里只打一行日志、不发 warn 事件 —— 「存进仓了没有」的权威读数仍是 entrypoint.sh 最后那一次前台推送（#1592）：
-  //    它会把这里没推上去的阶段一起带上去，推不上去时由它发 warn kind=unarchived。
-  // 🔴 #1613 —— 提交失败也不终止建站（付了钱）：发一条 degraded（step=git-commit），往下建。`git add site/ public/` 是累积的 ⟹
-  //    前四个阶段漏下的由下一次提交带上；最后一个阶段之后没有下一次 ⟹ 那一次失败时它的产物只在工作区。所以 entrypoint.sh 判
-  //    「存进仓了没有」不再只看 push 的 rc，还看 site/ public/ 下有没有没提交的东西（§unsaved_build_files）。
-  //    返回这一次提交成没成 —— 最后一个阶段那次失败时不发「Site created」锚点（见下面那处）。
-  // 🔴 token 只进这一条 git 命令的环境变量（克隆里 .git/config 的 credential helper 读 GIT_TOKEN，#1558），不进参数。
-  const { repoUrl } = input;
+  // 每个阶段做完：标记（site_meta.json 的 buildPhase）+ 存档（site/.build/state.json）写进 site/（lib/build-phases.js 文件头）。
+  // #1829 —— 不再提交、推送：给了 outDir（manager 那条路）⟹ 把这一刻的 site/、照片、logo 原样拷一份快照
+  //    （`<outDir>/.snapshots/<n>-<阶段>/`），发一行 `phase-saved` 带快照目录；manager 读快照写 `sites.content`（version 保持 0），
+  //    Resume 时把那份写回 `<outDir>/site/` 再起脚本。🔴 拷快照，不让 manager 直接读 site/：发完事件脚本接着往 site/ 和照片目录
+  //    写下一阶段，manager 那边读到一半就是半份文件。拷是同步的、拷完才发事件 ⟹ 快照里的就是这个阶段做完那一刻。
+  //    最后一个阶段（存档 = null）不拷：脚本退出后 `site.js create` 读的就是那一份。
+  let snapshotN = 0;
   const checkpoint = (phase, state) => {
     const saved = state
       ? { themeName, buildReport, ...state, locales: localeBook.snapshot(buildPhases.pagesOfState(state)) }
       : null;
     buildPhases.writePhaseFiles(siteDir, phase, saved);
-    if (!repoUrl) {
-      debug(`[resume] 阶段 ${phase} 已存档（没有 repoUrl，不提交）`);
-      return false;
-    }
-    const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-    let committed = true;
-    try {
-      // TICKET-170: include public/ so AI-generated logo (159) + business photos
-      // (161/164) persist into the per-site git repo. Without this, container
-      // restart → fresh clone → public/ empty → preview / deploy break image.
-      execSync('git add site/ public/', gitOpts);
-      execSync(`git commit -m "Generate site: ${siteId} (phase: ${buildPhases.phaseCommitLabel(phase)})"`, gitOpts);
-    } catch (e) {
-      committed = false;
-      debug('Git commit failed:', e.stderr?.toString() || e.message);
-      // 原因取 git 说的第一行（「nothing to commit」那类在 stdout 上），都没有就取退出码。
-      const said = [e.stderr, e.stdout].map((b) => (b ? b.toString() : '')).join('\n').split('\n').map((l) => l.trim()).find(Boolean);
-      degrade('git-commit', phase, said || e.message || `exit ${e.status}`);
-    }
-    try {
-      execSync('git push origin main', { ...gitOpts, timeout: 120000, env: { ...process.env, GIT_TOKEN: input.gitToken || '', GIT_TERMINAL_PROMPT: '0' } });
-      debug(`[resume] 阶段 ${phase} 已提交并推送`);
-    } catch (e) {
-      // 原因取 git 的 `fatal:` / `error:` 那一行（它最后一行常是「and the repository exists.」这类套话），没有就取最后一行。
-      const lines = (e.stderr?.toString() || e.message || '').split('\n').map((l) => l.trim()).filter(Boolean);
-      let why = lines.find((l) => /^(fatal|error):/.test(l)) || lines.pop() || `exit ${e.status}`;
-      if (input.gitToken) why = why.split(input.gitToken).join('***');
-      debug(`[resume] ⚠️ 阶段 ${phase} 已提交、推送失败（建站照常往下走，entrypoint.sh 最后那一次推送会一起带上去）：${why}`);
-    }
-    return committed;
+    if (!input.outDir || !saved) return;
+    snapshotN += 1;
+    const snap = path.join(outDir, '.snapshots', `${snapshotN}-${phase}`);
+    fs.cpSync(siteDir, path.join(snap, 'site'), { recursive: true });
+    const photos = path.join(publicOutDir, 'photos');
+    if (fs.existsSync(photos)) fs.cpSync(photos, path.join(snap, 'photos'), { recursive: true });
+    const logo = path.join(publicOutDir, 'logo.png');
+    if (fs.existsSync(logo)) fs.copyFileSync(logo, path.join(snap, 'logo.png'));
+    emit('phase-saved', { phase, snapshot: snap });
   };
 
   // #1598 —— plan / pages / images 三个阶段都在 generateContent 里；images 已存档 ⟹ 整个 Call 1 跳过，content 就是存档里那份。
-  // ── #1599 分段预览 ───────────────────────────────────────────────────────────────────────────────────────
-  // 只在 entrypoint.sh 打开时才有（STAGED_PREVIEW_DIR）。每个阶段做完调一次：给了 content ⟹ 预览按它写一版站点文件（写进快照，
-  // 不碰 site/）；null ⟹ site/ 里此刻的文件就是要看的站。三段怎么分、哪一次发什么事件，都在 lib 里按 BUILD_PHASES 派生。
-  const stagedPreview = stagedPreviewLib.fromEnv({ rootDir, siteDir, emit, log: debug });
-  const previewPhaseDone = (phase, content) => {
-    if (!stagedPreview) return;
-    stagedPreview.phaseDone(phase, content ? (dir) => writePreviewSite(dir, content, { defaultLocale, disabledBlocks, industry, uploadsDomain: input.uploadsDomain }) : null);
-  };
-
   const content = (resume && resume.index >= 2) ? resume.state.content : await generateContent({
     locales: localesInfo, book: localeBook, secondaryKeywords: secondaryLocaleKeywords,
+    debugDir: outDir,
     companyName, industry, location, address, phone, email,
     // #1569 r2 —— 地址那一格要的是原样的地点（Google Ads 那份），不是上面给 AI 当背景的双语串（§generateContent 地址那行）。
     rawLocation: input.location,
@@ -1517,7 +1468,9 @@ async function main() {
     resumeFrom: resume ? resume.index : -1,
     resumeState: resume ? resume.state : null,
     checkpoint,
-    onPhaseDone: previewPhaseDone,
+    // #1829 —— 照片、logo 写到哪儿（给了 outDir 就是它，否则模板的 public/）。
+    publicDir: publicOutDir,
+    skipGeocode: input.skipGeocode === true,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -1558,8 +1511,6 @@ async function main() {
 
   // #1598 —— images 阶段做完（logo、各页配图、导航、seo 都已拼进 content；图在 public/ 里，跟存档同一个提交）。
   if (!(resume && resume.index >= 2)) checkpoint('images', { content });
-  // #1599 —— 图配上了（从 images 续跑时就是存档里那份 content —— 那一次是续跑的第一版预览，发 preview-viewable）。
-  if (!(resume && resume.index >= 3)) previewPhaseDone('images', content);
 
   progress('Writing base configuration files...', 50);
 
@@ -1703,8 +1654,6 @@ async function main() {
     debug(`[color scheme] ${colorScheme}（AI 给的是 ${JSON.stringify(content.ai && content.ai.colorScheme)}）`);
     checkpoint('keywordPages', { content });
   }
-  // #1599 —— 关键词页、SEO 修补都写进 site/ 了（从 keywordPages 续跑时那些文件就在仓里）：照 site/ 构建。
-  previewPhaseDone('keywordPages', null);
 
   // ─── TICKET-122b / #1593: Secondary locales ──────────────────────────────────
   // 第二语言的字已经跟主语言在同一次调用里写回来了（每页 / 关键词页 / 站级），这里按主语言最终那一版拼出来、过一遍 SEO、写盘。
@@ -1749,44 +1698,14 @@ async function main() {
   debug(`[build-stats] ${JSON.stringify(stats)}`);
   if (buildReport) buildReport.costUsd = stats.costUsd;
 
-  // ─── Git Commit —— #1598 起它是最后一个阶段（secondaryLocales）的存档点：删掉存档、标记写成 secondaryLocales，提交、推送。
-  //     entrypoint.sh 之后那一次前台推送仍是「存进仓了没有」的权威读数（#1592）。
-  progress('Committing to git...', 80);
-  const lastCommitted = checkpoint('secondaryLocales', null);
-  previewPhaseDone('secondaryLocales', null);
-  if (repoUrl) {
-    try {
-      const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-      // TICKET-142: emit chat-message anchor for the initial commit so the
-      // dashboard's first user edit can Revert back to the AI-generated site.
-      // 🔴 #1613 —— 最后一个阶段那次提交失败时不发：HEAD 那时不是 AI 建好的那个站（全失败 = 站仓的 Initial commit，只这一次失败 =
-      //    少了第二语言），老板第一次编辑后点 Revert 会回到那里。宁可没有锚点：后端对「没有更早的提交」回 nil
-      //    （manager/db.go §storeGetPrevAssistantMessage），前端 rowCanRevert 要它非空 ⟹ Revert 入口不出现。
-      //    前四个阶段里失败、最后一次成功时照发 —— `git add site/ public/` 累积，那时 HEAD 就是完整的站。
-      if (lastCommitted) {
-        const initialCommitHash = execSync('git rev-parse --short HEAD', gitOpts).toString().trim();
-        emit('chat-message', { role: 'system', content: 'Site created', commit_hash: initialCommitHash });
-      } else {
-        debug('[#1613] 最后一个阶段没提交上 ⟹ 不发「Site created」锚点');
-      }
-      const repoPageUrl = repoUrl.replace(/\.git$/, '');
-      emit('repo', { url: repoPageUrl });
-    } catch (e) {
-      debug('Reading the site commit failed:', e.stderr?.toString() || e.message);
-      fatal('Reading the site commit failed: ' + (e.stderr?.toString()?.split('\n')[0] || e.message));
-    }
-  }
+  // #1598 —— 最后一个阶段（secondaryLocales）：删掉存档、标记写成 secondaryLocales。#1829 起不提交、不推送。
+  checkpoint('secondaryLocales', null);
 
   // #1596 —— 降级清单进报告的 `degraded` 那一格（一处没降级是 []）。skipAI 那条路不走这里，那一格留 null。
   buildReportLib.recordDegraded(buildReport, degradedSteps);
   finishBuildReport(siteDir);
-  // #1599 —— 等排着的预览构建跑完再退出：最后那一次换上去了（result.json `final`）⟹ entrypoint 直接起预览、不再构建一次。
-  if (stagedPreview) {
-    const r = await stagedPreview.finish();
-    debug(`[staged-preview] 结束：preview-viewable ${r.viewable ? '发了' : '没发'} · preview-reload ${r.reloads.join(' / ') || '（无）'} · 最后一个阶段的预览${r.final ? '已换上' : '没换上，entrypoint 自己构建'}`);
-  }
-  // Done — entrypoint.sh handles sync-config + the static preview (`next build` → `serve out`)
-  progress('Site generated, starting preview...', 85);
+  // #1829 —— 收尾（读回成 JSON、菜单同步、custom.css、交 manager）归 `site.js create`。
+  progress('Site generated', 85);
 }
 
 // #1594 —— 选图那一步的三个数：发一条 `images` 事件，同时写进建站报告的 `images` 格。真 AI / skipAI 两个调用点都调。
@@ -1991,7 +1910,7 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
     const scrubbed = scrubContactCopies(page, secFacts);
     if (scrubbed) debug(`[contact] ${secondaryLocale}/${page.slug}: dropped ${scrubbed} copied value(s) from items`);
     scrubPageRowImages(page, uploadsDomain, `${secondaryLocale}/${page.slug}`);
-    const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
+    const pagePath = pageFilePath(localeDir, page.slug); // #1829 越界就抛（slug 里有 AI 给的服务 id）
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
   }
@@ -2056,17 +1975,6 @@ function ensureContactPage(content, defaultLocale, disabledBlocks = [], words = 
   };
   content.pages.push(page);
   return page;
-}
-
-// #1599 —— 给分段预览写一版站点文件，写进快照目录 `dir`（不碰 site/ —— site/ 跟阶段提交是一回事）。真写盘之前那几步这里也补上：
-//    没有 contact 页就补一页（导航按钮多半指 /contact，不补的话 ② 时它 404）、首屏表单、站级深浅。content 先整份拷一份：
-//    writeSiteConfig / ensureContactPage 都原地改它（#1631），而传进来的是建站正在用的那份。
-function writePreviewSite(dir, content, { defaultLocale, disabledBlocks = [], industry, uploadsDomain }) {
-  const c = structuredClone(content);
-  ensureContactPage(c, defaultLocale, disabledBlocks, defaultLocale !== 'en' && c.ai ? c.ai.contactPage : null);
-  applyHeroLeadForm({ content: c, industry, disabledBlocks });
-  writeSiteConfig(dir, c, defaultLocale, disabledBlocks, uploadsDomain);
-  writeThemeColorScheme(dir, normalizeColorScheme(c.ai && c.ai.colorScheme));
 }
 
 // #1766 —— `uploadsDomain` 同 §writeSecondaryLocaleConfig。
@@ -2134,7 +2042,7 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = [], u
     const scrubbed = scrubContactCopies(page, facts);
     if (scrubbed) debug(`[contact] ${page.slug}: dropped ${scrubbed} copied value(s) from items`);
     scrubPageRowImages(page, uploadsDomain, page.slug);
-    const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
+    const pagePath = pageFilePath(localeDir, page.slug); // #1829 越界就抛（slug 里有 AI 给的服务 id）
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
   }
@@ -2324,6 +2232,8 @@ async function generateContent(opts) {
     // omitting the field entirely.
     defaultLocale, brandNameByLocale = {},
     siteUrl, // #1547
+    // #1829 —— 解析失败时原始回包存哪儿：这一次建站的输出目录（manager 机上只有一份模板，两个站同时建会互相覆盖模板根那份）。
+    debugDir = path.join(__dirname, '..'),
     // TICKET-159 / TICKET-160: Nano Banana logo gen key — forwarded from main
     // scope (stdin payload). Empty string when not configured →
     // generateLogoViaNanoBanana throws + caller falls back to text logo.
@@ -2357,8 +2267,10 @@ async function generateContent(opts) {
     resumeFrom = -1,
     resumeState = null,
     checkpoint = () => {},
-    // #1599 —— 一个阶段做完：`onPhaseDone(阶段, content)` 把这一刻该给老板看的站交给分段预览（main §stagedPreview）。缺省 = 不预览。
-    onPhaseDone = () => {},
+    // #1829 —— 照片（`<publicDir>/photos/`）和 logo（`<publicDir>/logo.png`）写到哪儿。缺省 = 模板的 public/。
+    publicDir = path.join(path.resolve(__dirname, '..'), 'public'),
+    // #1829 —— 不在这个进程里查坐标（见下面 geocodeBrand 那一处）。
+    skipGeocode = false,
   } = opts;
   const others = (locales.others || []).filter((o) => book && !book.failed.has(o.code));
   const otherCodes = others.map((o) => o.code);
@@ -3029,15 +2941,6 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     };
     return { navigation, seo };
   };
-  // #1599 ① —— 某一页还没写（plan 做完时每一页都还没写）就用骨架页（#1596 §skeletonSections，同 §pageSkeleton 那一支）顶上，标 placeholder。
-  const skeletonPage = (p) => ({
-    ...p,
-    seo: { ...(p.seo && typeof p.seo === 'object' ? p.seo : {}), placeholder: true },
-    sections: fallbackSite.skeletonSections(p, { companyName, sitePages: ai.pages, ctaPage: ai.navigation && ai.navigation.ctaPage, disabledBlocks }),
-  });
-  // 给预览用的一整份 content（同本函数的回值形状），pages 由调用方给。
-  const previewContent = (pages) => ({ brand: assembleBrand(), ...assembleNavSeo(pages), services: ai.services, pages, ai });
-
   if (resumeFrom >= 0) {
     let recipe;
     ({ ai, idRenames = [], brandByCode = false, recipe = null } = resumeState);
@@ -3074,7 +2977,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       // Preserve original debug behavior: save raw response on final failure.
       // #1596 —— 存在 site/ 外面：这次失败不再结束建站，site/ 之后会整个提交进客户的站仓。
       if (e.lastText) {
-        const debugPath = path.join(__dirname, '..', '_ai-response.txt');
+        const debugPath = path.join(debugDir, '_ai-response.txt');
         try { fs.writeFileSync(debugPath, e.lastText); } catch {}
         debug('Raw AI response saved to:', debugPath);
       }
@@ -3182,12 +3085,10 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     //    #1568 —— 放在站级那一通之后、每页那几通之前：每页的提示词里给的就是收过的 id（链接按它写）。
     idRenames = kwPages.capServiceIds({ services: ai.services, pages: ai.pages, navigation: ai.navigation });
     for (const r of idRenames) {
-      debug(`[services] AI 写的服务 id 有 ${Buffer.byteLength(r.from)} 字节，超过文件名能放的上限，网址改用 ${r.to}（${Buffer.byteLength(r.to)} 字节）`);
+      debug(`[services] AI 写的服务 id ${JSON.stringify(r.from)}（${Buffer.byteLength(r.from)} 字节）超过文件名能放的上限或不是安全的单段名，网址改用 ${r.to}`);
     }
     checkpoint('plan', { ai, idRenames, brandByCode, recipe: recipeSnapshot() });
   }
-  // #1599 ① —— 站级结构定了，每页先用骨架页拼一版给预览构建（不通知平台）。pages 已存档（从 pages 或更后续跑）⟹ 没有 ①。
-  if (resumeFrom < 1) onPhaseDone('plan', previewContent(ai.pages.map(skeletonPage)));
 
   // ── #1598 pages 阶段：每页一通 + 整站那一条块库检查。pages 已存档 ⟹ 整段跳过（存档里那份 ai 每页都已带着 sections）。
   if (resumeFrom >= 1) {
@@ -3547,9 +3448,6 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     }
     checkpoint('pages', { ai, brandByCode, recipe: recipeSnapshot() });
   }
-  // #1599 ② —— 每页都写好了（两次都没写成的那页是骨架页，留有 `degraded` 记录）：这一版构建好就发 preview-viewable。
-  //    images 已存档 ⟹ 本函数根本不会被调（main 直接用存档里的 content），所以这里不用判 resumeFrom >= 2。
-  onPhaseDone('pages', previewContent(ai.pages));
 
   progress('Parsing AI response...', 42);
 
@@ -3559,8 +3457,14 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
 
   // #1489 —— 地址 → 坐标，查一次存进站点数据（contact 的地图点开时要 bbox / marker）。页面打开时不查；
   //    查不到 / 网络错 ⟹ 不写 geo、地图不渲染，建站照常（geocodeBrand 不抛）。只查坐标，瓦片一张都不取（OSM 瓦片条款禁预取）。
-  const geoResult = await geocodeBrand(brand, { log: debug });
-  debug(`Geocode brand.locations[0]: ${geoResult}`);
+  // #1829 —— manager 那条路带 `skipGeocode: true`：坐标由 manager 排 `kind=geocode` 任务查（跨站一把节流锁，§takeGeocodeTurn），
+  //    这个进程自己查会绕过它。
+  if (skipGeocode) {
+    debug('Geocode brand.locations[0]: skipped (skipGeocode — the manager looks it up)');
+  } else {
+    const geoResult = await geocodeBrand(brand, { log: debug });
+    debug(`Geocode brand.locations[0]: ${geoResult}`);
+  }
 
   // TICKET-159 + TICKET-160: Brand Site AI Logo Generation — silent build-time
   // via Nano Banana (Gemini 2.5 Flash Image). If the user uploaded a logo
@@ -3587,7 +3491,6 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
         themeName: resolvedThemeName,
         apiKey: geminiApiKey,
       });
-      const publicDir = path.join(path.resolve(__dirname, '..'), 'public');
       fs.mkdirSync(publicDir, { recursive: true });
       // TICKET-197: deterministic canvas fill — Nano Banana doesn't reliably
       // honor "AT LEAST 70%" canvas-fill prompt instructions (see 194 V2 split
@@ -3634,7 +3537,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
   if (uploadedImages.length === 0) {
     progress('Generating AI business photos...', 75);
     const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
-    const photosOutputDir = path.join(path.resolve(__dirname, '..'), 'public', 'photos');
+    const photosOutputDir = path.join(publicDir, 'photos');
     const result = await generateSlotPhotos({
       pages: ai.pages,
       manifests: loadBlockManifests(),

@@ -74,6 +74,7 @@ function newServiceId(name, taken, n) {
 /**
  * #1565 —— AI（Call 1）写的服务 id 收进上限：它原样落成 `pages/services/<id>.json` 和 `services/<id>/`，跟关键词页 slug 同一个上限。
  * 提示词只说 kebab-case，喂给它的服务名又不限长 ⟹ 超长 id 写盘抛 ENAMETOOLONG、整站建站失败。
+ * #1829 —— 不是安全单段名的 id（带 `../` 之类）跟超长的一样处理：id 会被拼成写盘路径，建站从这张票起在 manager 机上跑。
  * 没超的 id 一个字不动；超了的走 keywordSlug()（截在连字符处，转不了退服务名，再不行 `service-<序号>`），
  * 跟别的服务 id 撞了走 withDedupSuffix()。服务名不动 —— 被截的只有网址。
  * 🔴 页面里指着旧 id 的地方一起改（详情页 slug / parentService / `/services/<id>` 链接 / under），否则详情页跟服务对不上。
@@ -81,11 +82,13 @@ function newServiceId(name, taken, n) {
  */
 function capServiceIds({ services, pages, navigation } = {}) {
   const svcs = (Array.isArray(services) ? services : []).filter((s) => isObj(s) && typeof s.id === 'string');
-  const tooLong = (id) => Buffer.byteLength(id) > SLUG_MAX_BYTES;
-  const taken = new Set(svcs.filter((s) => !tooLong(s.id)).map((s) => s.id));
+  // #1829 —— 不是一个安全的单段名（带 `/` `\\`、空、或整段是点）同样走清洗：id 原样拼进写盘路径，`../` 会写到输出目录外面。
+  const unsafe = (id) => !id || /[/\\\0]/.test(id) || /^\.+$/.test(id);
+  const needsFix = (id) => unsafe(id) || Buffer.byteLength(id) > SLUG_MAX_BYTES;
+  const taken = new Set(svcs.filter((s) => !needsFix(s.id)).map((s) => s.id));
   const renames = [];
   svcs.forEach((s, i) => {
-    if (!tooLong(s.id)) return;
+    if (!needsFix(s.id)) return;
     const stem = keywordSlug(s.id) || keywordSlug(s.name) || `service-${i + 1}`;
     let id = stem;
     for (let k = 2; taken.has(id); k += 1) id = withDedupSuffix(stem, k);
@@ -108,6 +111,9 @@ function renameServiceIds(renames, { pages, navigation } = {}) {
   // 整串等于旧 id（parentService），或 `[/]services/<旧 id>` 后面跟着结尾 / `/` / `?` / `#`（slug、under、链接）。
   const remap = (v) => {
     if (to.has(v)) return to.get(v);
+    // #1829 —— 旧 id 自己带 `/`（被清洗的那种）时，下面那条按单段取 id 的正则配不上它：先按「services/ 之后到 ? # 之前整段」认一次。
+    const w = v.match(/^(\/?services\/)([^?#]+)(.*)$/);
+    if (w && to.has(w[2])) return `${w[1]}${to.get(w[2])}${w[3]}`;
     const m = v.match(/^(\/?services\/)([^/?#]+)(.*)$/);
     return m && to.has(m[2]) ? `${m[1]}${to.get(m[2])}${m[3]}` : v;
   };

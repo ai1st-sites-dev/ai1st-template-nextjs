@@ -67,6 +67,13 @@
 //     崩了          标准错误里的堆栈                                              退出码 1
 //   `--site` / `--changes`：内联 JSON，或一个文件路径（manager 传文件：一个参数在 Linux 上最多 128 KB）。
 //
+// #1829（T3a）—— 建站，manager 的执行器 `kind=create` 时 spawn（实现在 `lib/site-create.js`，那份文件头有完整约定）：
+//   node scripts/site.js create --out-dir <目录>      标准输入：建站 payload（create-site.js 读的那一份）
+//       标准输出：create-site.js 的 JSON-lines 原样转出，跑完再加 `build-report` 和最后一行
+//       `{"event":"created","result":"<目录>/result.json","files":N}`（result.json = `{"content":{…}}`，已套菜单同步 + custom.css
+//       + stampSchemaVersions）。照片在 `<目录>/photos/`、logo 在 `<目录>/logo.png`。失败 ⟹ 退出码非 0（`error` 事件已发）。
+//       --out-dir 由 manager 每次 mkdtemp 新建；Resume 时 manager 先把阶段内容写进 `<目录>/site/`。
+//
 // 🔴 渲染只读不写：拿到的 content 不回写（菜单同步、custom.css 的补丁只用在这一次的输出里，设计文档 §6.1「渲染任务只读库」）。
 const fs = require('fs');
 const os = require('os');
@@ -407,6 +414,13 @@ async function main() {
     return;
   }
   const a = parseArgs(rest);
+  if (cmd === 'create') {
+    checkPathArg('out-dir', a['out-dir']);
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    process.exitCode = await require('./lib/site-create').create({ outDir: path.resolve(a['out-dir']), stdinText: Buffer.concat(chunks).toString('utf-8') });
+    return;
+  }
   if (cmd === 'bundle') {
     const m = await bundle(a['out-dir'] ? path.resolve(a['out-dir']) : DEFAULT_OUTDIR);
     process.stdout.write(`${JSON.stringify({ event: 'bundled', ...m })}\n`);
@@ -447,7 +461,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ event: 'rendered', ...result })}\n`);
     return;
   }
-  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
+  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', 'create', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
 }
 
 if (require.main === module) {

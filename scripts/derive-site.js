@@ -13,8 +13,8 @@
 //      现在那份比，不一样就不写；再把临时目录里的三份 CSS 搬进 public/
 //   ⑤ `ready` 交出 `d`（键集跟改前逐字一样：sync-config.js 的 prebuild 拿它拼 config-data.ts）
 //
-// 谁调它：worker §refreshLivePreview（`worker/preview_live.go`）· 容器启动（`worker/entrypoint.sh`）· 建站各阶段
-// （`lib/staged-preview.js` §liveStage，靠退出码判派生失败）· `sync-config.js` 头一件事就 require 本文件。
+// 谁调它：worker §refreshLivePreview（`worker/preview_live.go`）· 容器启动（`worker/entrypoint.sh`）· `sync-config.js` 头一件事
+// 就 require 本文件。（#1599 的分段建站也调过它；#1829 起建站在 manager 里跑、不再分段预览，那个调用方删了。）
 //
 // 🔴 不给 deriveSite 缓存目录：这里每次都真编 site.css（`derive-site-concurrent.test.js` 靠「编 site.css 要几秒」咬住
 //    写盘窗口；命中缓存那格会当场报「尺子没咬到窗口」）。缓存是 T2a-2 / T2c 的事。
@@ -26,8 +26,8 @@ const os = require('os');
 const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
-// #1599 —— 分段建站的预览构建读一份快照（lib/staged-preview.js：给预览写的文件不进 site/、不进阶段提交），由 SYNC_SITE_DIR
-//    给路径。不给 = site/。快照不在 git 里 ⟹ sitemap 的 <lastmod> 落到 mtime 那一档（lib/page-lastmod.js），预览站不发布，无所谓。
+// #1599 —— 读另一份站点目录（当初给分段建站的预览快照用，#1829 删了那个调用方），由 SYNC_SITE_DIR 给路径。不给 = site/。
+//    不在 git 里的目录 ⟹ sitemap 的 <lastmod> 落到 mtime 那一档（lib/page-lastmod.js）。
 const siteDir = process.env.SYNC_SITE_DIR ? path.resolve(process.env.SYNC_SITE_DIR) : path.join(rootDir, 'site');
 
 if (!fs.existsSync(siteDir) || !fs.existsSync(path.join(siteDir, 'brand.json'))) {

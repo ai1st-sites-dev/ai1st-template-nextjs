@@ -33,4 +33,20 @@ function readPagesRecursive(dir, prefix, accumulator, sourceBySlug) {
   }
 }
 
-module.exports = { readPagesRecursive };
+/**
+ * #1829 —— 一页写到哪个文件：`<localeDir>/pages/<slug>.json`，而且**必须**落在 `<localeDir>/pages/` 里面。
+ * slug 里有 AI 给的名字（服务页 `services/<id>`）；建站脚本从这张票起在 manager 机上以 root 跑，不再关在一次性容器里 ⟹
+ * 一个带 `../` 的 slug 能把文件写到机器任意位置（QA3 实测写出 `/tmp/QA3_ESCAPE_MARKER.json`）。
+ * 正常情况下 slug 在这之前已经清洗过（`keyword-pages.js §capServiceIds`），这一道是兜底：越界就抛，整站失败成 `error`。
+ * 判据同 manager 侧 `site_create.go §writeContentTree`：解析后必须以「目录 + 分隔符」开头。
+ */
+function pageFilePath(localeDir, slug) {
+  const pagesDir = path.resolve(localeDir, 'pages');
+  const file = path.resolve(pagesDir, `${slug}.json`);
+  if (typeof slug !== 'string' || !slug || !file.startsWith(pagesDir + path.sep)) {
+    throw new Error(`page slug ${JSON.stringify(slug)} resolves outside ${pagesDir} — refusing to write ${file}`);
+  }
+  return file;
+}
+
+module.exports = { readPagesRecursive, pageFilePath };
