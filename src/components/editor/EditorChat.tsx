@@ -45,6 +45,7 @@ export interface EditorChatState {
 export interface AuditCard {
   subtitle: string;
   rows: { dot: string; label: string; score: number; delta: string }[];
+  tested?: string; // #1832: `Tested: <address>` — the card's top line
 }
 
 // #1791 —— `region`：顶栏 / 页脚的面板 AI 页。这一轮只许改这种语言 navigation.json 的那一个键（`block-scope.js` §regionScopeRejection）。
@@ -302,6 +303,7 @@ function SystemRow({ m }: { m: EditorChatState['messages'][number] }) {
   if (a?.kind === 'complete') {
     return (
       <div data-editor-chat-msg="system" data-message-id={m.messageId} data-editor-chat-audit="complete" style={{ alignSelf: 'stretch', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, lineHeight: 1.6, color: C.text }}>
+        {a.card.tested && <div data-editor-chat-audit-tested style={{ color: C.sub, marginBottom: 2, overflowWrap: 'anywhere' }}>{a.card.tested}</div>}
         <div data-editor-chat-audit-title style={{ color: C.sub, marginBottom: 4, overflowWrap: 'anywhere' }}>🔍 Site Audit ({a.card.subtitle})</div>
         {a.card.rows.map((r) => (
           <div key={r.label} data-editor-chat-audit-row style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto auto', columnGap: 8, alignItems: 'baseline' }}>
