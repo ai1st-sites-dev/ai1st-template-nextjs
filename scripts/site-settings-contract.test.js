@@ -262,8 +262,10 @@ try {
     const modal = fs.readFileSync(THEME_MODAL, 'utf8');
     const site = (modal.match(/settingsCss:\s*themeSettings\.settingsToSiteCssVars\(/g) || []).length;
     const plain = (modal.match(/settingsCss:\s*themeSettings\.settingsToCssVars\(/g) || []).length;
-    if (site === 2 && plain === 0) ok('ThemeModal.tsx 的两处 settingsCss（缩略图 · 点卡片）都用 settingsToSiteCssVars');
-    else bad(`ThemeModal.tsx 的 settingsCss：settingsToSiteCssVars ${site} 处、settingsToCssVars ${plain} 处（应为 2 / 0）`);
+    // #1874 —— 原来是两处（缩略图 · 点卡片）。缩略图从那时起是只读画布的地址（`/sites/<id>/canvas?theme=`，ThemeModal §ThemeThumb），
+    //    不再往 iframe 里发消息 ⟹ 那一处按构造没了，只剩点卡片那一条消息。
+    if (site === 1 && plain === 0) ok('ThemeModal.tsx 的 settingsCss（点卡片那一条）用的是 settingsToSiteCssVars');
+    else bad(`ThemeModal.tsx 的 settingsCss：settingsToSiteCssVars ${site} 处、settingsToCssVars ${plain} 处（应为 1 / 0）`);
   }
 } catch (e) {
   die(e && e.stack ? e.stack : String(e));

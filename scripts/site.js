@@ -43,8 +43,9 @@
 //       不内联（单个 argv 上限 128 KiB）。两者带 `.` / `..` / 空段的一律拒（路径要原样就是它自己）。
 //
 // #1801（T1）—— 编辑器那几条，manager spawn（工作目录 = 平台那份模板，`template.dir`），实现在 `lib/site-editor.js`：
-//   node scripts/site.js editor-data --site <站 JSON> [--geo <JSON>] [--locale <语言>] [--page <slug>] [--cache-dir <目录>] [--build-version <v>]
+//   node scripts/site.js editor-data --site <站 JSON> [--geo <JSON>] [--locale <语言>] [--page <slug>] [--theme <id>] [--cache-dir <目录>] [--build-version <v>]
 //       --geo 是 `sites.geo`（`{lat, lng, address}`），并进第一家门店的规矩同上面 render 的 --geo。
+//       --theme（#1874）：content 先在内存里穿上那一套（同 `theme` 那条的换装，不写库）再算 —— 只读画布按 `?theme=` 画用。
 //       编辑器的初始 props + 画布样式（theme.css / custom.css）+ site.css 的缓存键。`--site` 的内容是 null ⟹ {"ok":true,"content":null}。
 //   node scripts/site.js save --site <站 JSON> --changes <编辑器那一笔> [--keep]
 //       {"ok":true,"content":{…},"summary":"…","files":[…],"hash"?,"notice"?,"shared"?,"addressChanged"?}
@@ -52,8 +53,12 @@
 //       #1873：换主题 / Customize 的 Apply（manager 执行器 `kind=theme` spawn，实现 `lib/site-editor.js` §theme）。
 //       {"ok":true,"content":{…},"summary":"Changed the theme to <名字>" | "Adjusted the theme colors","files":[…]}
 //       四样至少给一样；主题不在注册表里 ⟹ ok:false + code bad。
-//   node scripts/site.js site-css --site <站 JSON> [--cache-dir <目录>] [--build-version <v>]
+//   node scripts/site.js site-css --site <站 JSON> [--theme <id>] [--cache-dir <目录>] [--build-version <v>]
 //       {"ok":true,"key":"…","cached":true|false,"css":"…"}（不剪，画布用）
+//       --theme（#1874 试穿）：主色取那套主题的 `primary['500']`、不套站上 custom.css 的色相旋转，文字方向仍是这个站的。
+//   node scripts/site.js theme-css --site <站 JSON> [--theme <id>] [--cache-dir <目录>] [--build-version <v>]
+//       #1874（T3c-3）：只出 theme.css —— content 在内存里穿上那一套（`lib/site-editor.js` §dressContent，跟 `theme` 的 Apply
+//       同一个函数）再派生。试穿、只读画布共用。{"ok":true,"css":"…"}；主题不在注册表里 ⟹ ok:false + code bad。
 //   node scripts/site.js geocode --address <地址>
 //       {"ok":true,"address":"…","lat":…,"lng":…}（查不到 lat / lng 是 null）
 //       #1826：manager 改地址时排 `kind=geocode` 任务调它（site_render.go §runSiteGeocode）。每次是一个新进程，`lib/geocode.js`
@@ -64,7 +69,7 @@
 //       走 `derive-core.js` §buildSiteCssCached（同一个 `siteCssKey` 缓存）。{"ok":true,"key":"…","cached":…,"css":"…","theme":"<id>"}
 //       主题不在池里 ⟹ ok:false + code bad。manager `GET /api/admin/catalog/site.css?theme=` spawn 它。
 //       📌 不走上面那条 `site-css`：它跑整站 `deriveSite`，喂一份只带配色的站 JSON 会被拒（`Required file missing: site/seo.json`）。
-//   这六条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
+//   这七条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
 //     成功          标准输出一行 {"ok":true, …}                                  退出码 0
 //     拒收 / 不合法  标准输出一行 {"ok":false,"code":"refused|bad|stale","message":"…","field"?}   退出码 3
 //                   （`field`：这一笔里有编辑器改不了的字段时，那个字段名）
@@ -116,12 +121,13 @@ function requiredJsonArg(v, name) {
   return jsonArg(v, name);
 }
 
-// #1801 —— 编辑器那四条 + #1828 图册的 catalog-site-css + #1873 的 theme（输出约定见文件头）。
+// #1801 —— 编辑器那四条 + #1828 图册的 catalog-site-css + #1873 的 theme + #1874 的 theme-css（输出约定见文件头）。
 const EDITOR_COMMANDS = {
-  'editor-data': (a, ed) => ed.editorData({ content: requiredJsonArg(a.site, 'site'), geo: jsonArg(a.geo, 'geo'), locale: a.locale, page: a.page, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
+  'editor-data': (a, ed) => ed.editorData({ content: requiredJsonArg(a.site, 'site'), geo: jsonArg(a.geo, 'geo'), locale: a.locale, page: a.page, themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   save: (a, ed) => ed.save({ content: requiredJsonArg(a.site, 'site'), changes: requiredJsonArg(a.changes, 'changes'), keep: !!a.keep }),
   theme: (a, ed) => ed.theme({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, tweaks: jsonArg(a.tweaks, 'tweaks'), presets: jsonArg(a.presets, 'presets'), colorScheme: a['color-scheme'] }),
-  'site-css': (a, ed) => ed.siteCss({ content: requiredJsonArg(a.site, 'site'), cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
+  'site-css': (a, ed) => ed.siteCss({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
+  'theme-css': (a, ed) => ed.themeCss({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   geocode: (a, ed) => ed.geocode({ address: a.address }),
   'catalog-site-css': (a, ed) => catalogSiteCss({ theme: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }, ed),
 };

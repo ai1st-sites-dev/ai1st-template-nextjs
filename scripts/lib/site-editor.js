@@ -49,6 +49,8 @@ function unknownChangeField(changes) {
 }
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+/** content 里一份 .json：对象原样，字符串 parse 一次（不是 JSON ⟹ undefined）。 */
+const parsedEntry = (content, rel) => { const v = content[rel]; if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch { return undefined; } };
 const contentText = (v) => (typeof v === 'string' ? v : `${JSON.stringify(v, null, 2)}\n`);
 
 /** content 铺进 `<临时目录>/site/`。返回 `{ dir, siteDir }`；调用方负责删 `dir`。 */
@@ -160,11 +162,13 @@ function withGeo(content, geo) {
  * `{ content: null }` 原样回 `{ content: null }`（还没存过内容的站，#1796 形状 (a)）—— 编辑页据此说「Nothing to edit yet」。
  * 否则 `{ props, styles: { themeCss, customCss }, siteCssKey, locale, page }`。页面 / 语言不存在 ⟹ throw `bad`。
  */
-async function editorData({ content: input, geo, locale, page, cacheDir, buildVersion = '' }) {
+async function editorData({ content: input, geo, locale, page, themeId, cacheDir, buildVersion = '' }) {
   if (input === null || input === undefined) return { content: null };
   if (!isObj(input)) throw new SiteEditorError('bad', 'content 必须是对象（键 = site/ 下的相对路径）');
   if (Object.keys(input).length === 0) return { content: null };
-  const content = withGeo(input, geo);
+  // #1874 —— 只读画布按 `?theme=` 画：content 在内存里先穿上那一套（§dressContent，跟 Apply 同一个函数），不写库。
+  const id = tryOnTheme(themeId);
+  const content = withGeo(id ? dressContent(input, { themeId: id }) : input, geo);
   const { dir, siteDir } = materialize(content);
   try {
     // 派生一遍：页面要的那份站点数据（同发布构建的 config）+ theme.css / custom.css + site.css（按键缓存，命中不编 Sass）。
@@ -198,8 +202,17 @@ async function editorData({ content: input, geo, locale, page, cacheDir, buildVe
 /**
  * site.css（不剪，画布用）。`{ key, cached, css }` —— `cached` = 这一次命中了 cacheDir 里那份（没编 Sass）。
  */
-async function siteCss({ content, cacheDir, buildVersion = '' }) {
+async function siteCss({ content, themeId, cacheDir, buildVersion = '' }) {
   if (!isObj(content) || Object.keys(content).length === 0) throw new SiteEditorError('bad', 'this website has no content');
+  if (tryOnTheme(themeId)) {
+    // #1874 —— 试穿那一套的 site.css：主色直接取那套主题的 `primary['500']`，不套站上 custom.css 的色相旋转（设计文档 §5.5）；
+    //    文字方向还是这个站的（主语言推，同 derive-core §dir）。同一个 `siteCssKey` 缓存 ⟹ 跟图册按主题编的那份共用。
+    const meta = parsedEntry(content, 'site_meta.json');
+    const dir = require('./text-dir.js').dirForLocale(isObj(meta) && typeof meta.defaultLocale === 'string' ? meta.defaultLocale : 'en');
+    const { buildSiteCssCached } = require('./derive-core');
+    const r = await buildSiteCssCached({ brand: { colors: require('../themes.js').themes[themeId].colors }, rootDir: ROOT, dir, purge: false, customHtml: [], buildVersion, cacheDir });
+    return { key: r.key, cached: Boolean(r.cached), css: r.css };
+  }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'site-css-'));
   try {
     const { deriveSite } = require('./derive-core');
@@ -346,11 +359,28 @@ async function theme({ content, themeId, tweaks, presets, colorScheme }) {
   if (!themeId && tweaks === undefined && presets === undefined && !colorScheme) {
     throw new SiteEditorError('bad', '这一笔什么都没换：要给 --theme、--tweaks、--presets、--color-scheme 至少一样');
   }
+  const next = dressContent(content, { themeId, tweaks, presets, colorScheme });
+  const files = Object.keys({ ...content, ...next }).filter((k) => JSON.stringify(content[k]) !== JSON.stringify(next[k])).sort();
+  let summary = 'Adjusted the theme colors';
+  if (themeId) {
+    const label = String(require('../themes.js').themes[themeId].label || themeId);
+    summary = `Changed the theme to ${label.split('—')[0].trim() || themeId}`;
+  }
+  return { content: next, summary, files };
+}
+
+/**
+ * content 在内存里换上一套主题 / 一组微调之后的样子：theme.json + brand.json 按 `dress-site-in-theme.js` §dressContentInTheme 算
+ * （worker §themeWriteCommand 的内存版），再并进 `contentPatchesOf`（custom.css 按新的 tweaks 重算；菜单同步顺带）。
+ * 两个调用方：§theme（Apply，写库那一笔）和 #1874 的试穿（§themeCss / §editorData 的 `themeId`，只算不存）——
+ * 一处实现，试穿看到的就是 Apply 会写下的那一份。主题不在注册表里 / 站没有 brand.json ⟹ `bad`。
+ */
+function dressContent(content, change) {
   const { dressContentInTheme } = require('./dress-site-in-theme.js');
   const { contentPatchesOf } = require('./derive-core');
   let dressed;
   try {
-    dressed = dressContentInTheme({ theme: content['theme.json'], brand: content['brand.json'] }, { themeId, tweaks, presets, colorScheme });
+    dressed = dressContentInTheme({ theme: content['theme.json'], brand: content['brand.json'] }, change);
   } catch (e) {
     throw new SiteEditorError('bad', e.message);
   }
@@ -361,14 +391,36 @@ async function theme({ content, themeId, tweaks, presets, colorScheme }) {
     if (text === null) delete next[rel];
     else next[rel] = rel.endsWith('.json') ? JSON.parse(text) : text;
   }
-  next = Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]]));
-  const files = Object.keys({ ...content, ...next }).filter((k) => JSON.stringify(content[k]) !== JSON.stringify(next[k])).sort();
-  let summary = 'Adjusted the theme colors';
-  if (themeId) {
-    const label = String(require('../themes.js').themes[themeId].label || themeId);
-    summary = `Changed the theme to ${label.split('—')[0].trim() || themeId}`;
+  return Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]]));
+}
+
+/** #1874 —— 试穿要的主题 id：格式不对 / 不在注册表里 ⟹ `bad`（不给 = undefined，照站自己的那一套）。 */
+function tryOnTheme(themeId) {
+  if (themeId === undefined) return undefined;
+  if (typeof themeId !== 'string' || !require('../theme-sheet.js').SHEET_NAME_OK.test(themeId)
+    || !Object.prototype.hasOwnProperty.call(require('../themes.js').themes, themeId)) {
+    throw new SiteEditorError('bad', `--theme 不是注册表里的主题：${JSON.stringify(themeId)}`);
   }
-  return { content: next, summary, files };
+  return themeId;
+}
+
+/**
+ * #1874（SiteAsData T3c-3）—— 试穿的 theme.css：content 在内存里穿上那一套（§dressContent，跟 Apply 同一个函数）再派生，
+ * 只交出 theme.css（字体、settings 变量、主题表）。不给 themeId ⟹ 站自己的那一份。`{ css }`。
+ * 🔴 派生顺带编 site.css：给 cacheDir 时按键命中就不编 Sass（同 §editorData）。
+ */
+async function themeCss({ content, themeId, cacheDir, buildVersion = '' }) {
+  if (!isObj(content) || Object.keys(content).length === 0) throw new SiteEditorError('bad', 'this website has no content');
+  const id = tryOnTheme(themeId);
+  const dressed = id ? dressContent(content, { themeId: id }) : content;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'theme-css-'));
+  try {
+    const { deriveSite } = require('./derive-core');
+    await quietly(() => deriveSite({ content: dressed, outDir: dir, cacheDir, purge: false, buildVersion, siteLabel: 'site' }));
+    return { css: fs.readFileSync(path.join(dir, 'theme.css'), 'utf-8') };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /** `{ address, lat, lng, city?, street?, postcode? }`；查不到 ⟹ `{ address, lat: null, lng: null }`（manager 据此清掉旧坐标）。 */
@@ -379,4 +431,4 @@ async function geocode({ address }) {
   return hit ? { address: q, ...hit } : { address: q, lat: null, lng: null };
 }
 
-module.exports = { SiteEditorError, editorData, save, theme, siteCss, geocode, materialize, readTree, withGeo };
+module.exports = { SiteEditorError, editorData, save, theme, themeCss, siteCss, geocode, materialize, readTree, withGeo };
