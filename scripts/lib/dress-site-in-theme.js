@@ -35,6 +35,14 @@
 //     const { dressSiteInTheme } = require('./lib/dress-site-in-theme.js');
 //     dressSiteInTheme({ siteDir, themeId, css });
 //
+//   内存版（#1873，SiteAsData T3c-2；`site.js theme` 和 T3c-3 的 `theme-css` 用这个）：
+//     const { dressContentInTheme } = require('./lib/dress-site-in-theme.js');
+//     dressContentInTheme({ theme, brand }, { themeId, tweaks, presets, colorScheme })
+//       ⟹ { theme: 新 theme.json, brand: 新 brand.json, keys }
+//     🔴 规矩逐条照 worker §themeWriteCommand（`worker/main.go`）—— 老板在真站上按 Apply 时那一步，不是上面这个
+//        样例站工具：tweaks / presets / colorScheme / regionLayout / regionOptions 的承接、`css` 表名的覆盖，都在那里。
+//        两份分叉的后果同文件头那段：换主题之后「库里的站」和「容器里的站」长得不一样，而两边都照样能构建。
+//
 // 🔴 **失败一律不写半个**：主题查不到、brand.json 不在、brand.json 不是 JSON —— 三种都在动笔
 //    之前抛出来，`site/theme.json` 一个字节都不动。上色只做了一半的站，比没上色的站更难诊断：
 //    它长得跟「代码坏了」一模一样。
@@ -81,11 +89,7 @@ function dressSiteInTheme({ siteDir, themeId, css, registryPath = DEFAULT_REGIST
     throw new Error(`${brandJsonPath} 读不成 JSON（${e.message}）—— 什么都没写`);
   }
 
-  const keys = [];
-  if (theme.colors) { brand.colors = theme.colors; keys.push('colors'); }
-  if (theme.fonts) { brand.fonts = theme.fonts; keys.push('fonts'); }
-  if (theme.settings) { brand.settings = theme.settings; keys.push('settings'); }
-  else if ('settings' in brand) { delete brand.settings; keys.push('settings(删掉)'); }
+  const keys = brandInTheme(brand, theme);
 
   // 两个文件都写完才算穿上，所以放在一起、都在上面那些检查之后。
   const themeJsonPath = path.join(siteDir, 'theme.json');
@@ -97,7 +101,70 @@ function dressSiteInTheme({ siteDir, themeId, css, registryPath = DEFAULT_REGIST
   return { themeJsonPath, brandJsonPath, keys };
 }
 
-module.exports = { dressSiteInTheme, DEFAULT_REGISTRY };
+/** brand.json 的那三个键换成主题的（原地改 `brand`），返回改了哪几个。两个版本共用这一处。 */
+function brandInTheme(brand, theme) {
+  const keys = [];
+  if (theme.colors) { brand.colors = theme.colors; keys.push('colors'); }
+  if (theme.fonts) { brand.fonts = theme.fonts; keys.push('fonts'); }
+  if (theme.settings) { brand.settings = theme.settings; keys.push('settings'); }
+  else if ('settings' in brand) { delete brand.settings; keys.push('settings(删掉)'); }
+  return keys;
+}
+
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * #1873 —— 换主题 / Customize 的 Apply 在内存里算出新的 theme.json + brand.json。不读写磁盘，不改传进来的对象。
+ *
+ * @param {object} current            `{ theme, brand }`：站现在的 theme.json / brand.json（对象；theme 可缺 = 从没换过主题）
+ * @param {object} change
+ * @param {string} [change.themeId]   换到哪套。不给 = 只调 tweaks / presets / colorScheme（Customize），brand.json 一个键都不动
+ * @param {object} [change.tweaks]    给了就整组替换（中性 = 删掉这个键）；不给 = 原样承接
+ * @param {object} [change.presets]   按组合并：值为空串 = 清掉那一组
+ * @param {string} [change.colorScheme] 给了就用；不给 = 原样承接
+ * @param {object} [opts]
+ * @param {string} [opts.registryPath] 注册表，默认 `scripts/themes.js`（只有测试传）
+ * @param {string} [opts.rootDir]      主题表（`public/themes/<id>.css`）在哪棵模板树里，默认这棵
+ * @returns {{ theme: object, brand: object, keys: string[] }}
+ */
+function dressContentInTheme(current, change = {}, { registryPath = DEFAULT_REGISTRY, rootDir = path.join(__dirname, '..', '..') } = {}) {
+  const prev = isObj(current && current.theme) ? current.theme : {};
+  const brandIn = current && current.brand;
+  if (!isObj(brandIn)) throw new Error('brand.json 不在或不是对象 —— 这个站还不是一个能构建的站，什么都没算');
+  const { themeId: id, tweaks, presets, colorScheme } = change;
+
+  let theme = null;
+  if (id) {
+    theme = require(registryPath).themes[id] || null;
+    if (!theme) throw new Error(`注册表 ${registryPath} 里没有主题 "${id}" —— 什么都没算`);
+  }
+
+  // 以下逐行对应 worker §themeWriteCommand 那段 node 脚本（同一个顺序）。
+  const next = id ? { themeId: id, applied: true }
+    : { themeId: typeof prev.themeId === 'string' ? prev.themeId : '', applied: prev.applied === true };
+  if (tweaks !== undefined) {
+    if (!require('../tweaks.js').isNeutral(tweaks)) next.tweaks = tweaks;
+  } else if (isObj(prev.tweaks)) next.tweaks = prev.tweaks;
+  const kept = isObj(prev.presets) ? { ...prev.presets } : {};
+  if (isObj(presets)) for (const k of Object.keys(presets)) { if (presets[k]) kept[k] = presets[k]; else delete kept[k]; }
+  const normalised = require('../theme-presets.js').normalisePresets(kept);
+  if (Object.keys(normalised).length) next.presets = normalised;
+  if (typeof prev.css === 'string' && prev.css) next.css = prev.css;
+  if (id) {
+    const sheet = require('../theme-sheet.js').sheetNameForTheme(id, rootDir);
+    if (sheet) next.css = sheet;
+  }
+  if ((!id || id === prev.themeId) && isObj(prev.regionLayout)) next.regionLayout = prev.regionLayout;
+  if ((!id || id === prev.themeId) && isObj(prev.regionOptions)) next.regionOptions = prev.regionOptions;
+  if (colorScheme) next.colorScheme = colorScheme;
+  else if (typeof prev.colorScheme === 'string' && prev.colorScheme) next.colorScheme = prev.colorScheme;
+
+  const brand = JSON.parse(JSON.stringify(brandIn));
+  const keys = theme ? brandInTheme(brand, theme) : [];
+  return { theme: next, brand, keys };
+}
+
+module.exports = { dressSiteInTheme, dressContentInTheme, DEFAULT_REGISTRY };
 
 if (require.main === module) {
   const [siteDir, themeId, css] = process.argv.slice(2);

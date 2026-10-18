@@ -7,6 +7,7 @@
 //   save({ content, changes, keep })                  ← `POST /api/sites/:id/content {baseVersion, changes}`
 //       今天 `write-editor-save.js` 的内存版：判与算用的是同一组函数（planPageWrite / planRootWrite / … / commitWrites），
 //       只是「写盘」写进一份私有临时目录、再整份读回成 content；返回前并进 `contentPatchesOf`（菜单同步 + custom.css）。
+//   theme({ content, themeId, tweaks, presets, colorScheme }) ← 换主题 / Customize 的 Apply（执行器 `kind=theme`，#1873）
 //   siteCss({ content, cacheDir })                     ← `GET /api/sites/:id/site.css`
 //   geocode({ address })                               ← 保存改了地址之后，manager 异步写 `sites.geo`
 //
@@ -324,6 +325,52 @@ async function save({ content, changes, keep = false }) {
   }
 }
 
+/**
+ * #1873（SiteAsData T3c-2）—— 换主题 / Customize 的 Apply：`site.js theme`，manager 执行器 `kind=theme` spawn。
+ *
+ * theme.json + brand.json 按 `dress-site-in-theme.js` §dressContentInTheme 算（worker §themeWriteCommand 的内存版），
+ * 再并进 `contentPatchesOf`（custom.css 按新的 tweaks 重算；菜单同步顺带）—— 跟 save 同一个形状：一笔里的全部文件。
+ *
+ * 返回 `{ content, summary, files }`：
+ *   `summary` 换了主题 = `Changed the theme to <主题名>`（名字 = 注册表 label 的「—」前半，弹窗卡片上那个）；
+ *             只调颜色（没给 themeId）= `Adjusted the theme colors`（设计文档 §4.2：Customize 不记成换主题）
+ * 主题不在注册表里 / 站没有 brand.json ⟹ `bad`。
+ */
+async function theme({ content, themeId, tweaks, presets, colorScheme }) {
+  if (!isObj(content) || Object.keys(content).length === 0) throw new SiteEditorError('bad', 'this website has no content');
+  if (themeId !== undefined && (typeof themeId !== 'string' || !require('../theme-sheet.js').SHEET_NAME_OK.test(themeId))) {
+    throw new SiteEditorError('bad', `--theme 不是一个主题 id：${JSON.stringify(themeId)}`);
+  }
+  if (tweaks !== undefined && !isObj(tweaks)) throw new SiteEditorError('bad', '--tweaks 必须是一个对象');
+  if (presets !== undefined && !isObj(presets)) throw new SiteEditorError('bad', '--presets 必须是一个对象');
+  if (!themeId && tweaks === undefined && presets === undefined && !colorScheme) {
+    throw new SiteEditorError('bad', '这一笔什么都没换：要给 --theme、--tweaks、--presets、--color-scheme 至少一样');
+  }
+  const { dressContentInTheme } = require('./dress-site-in-theme.js');
+  const { contentPatchesOf } = require('./derive-core');
+  let dressed;
+  try {
+    dressed = dressContentInTheme({ theme: content['theme.json'], brand: content['brand.json'] }, { themeId, tweaks, presets, colorScheme });
+  } catch (e) {
+    throw new SiteEditorError('bad', e.message);
+  }
+  let next = { ...content, 'theme.json': dressed.theme, 'brand.json': dressed.brand };
+  // 🔴 T4b：contentPatchesOf 今天回的是**原文字符串**（同 §save 那一处，T4b 同 PR 两处一起改）。
+  const patches = contentPatchesOf(next);
+  for (const [rel, text] of Object.entries(patches)) {
+    if (text === null) delete next[rel];
+    else next[rel] = rel.endsWith('.json') ? JSON.parse(text) : text;
+  }
+  next = Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]]));
+  const files = Object.keys({ ...content, ...next }).filter((k) => JSON.stringify(content[k]) !== JSON.stringify(next[k])).sort();
+  let summary = 'Adjusted the theme colors';
+  if (themeId) {
+    const label = String(require('../themes.js').themes[themeId].label || themeId);
+    summary = `Changed the theme to ${label.split('—')[0].trim() || themeId}`;
+  }
+  return { content: next, summary, files };
+}
+
 /** `{ address, lat, lng, city?, street?, postcode? }`；查不到 ⟹ `{ address, lat: null, lng: null }`（manager 据此清掉旧坐标）。 */
 async function geocode({ address }) {
   const q = typeof address === 'string' ? address.trim() : '';
@@ -332,4 +379,4 @@ async function geocode({ address }) {
   return hit ? { address: q, ...hit } : { address: q, lat: null, lng: null };
 }
 
-module.exports = { SiteEditorError, editorData, save, siteCss, geocode, materialize, readTree, withGeo };
+module.exports = { SiteEditorError, editorData, save, theme, siteCss, geocode, materialize, readTree, withGeo };

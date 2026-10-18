@@ -48,6 +48,10 @@
 //       编辑器的初始 props + 画布样式（theme.css / custom.css）+ site.css 的缓存键。`--site` 的内容是 null ⟹ {"ok":true,"content":null}。
 //   node scripts/site.js save --site <站 JSON> --changes <编辑器那一笔> [--keep]
 //       {"ok":true,"content":{…},"summary":"…","files":[…],"hash"?,"notice"?,"shared"?,"addressChanged"?}
+//   node scripts/site.js theme --site <站 JSON> [--theme <id>] [--tweaks <JSON>] [--presets <JSON>] [--color-scheme light|dark|auto]
+//       #1873：换主题 / Customize 的 Apply（manager 执行器 `kind=theme` spawn，实现 `lib/site-editor.js` §theme）。
+//       {"ok":true,"content":{…},"summary":"Changed the theme to <名字>" | "Adjusted the theme colors","files":[…]}
+//       四样至少给一样；主题不在注册表里 ⟹ ok:false + code bad。
 //   node scripts/site.js site-css --site <站 JSON> [--cache-dir <目录>] [--build-version <v>]
 //       {"ok":true,"key":"…","cached":true|false,"css":"…"}（不剪，画布用）
 //   node scripts/site.js geocode --address <地址>
@@ -60,7 +64,7 @@
 //       走 `derive-core.js` §buildSiteCssCached（同一个 `siteCssKey` 缓存）。{"ok":true,"key":"…","cached":…,"css":"…","theme":"<id>"}
 //       主题不在池里 ⟹ ok:false + code bad。manager `GET /api/admin/catalog/site.css?theme=` spawn 它。
 //       📌 不走上面那条 `site-css`：它跑整站 `deriveSite`，喂一份只带配色的站 JSON 会被拒（`Required file missing: site/seo.json`）。
-//   这五条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
+//   这六条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
 //     成功          标准输出一行 {"ok":true, …}                                  退出码 0
 //     拒收 / 不合法  标准输出一行 {"ok":false,"code":"refused|bad|stale","message":"…","field"?}   退出码 3
 //                   （`field`：这一笔里有编辑器改不了的字段时，那个字段名）
@@ -112,10 +116,11 @@ function requiredJsonArg(v, name) {
   return jsonArg(v, name);
 }
 
-// #1801 —— 编辑器那四条 + #1828 图册的 catalog-site-css（输出约定见文件头）。
+// #1801 —— 编辑器那四条 + #1828 图册的 catalog-site-css + #1873 的 theme（输出约定见文件头）。
 const EDITOR_COMMANDS = {
   'editor-data': (a, ed) => ed.editorData({ content: requiredJsonArg(a.site, 'site'), geo: jsonArg(a.geo, 'geo'), locale: a.locale, page: a.page, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   save: (a, ed) => ed.save({ content: requiredJsonArg(a.site, 'site'), changes: requiredJsonArg(a.changes, 'changes'), keep: !!a.keep }),
+  theme: (a, ed) => ed.theme({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, tweaks: jsonArg(a.tweaks, 'tweaks'), presets: jsonArg(a.presets, 'presets'), colorScheme: a['color-scheme'] }),
   'site-css': (a, ed) => ed.siteCss({ content: requiredJsonArg(a.site, 'site'), cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   geocode: (a, ed) => ed.geocode({ address: a.address }),
   'catalog-site-css': (a, ed) => catalogSiteCss({ theme: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }, ed),

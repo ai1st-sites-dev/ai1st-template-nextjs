@@ -185,6 +185,106 @@ const REG = makeRegistry({
   }
 }
 
-fs.rmSync(TMP, { recursive: true, force: true });
-console.log(`\n══ dress-site-in-theme: ${pass} 过 · ${fail} 失败 ══`);
-process.exit(fail ? 1 : 0);
+// ── ⑥ #1873 内存版 dressContentInTheme：逐条对 worker §themeWriteCommand 的规矩 ─────────────────────────
+// 🔴 每一格都是「改了 / 没改」两臂都有读数的：承接的键在前一份里**本来就有**、要被换掉的键新旧**故意不同**。
+{
+  const { dressContentInTheme } = mod;
+  if (typeof dressContentInTheme !== 'function') die('dress-site-in-theme.js 没导出 dressContentInTheme');
+  // 主题表那一侧：fixture-full 有自己的表，fixture-no-settings 没有。
+  const root = fs.mkdtempSync(path.join(TMP, 'root-'));
+  fs.mkdirSync(path.join(root, 'public', 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'public', 'themes', 'fixture-full.css'), '/* sheet */\n');
+  const opts = { registryPath: REG, rootDir: root };
+  const brand = { name: { en: 'Northside' }, colors: SITE_COLORS, fonts: { heading: ['Old'] }, settings: { radius: 'round' } };
+  const prev = {
+    themeId: 'fixture-no-settings', applied: false, css: 'old-sheet',
+    tweaks: { hueShift: 6, radiusScale: 1, densityScale: 1 }, presets: { palette: 'ocean', corners: 'sharp' },
+    regionLayout: { header: 'slim' }, regionOptions: { header: { bg: 'dark' } }, colorScheme: 'dark',
+  };
+  const frozen = JSON.stringify({ prev, brand });
+
+  // ⑥a 换主题
+  const a = dressContentInTheme({ theme: prev, brand }, { themeId: 'fixture-full' }, opts);
+  if (a.theme.themeId === 'fixture-full' && a.theme.applied === true) ok('内存版：换主题 ⟹ themeId 换、applied: true');
+  else bad(`内存版换主题 theme.json：${JSON.stringify(a.theme)}`);
+  if (JSON.stringify(a.theme.tweaks) === JSON.stringify(prev.tweaks) && a.theme.colorScheme === 'dark'
+    && JSON.stringify(a.theme.presets) === JSON.stringify({ palette: 'ocean', corners: 'sharp' })) ok('内存版：tweaks / presets / colorScheme 原样承接');
+  else bad(`内存版没承接老板调的：${JSON.stringify(a.theme)}`);
+  if (a.theme.css === 'fixture-full') ok('内存版：新主题有自己的表 ⟹ css 换成它的');
+  else bad(`内存版 css=${a.theme.css}，要 fixture-full`);
+  if (!('regionLayout' in a.theme) && !('regionOptions' in a.theme)) ok('内存版：真换主题 ⟹ regionLayout / regionOptions 丢掉（#1405 / #1738）');
+  else bad(`内存版真换主题还带着页头页脚样式：${JSON.stringify(a.theme)}`);
+  if (JSON.stringify(a.brand.colors) === JSON.stringify(THEME_COLORS) && a.brand.settings.radius === 'sharp'
+    && a.brand.name.en === 'Northside' && JSON.stringify(a.keys) === JSON.stringify(['colors', 'fonts', 'settings'])) ok('内存版：brand.json 三个键换成主题的，站名留着');
+  else bad(`内存版 brand.json：${JSON.stringify(a.brand)} keys=${a.keys}`);
+  if (JSON.stringify({ prev, brand }) === frozen) ok('内存版：传进来的对象一个字节没动');
+  else bad('内存版改了调用方的对象');
+
+  // ⑥b 换到一套没有表的主题 ⟹ 老的 css 留着（worker 同款：不丢）
+  const b = dressContentInTheme({ theme: { ...prev, themeId: 'fixture-full' }, brand }, { themeId: 'fixture-no-settings' }, opts);
+  if (b.theme.css === 'old-sheet' && !('settings' in b.brand)) ok('内存版：新主题没有表 ⟹ css 原样留着；主题没 settings ⟹ brand.settings 删掉');
+  else bad(`内存版没表那一支：css=${b.theme.css} settings=${JSON.stringify(b.brand.settings)}`);
+
+  // ⑥c Customize：不给 themeId
+  const c = dressContentInTheme({ theme: prev, brand }, { tweaks: { hueShift: -9, radiusScale: 1, densityScale: 1 }, presets: { corners: '', fonts: 'modern' }, colorScheme: 'auto' }, opts);
+  if (c.theme.themeId === prev.themeId && c.theme.applied === false && JSON.stringify(c.brand) === JSON.stringify(brand) && c.keys.length === 0)
+    ok('内存版：Customize ⟹ themeId / applied 不动，brand.json 一个键不动');
+  else bad(`内存版 Customize 动了不该动的：${JSON.stringify(c.theme)} keys=${c.keys}`);
+  if (c.theme.tweaks.hueShift === -9 && JSON.stringify(c.theme.presets) === JSON.stringify({ palette: 'ocean', fonts: 'modern' })
+    && c.theme.colorScheme === 'auto' && c.theme.regionLayout && c.theme.regionOptions)
+    ok('内存版：tweaks 整组换、presets 按组合并（空串 = 清掉那组）、colorScheme 换、页头页脚样式留着');
+  else bad(`内存版 Customize：${JSON.stringify(c.theme)}`);
+  const n = dressContentInTheme({ theme: prev, brand }, { tweaks: { hueShift: 0, radiusScale: 1, densityScale: 1 } }, opts);
+  if (!('tweaks' in n.theme)) ok('内存版：中性的 tweaks ⟹ 整个键删掉');
+  else bad(`内存版中性 tweaks 还留着：${JSON.stringify(n.theme.tweaks)}`);
+
+  // ⑥d 穿回同一套主题 ⟹ 页头页脚样式留着（#1405 Chris 2026-09-24）
+  const d = dressContentInTheme({ theme: prev, brand }, { themeId: 'fixture-no-settings' }, opts);
+  if (d.theme.regionLayout && d.theme.regionOptions) ok('内存版：穿回同一套 ⟹ regionLayout / regionOptions 留着');
+  else bad(`内存版穿回同一套丢了页头页脚样式：${JSON.stringify(d.theme)}`);
+
+  // ⑥e 拒收
+  let threw = null;
+  try { dressContentInTheme({ theme: prev, brand }, { themeId: 'nope' }, opts); } catch (e) { threw = e; }
+  if (threw && /没有主题 "nope"/.test(threw.message)) ok('内存版：注册表里没有的主题 ⟹ 抛错');
+  else bad(`内存版没拒未知主题：${threw && threw.message}`);
+  threw = null;
+  try { dressContentInTheme({ theme: prev }, { themeId: 'fixture-full' }, opts); } catch (e) { threw = e; }
+  if (threw) ok('内存版：没有 brand.json ⟹ 抛错');
+  else bad('内存版没有 brand.json 也算出来了');
+}
+
+// ── ⑦ #1873 `site.js theme`（site-editor §theme）：夹具站真跑一次，用真注册表 ───────────────────────────
+{
+  const { theme } = require('./site-editor.js');
+  const content = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'site-fixtures', 'site-bbc4ff97.json'), 'utf-8'));
+  const { themes } = require(DEFAULT_REGISTRY);
+  const target = Object.keys(themes).find((id) => id !== content['theme.json'].themeId);
+  (async () => {
+    const out = await theme({ content, themeId: target });
+    const name = String(themes[target].label).split('—')[0].trim();
+    if (out.summary === `Changed the theme to ${name}`) ok(`site.js theme：summary = "${out.summary}"`);
+    else bad(`site.js theme summary=${out.summary}，要 Changed the theme to ${name}`);
+    if (out.content['theme.json'].themeId === target && JSON.stringify(out.content['brand.json'].colors) === JSON.stringify(themes[target].colors))
+      ok('site.js theme：content 里 theme.json + brand.json 都换了');
+    else bad('site.js theme：theme.json / brand.json 没换对');
+    if (typeof out.content['custom.css'] === 'string' && out.files.includes('custom.css') && out.files.includes('brand.json') && out.files.includes('theme.json'))
+      ok(`site.js theme：并进了 contentPatchesOf（custom.css 在这一笔里；files = ${out.files.join(', ')}）`);
+    else bad(`site.js theme：files=${out.files}`);
+    const cust = await theme({ content, tweaks: { hueShift: -9, radiusScale: 1, densityScale: 1 } });
+    if (cust.summary === 'Adjusted the theme colors' && !cust.files.includes('brand.json') && cust.content['custom.css'] !== out.content['custom.css'])
+      ok('site.js theme：只调颜色 ⟹ summary = Adjusted the theme colors、brand.json 不在 files 里、custom.css 跟着变');
+    else bad(`site.js theme Customize：summary=${cust.summary} files=${cust.files}`);
+    let threw = null;
+    try { await theme({ content }); } catch (e) { threw = e; }
+    if (threw && threw.code === 'bad') ok('site.js theme：什么都没换 ⟹ bad');
+    else bad(`site.js theme 什么都没换没拒：${threw && threw.message}`);
+  })().catch((e) => bad(`site.js theme 抛了：${e.stack}`)).finally(finish);
+}
+
+// ⑦ 是异步的，收尾等它跑完。
+function finish() {
+  fs.rmSync(TMP, { recursive: true, force: true });
+  console.log(`\n══ dress-site-in-theme: ${pass} 过 · ${fail} 失败 ══`);
+  process.exit(fail ? 1 : 0);
+}

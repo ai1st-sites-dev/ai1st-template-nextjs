@@ -429,6 +429,7 @@ console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
     //      （GitHub contents 的 PUT / 本地 writeFile）。列表里的文件哪天开始写它，这一格照样红。
     const SITE_META_READERS = {
       'manager/theme.go': '§readSiteColorSchemeValue —— GET /theme 读 site_meta.json 的 colorScheme 当回落（#1523），只读',
+      'manager/site_theme.go': '§siteThemeStateFromContent —— #1873 起 GET /theme 从 sites.content 读 site_meta.json 的 colorScheme 当回落（同 #1523 的顺序），只读',
       'dashboard/src/api/themes.ts': '注释里解释 colorScheme 的回落顺序（#1523），没有代码碰这个文件',
       'manager/search_console_stats.go': '§gscRepoPages —— 列站仓页面时读 site_meta.json 的 defaultLocale / locales（#1606），走 §gscGitHubGet 只发 GET，只读',
       'manager/resume_point.go': '§siteResumePoint —— GET /api/admin/sites/{id}/resume-point 读 site_meta.json 的 buildPhase 判能不能续建（#1649），走 §githubRepoFile 只发 GET，只读',
