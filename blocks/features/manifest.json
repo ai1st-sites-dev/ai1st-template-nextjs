@@ -1,5 +1,7 @@
 {
   "type": "features",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Features",
   "category": "features",
   "roleDefault": "essential",

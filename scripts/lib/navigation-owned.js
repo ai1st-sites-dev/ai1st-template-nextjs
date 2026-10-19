@@ -635,6 +635,9 @@ const NAV_SHAPE = {
         buttons: { kind: 'array', of: HEADER_BUTTON, max: MAX_HEADER_BUTTONS },
         // #1780 —— 顶栏上面那一行：每项跟顶栏按钮同一个形状（href 是字符串或电话 / 邮箱引用）。
         topbarLinks: { kind: 'array', optional: true, of: HEADER_BUTTON },
+        // #1838 —— 顶栏这个外壳区的数据版本（盖号 / 迁移写它，`lib/block-migrations.js`）。不登记在这里，AI 每改一次菜单
+        //    都会把它当「谁都不读的陌生键」报给老板（§undeclaredKeys）—— 而渲染入口和迁移都读它。
+        schemaVersion: { kind: 'number', optional: true },
       },
     },
     footer: {
@@ -644,6 +647,7 @@ const NAV_SHAPE = {
         columns: { kind: 'array', of: FOOTER_COLUMN },
         copyright: { kind: 'string' },
         legal: { kind: 'array', optional: true, of: NAV_LINK },
+        schemaVersion: { kind: 'number', optional: true }, // #1838：同 header.schemaVersion
       },
     },
     topbar: {
@@ -689,6 +693,10 @@ function checkShape(value, shape, at, out) {
   }
   // #1781 —— `any`：这一格什么值都收（类型那一侧写的是 `unknown`），判它的是别处（§menuLinkProblems）。
   if (shape.kind === 'any') return;
+  if (shape.kind === 'number') {
+    if (typeof value !== 'number' || !Number.isFinite(value)) out.push(`${withHint(at)} must be a number.`);
+    return;
+  }
   if (shape.kind === 'string') {
     const needsText = NON_EMPTY.has(at);
     // 🔴 `.trim()`，不是 `=== ''`：`"   "` 也是一个没有字的按钮（QA3 在 #1104 r2 报的非阻断第 2 条）。
@@ -721,6 +729,7 @@ function describeShape(shape, at) {
   if (shape.kind === 'buttonHref') return `it must be ${NON_EMPTY.has(at) ? 'a non-empty string' : 'a string'} or {"source": "phone"} / {"source": "email"}`;
   if (shape.kind === 'array') return 'it must be an array';
   if (shape.kind === 'any') return 'it must be present';
+  if (shape.kind === 'number') return 'it must be a number';
   return 'it must be an object';
 }
 

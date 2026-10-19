@@ -1,5 +1,7 @@
 {
   "type": "footer",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Site Footer",
   "category": "region",
   "region": true,

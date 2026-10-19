@@ -62,10 +62,34 @@ function writePlatformFile(outdir, rel, bytes) {
 }
 
 /**
- * 打包。返回 manifest（也写进 `<outdir>/manifest.json`）。
- * @param {{ outdir?: string, minifyRuntime?: boolean }} [opts]
+ * #1838 —— 测试包：`@blocks/*` 指到另一份块目录、块注册表换成另一份（`build-blocks.js --blocks-dir --out` 生成的）。
+ * 不给 ⟹ 不插这个插件，产物跟改前逐字节相同。块目录要在模板根下面一层（块组件用 `../../scripts/…` 引脚本）。
  */
-async function buildRenderBundle({ outdir = DEFAULT_OUTDIR } = {}) {
+function redirectBlocks({ blocksDir, registryPath }) {
+  const registryRe = /^@(?:template|\/)\/?lib\/sections\/registry\.generated(\.ts)?$/;
+  return {
+    name: 'render-redirect-blocks',
+    setup(b) {
+      b.onResolve({ filter: /^@blocks\/|registry\.generated/ }, async (args) => {
+        if (args.pluginData === 'render-redirect') return null;
+        if (registryPath && registryRe.test(args.path)) return { path: registryPath };
+        if (blocksDir && args.path.startsWith('@blocks/')) {
+          const r = await b.resolve(`./${args.path.slice('@blocks/'.length)}`, { resolveDir: blocksDir, kind: args.kind, importer: args.importer, pluginData: 'render-redirect' });
+          return r.errors.length ? { errors: r.errors } : { path: r.path };
+        }
+        return null;
+      });
+    },
+  };
+}
+
+/**
+ * 打包。返回 manifest（也写进 `<outdir>/manifest.json`）。
+ * @param {{ outdir?: string, blocksDir?: string, registryPath?: string }} [opts]
+ *   `blocksDir` / `registryPath`（#1838）：测试用的另一份块目录 / 块注册表（§redirectBlocks）。注册表旁边有
+ *   `shapes.css` / `base.css`（同一次 `build-blocks.js --out` 写的）就用那两份当平台样式。
+ */
+async function buildRenderBundle({ outdir = DEFAULT_OUTDIR, blocksDir, registryPath } = {}) {
   const esbuild = require('esbuild');
   fs.rmSync(outdir, { recursive: true, force: true });
   fs.mkdirSync(outdir, { recursive: true });
@@ -81,17 +105,21 @@ async function buildRenderBundle({ outdir = DEFAULT_OUTDIR } = {}) {
     jsx: 'automatic',
     tsconfig: path.join(ROOT, 'tsconfig.json'),
     packages: 'external',
-    plugins: [keepDirnameModulesOutside(outdir, externals)],
+    plugins: [...(blocksDir || registryPath ? [redirectBlocks({ blocksDir, registryPath })] : []), keepDirnameModulesOutside(outdir, externals)],
     define: { 'process.env.NODE_ENV': '"production"' },
     logLevel: 'silent',
   });
 
   const platform = {};
   const files = [];
+  const generated = (name) => {
+    const alt = registryPath ? path.join(path.dirname(registryPath), name) : null;
+    return alt && fs.existsSync(alt) ? alt : path.join(ROOT, 'public', name);
+  };
   for (const [key, name, src] of [
     ['globalsCss', 'globals', path.join(ROOT, 'src', 'app', 'globals.css')],
-    ['baseCss', 'base', path.join(ROOT, 'public', 'base.css')],
-    ['shapesCss', 'shapes', path.join(ROOT, 'public', 'shapes.css')],
+    ['baseCss', 'base', generated('base.css')],
+    ['shapesCss', 'shapes', generated('shapes.css')],
   ]) {
     const bytes = fs.readFileSync(src);
     const rel = `_platform/css/${name}.${hash16(bytes)}.css`;

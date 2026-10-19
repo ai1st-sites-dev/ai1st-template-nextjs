@@ -568,7 +568,8 @@ function shapesFromDirs(blockDir) {
 }
 
 function loadBlockManifests(rootDir) {
-  const dir = path.join(rootDir, MANIFEST_DIR);
+  // #1838 —— 经 §block-paths：设了 AI1ST_BLOCKS_DIR 就读那一份（假块进测试不进产品）。
+  const dir = require('./lib/block-paths').blocksDir(rootDir);
   if (!fs.existsSync(dir)) return {};
   const out = {};
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

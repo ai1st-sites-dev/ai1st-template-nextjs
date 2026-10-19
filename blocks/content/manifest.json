@@ -1,5 +1,7 @@
 {
   "type": "content",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Content",
   "category": "text",
   "roleDefault": "optional",

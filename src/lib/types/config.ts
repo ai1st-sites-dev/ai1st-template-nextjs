@@ -125,12 +125,15 @@ export interface NavigationConfig {
     // #1780 —— 顶栏上面那一行（topbar 预设）：每项跟顶栏按钮同一个声明（§HeaderButton —— 地址字符串或电话 / 邮箱引用）。
     //   没写 = 电话 + 邮箱两项（今天的样子）。只派生进 header 的 `topbar.contact`（`scripts/lib/topbar-links.js`），带 topbar 的两个预设才画。
     topbarLinks?: HeaderButton[];
+    // #1838 —— 这个外壳区的数据版本（没写 = 1；盖号 / 迁移写它，`scripts/lib/block-migrations.js`）。
+    schemaVersion?: number;
   };
   footer: {
     description: string;
     columns: FooterColumn[];
     copyright: string;
     legal?: NavLink[];
+    schemaVersion?: number;
   };
   // #1000 — 顶栏那条细带（公告条）的内容。#1425（T3）公告条那个区随旧库退役时数据留着（PM 2026-10-02 裁定 ②）；
   // #1528 起构建把它派生进 header 的 `topbar.message`（`scripts/lib/shell-data.js` §topbarMessage），

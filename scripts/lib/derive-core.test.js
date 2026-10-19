@@ -94,7 +94,12 @@ const derive = (opts) => quiet(() => deriveSite(opts));
 
   console.log('③ contentPatchesOf（#1781 syncMenu 语义）');
   {
-    const navOf = (patches) => JSON.parse(patches['en/navigation.json']);
+    // #1838 起 .json 的补丁是解析后的对象（原来是原文字符串）。
+    const navOf = (patches) => {
+      const v = patches['en/navigation.json'];
+      if (typeof v !== 'object' || v === null) die(`contentPatchesOf 回的 navigation.json 不是对象（${typeof v}）—— #1838 之后它该是对象`);
+      return JSON.parse(JSON.stringify(v));
+    };
     // ③ spike 夹具：有 links、没 knownPages，页脚第一列多一个 Contact
     {
       const c = clone(A); const before = JSON.stringify(c);
@@ -158,10 +163,12 @@ const derive = (opts) => quiet(() => deriveSite(opts));
       check(contentPatchesOf(c)['custom.css'] === null, 'tweaks 为空 ⟹ custom.css 为 null');
       check(typeof contentPatchesOf(A)['custom.css'] === 'string' && /--/.test(contentPatchesOf(A)['custom.css']), '夹具带 tweaks ⟹ custom.css 是一份 CSS');
     }
-    // deriveSite 的补丁 == contentPatchesOf（同输入逐字节）
+    // deriveSite 的补丁 == contentPatchesOf（同输入）。#1838：deriveSite 那份是要写回磁盘的原文字符串，contentPatchesOf 的
+    //    .json 补丁是对象 ⟹ 前者的 .json 解析一次再比。
     for (const [n, c] of [['A', A], ['B', B]]) {
       const r = await derive({ content: c, outDir: path.join(tmp(`patch${n}`), 'out') });
-      check(JSON.stringify(r.contentPatches) === JSON.stringify(contentPatchesOf(c)), `站 ${n}：deriveSite 返回的 contentPatches 跟 contentPatchesOf 逐字节相同`);
+      const asObjects = Object.fromEntries(Object.entries(r.contentPatches).map(([k, v]) => [k, k.endsWith('.json') && typeof v === 'string' ? JSON.parse(v) : v]));
+      check(JSON.stringify(asObjects) === JSON.stringify(contentPatchesOf(c)), `站 ${n}：deriveSite 返回的 contentPatches（.json 解析后）跟 contentPatchesOf 相同`);
     }
   }
 

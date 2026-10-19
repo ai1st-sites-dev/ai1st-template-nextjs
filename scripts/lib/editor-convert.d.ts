@@ -46,6 +46,12 @@ export function deepEqual(a: unknown, b: unknown): boolean;
 export function nestedPartSet(value: unknown, sub: string, text: unknown): Record<string, unknown> | undefined;
 export const ITEM_ORIG: string;
 export const UNKNOWN_TYPE: string;
+/** #1838 —— Puck 的分类（左栏「可添加」列表），从 editorSchema 的结果算。 */
+export function categoriesOf(schema: { components: ReadonlyArray<{ type: string }> }): {
+  sections: { title: string; components: string[] };
+  unknown: { components: string[]; visible: false };
+  other: { visible: false };
+};
 /** #1443 —— 形态下拉「跟着主题走」那一项的值：存盘时删掉 `shape` 键 */
 export const THEME_DEFAULT: string;
 /** #1443 —— 画布上这一块戴哪个形态（同构建 §shapeForBlock）；`data` 是这个块当前的内容 */

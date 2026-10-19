@@ -2017,8 +2017,18 @@ console.log('\n㉑ 名字太长（#1567）：拒、同轮改口、磁盘不动�
     else bad(`🔴 AC2：回执不对「${receipt}」`);
     if (!fs.existsSync(path.join(pagesDir(ctx), long))) ok('AC2：磁盘上没有这个长名字的文件');
     else bad('🔴 AC2：长名字的文件落盘了');
+    // #1838 —— page-a 是 AI 这一轮新加的页 ⟹ 它的块是新块，落库前由 stampSchemaVersions 盖上当前号（validate 那一步，
+    //    设计文档 §8.4 ①）。所以「原样在」比的是去掉 schemaVersion 之后的内容，另外再问一句号确实盖上了；
+    //    原来那把「md5 = 写进去的字节」在 #1838 之后按构造不成立：这一格读的是落库之后的 site/。（㉒ 的 AC7 读的是 AI 的
+    //    私有目录 `aiSiteDir`，在 validate 之前，所以那边的 md5 照旧相等。）
+    let storedA = null;
+    try { storedA = JSON.parse(fs.readFileSync(path.join(pagesDir(ctx), 'page-a.json'), 'utf8')); } catch { storedA = null; }
+    const unstampedA = storedA && JSON.parse(JSON.stringify(storedA, (k, v) => (k === 'schemaVersion' ? undefined : v)));
+    const blocksA = storedA && Array.isArray(storedA.blocks) ? storedA.blocks : [];
+    console.log(`     page-a 去掉 schemaVersion 后 = 写进去的内容：${JSON.stringify(unstampedA) === JSON.stringify(JSON.parse(about))} · ${blocksA.length} 块的号 ${JSON.stringify(blocksA.map((b) => b.schemaVersion))}`);
     if (added.length === 1 && added[0] === 'page-a.json' && !changed.length
-      && after['page-a.json'] === require('crypto').createHash('md5').update(about).digest('hex')) ok('AC4：拒之前写的 page-a 原样在（md5 = 写进去的内容），别的文件一个没动，没有半截文件');
+      && JSON.stringify(unstampedA) === JSON.stringify(JSON.parse(about))
+      && blocksA.length > 0 && blocksA.every((b) => b.schemaVersion === 1)) ok('AC4：拒之前写的 page-a 原样在（去掉盖上的版本号 = 写进去的内容，新块都盖了号），别的文件一个没动，没有半截文件');
     else bad(`🔴 AC4：新增 ${JSON.stringify(added)} · 改动 ${JSON.stringify(changed)}`);
   }
 

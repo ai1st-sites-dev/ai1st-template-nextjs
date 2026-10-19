@@ -1,5 +1,7 @@
 {
   "type": "custom-html",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Custom HTML",
   "category": "custom",
   "roleDefault": "optional",

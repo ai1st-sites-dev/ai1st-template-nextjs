@@ -1,5 +1,7 @@
 {
   "type": "contact",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Contact",
   "category": "contact",
   "roleDefault": "essential",

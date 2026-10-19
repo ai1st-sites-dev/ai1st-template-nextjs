@@ -1289,8 +1289,22 @@ function settleAiNotes(notes, used) {
   return out;
 }
 
+/**
+ * #1838 —— Puck 的分类（左栏「可添加」列表）：区块库里的页面块进 Sections；页面里有而库里没有的块那一格（§UNKNOWN_TYPE）
+ * 藏起来，Puck 自己的「其他」也藏。纯函数：输入是 `editor-schema.js` §editorSchema 的结果（它从块注册表 + 块目录算），
+ * 测试拿假注册表算的那份喂它，不碰真 EditorApp。
+ */
+function categoriesOf(schema) {
+  const components = schema && Array.isArray(schema.components) ? schema.components : [];
+  return {
+    sections: { title: 'Sections', components: components.map((c) => c.type) },
+    unknown: { components: [UNKNOWN_TYPE], visible: false },
+    other: { visible: false },
+  };
+}
+
 module.exports = {
-  UNKNOWN_TYPE, describeSave, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
+  UNKNOWN_TYPE, categoriesOf, describeSave, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
   aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions, nestedPartSet,
   recordAiNote, aiNotesForSave, settleAiNotes, AI_ACTION_PHRASES,

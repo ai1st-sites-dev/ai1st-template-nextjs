@@ -9,6 +9,7 @@ import path from 'path';
 import { getPage, getForms, getBrandName, getNavigation } from '@/lib/config';
 import { editorSource, locateInRaw, effectiveWeights } from '../../scripts/lib/editor-page.js';
 import { editorSchema } from '../../scripts/lib/editor-schema.js';
+import { blocksDir, registryPath } from '../../scripts/lib/block-paths.js';
 import { pageToPuck, rootToPuck } from '../../scripts/lib/editor-convert.js';
 import { editorPages } from '../../scripts/lib/editor-pages.js';
 import { topbarLinksOf } from '../../scripts/lib/topbar-links.js';
@@ -67,8 +68,9 @@ export function editorProps({ site, root, siteDir, locale, slug }: { site: SiteD
   const schema = editorSchema({
     rootDir: root,
     siteDir,
-    registryPath: path.join(root, 'src', 'lib', 'sections', 'registry.generated.ts'),
-    blocksDir: path.join(root, 'blocks'),
+    // #1838 —— 经 §block-paths（测试改道到带假块的临时目录 / 注册表时跟着走；没改道就是 root 下那两份）。
+    registryPath: registryPath(root),
+    blocksDir: blocksDir(root),
     layoutsDir: path.join(root, 'page-layouts'),
   });
   const located = page.blocks.map((b) => locateInRaw(src.raw, src.siteBlocks, slug, b));

@@ -71,7 +71,10 @@ function readShapeDirs(blockType) {
   if (_shapesCache.has(blockType)) return _shapesCache.get(blockType);
   let shapes = [];
   try {
-    const dir = path.join(__dirname, '..', 'blocks', blockType);
+    // #1838 —— 块目录经 §lib/block-paths（测试改道）；那几棵只拷了本文件的临时树里它不在 ⟹ 退回自己旁边的 blocks/。
+    let root = path.join(__dirname, '..', 'blocks');
+    try { root = require('./lib/block-paths').blocksDir(path.join(__dirname, '..')); } catch { /* 只拷了本文件的临时树 */ }
+    const dir = path.join(root, blockType);
     shapes = fs.readdirSync(dir, { withFileTypes: true })
       .filter((e) => e.isDirectory())
       .map((e) => {

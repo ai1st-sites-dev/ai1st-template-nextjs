@@ -112,10 +112,11 @@ function walkSources(dir, out) {
 
 function resolveAlias(rootDir, spec) {
   // tsconfig 里三个别名：`@/*` 与 `@template/*` → `./src/*`（#1801 加的后者，dashboard 的编辑器引模板文件用它），`@blocks/*` → `./blocks/*`（#1387）。
-  const base = spec.startsWith('@blocks/') ? 'blocks' : 'src';
+  // #1838 —— `@blocks/*` 跟着 §block-paths 走（测试改道到带假块的临时目录时，注册表 import 的就是那里的组件）。
+  const base = spec.startsWith('@blocks/') ? require('./block-paths').blocksDir(rootDir) : path.join(rootDir, 'src');
   const rel = spec.replace(/^@blocks\//, '').replace(/^@template\//, '').replace(/^@\//, '');
   for (const ext of ['.tsx', '.ts']) {
-    const p = path.join(rootDir, base, rel + ext);
+    const p = path.join(base, rel + ext);
     if (fs.existsSync(p)) return p;
   }
   return null;
@@ -138,7 +139,7 @@ function readFileOrNull(p) {
  *                 （#1033 r2）。非空 = 有一条到达页面的路我算不出来，调用方也按「所有页面都算」处理。
  */
 function blockTypesReadingServices(rootDir) {
-  const registryPath = path.join(rootDir, 'src', 'lib', 'sections', 'registry.generated.ts');
+  const registryPath = require('./block-paths').registryPath(rootDir); // #1838
   const src = readFileOrNull(registryPath);
   if (src === null) {
     return {
@@ -186,10 +187,10 @@ function blockTypesReadingServices(rootDir) {
   // #1387 —— 块组件从 `src/components/sections/` 搬进了 `blocks/<块>/Section.tsx`，所以这两件事
   // 一起变：判「它是不是块组件」看的是 `blocks/` 这个目录，扫描面也要把 `blocks/` 加进来
   // （只扫 `src/` 的话，块组件里的 `getServices` 从此一处都读不到 —— 那正是这段要防的静默）。
-  const sectionsDir = path.resolve(rootDir, 'blocks');
+  const sectionsDir = path.resolve(require('./block-paths').blocksDir(rootDir));
   const unmapped = [];
   const unaccounted = [];
-  for (const abs of [...walkSources(path.join(rootDir, 'src'), []), ...walkSources(path.join(rootDir, 'blocks'), [])]) {
+  for (const abs of [...walkSources(path.join(rootDir, 'src'), []), ...walkSources(sectionsDir, [])]) {
     if (usedComponentFiles.has(path.resolve(abs))) continue;
     const body = readFileOrNull(abs);
     if (body === null || !SERVICES_MARKER.test(body)) continue;

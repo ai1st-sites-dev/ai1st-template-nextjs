@@ -1,5 +1,7 @@
 {
   "type": "testimonials",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Testimonials",
   "category": "testimonial",
   "roleDefault": "optional",

@@ -28,6 +28,7 @@ const { loadManifests, registryCoverage, registryNames, layoutIntentFor } = requ
 const NEXT_DIR = path.resolve(__dirname, '..', '..');
 /** 注册表 —— `sectionRegistry` 那张表的家。`registryCoverage` 用 TS 的 AST 读它的键，不是正则。 */
 const REGISTRY_TS = path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.generated.ts');
+const blockPaths = require('./block-paths');
 
 /**
  * 全集：注册表里的每个块 × 它 manifest 里的每个形态。
@@ -42,7 +43,8 @@ const REGISTRY_TS = path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.gene
  * @throws 注册表与 manifest 对不上、或者根本读不出注册表时
  */
 function blockShapeCatalog(opts) {
-  const registryPath = (opts && opts.registryPath) || REGISTRY_TS;
+  // #1838 —— 没给就问 §block-paths（测试改道时是那份临时注册表；否则就是 REGISTRY_TS）。
+  const registryPath = (opts && opts.registryPath) || blockPaths.registryPath(NEXT_DIR);
   const blocksDir = opts && opts.blocksDir;
   const cov = registryCoverage(registryPath, blocksDir);
   if (cov.unavailable) {

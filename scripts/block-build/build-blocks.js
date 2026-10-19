@@ -5,11 +5,14 @@
 //
 // 跑法:  node scripts/block-build/build-blocks.js          写盘
 //        node scripts/block-build/build-blocks.js --check  只对，不写；对不上 exit 1 并点名
+//        node scripts/block-build/build-blocks.js --blocks-dir <目录> --out <目录>
+//            #1838：从另一份块目录（测试拼的、带假块 A / B 的那份）拼，三份生成物写进 `<out>/`
+//            （`shapes.css` / `base.css` / `registry.generated.ts`，平铺）。不碰本仓的生成物 —— 假块进测试不进产品。
 //
 // 生成三份：
 //   public/shapes.css                     形态层
 //   public/base.css                       地板层
-//   src/lib/sections/registry.generated.ts  块类型 → 组件
+//   src/lib/sections/registry.generated.ts  块类型 → 组件；外加每个块（含外壳区）的数据版本表（#1838）
 //
 // 🔴 **三份都进 git，并且有一道检查盯着「文件里那份 == 现在拼出来的那份」**
 //    （`scripts/block-build/generated-fresh.test.js`，`npm run test:scripts` 会发现它）。
@@ -39,8 +42,8 @@ const { itemsGridCss } = require('./items-grid.js');
 const { mediaLayoutCss } = require('./media-layout.js');
 const { introLayoutCss } = require('./intro-layout.js');
 
-function readBlock(type) {
-  const dir = path.join(BLOCKS, type);
+function readBlock(type, blocksDir = BLOCKS) {
+  const dir = path.join(blocksDir, type);
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf-8'));
   const shapes = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -65,10 +68,10 @@ function readBlock(type) {
   return { type, dir, manifest, shapes, region: manifest.region === true };
 }
 
-function readBlocks() {
-  const types = fs.readdirSync(BLOCKS, { withFileTypes: true })
+function readBlocks(blocksDir = BLOCKS) {
+  const types = fs.readdirSync(blocksDir, { withFileTypes: true })
     .filter((e) => e.isDirectory()).map((e) => e.name).sort();
-  const all = types.map(readBlock);
+  const all = types.map((t) => readBlock(t, blocksDir));
   return [...all.filter((b) => !b.region), ...all.filter((b) => b.region)];
 }
 
@@ -120,6 +123,15 @@ function buildRegistry(blocks) {
   const own = blocks.filter((b) => !b.region);
   const imports = own.map((b) => `import ${pascal(b.type)}Section from '@blocks/${b.type}/Section';`);
   const rows = own.map((b) => `  '${b.type}': ${pascal(b.type)}Section,`);
+  // #1838 —— 每个块（含外壳区）的数据版本，manifest 原样搬过来；没写 = 1 / [1]。🔴 键用**双引号**、放在组件表**前面**：
+  //    好几份守卫按 `'<块>':`（单引号）在整份文件里抠组件表的键（`editor-design-content.test.js` 数页面块种数、
+  //    `editor-roundtrip.test.js` 按 `'cta':` 插假块、`edit-site-prompt.test.js` 从组件表那个名字往后抠），
+  //    这张表用同一种写法就会被当成组件表的行（外壳区也被数进页面块）。
+  const versionRows = blocks.map((b) => {
+    const v = Number.isInteger(b.manifest.schemaVersion) ? b.manifest.schemaVersion : 1;
+    const r = Array.isArray(b.manifest.renders) ? b.manifest.renders : [v];
+    return `  "${b.type}": { schemaVersion: ${v}, renders: [${r.join(', ')}] },`;
+  });
   return [
     '// 🔴 这个文件是生成的 —— 手改会被下一次 `node scripts/block-build/build-blocks.js` 覆盖，',
     '//    而 `scripts/block-build/generated-fresh.test.js` 会在那之前就把它点名。',
@@ -127,6 +139,11 @@ function buildRegistry(blocks) {
     '//    然后跑一次生成器。#1387（设计文档 D20）。',
     "import type { ComponentType } from 'react';",
     ...imports,
+    '',
+    '// #1838 —— 每个块的数据版本（含顶栏 / 页脚）：`schemaVersion` = 内容该是哪一版，`renders` = 组件还画得了哪几版。',
+    'export const blockSchemaVersions: Record<string, { schemaVersion: number; renders: number[] }> = {',
+    ...versionRows,
+    '};',
     '',
     '// eslint-disable-next-line @typescript-eslint/no-explicit-any',
     'export const sectionRegistry: Record<string, ComponentType<any>> = {',
@@ -183,9 +200,20 @@ function assertPieceOwnsItsRules(file, css, { block, shape } = {}) {
   }
 }
 
+function argValue(name) {
+  const i = process.argv.indexOf(name);
+  if (i < 0) return undefined;
+  const v = process.argv[i + 1];
+  if (v === undefined || v.startsWith('--')) throw new Error(`${name} 后面要跟一个目录`);
+  return path.resolve(v);
+}
+
 function main() {
   const check = process.argv.includes('--check');
-  const blocks = readBlocks();
+  const blocksDir = argValue('--blocks-dir');
+  const outDir = argValue('--out');
+  if (!!blocksDir !== !!outDir) throw new Error('--blocks-dir 和 --out 要一起给（从另一份块目录拼、写进另一个目录）');
+  const blocks = readBlocks(blocksDir || BLOCKS);
   // 每个零件自证：规则只许是它自己的（理由见 assertPieceOwnsItsRules）。
   assertPieceOwnsItsRules(path.join(HERE, 'shapes-head.css'), read(path.join(HERE, 'shapes-head.css')));
   assertPieceOwnsItsRules(path.join(HERE, 'base-head.css'), read(path.join(HERE, 'base-head.css')));
@@ -210,7 +238,11 @@ function main() {
   }
   const shapesCss = buildShapesCss(blocks);
   const baseCss = buildBaseCss(blocks);
-  const targets = [
+  const targets = outDir ? [
+    [path.join(outDir, 'shapes.css'), shapesCss],
+    [path.join(outDir, 'base.css'), baseCss],
+    [path.join(outDir, 'registry.generated.ts'), buildRegistry(blocks)],
+  ] : [
     [path.join(NEXT, 'public', 'shapes.css'), shapesCss],
     [path.join(NEXT, 'public', 'base.css'), baseCss],
     [path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts'), buildRegistry(blocks)],

@@ -1,5 +1,7 @@
 {
   "type": "gallery",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Gallery",
   "category": "gallery",
   "roleDefault": "optional",

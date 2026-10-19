@@ -8,7 +8,7 @@
 //      manager 读一行 Publish 一条（SSE 那一半不动）。
 //   ② 它成功退出之后，把 `<outDir>/site/` 读回成「库里一行 JSON」的形状（`site-editor.js` §readTree），去掉建站自己的
 //      记账文件（`.build/` 续跑存档、`build-report.json`），在 Node 这一侧套一遍 `contentPatchesOf`（菜单同步 +
-//      custom.css；它是 JS，manager 调不了），再过 `stampSchemaVersions(null, content)`（T4b 填实），写进
+//      custom.css；它是 JS，manager 调不了），再过 `stampSchemaVersions(null, content)`（#1838：每块盖当前号），写进
 //      `<outDir>/result.json`。
 //   ③ 发 `build-report`（建站报告，耗时改成整次 `site.js create` 的墙钟秒数 —— 今天 entrypoint 的 finish-build-report.js
 //      做的那一步）和最后一行 `{"event":"created","result":"<outDir>/result.json"}`。
@@ -35,10 +35,11 @@ function finishContent(siteDir) {
   const tree = readTree(siteDir);
   let content = {};
   for (const [rel, v] of Object.entries(tree)) if (!isBuildBookkeeping(rel)) content[rel] = v;
-  // 同 site-editor.js §save 那一段：补丁是原文字符串，.json 的解析回对象；null = 删掉那一份。
-  for (const [rel, text] of Object.entries(contentPatchesOf(content))) {
-    if (text === null) delete content[rel];
-    else content[rel] = rel.endsWith('.json') ? JSON.parse(text) : text;
+  // 同 site-editor.js §save 那一段：补丁直接是对象 / 字符串（#1838），null = 删掉那一份。建站不迁（全是当前号），
+  // `touchedFiles` 不传；版本号由 stampSchemaVersions 一次盖齐（没有之前 ⟹ 每块都是新块）。
+  for (const [rel, value] of Object.entries(contentPatchesOf(content))) {
+    if (value === null) delete content[rel];
+    else content[rel] = value;
   }
   content = stampSchemaVersions(null, content);
   return Object.fromEntries(Object.keys(content).sort().map((k) => [k, content[k]]));

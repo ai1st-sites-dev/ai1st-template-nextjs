@@ -21,7 +21,10 @@ const path = require('path');
 const { resolveBlockTypesForCheck } = require('../blocks');
 const { LEGACY_OBJECT_TO_LIST, legacyListValue } = require('./legacy-shapes');
 
-const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
+// #1838 —— 块目录经 §block-paths（测试可整进程改道到一份带假块的临时目录）。`BLOCKS_DIR` 是加载这一刻的值，
+//    只留给几份 theme-pipeline 工具当默认参数；本文件自己的默认值在调用时现取（§loadManifests）。
+const blockPaths = require('./block-paths');
+const BLOCKS_DIR = blockPaths.blocksDir();
 // #1332 —— 排版意图的词表。🔴 **一份定义，两处读**：这里（建站期的校验器，CommonJS）和
 // `layout-intent.mjs`（几何守卫，ESM）。两边各抄一份词表的失败方向是静默的 —— 校验器放行一个词、
 // 守卫不认识它，于是那一格什么都没判而没有人会红。
@@ -368,6 +371,16 @@ function checkManifestShape(name, m) {
       + '编辑器右侧面板显示的就是它；不许拿 type 原文顶替，那是内行黑话）');
   }
   if (!isStr(m.category)) bad('category 必须是非空字符串');
+  // #1838 —— 块的数据版本（设计文档 §8.4 ①）：`schemaVersion` = 内容该是哪一版，`renders` = 这份组件还画得了哪几版。
+  //    写歪的方向是静默的：`renders` 里没有当前版 ⟹ 新盖了号的块一律「画不出来」；不是整数 ⟹ 迁移那一路永远走不到。
+  if (m.schemaVersion !== undefined || m.renders !== undefined) {
+    const posInt = (v) => Number.isInteger(v) && v >= 1;
+    if (!posInt(m.schemaVersion)) bad(`schemaVersion 是 ${JSON.stringify(m.schemaVersion)} —— 必须是 ≥ 1 的整数`);
+    if (!Array.isArray(m.renders) || !m.renders.length || !m.renders.every(posInt)) {
+      bad(`renders 是 ${JSON.stringify(m.renders)} —— 必须是非空的整数数组（这份组件还画得了哪几版）`);
+    }
+    if (!m.renders.includes(m.schemaVersion)) bad(`renders ${JSON.stringify(m.renders)} 里没有当前版 ${m.schemaVersion} —— 新盖号的块会全部画不出来`);
+  }
   if (!ROLE_NAMES.includes(m.roleDefault)) {
     bad(`roleDefault 是 ${JSON.stringify(m.roleDefault)} —— 只能是 ${ROLE_NAMES.join(' / ')}`
       + '（全小写，大小写错会让「角色只能加不能降」那条检查静默失效）');
@@ -776,7 +789,7 @@ function readShapes(blockDir) {
 const { readManifest, expandSharedSlots, isSlotRef, SHARED_SLOTS_FILE } = require('./shared-slots');
 
 let cache = null;
-function loadManifests(dir = BLOCKS_DIR) {
+function loadManifests(dir = blockPaths.blocksDir()) {
   if (cache && cache.dir === dir) return cache.byType;
   const byType = new Map();
   for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {

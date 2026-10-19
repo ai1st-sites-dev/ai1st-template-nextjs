@@ -1,5 +1,7 @@
 {
   "type": "milestones",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Milestones",
   "category": "stats",
   "roleDefault": "optional",

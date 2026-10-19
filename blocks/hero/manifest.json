@@ -1,5 +1,7 @@
 {
   "type": "hero",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Hero",
   "category": "banner",
   "roleDefault": "lead",

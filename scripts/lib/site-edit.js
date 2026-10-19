@@ -17,14 +17,12 @@
 //           再问一遍（循环里那几道问的是「这一笔」，这里问的是「这一轮最后落成什么样」）；
 //         · 整站派生一遍（`derive-core.js` §deriveSite，不编 site.css）—— 站容器时代 sync-config 那道闸；
 //         · 通过 ⟹ `brand.json` 里 AI 写进去的坐标剥掉（坐标住 `sites.geo`、在版本之外，设计文档 §4.1）、并进 `contentPatchesOf`
-//           （菜单同步 + custom.css）、过 `stampSchemaVersions(prev, next)`（T4b 填实）。
+//           （菜单同步 + custom.css）、过 `stampSchemaVersions(prev, next)`（#1838：不迁，只盖号，`prev` 用原样的 prev）。
 //       返回 `{ content, files, geo? }`（`files` = 这一笔改了 content 的哪几个键；`geo` = 剥下来的 `{lat, lng, address}`）。
 //       不通过 ⟹ throw `SiteEditorError('refused', <给老板的那句话>)`。
 //
 // 🔴 落库不在这里：manager 拿 result.json 调 `commitSiteContent(… reason=ai-edit, author=ai, baseVersion=这一轮开始时读到的版本)`，
 //    基准过期就按文件三方合并、真撞同一份文件才冲突（manager/site_content.go）。
-// 🔴 `contentPatchesOf` 今天回的是原文字符串，.json 再 JSON.parse 一次 —— T4b 把它改成直接返回对象时同 PR 删掉这一步
-//    （同 site-editor.js §save / site-create.js §finishContent）。
 const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
@@ -171,9 +169,11 @@ async function validate({ prev, next, scope = null }) {
   try {
     console.log = (...a) => console.error(...a);
     await deriveSite({ content, outDir: out, purge: false, skipSiteCss: true, siteLabel: 'site' });
-    for (const [rel, text] of Object.entries(contentPatchesOf(content))) {
-      if (text === null) delete content[rel];
-      else content[rel] = rel.endsWith('.json') ? JSON.parse(text) : text;
+    // #1838 —— AI 交回的是整份结果（「套」已经发生）⟹ 这里不迁、只盖号（PM 2026-10-19 裁）：再迁会把 AI 新加、还没盖号的块
+    //    当 v1 再迁一遍。`touchedFiles` 不传；AI 留着的老块继承旧号，留到下一次在编辑器里保存时迁（读的时候内存里照样迁）。
+    for (const [rel, value] of Object.entries(contentPatchesOf(content))) {
+      if (value === null) delete content[rel];
+      else content[rel] = value;
     }
   } catch (e) {
     throw new SiteEditorError('refused', `${NOT_SAVED}\n\n${e && e.message ? e.message : e}`);

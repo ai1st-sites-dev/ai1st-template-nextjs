@@ -20,10 +20,15 @@
 //       skipSiteCss   #1826：不编 site.css（`site.js render --only-blocks` 只要页面数据），返回的 siteCss 是 null。
 //     → { contentPatches, data, siteCss }。`data` 就是今天 `require('./derive-site.js').ready` 交出去的那份 `d`。
 //
-//   contentPatchesOf(content, { globalsCssPath }) → { '<locale>/navigation.json': 原文, 'custom.css': 原文 | null }
-//       派生会回写站内容的那两份（菜单同步、微调生成的 custom.css），纯函数：不跑 Sass、不写盘、不改 `content`。
-//       新架构里由写库那一笔套用（site.js save / edit / theme / create），渲染不回写库（设计文档 §6.1）。
-//       `deriveSite` 返回的 `contentPatches` 跟它同输入逐字节相同（`deriveSite` 用的就是同一组函数）。
+//   contentPatchesOf(content, { globalsCssPath, touchedFiles }) → { '<相对路径>': 对象 | 字符串 | null }
+//       写库那一笔要并进去的补丁，纯函数：不跑 Sass、不写盘、不改 `content`。三样：
+//         · 菜单同步 —— `<locale>/navigation.json`（解析后的对象）
+//         · 微调生成的 custom.css —— `custom.css`（字符串；没有微调 = null，即这个站不该有这个文件）
+//         · #1838 块的静默迁移 —— 只迁 `touchedFiles` 里那几份（这一笔本来就碰的文件），只跑 `preservesLook: true` 的
+//           （§block-migrations）。没碰的文件原样；不传 = 一份都不迁。碰到了 navigation.json ⟹ 先迁、再同步菜单。
+//       🔴 #1838 起 .json 的补丁是**解析后的对象**（原来是原文字符串，四个调用方各自再 JSON.parse 一次）：jsonb 里存字符串
+//          会让使用表 SQL 漏数、三方合并每次都判「改过」。新架构里由写库那一笔套用（site.js save / edit / theme / create），
+//          渲染不回写库（设计文档 §6.1）。`deriveSite` 返回的 `contentPatches` 仍是原文字符串（它写回磁盘），同输入解析后相等。
 //
 // 🔴 没有模块级状态。上一版的 `pending` / `readAtStart` 两张表是模块级的 —— 同一个进程 `Promise.all` 跑四次会共用。
 //    现在 `pending` 是每次调用自己的；`readAtStart`（#1807 写回前比字节）只跟「写回磁盘上的 site/」有关，留在薄壳。
@@ -393,10 +398,14 @@ function pagesFromContent(content, prefix) {
  * 见文件头。派生会回写站内容的那两份，纯函数：不跑 Sass、不写盘、不改 `content`。
  * 不合法的内容照样 throw（跟 `deriveSite` 同一句话）—— 写库那一笔拿到错就该拒，不该把一份坏补丁并进去。
  */
-function contentPatchesOf(content, { globalsCssPath } = {}) {
+function contentPatchesOf(content, { globalsCssPath, touchedFiles = [] } = {}) {
   if (!content || typeof content !== 'object' || Array.isArray(content)) {
     throw new TypeError('contentPatchesOf: content 必须是对象（键 = site/ 下的相对路径）');
   }
+  if (!Array.isArray(touchedFiles)) throw new TypeError('contentPatchesOf: touchedFiles 必须是数组（这一笔碰到的 site/ 相对路径）');
+  // #1838 —— 先迁这一笔碰到的文件，菜单同步 / custom.css 在迁过的那份上算（碰到 navigation.json 时它的顶栏页脚先升上来）。
+  const migrated = require('./block-migrations').migrateTouched(content, touchedFiles);
+  if (Object.keys(migrated).length) content = { ...content, ...migrated };
   const has = (rel) => Object.prototype.hasOwnProperty.call(content, rel);
   let locales = ['en'];
   let legacy = true;
@@ -405,7 +414,7 @@ function contentPatchesOf(content, { globalsCssPath } = {}) {
     legacy = false;
     locales = meta && Array.isArray(meta.locales) ? meta.locales : [];
   }
-  const patches = {};
+  const patches = { ...migrated };
   for (const locale of locales) {
     const prefix = legacy ? '' : `${locale}/`;
     const pages = pagesFromContent(content, prefix);
@@ -415,7 +424,7 @@ function contentPatchesOf(content, { globalsCssPath } = {}) {
     if (!has(`${prefix}navigation.json`)) fail(`Required file missing: ${prefix}navigation.json`);
     syncNavigation({
       content, localePrefix: legacy ? '' : locale, locale, homePage, pages,
-      services: Array.isArray(services) ? services : [], writeOut: (rel, text) => { patches[rel] = text; },
+      services: Array.isArray(services) ? services : [], writeOut: (rel, text) => { patches[rel] = JSON.parse(text); },
     });
   }
   patches['custom.css'] = customCssOf(content, globalsCssPath ? { globalsCssPath } : {}).css;
@@ -999,7 +1008,7 @@ async function runDerive({
     // #999 —— 「渲染器认得的块」与「有 manifest 的块」必须是同一个集合。加了块忘了补 manifest 的话，
     // 那个块从此在提示词里不出现、校验也不认它，而没有任何东西会红。
     {
-      const cov = blockManifest.registryCoverage(path.join(rootDir, 'src', 'lib', 'sections', 'registry.generated.ts'));
+      const cov = blockManifest.registryCoverage(require('./block-paths').registryPath(rootDir), require('./block-paths').blocksDir(rootDir));
       // 🔴 #1013：「读不出来」不走 exit 1 那一支。这里的退出码 1 会让这个站从此重建不出来，而
       //    「拿不到解析器」根本不是关于注册表的读数 —— 但它也不能安静地过去，否则日志里那行
       //    「对得上」会变成一句没人查过的话。

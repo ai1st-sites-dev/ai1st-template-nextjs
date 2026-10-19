@@ -8,8 +8,7 @@
 // 🔴 两种错的措辞是这份包的对外合同（包发出去就改不了，manager 和 T4d 的自愈按它判）：
 //      unknown block type <t> at <文件>#<块 id>
 //      unsupported schemaVersion <n> of <t> at <文件>#<块 id>
-//    第二种今天不会出现：manifest 还没有 `renders`（T4b 加）。有了它，判据就是「块的 schemaVersion（没写 = 1）在不在
-//    manifest 的 `renders` 里」，这里不用再改。
+//    第二种的判据：块的 schemaVersion（没写 = 1）不在 manifest 的 `renders` 里（#1838 起每份 manifest 都写了 `renders`）。
 //
 // 扫的范围：页面（`pages/**.json` 的 `blocks` 和老形状的 `sections`）、共用块（`blocks/site-blocks.json`，键是块 id）。
 // 博客文章是 markdown 正文，没有块。顶栏 / 页脚是外壳区（manifest `region: true`），不进页面 JSON，也不算「认识的页面块」。
@@ -21,7 +20,7 @@ const SHARED_KEY_RE = /(^|\/)blocks\/site-blocks\.json$/;
 
 /** 这份模板认识的页面块：类型 → manifest 的 `renders`（没写 = null，即不按版本判）。 */
 function knownBlockTypes(templateDir) {
-  const dir = path.join(templateDir, 'blocks');
+  const dir = require('./block-paths').blocksDir(templateDir); // #1838：测试可改道到带假块的临时目录
   const out = new Map();
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     if (!e.isDirectory()) continue;

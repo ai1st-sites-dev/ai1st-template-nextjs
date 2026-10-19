@@ -1,0 +1,31 @@
+{
+  "type": "fake-b",
+  "schemaVersion": 3,
+  "renders": [3],
+  "displayName": "Fake B (test only)",
+  "category": "content",
+  "roleDefault": "optional",
+  "skin": "site-css",
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "cross": "none",
+    "order": "dom",
+    "item_parts": "none",
+    "inner": "one"
+  },
+  "slots": {
+    "title": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Title"
+    }
+  },
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

@@ -100,7 +100,7 @@ import type { EditorComponent, EditorField, EditorSchema } from '../../../script
 import type { AiNote, AiNotes, PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
 import type { EditorPageGroup } from '../../../scripts/lib/editor-pages';
 import {
-  UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
+  UNKNOWN_TYPE, categoriesOf, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
   THEME_DEFAULT, canvasShape, shapeOptions, describeSave, nestedPartSet, recordAiNote, aiNotesForSave, settleAiNotes,
   itemOp, recordItemNote, type ItemOp,
@@ -1028,11 +1028,7 @@ export function buildConfig(site: SiteData, schema: EditorSchema, locale: string
   } as unknown as Config['components'][string];
   return {
     components,
-    categories: {
-      sections: { title: 'Sections', components: schema.components.map((c) => c.type) },
-      unknown: { components: [UNKNOWN_TYPE], visible: false },
-      other: { visible: false },
-    },
+    categories: categoriesOf(schema), // #1838：抽成纯函数（editor-convert.js §categoriesOf）
     root: rootConfig(schema, locale, site),
   } as Config;
 }

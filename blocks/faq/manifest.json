@@ -1,5 +1,7 @@
 {
   "type": "faq",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "FAQ",
   "category": "faq",
   "roleDefault": "essential",

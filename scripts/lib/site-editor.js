@@ -168,7 +168,9 @@ async function editorData({ content: input, geo, locale, page, themeId, cacheDir
   if (Object.keys(input).length === 0) return { content: null };
   // #1874 —— 只读画布按 `?theme=` 画：content 在内存里先穿上那一套（§dressContent，跟 Apply 同一个函数），不写库。
   const id = tryOnTheme(themeId);
-  const content = withGeo(id ? dressContent(input, { themeId: id }) : input, geo);
+  // #1838 —— 读的时候内存里全量迁（只跑 `preservesLook: true` 的），不落库。页面的 baseHash 因此是迁过那份的哈希 ——
+  //    §save 先迁这一笔碰到的文件、再比 baseHash，两边才对得上。
+  const content = require('./block-migrations').migrateInMemory(withGeo(id ? dressContent(input, { themeId: id }) : input, geo));
   const { dir, siteDir } = materialize(content);
   try {
     // 派生一遍：页面要的那份站点数据（同发布构建的 config）+ theme.css / custom.css + site.css（按键缓存，命中不编 Sass）。
@@ -229,6 +231,34 @@ function addressOf(content) {
   const doc = typeof brand === 'string' ? (() => { try { return JSON.parse(brand); } catch { return null; } })() : brand;
   const loc = doc && Array.isArray(doc.locations) ? doc.locations[0] : null;
   return loc && typeof loc.address === 'string' ? loc.address.trim() : '';
+}
+
+// #1838 —— `root` 里落在 `<语言>/navigation.json` 的那几个字段（`editor-root.js` 文件头那张分派表）。🔴 白名单，不是「凡是
+//    header 开头的」：`headerShape` / `headerOptions` / `footerShape` / `footerOptions` 落在 `theme.json`，不算碰了 navigation.json。
+const ROOT_FIELDS_IN_NAVIGATION = ['headerButtons', 'headerTopbar', 'headerLinks'];
+
+/**
+ * #1838 —— 这一笔编辑器存盘会碰到 content 的哪几份文件（只算块住的那几种：页面 / 共用块 / navigation.json），按 `changes` 事先判：
+ *   带 `json` ⟹ 那一页 · 带 `shared` ⟹ `blocks/site-blocks.json` · `root` 里有 §ROOT_FIELDS_IN_NAVIGATION ⟹ `navigation.json`
+ *   · 带 `nav` ⟹ 它点名的那几页（`editor-nav.js` §planNavWrite 写的是别的页的 navLabel / navOrder，不写 navigation.json）
+ * 回 site/ 下的相对路径（content 里真有的那几份）。
+ */
+function touchedFilesOf({ changes, target, siteDir, slug, pageFiles }) {
+  const out = [];
+  const rel = (abs) => path.relative(siteDir, abs).split(path.sep).join('/');
+  const add = (abs) => { if (abs && fs.existsSync(abs)) out.push(rel(abs)); };
+  const bySlug = new Map();
+  if (changes.json || isObj(changes.nav)) {
+    const pagesDir = path.join(target.localeDir, 'pages');
+    try { if (fs.existsSync(pagesDir)) pageFiles.readPagesRecursive(pagesDir, '', [], bySlug); } catch { /* 读不出来由 planPageWrite 报 */ }
+  }
+  if (changes.json) add(bySlug.get(slug));
+  if (isObj(changes.nav)) for (const s of Object.keys(changes.nav)) add(bySlug.get(s));
+  if (changes.shared) add(path.join(target.localeDir, 'blocks', 'site-blocks.json'));
+  if (ROOT_FIELDS_IN_NAVIGATION.some((f) => Object.prototype.hasOwnProperty.call(changes.root || {}, f))) {
+    add(path.join(target.localeDir, 'navigation.json'));
+  }
+  return [...new Set(out)];
 }
 
 /**
@@ -293,8 +323,21 @@ async function save({ content, changes, keep = false }) {
     const writes = [];
     let pageHash = '';
     let s = null;
+    // #1838 —— 迁过之后的「这一笔之前」：盖号拿它当 prev（不然刚迁到 v2 的块又被盖回 1）。
+    let before = content;
     try {
       target = pageWrite.resolveTarget(dir, siteShape, localeIn);
+      // #1838 —— 顺序定死：这一笔碰到的文件先迁（§contentPatchesOf 的 touchedFiles，只跑 preservesLook: true）→ 再套 changes
+      //    → 最后盖号。反过来，迁移会把老板刚改的新字段用旧值盖掉。碰到哪几份按 changes 事先判（§touchedFilesOf），
+      //    因为迁移要在套之前。迁过的那几份写回临时目录，下面的 baseHash 比的就是迁过那份（editor-data 也是迁过才算的哈希）。
+      const touched = touchedFilesOf({ changes: { json, shared, nav, root }, target, siteDir, slug, pageFiles });
+      if (touched.length) {
+        const patches = contentPatchesOf(content, { touchedFiles: touched });
+        const migrated = {};
+        for (const rel of touched) if (Object.prototype.hasOwnProperty.call(patches, rel)) migrated[rel] = patches[rel];
+        for (const [rel, v] of Object.entries(migrated)) fs.writeFileSync(path.join(siteDir, rel), contentText(v));
+        before = { ...content, ...migrated };
+      }
       let baseHash = typeof changes.baseHash === 'string' ? changes.baseHash : '';
       if (json && keep) {
         const cur = editorSource(dir, target.locale, slug, siteDir);
@@ -327,14 +370,14 @@ async function save({ content, changes, keep = false }) {
     }
 
     let next = readTree(siteDir);
-    // 菜单同步 + custom.css（derive-core §contentPatchesOf，设计文档 §5.3：并进同一笔，渲染不回写库）。
-    // 🔴 T4b：contentPatchesOf 今天回的是**原文字符串**，下面按 .json 再 JSON.parse 一次；T4b 把它改成直接返回对象时，
-    //    同 PR 删掉这里的 parse（不删 ⟹ 对一个对象 JSON.parse 当场抛）。
+    // 菜单同步 + custom.css（derive-core §contentPatchesOf，设计文档 §5.3：并进同一笔，渲染不回写库）。补丁直接是对象 / 字符串（#1838）。
     const patches = contentPatchesOf(next);
-    for (const [rel, text] of Object.entries(patches)) {
-      if (text === null) delete next[rel];
-      else next[rel] = rel.endsWith('.json') ? JSON.parse(text) : text;
+    for (const [rel, value] of Object.entries(patches)) {
+      if (value === null) delete next[rel];
+      else next[rel] = value;
     }
+    // #1838 —— 最后盖号：画布新插的块（`puckToPage` 不带号）盖当前号，老块继承迁过之后的号。
+    next = require('./stamp-schema-versions').stampSchemaVersions(before, next);
     next = Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]]));
 
     const files = Object.keys({ ...content, ...next }).filter((k) => JSON.stringify(content[k]) !== JSON.stringify(next[k])).sort();
@@ -375,7 +418,7 @@ async function theme({ content, themeId, tweaks, presets, colorScheme }) {
   if (!themeId && tweaks === undefined && presets === undefined && !colorScheme) {
     throw new SiteEditorError('bad', '这一笔什么都没换：要给 --theme、--tweaks、--presets、--color-scheme 至少一样');
   }
-  const next = dressContent(content, { themeId, tweaks, presets, colorScheme });
+  const next = require('./stamp-schema-versions').stampSchemaVersions(content, dressContent(content, { themeId, tweaks, presets, colorScheme }));
   const files = Object.keys({ ...content, ...next }).filter((k) => JSON.stringify(content[k]) !== JSON.stringify(next[k])).sort();
   let summary = 'Adjusted the theme colors';
   if (themeId) {
@@ -401,11 +444,11 @@ function dressContent(content, change) {
     throw new SiteEditorError('bad', e.message);
   }
   let next = { ...content, 'theme.json': dressed.theme, 'brand.json': dressed.brand };
-  // 🔴 T4b：contentPatchesOf 今天回的是**原文字符串**（同 §save 那一处，T4b 同 PR 两处一起改）。
+  // #1838 —— 补丁直接是对象 / 字符串。换装只碰 theme.json / brand.json ⟹ 不迁（`touchedFiles` 不传），只盖号（§theme）。
   const patches = contentPatchesOf(next);
-  for (const [rel, text] of Object.entries(patches)) {
-    if (text === null) delete next[rel];
-    else next[rel] = rel.endsWith('.json') ? JSON.parse(text) : text;
+  for (const [rel, value] of Object.entries(patches)) {
+    if (value === null) delete next[rel];
+    else next[rel] = value;
   }
   return Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]]));
 }
@@ -447,4 +490,4 @@ async function geocode({ address }) {
   return hit ? { address: q, ...hit } : { address: q, lat: null, lng: null };
 }
 
-module.exports = { SiteEditorError, editorData, save, theme, themeCss, siteCss, geocode, materialize, readTree, withGeo };
+module.exports = { SiteEditorError, editorData, save, theme, themeCss, siteCss, geocode, materialize, readTree, withGeo, touchedFilesOf };

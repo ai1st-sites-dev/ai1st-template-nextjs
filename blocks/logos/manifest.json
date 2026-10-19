@@ -1,5 +1,7 @@
 {
   "type": "logos",
+  "schemaVersion": 1,
+  "renders": [1],
   "displayName": "Logos",
   "category": "gallery",
   "roleDefault": "optional",

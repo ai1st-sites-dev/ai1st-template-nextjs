@@ -77,12 +77,13 @@ function runCreate(dir, name, preload) {
 function main() {
   console.log('══ #1829 site.js create → stampSchemaVersions(null, content)，返回值进成品 ══');
 
-  // 空壳的接口（T4b 填实时调用方一个字不改，所以接口本身也钉一下）：两个参数，原样返回 next。
+  // 接口（#1829 定、#1838 填实，调用方一个字没改）：两个参数；没有块的 content 原样返回（没东西可盖）。
+  // 「每块都盖上了号」那几格在 `block-schema-versions.test.js`（#1838）。
   const { stampSchemaVersions } = require('./stamp-schema-versions');
   assert.strictEqual(stampSchemaVersions.length, 2, 'stampSchemaVersions(prev, next) 是两个参数');
   const sample = { 'brand.json': { name: 'x' } };
-  assert.strictEqual(stampSchemaVersions(null, sample), sample, '空壳原样返回 next');
-  ok('空壳：两个参数、原样返回 next');
+  assert.strictEqual(stampSchemaVersions(null, sample), sample, '没有块的 content 原样返回');
+  ok('接口：两个参数、没有块的 content 原样返回');
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'site-create-test-'));
   try {
@@ -119,13 +120,16 @@ function main() {
       else fail('site/ 里没有 build-report.json —— 「记账文件去掉了」这一格成了空尺');
       if (!stamp.sawFiles.includes('brand.json')) fail(`它看到的 next 里没有 brand.json：${JSON.stringify(stamp.sawFiles)}`);
     }
-    // 两次的成品除了探针那份完全一样：探针只多写一份文件，没改别的（不然上面那几格量的就不是真路径）。
+    // 两次的成品除了探针那份、和真函数盖上的版本号（#1838：探针替掉了它，所以带探针那次一个号都没有），完全一样：
+    // 探针只多写一份文件，没改别的（不然上面那几格量的就不是真路径）。
     const { [PROBE_FILE]: _drop, ...rest } = probed.content;
+    const unstamped = JSON.parse(JSON.stringify(plain.content, (k, v) => (k === 'schemaVersion' ? undefined : v)));
+    if (JSON.stringify(unstamped) === JSON.stringify(plain.content)) fail('不带探针的成品里一个 schemaVersion 都没有 —— 真函数没盖号，下一格成了空尺');
     try {
-      assert.deepStrictEqual(rest, plain.content);
-      ok('除了探针那份，两次成品逐字相同');
+      assert.deepStrictEqual(rest, unstamped);
+      ok('除了探针那份和版本号，两次成品逐字相同');
     } catch {
-      fail('带探针那次的成品除了探针那份还有别的不同');
+      fail('带探针那次的成品除了探针那份和版本号还有别的不同');
     }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

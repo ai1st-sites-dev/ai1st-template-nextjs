@@ -711,7 +711,7 @@ function navWritesInSyncConfig(file) {
     // `footer` 那个内联对象的原文 —— 下面两格 extends 的锚点。它变了的话，`doctored === src`
     // 会让那一格报「锚点不在了」，而不是悄悄跳过。
     // #1529：footer 里多了 legal? 一行，锚点跟着改（#1648 删掉了同时加的 cta? 那一行）。
-    const FOOTER_INLINE = '  footer: {\n    description: string;\n    columns: FooterColumn[];\n    copyright: string;\n    legal?: NavLink[];\n  };\n';
+    const FOOTER_INLINE = '  footer: {\n    description: string;\n    columns: FooterColumn[];\n    copyright: string;\n    legal?: NavLink[];\n    schemaVersion?: number;\n  };\n';
     // 'differs' = 必须报出跟 NAV_SHAPE 不同 · 'cantTell' = 必须说不出来（unavailable），不许当成对得上
     const SHAPES = [
       ['加一个必需字段',      (s) => s.replace('export interface NavigationConfig {', 'export interface NavigationConfig {\n  newThing: string;'), 'differs'],
@@ -721,7 +721,8 @@ function navWritesInSyncConfig(file) {
       ['跨类型引用里改可选',  (s) => s.replace('export interface NavLink {\n  label: string;\n  href: string;', 'export interface NavLink {\n  label: string;\n  href?: string;'), 'differs'],
       // #1779 —— 顶栏按钮的 href 退回只收字符串：门这一头还放行引用 ⟹ 必须报不同。
       ['按钮 href 退回成 string', (s) => s.replace('export interface HeaderButton {\n  label: string;\n  href: string | ContactRef;', 'export interface HeaderButton {\n  label: string;\n  href: string;'), 'differs'],
-      ['换成认不出的类型',    (s) => s.replace('export interface FooterColumn {\n  title: string;', 'export interface FooterColumn {\n  title: number;'), 'cantTell'],
+      // #1838 起 `number` 认得出（外壳区的 schemaVersion）⟹ 「认不出的类型」换成 boolean。
+      ['换成认不出的类型',    (s) => s.replace('export interface FooterColumn {\n  title: string;', 'export interface FooterColumn {\n  title: boolean;'), 'cantTell'],
       // #1781 —— 菜单项的 href 从「什么都收」收窄回 string：这把尺子必须看得见（不然 NAV_SHAPE 的 any 跟类型漂开没人知道）。
       ['菜单项 href 从 unknown 改回 string', (s) => s.replace('export interface MenuLink {\n  label: string;\n  href: unknown;', 'export interface MenuLink {\n  label: string;\n  href: string;'), 'differs'],
       // 🔴 #1104 r4（QA1 的 ⑩）：`extends` 是「往那个 interface 里加一个必需字段」的一种很普通的写法，
@@ -1131,6 +1132,8 @@ function navShapeFromTypes(file) {
       return fromMembers(members, at, seen.concat(name));
     }
     if (node.kind === ts.SyntaxKind.StringKeyword) return { kind: 'string' };
+    // #1838 —— 外壳区的 `schemaVersion?: number`，对应 NAV_SHAPE 的 `number`。
+    if (node.kind === ts.SyntaxKind.NumberKeyword) return { kind: 'number' };
     // #1781 —— `unknown` = 这一格什么值都收（菜单项的 href：字符串或电话 / 邮箱引用），对应 NAV_SHAPE 的 `any`。
     if (node.kind === ts.SyntaxKind.UnknownKeyword) return { kind: 'any' };
     // #1779 —— 顶栏按钮的 href：`string | ContactRef` 就是 NAV_SHAPE 的 `buttonHref`（字符串或按钮那几个源的引用）。

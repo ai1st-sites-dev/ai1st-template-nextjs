@@ -9,8 +9,11 @@
 //       🔴 每次现打一份 bundle（模板树里的临时目录，跑完删）：拿 `render/dist` 里一份旧包来判，读到的是旧源码。
 //       标准输出：一行 `{"event":"catalog-rendered","cells":N,"failed":M,"ms":…}`。
 //
-//   node scripts/site.js bundle [--out-dir <dir>]
+//   node scripts/site.js bundle [--out-dir <dir>] [--blocks-dir <dir> --registry <file>]
 //       打 `render/dist/`：整页渲染的 bundle + 平台文件（带内容哈希的三份样式表 + runtime）+ manifest。`render` 发现没打过会先打一次。
+//       --blocks-dir / --registry（#1838，测试专用）：`@blocks/*` 指到另一份块目录、块注册表换成另一份（`build-blocks.js
+//       --blocks-dir --out` 生成的；它旁边的 shapes.css / base.css 一起用）。拿这份包 `render --bundle-dir` 时要带同一对
+//       `AI1ST_BLOCKS_DIR` / `AI1ST_REGISTRY_PATH`（入口按块目录判认不认识，§lib/block-paths.js）。
 //
 //   node scripts/site.js render --site <站 JSON> --out <目录> [选项]
 //       站 JSON 进、整套静态网页出：每页 `index.html`、`404.html`、`sitemap.xml`、`robots.txt`、`llms.txt`、`theme.css`、`custom.css`，
@@ -179,8 +182,8 @@ async function runEditorCommand(cmd, rest) {
 
 const parsed = (content, rel) => (typeof content[rel] === 'string' ? JSON.parse(content[rel]) : content[rel]);
 
-async function bundle(dir = DEFAULT_OUTDIR) {
-  return require('./lib/render-bundle').buildRenderBundle({ outdir: dir });
+async function bundle(dir = DEFAULT_OUTDIR, { blocksDir, registryPath } = {}) {
+  return require('./lib/render-bundle').buildRenderBundle({ outdir: dir, blocksDir, registryPath });
 }
 
 function loadBundle(dir) {
@@ -218,13 +221,14 @@ async function render({
   const t0 = Date.now();
   if (target !== 'live' && target !== 'preview') throw new Error(`--target 只认 live / preview：${JSON.stringify(target)}`);
   if (!out) throw new Error('要给 --out');
-  const content = { ...input };
+  // #1838 —— 读的时候内存里全量迁（只跑 `preservesLook: true` 的，§block-migrations），不落库：老站的 v1 块按新版画。
+  const content = { ...require('./lib/block-migrations').migrateInMemory(input) };
 
   // #1826 —— 先整体扫一遍，有这份包画不出来的块就整跑不出产物（设计文档 §8.3；为什么在这里不在 SectionRenderer，见 content-blocks.js）。
   //    --only-blocks 不扫：它就是拿旧包去画「新包不认识」的那几块，content 里别的块这份旧包不认识是常态。
   if (!onlyBlocks) {
     const { knownBlockTypes, unrenderableBlocks } = require('./lib/content-blocks');
-    const problems = unrenderableBlocks(content, knownBlockTypes(ROOT));
+    const problems = unrenderableBlocks(content, knownBlockTypes(ROOT)); // 块目录经 §block-paths（测试改道）
     if (problems.length) throw new UnrenderableContentError(problems);
   }
 
@@ -461,7 +465,10 @@ async function main() {
     return;
   }
   if (cmd === 'bundle') {
-    const m = await bundle(a['out-dir'] ? path.resolve(a['out-dir']) : DEFAULT_OUTDIR);
+    // #1838 —— `--blocks-dir` / `--registry`：测试包（假块 A / B 那份块目录 + 它生成的注册表），见文件头。
+    if (!!a['blocks-dir'] !== !!a.registry) throw new Error('--blocks-dir 和 --registry 要一起给');
+    const m = await bundle(a['out-dir'] ? path.resolve(a['out-dir']) : DEFAULT_OUTDIR,
+      a['blocks-dir'] ? { blocksDir: path.resolve(a['blocks-dir']), registryPath: path.resolve(a.registry) } : {});
     process.stdout.write(`${JSON.stringify({ event: 'bundled', ...m })}\n`);
     return;
   }
