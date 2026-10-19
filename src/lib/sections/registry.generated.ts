@@ -7,6 +7,7 @@ import BlogSection from '@blocks/blog/Section';
 import ContactSection from '@blocks/contact/Section';
 import ContentSection from '@blocks/content/Section';
 import CtaSection from '@blocks/cta/Section';
+import CustomHtmlSection from '@blocks/custom-html/Section';
 import FaqSection from '@blocks/faq/Section';
 import FeaturesSection from '@blocks/features/Section';
 import GallerySection from '@blocks/gallery/Section';
@@ -25,6 +26,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'contact': ContactSection,
   'content': ContentSection,
   'cta': CtaSection,
+  'custom-html': CustomHtmlSection,
   'faq': FaqSection,
   'features': FeaturesSection,
   'gallery': GallerySection,

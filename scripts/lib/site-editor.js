@@ -252,13 +252,29 @@ async function save({ content, changes, keep = false }) {
   const slug = typeof changes.page === 'string' ? changes.page : '';
   const localeIn = typeof changes.locale === 'string' ? changes.locale : '';
   const obj = (v) => (isObj(v) ? v : null);
-  const json = obj(changes.json);
+  let json = obj(changes.json);
   const root = obj(changes.root) || {};
-  const shared = obj(changes.shared);
+  let shared = obj(changes.shared);
   const forms = obj(changes.forms);
   const nav = obj(changes.nav);
   const hasRoot = Object.keys(root).length > 0;
   if (!json && !hasRoot && !shared && !forms && !nav) throw new SiteEditorError('bad', '这次存盘既没有页面、也没有 root 字段、也没有共用块、也没有表单、也没有菜单');
+  // #1833 —— Custom HTML 入库前整理一次（`lib/custom-html.js`：闭合、去外壳、整理到不动点、≤ 64 KB、不收 `<plaintext>`），在算页面哈希之前 —— 编辑器拿到的
+  //    baseHash 就是落盘那份字节的。页面里每一块 custom-html；共用块改动里带 `html` / `css` 的那份 data（块库里只有
+  //    custom-html 有这两个槽）。超了 64 KB / 含 `<plaintext>` ⟹ `bad`（manager 回 400 + 那句话，编辑页原样说给老板）。
+  {
+    const ch = require('./custom-html.js');
+    try {
+      if (json) json = ch.tidyCustomHtmlInPage(json);
+      if (shared) {
+        shared = Object.fromEntries(Object.entries(shared).map(([id, c]) => [id,
+          isObj(c) && isObj(c.data) && (typeof c.data.html === 'string' || typeof c.data.css === 'string') ? { ...c, data: ch.tidyCustomHtmlData(c.data) } : c]));
+      }
+    } catch (e) {
+      if (e instanceof ch.CustomHtmlError) throw new SiteEditorError('bad', e.message);
+      throw e;
+    }
+  }
 
   const blocks = require('../blocks.js');
   const pageFiles = require('./page-files.js');

@@ -14,9 +14,11 @@ export interface EditorField {
   label: string;
   /** text = 一个输入框 · object = 子字段对象 · list = 对象数组 · strings = 字符串数组
    *  · color = 色板 + 取色器（#1463）· options = 预设 + 旋钮 + 布尔修饰（#1463）
-   *  · image = 一张图：缩略图 + Change + 图片说明（#1693，值是 `{imageUrl, alt}` 整份对象） */
-  control: 'text' | 'richtext' | 'object' | 'list' | 'strings' | 'color' | 'options' | 'int' | 'image';
-  /** #1693 —— `control: 'image'`：可选的图（manifest `required: false`），面板多一个 Remove。 */
+   *  · image = 一张图：缩略图 + Change + 图片说明（#1693，值是 `{imageUrl, alt}` 整份对象）
+   *  · code = 一个代码框（#1833，Custom HTML 的 html / css，值是字符串） */
+  control: 'text' | 'richtext' | 'object' | 'list' | 'strings' | 'color' | 'options' | 'int' | 'image' | 'code';
+  /** #1693 —— `control: 'image'`：可选的图（manifest `required: false`），面板多一个 Remove。
+   *  #1833 —— `control: 'code'`：manifest `required: false` 的代码框（拖下时不播占位）。 */
   optional?: boolean;
   /** #1497 —— `control: 'int'` 的取值（字符串形式的整数，从 manifest `intRange` 现算）。 */
   values?: string[];

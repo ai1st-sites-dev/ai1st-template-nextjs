@@ -41,6 +41,14 @@ try {
   die(`加载不起来（在 templates/nextjs 里跑 npm ci）：${e.message}`);
 }
 
+// #1833 r2 —— 画布在浏览器里：Custom HTML 块没被声明成「站」（`SiteRenderContext`）就走净化那一支，DOMPurify 要一个 window。
+// 给一个 jsdom 的（跟真画布一样有 window）；没有它，那一块按构造抛「no window」—— 那是本测试缺环境，不是块画不出来。
+try {
+  global.window = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>').window;
+} catch (e) {
+  die(`加载不起来 jsdom（在 templates/nextjs 里跑 npm ci）：${e.message}`);
+}
+
 const sourceOverride = new Map();
 function compile(filename) {
   const src = sourceOverride.get(filename) ?? fs.readFileSync(filename, 'utf-8');

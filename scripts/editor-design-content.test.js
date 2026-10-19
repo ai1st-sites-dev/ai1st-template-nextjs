@@ -124,7 +124,10 @@ if (typeof App.DesignContent !== 'function') die('EditorApp 没有导出 DesignC
 const cfg = App.buildConfig(SITE, schema, 'en');
 
 console.log(`\n── 15 种页面块（注册表现取 ${TYPES.length} 种）：Content 页 == 右栏去掉预设和背景`);
-check(TYPES.length === 15, `注册表里的页面块类型 = ${TYPES.length}`, '票写的是 15 种');
+// 📌 #1833 —— 第 16 种是 custom-html（老板自己贴代码的那一块）。它没有预设也没有背景（排版归老板的代码），
+//    所以下面「没画的恰好是 options + bg」对它是「什么都没扔」（§NO_DESIGN），反向对照里它也没有 headline 可扔。
+check(TYPES.length === 16, `注册表里的页面块类型 = ${TYPES.length}`, '#1735 票写的 15 种 + #1833 的 custom-html');
+const NO_DESIGN = { 'custom-html': '#1833：老板自己的代码，没有预设、没有背景、没有标题' };
 for (const type of TYPES) {
   const comp = schema.components.find((c) => c.type === type);
   if (!comp) { bad(`${type}：编辑器 schema 里没有这一种`); continue; }
@@ -135,7 +138,8 @@ for (const type of TYPES) {
   check(JSON.stringify(shown) === JSON.stringify(want), `${type}：${shown.length} 个字段，跟右栏的内容字段一一对应`, `画出来 [${shown}] / 右栏去掉预设和背景 [${want}]`);
   // 不多：预设那一格和背景不在 Content 页；不少：右栏里每一个其余的字段都在。
   const dropped = Object.keys(resolved).filter((k) => !shown.includes(k));
-  check(dropped.length === 2 && dropped.includes('options') && dropped.includes('bg'), `${type}：没画的恰好是 options + bg`, `[${dropped}]`);
+  if (NO_DESIGN[type]) check(dropped.length === 0, `${type}：什么都没扔（${NO_DESIGN[type]}）`, `[${dropped}]`);
+  else check(dropped.length === 2 && dropped.includes('options') && dropped.includes('bg'), `${type}：没画的恰好是 options + bg`, `[${dropped}]`);
   // 同一份字段定义：AutoField 收到的 field 对象就是 config 里那一份（不是另抄一份）。
   const same = auto.every((p, i) => p.field === resolved[shown[i]]);
   check(auto.length === shown.length && same, `${type}：每个字段交给 AutoField 的是 config 里同一个字段对象`);
@@ -173,13 +177,14 @@ console.log('\n── 反向对照：源码在内存里改成多扔掉 headline 
   try { broken = loadApp(); } finally { sourceOverride.delete(APP); }
   const bcfg = broken.buildConfig(SITE, schema, 'en');
   let caught = 0;
-  for (const type of TYPES) {
+  const withHeadline = TYPES.filter((t) => !NO_DESIGN[t]);
+  for (const type of withHeadline) {
     const comp = schema.components.find((c) => c.type === type);
     const props = propsFor(comp);
     const want = expected(comp, bcfg.components[type].resolveFields({ props }, {}));
     if (JSON.stringify(renderContent(broken, bcfg, comp, props).shown) !== JSON.stringify(want)) caught += 1;
   }
-  check(caught === TYPES.length, `改坏的那份：${caught}/${TYPES.length} 种被点名`);
+  check(caught === withHeadline.length, `改坏的那份：${caught}/${withHeadline.length} 种被点名（${Object.keys(NO_DESIGN).join(' / ')} 没有 headline，不在分母里）`);
   loadApp(); // 还原：后面没有用例了，但别把改坏的那份留在 require 缓存里
 }
 

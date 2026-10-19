@@ -485,7 +485,10 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   // 🔴 判据用 manifest 自己声明的 `region: true`（`block-manifest.js` §isRegionManifest），不在这里
   //    写第二份、更不写死名字：写死名字的话，下一个外壳区块进来时这一格会重新误报，而那时没人记得。
   const regionTypes = everyManifest.filter((t) => isRegionManifest(blocksDir, t));
-  const allTypes = everyManifest.filter((t) => !regionTypes.includes(t));
+  // 📌 #1833 —— `offerToAi: false` 的块（custom-html）恒在「关掉的」那一侧（create-site.js 把它并进 disabledBlocks），
+  //    「关掉它」对提示词是空操作 ⟹ 也不进这一节的分母。判据同一处（block-manifest.js §notOfferedToAi）。
+  const notOffered = require('./block-manifest').notOfferedToAi();
+  const allTypes = everyManifest.filter((t) => !regionTypes.includes(t) && !notOffered.includes(t));
   // 🔴 分母的下限：上面那条排除规则要是哪天把一大半块都排掉（比如有人给所有 manifest 写了
   //    `region: true`），下面每一格都会恒绿而没人看得见。这一句让那种情况当场 die(2)。
   // #1425（T3）—— 下限从 20 改成 12：新库 17 块、外壳 2 个 ⟹ 页面块 15 个（旧库是 28 − 2）。

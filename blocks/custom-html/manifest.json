@@ -1,0 +1,55 @@
+{
+  "type": "custom-html",
+  "displayName": "Custom HTML",
+  "category": "custom",
+  "roleDefault": "optional",
+  "skin": "site-css",
+  "schemaVersion": 1,
+  "offerToAi": false,
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "cross": "none",
+    "order": "dom",
+    "item_parts": "none",
+    "inner": "one"
+  },
+  "slots": {
+    "html": {
+      "kind": "code",
+      "required": true,
+      "promptOptional": false,
+      "codeLabel": "HTML"
+    },
+    "css": {
+      "kind": "code",
+      "required": false,
+      "promptOptional": true,
+      "codeLabel": "CSS"
+    },
+    "label": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Name",
+      "panelOnly": true
+    },
+    "frozenFrom": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "attrs": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{class?, style?}"
+    }
+  },
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

@@ -62,7 +62,13 @@ let reg;
 try { reg = fs.readFileSync(regPath, 'utf-8'); } catch (e) { die(`读不到 ${regPath}: ${e.message}`); }
 const body = reg.slice(reg.indexOf('sectionRegistry'));
 if (body === reg && reg.indexOf('sectionRegistry') < 0) die('registry.generated.ts 里找不到 sectionRegistry —— 抠不出键集合');
-const regSet = new Set([...body.matchAll(/^\s*'([a-z0-9-]+)':/gm)].map((m) => m[1]));
+const regAll = new Set([...body.matchAll(/^\s*'([a-z0-9-]+)':/gm)].map((m) => m[1]));
+// #1833 —— manifest 声明 `offerToAi: false` 的块（`custom-html`）不给 AI（写它是 T4a-3 的事），注册表那一侧把它们拿掉再比。
+//    名单从 block-manifest.js §notOfferedToAi 现取，不在这里写死；它点名的每一个都必须真在注册表里（不然这一条什么都没排除）。
+let notOffered = [];
+try { notOffered = require('./lib/block-manifest').notOfferedToAi(); } catch (e) { die(`读不出 offerToAi: false 的块：${e.message}`); }
+for (const t of notOffered) if (!regAll.has(t)) die(`offerToAi: false 的 ${t} 不在 registry.generated.ts 里 —— 排除名单指着一个不存在的块`);
+const regSet = new Set([...regAll].filter((t) => !notOffered.includes(t)));
 
 // ── 分母自检（先证尺子没坏，再判相等）─────────────────────────────────────────────────────────
 // 🔴 #1425（T3）：下限原来写死 20（旧库 31 块）；今天块库 17 块、注册表只收非外壳区的那些 ⟹ 下限改成
@@ -73,7 +79,8 @@ try {
   for (const d of fs.readdirSync(blocksDir)) {
     const mf = path.join(blocksDir, d, 'manifest.json');
     if (!fs.existsSync(mf)) continue;
-    if (JSON.parse(fs.readFileSync(mf, 'utf-8')).region !== true) floor += 1;
+    const mj = JSON.parse(fs.readFileSync(mf, 'utf-8'));
+    if (mj.region !== true && mj.offerToAi !== false) floor += 1;
   }
 } catch (e) { die(`数 blocks/*/manifest.json 失败: ${e.message}`); }
 if (floor < 5) die(`blocks/ 下只数出 ${floor} 个页面块 —— 下限那一侧的尺子坏了`);
@@ -102,7 +109,14 @@ if (onlyReg.length) {
     + '     ⟹ 模型不知道它们存在，永远不会用上它们，而这件事没有任何别的仪器会报。\n'
     + '        把它们补进 scripts/edit-site.js 的 "Available section types:" 那一行。');
 } else {
-  ok(`注册表 → 提示词：${regSet.size} 个键全部写在提示词那一行里`);
+  ok(`注册表 → 提示词：${regSet.size} 个键全部写在提示词那一行里`
+    + (notOffered.length ? `（另有 ${notOffered.join(' / ')} 声明了 offerToAi: false，不给 AI）` : ''));
+}
+// 反向：不给 AI 的块绝不许出现在提示词里（声明了却还列着 ⟹ 声明形同虚设）。
+{
+  const leaked = notOffered.filter((t) => promptSet.has(t));
+  if (leaked.length) bad(`声明了 offerToAi: false 的块出现在提示词那一行里：${leaked.join(' · ')}`);
+  else ok(`offerToAi: false 的块（${notOffered.join(' / ') || '无'}）都不在提示词那一行里`);
 }
 
 // ── #1505：讲 services.json 的那一段要告诉模型「引用了服务目录的块会自己跟着变」────────────────────

@@ -22,6 +22,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import SiteShell from '@/components/SiteShell';
+import SiteRender from '@/components/SiteRender';
 import HomePage from '@/components/pages/HomePage';
 import SubPage from '@/components/pages/SubPage';
 import BlogIndexPage from '@/components/pages/BlogIndexPage';
@@ -193,5 +194,6 @@ export default async function CatchAllPage({ params }: { params: Promise<{ slug:
   //    博客那两种没有 `pages/` 里的记录 ⟹ `page` 是 undefined ⟹ 不写这个属性。
   // #1794 —— 语言开关要的是去掉语言前缀的路径（`/fr/blog/x` → `/blog/x`）；按地址本身算，博客页也对。
   const rest = slug[0] === r.locale && site.locales.includes(slug[0]) ? slug.slice(1) : slug;
-  return <SiteShell site={site} locale={r.locale} page={page?.slug} currentPath={'/' + rest.join('/')}>{body}</SiteShell>;
+  // #1833 r2 —— 站页面：包在 SiteRender 里，Custom HTML 块才原样写老板的代码（`lib/editor-canvas.ts` §SiteRenderContext）。
+  return <SiteRender><SiteShell site={site} locale={r.locale} page={page?.slug} currentPath={'/' + rest.join('/')}>{body}</SiteShell></SiteRender>;
 }

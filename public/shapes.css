@@ -1241,6 +1241,33 @@
   --cta-preset: cover;
 }
 
+/* ══ custom-html ══════════════════════════════════════════════════════════════════════ */
+/* custom-html —— 画布里的那张卡片（`Section.tsx` 的 CanvasCard）。站上 / 预览不画卡片，这几条只在编辑器画布里命中。 */
+[data-block="custom-html"] .ch-card {
+  border: 1px dashed var(--x-border-color, #ced4da);
+  border-radius: var(--radius-card);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9375rem;
+}
+[data-block="custom-html"] .ch-card-label {
+  font-weight: 600;
+}
+[data-block="custom-html"] .ch-card-note {
+  color: var(--x-secondary-color, #6c757d);
+  flex: 1 1 16rem;
+}
+
+/* ── custom-html · as-is ──────────────────────────────────────────────────────────────────────
+   这个形态没有几何：块里是老板自己的 HTML，排版归它自己（设计文档 §8.1）。这份文件只给形态一个名字。 */
+[data-block="custom-html"][data-shape="as-is"] {
+  --ch-shape: as-is;
+}
+
 /* ══ faq ══════════════════════════════════════════════════════════════════════ */
 /* 条目网格（itemsColumns：手机 ≤1 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
 [data-block="faq"] .fq-grid {

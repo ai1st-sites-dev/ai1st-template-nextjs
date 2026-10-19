@@ -492,7 +492,8 @@ console.log('\n── AC6 表单（提交）');
       const dropped = prompt(tree('dropped', true));
       if (!real || !dropped) die('没拿到建站提示词（create-site 没吐 prompt 事件）');
       const n = (p) => Number((/There are (\d+) section types\b/.exec(p) || [])[1]);
-      const pageBlocks = [...manifestLib.loadManifests().values()].filter((m) => m.region !== true).length;
+      // 📌 #1833 —— `offerToAi: false` 的块（custom-html）不在给 AI 的目录里，这句话也不数它（create-site.js §offeredTypeCount）。
+      const pageBlocks = [...manifestLib.loadManifests().values()].filter((m) => m.region !== true && m.offerToAi !== false).length;
       const menuLine = real.split('\n').find((l) => l.startsWith('- "hero"'));
       check(!!menuLine, `建站提示词的块菜单里有它：${menuLine || '（没有）'}`);
       check(/\n\s+data: \{ options\?: \{textAlign: "left" \| "center" \| "right", image: "none" \| "left" \| "right" \| "top" \| "bottom" \| "background", form: "none" \| "teaser" \| "full"\}/.test(real),

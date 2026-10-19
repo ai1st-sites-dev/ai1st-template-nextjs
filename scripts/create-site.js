@@ -48,6 +48,7 @@ const {
   // #1353 —— 「这个块是外壳区（顶栏 / 页脚），不是页面里的内容块」。判据是 manifest 自己声明的
   // `region: true`，不在这里第二次实现（`block-manifest.js` §isRegionManifest）。
   isRegionManifest,
+  notOfferedToAi,
   BLOCKS_DIR: BLOCK_MANIFEST_DIR,
 } = require('./lib/block-manifest');
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
@@ -924,10 +925,13 @@ async function main() {
   //    在下游是静默的：它不匹配任何块名，于是「关掉了」变成「没关掉」。
   const idList = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()) : []);
   const disabledThemes = idList(input.disabledThemes);
-  const disabledBlocks = idList(input.disabledBlocks);
-  if (disabledThemes.length || disabledBlocks.length) {
-    debug(`[catalog] 后台关掉的: 主题 ${disabledThemes.join(', ') || '（无）'} | 块 ${disabledBlocks.join(', ') || '（无）'}`);
+  const adminOffBlocks = idList(input.disabledBlocks);
+  if (disabledThemes.length || adminOffBlocks.length) {
+    debug(`[catalog] 后台关掉的: 主题 ${disabledThemes.join(', ') || '（无）'} | 块 ${adminOffBlocks.join(', ') || '（无）'}`);
   }
+  // #1833 —— manifest 声明了 `offerToAi: false` 的块（`custom-html`：老板自己贴代码的那一块）AI 建站一律不放，
+  //    跟后台关掉的块走同一条路（提示词菜单不列、validateBlocks 拒收、skipAI 示例站剔掉），不另开一条。
+  const disabledBlocks = [...new Set([...adminOffBlocks, ...notOfferedToAi()])];
 
   if (!siteId) fatal('siteId is required');
   // #1547 —— 这个站这次构建要发布到的地址，由 manager 给（预览地址 / 上线地址），写进 seo.domain。

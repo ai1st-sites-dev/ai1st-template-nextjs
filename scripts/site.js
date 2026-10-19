@@ -246,8 +246,11 @@ async function render({
   let derived;
   try {
     console.log = (...a) => console.error(...a);
+    // #1833 —— Custom HTML 块里老板写的类（`btn-outline-primary` …）要被 PurgeCSS 看见，否则发布那份 site.css 把它们剪掉
+    //    （设计文档 §6.4；入口是 T2a-1 留的 `customHtml`）。
     derived = await deriveSite({
       content, outDir: work, cacheDir, purge: target === 'live', lastModified, buildVersion, siteLabel: 'site', skipSiteCss: Boolean(onlyBlocks),
+      customHtml: require('./lib/custom-html').customHtmlOf(content),
     });
   } finally {
     console.log = consoleLog;

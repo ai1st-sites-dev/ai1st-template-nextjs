@@ -67,8 +67,9 @@ check(`行业组：配方里的组 == SECTORS 的 ${SECTORS.length} 组，一个
   assert.deepStrictEqual(Object.keys(R.SITE_RECIPES).sort(), SECTORS.map((s) => s.key).sort());
 });
 
-check(`块库：manifest 现数 ${MANIFESTS.size} 份（正文写的 17）`, () => {
-  assert.strictEqual(MANIFESTS.size, 17, [...MANIFESTS.keys()].join(' '));
+// 📌 #1833 —— 第 18 份是 custom-html（`offerToAi: false`：配方不放它，create-site.js 把它并进关掉的块）。
+check(`块库：manifest 现数 ${MANIFESTS.size} 份（#1601 正文写的 17 + #1833 的 custom-html）`, () => {
+  assert.strictEqual(MANIFESTS.size, 18, [...MANIFESTS.keys()].join(' '));
 });
 
 for (const s of SECTORS) {

@@ -2,6 +2,7 @@
 // 有就以 HTTP 404 返回（`cloudflare/worker.js` §404），所以这一页就是线上「不存在的地址」看到的那一页。
 // #1802 —— 页面本身搬到了 `components/pages/NotFoundPage.tsx`（`render/` 出 `404.html` 用同一个组件）。
 import NotFoundPage from '@/components/pages/NotFoundPage';
+import SiteRender from '@/components/SiteRender';
 import { loadSiteData, requestSiteData } from '@/lib/site-data.server';
 import { isPreviewRender } from '@/lib/render-mode';
 
@@ -9,5 +10,8 @@ import { isPreviewRender } from '@/lib/render-mode';
 //    `<meta name="robots" content="noindex">` 在 <head> 里的位置跟着渲染快慢走（本机快的那台排对了、站容器里排错了，实测），
 //    发布出去的 404.html 就不再逐字相同。预览模式先 `requestSiteData()`（按请求渲染），再画同一份。
 export default function NotFound() {
-  return isPreviewRender ? requestSiteData().then((site) => <NotFoundPage site={site} />) : <NotFoundPage site={loadSiteData()} />;
+  // #1833 r2 —— 站页面：包在 SiteRender 里，Custom HTML 块才原样写老板的代码（`lib/editor-canvas.ts` §SiteRenderContext）。
+  return isPreviewRender
+    ? requestSiteData().then((site) => <SiteRender><NotFoundPage site={site} /></SiteRender>)
+    : <SiteRender><NotFoundPage site={loadSiteData()} /></SiteRender>;
 }

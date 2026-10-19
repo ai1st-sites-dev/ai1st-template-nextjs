@@ -125,6 +125,7 @@ import { EDITOR_LIGHT, EDITOR_LIGHT_STYLE } from './editorLight';
 import { THUMB_WIDE_MARK, applyThumbMedia } from '../../../scripts/lib/thumb-media.js';
 import { InlineApiContext, InlineEditLayer, InlineFreezeContext, useInlineOpen, useInlineTyping, itemListAt, itemImageOf, runItemImage, useItemImageState, clearItemImageNote, type InlineApi, type InlineFreeze, type PickImageResult, type RegenerateResult, type RewriteResult } from './InlineEdit';
 import { imageField, imageRowField, imageUrlField, ImageUrlControl } from './ImageField';
+import { codeField } from './CodeField';
 import { ButtonEditor, ButtonLinkEnvContext, MenuLinkEditor, REGION_LINK_TYPES, buttonHrefField, contactText } from './ButtonLink';
 import { externalUrl } from '../../../scripts/lib/button-link.js';
 import {
@@ -726,6 +727,9 @@ function puckField(f: EditorField, forms: EditorFormChoice[], site: SiteData, lo
         defaultItemProps: { value: '' },
         getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, ['value']),
       } as Field;
+    // #1833 —— Custom HTML 的 html / css：一个带着色的代码框（§CodeField.tsx，跟 dashboard 那份编辑器同一个文件）。
+    case 'code':
+      return codeField(f.label, f.slot);
   }
 }
 

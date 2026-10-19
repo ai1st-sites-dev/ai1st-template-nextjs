@@ -373,6 +373,12 @@ function seedProps(component, locale, ctx = {}) {
     if (getAt(props, path) !== undefined) continue; // 演示值（`demo`）、按站里资料播的标题已经在了
     props = setAt(props, path, placeholderFor(locale, path.filter((s) => typeof s === 'string').join('.'), item, undefined, getAt(props, [...path.slice(0, -1), 'value'])));
   }
+  // #1833 —— 必填的代码框（Custom HTML 的 `html`）拖下时播一句占位字：一段纯文字也是合法的 HTML，块在画布上不是空的、
+  //    存盘过得了 validateSite 的「缺必填槽」。它不在 aiCells 里（不是页面上的字），不交给 AI 改写。
+  for (const f of component.fields || []) {
+    if (f.control !== 'code' || f.optional || !isEmpty(props[f.slot])) continue;
+    props = { ...props, [f.slot]: placeholderFor(locale, f.slot) };
+  }
   for (const { slot, keys, fill } of component.seed || []) {
     if (fill !== false) continue;
     for (const key of keys || []) {

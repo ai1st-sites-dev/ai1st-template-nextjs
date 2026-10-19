@@ -27,6 +27,7 @@ import type { IconTable } from '@/components/InlineIcon';
 import type { Preset, Widget } from '@template/components/catalog/CellOptions';
 import KnobBar from '@template/components/catalog/KnobBar';
 import SectionRenderer from '@/components/SectionRenderer';
+import SiteRender from '@/components/SiteRender';
 import { requestSiteData } from '@/lib/site-data.server';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
@@ -367,7 +368,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         ) : null}
         {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
         {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
-        {isRegion ? null : <SectionRenderer site={site} blocks={shown} locale={locale} iconTables={iconTablesFor(shown)} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} />}
+        {/* #1833 r2 —— 演示数据是仓里写的，服务端没有 window、Custom HTML 的净化那一支跑不了 ⟹ 按站画（`render/index.tsx` §renderCatalogCell 同一个处置）。 */}
+        {isRegion ? null : <SiteRender><SectionRenderer site={site} blocks={shown} locale={locale} iconTables={iconTablesFor(shown)} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} /></SiteRender>}
       </main>
     </>
   );

@@ -1,0 +1,19 @@
+/* custom-html —— 画布里的那张卡片（`Section.tsx` 的 CanvasCard）。站上 / 预览不画卡片，这几条只在编辑器画布里命中。 */
+[data-block="custom-html"] .ch-card {
+  border: 1px dashed var(--x-border-color, #ced4da);
+  border-radius: var(--radius-card);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9375rem;
+}
+[data-block="custom-html"] .ch-card-label {
+  font-weight: 600;
+}
+[data-block="custom-html"] .ch-card-note {
+  color: var(--x-secondary-color, #6c757d);
+  flex: 1 1 16rem;
+}

@@ -139,6 +139,17 @@ async function validate({ prev, next, scope = null }) {
 
   // 坐标剥掉：只在 AI 这一轮碰过 brand.json 时（没碰的话这一份跟 prev 一样，剥了反而算成「这一笔改了 brand.json」）。
   let content = { ...next };
+  // #1833 —— 这一轮改过的页面 / 站级块文件里，每一块 custom-html 落库前整理一次（`lib/custom-html.js`，跟 site.js save 同一份）。
+  //    只动改过的那几个键：没碰的文件逐字节原样（整理是幂等的，但「这一笔改了哪些文件」不能因为它多出来）。
+  {
+    const ch = require('./custom-html');
+    try {
+      content = ch.tidyCustomHtmlInContent(content, files.filter((k) => Object.prototype.hasOwnProperty.call(content, k)));
+    } catch (e) {
+      if (e instanceof ch.CustomHtmlError) throw new SiteEditorError('refused', `${NOT_SAVED}\n\n${e.message}`);
+      throw e;
+    }
+  }
   let geo;
   if (files.includes('brand.json')) {
     const brand = typeof content['brand.json'] === 'string' ? JSON.parse(content['brand.json']) : content['brand.json'];

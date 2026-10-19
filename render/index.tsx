@@ -11,6 +11,7 @@ import { renderWithIslands } from '@/islands/render';
 import { rootMetadata } from '@/lib/metadata';
 import type { SiteData } from '@/lib/types/config';
 import { renderToStaticMarkup } from 'react-dom/server';
+import SiteRender from '@/components/SiteRender';
 import CatalogCell from '@/components/catalog/CatalogCell';
 import { catalogCellModel, queryOf, type CatalogManifest } from '@/lib/catalog/cell';
 import type { IconTable } from '@/components/InlineIcon';
@@ -27,7 +28,8 @@ export interface RenderedPage { route: Route; file: string; html: string; island
 export function renderRoute(site: SiteData, route: Route, opts: RenderOptions): RenderedPage {
   const { page, childSegment, extraRobots } = routeMetadata(site, route);
   const metaTags = pageMeta(rootMetadata(site), page, { childSegment, extraRobots });
-  const { html: bodyHtml, islands, preloads } = renderWithIslands(routeBody(site, route));
+  // #1833 r2 —— 这就是老板的网站：只有在 SiteRender 里面，Custom HTML 块才原样写老板的代码（`lib/editor-canvas.ts` §SiteRenderContext）。
+  const { html: bodyHtml, islands, preloads } = renderWithIslands(<SiteRender>{routeBody(site, route)}</SiteRender>);
   const html = renderDocument({
     site, metaTags, bodyHtml, version: opts.version, platform: opts.platform, siteCssHref: opts.siteCssHref, headPreloads: preloads,
     refreshTo: route.kind === 'redirect' ? route.target : null,
@@ -55,7 +57,8 @@ export function renderCatalogCell({ manifest, block, shape, search = '', themeId
 }): string | null {
   const model = catalogCellModel({ manifest, block, shape, query: queryOf(search) });
   if (!model) return null;
-  return renderToStaticMarkup(<CatalogCell model={model} themeId={themeId} iconTable={iconTable} />);
+  // #1833 r2 —— 演示数据是仓里写的，而服务端没有 window、Custom HTML 的净化那一支跑不了 ⟹ 按站画（跟 Next 的图册页同一个处置）。
+  return renderToStaticMarkup(<SiteRender><CatalogCell model={model} themeId={themeId} iconTable={iconTable} /></SiteRender>);
 }
 
 export { pageRoutes, routeFile, pageMeta, renderDocument };

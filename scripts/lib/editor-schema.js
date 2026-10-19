@@ -181,6 +181,18 @@ function fieldsOf(manifest) {
         gradients: grads.map((g) => normalizeBg(g)) });
       continue;
     }
+    // #1833 —— `kind: code`（Custom HTML 的 html / css）：一个代码框，面板标题是槽上的 `codeLabel`。页面上没有这一格的字
+    //    （不在 editableSlotPaths 里），所以在这里单出。
+    if (spec && spec.kind === 'code') {
+      fields.push({ slot, kind: 'code', label: typeof spec.codeLabel === 'string' && spec.codeLabel ? spec.codeLabel : humanize(slot), control: 'code', subs: [],
+        optional: spec.required !== true });
+      continue;
+    }
+    // #1833 —— `panelOnly`（`custom-html.label`）：右栏一格字，页面上没有它（不在 editableSlotPaths 里）。
+    if (spec && spec.panelOnly === true && typeof spec.editLabel === 'string') {
+      fields.push({ slot, kind: spec.kind, label: spec.editLabel, control: 'text', subs: [] });
+      continue;
+    }
     if (spec && knobsOf({ slots: { [slot]: spec } }).length && slot === 'options') {
       fields.push({
         slot,
@@ -674,7 +686,7 @@ function seedCellsOf(manifest, type) {
     if (spec.ref !== undefined || spec.kind === 'color' || (slot === 'options' && knobsOf({ slots: { [slot]: spec } }).length)
       || /^\{\s*id\?\s*\}$/.test(shape)) push(steps, 'setting', optional);
     else if (Array.isArray(spec.intRange)) push(steps, 'number', optional);
-    else if (spec.kind === 'text' || spec.kind === 'richtext') push(steps, 'text', optional);
+    else if (spec.kind === 'text' || spec.kind === 'richtext' || spec.kind === 'code') push(steps, 'text', optional);
     else if (spec.kind === 'link' || spec.kind === 'object' || spec.kind === 'list') walk(steps, slot, '', shape, optional, spec);
     else push(steps, 'unknown', optional);
   }

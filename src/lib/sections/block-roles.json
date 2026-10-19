@@ -3,6 +3,7 @@
   "contact": "essential",
   "content": "optional",
   "cta": "optional",
+  "custom-html": "optional",
   "faq": "essential",
   "features": "essential",
   "footer": "essential",

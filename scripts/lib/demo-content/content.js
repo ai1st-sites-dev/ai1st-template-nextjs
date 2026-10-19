@@ -242,6 +242,19 @@ const DEMO_CONTENT = {
   //    这个块没有布尔修饰，所以里面什么都不放（键要在：守卫 (a) 按键查每个槽都在包里）。
   // 🔴 `ctas` 是顶层 list 槽，守卫 (c) 要 ≥ 6 项、最长 ≥ 最短 2 倍 —— 组件按定稿截到前 2 条（`Section.tsx` §MAX_CTAS）。
   // `bg: null` = 没填（manifest 每个槽都要在演示包里有键，`demoDataFor`）。
+  // #1833 —— custom-html：老板自己贴的一段代码。演示包给一段纯标记（营业时间表，Bootstrap 的 table 类），图册那一格画得出来；
+  //    不放脚本 —— 图册是静态页，脚本没有意义，而且「带脚本 ⟹ 画布出卡片」那条路由 frozenFrom / 测试夹具去量。
+  //    AI 建站不放这一块（manifest `offerToAi: false`），所以示例站上没有它（create-site.js 按「关掉的块」剔掉）。
+  'custom-html': {
+    html: '<table class="table table-sm"><thead><tr><th>Day</th><th>Hours</th></tr></thead><tbody>'
+      + '<tr><td>Monday – Friday</td><td>8:00 – 18:00</td></tr><tr><td>Saturday</td><td>9:00 – 14:00</td></tr>'
+      + '<tr><td>Sunday</td><td>Closed</td></tr></tbody></table>',
+    css: 'table { max-width: 32rem; }',
+    label: 'Opening hours',
+    frozenFrom: null,
+    attrs: null,
+  },
+
   'cta': {
     options: {},
     eyebrow: { text: 'Free 15-minute check', style: 'pill' },

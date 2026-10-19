@@ -90,6 +90,8 @@ console.log('② 字段两层比');
       // #1471 —— 选站级表单的槽（`form: { id? }`）：一个对象字段、子字段只有 id（编辑器画成表单下拉）。
       if (slot === 'form' && sp.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(sp.shape || ''))) return 'formRef';
       if (Array.isArray(sp.intRange) && typeof sp.editLabel === 'string') return 'int'; // #1497 —— 整数设置（postCount）
+      if (sp.kind === 'code') return 'code'; // #1833 —— Custom HTML 的 html / css：一个代码框
+      if (sp.panelOnly === true && typeof sp.editLabel === 'string') return 'panelText'; // #1833 —— 右栏一格字（custom-html.label）
       // #1693 —— 一张图：对象槽、形状恰好 `{imageUrl, alt}`、标了 editLabel ⟹ 一格图片（这里自己写一遍判据，不借 editor-schema 那个函数）。
       if (sp.kind === 'object' && typeof sp.editLabel === 'string' && /^\{\s*imageUrl\s*,\s*alt\s*\}$/.test(String(sp.shape || '').trim())) return 'image';
       return null;
@@ -122,6 +124,7 @@ console.log('② 字段两层比');
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
       const sp = special(f.slot);
       const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'formRef' ? 'object' : sp === 'int' ? 'int' : sp === 'image' ? 'image'
+        : sp === 'code' ? 'code' : sp === 'panelText' ? 'text'
         : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : f.kind === 'richtext' ? 'richtext' : 'text') : (f.kind === 'list' ? 'list' : 'object');
       if (f.control !== wantControl) problems.push(`${m.type}.${f.slot} 控件 ${f.control} ≠ ${wantControl}（kind ${f.kind}）`);
       paths += f.subs.length || 1;

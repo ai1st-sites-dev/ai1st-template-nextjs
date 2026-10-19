@@ -2,6 +2,7 @@
 // since app/[locale]/* is deleted.
 import type { Metadata } from 'next';
 import SiteShell from '@/components/SiteShell';
+import SiteRender from '@/components/SiteRender';
 import BlogPostPage from '@/components/pages/BlogPostPage';
 import { blogPostMetadata } from '@/lib/metadata';
 import { redirect } from 'next/navigation';
@@ -32,9 +33,12 @@ export default async function RootBlogPost({ params }: { params: Promise<{ slug:
   const site = await requestSiteData();
   // #1802 —— 原来在 BlogPostPage 里（它现在不 import Next）：没有这篇 ⟹ 跳回博客列表（空博客的 `_` 占位页走的就是这一支）。
   if (!getBlogPosts(site, site.defaultLocale).some((p) => p.slug === slug)) redirect(localeUrl(site, '', site.defaultLocale, 'blogIndex'));
+  // #1833 r2 —— 站页面：包在 SiteRender 里，Custom HTML 块才原样写老板的代码（`lib/editor-canvas.ts` §SiteRenderContext）。
   return (
-    <SiteShell site={site} locale={site.defaultLocale} currentPath={`/blog/${slug}`}>
-      <BlogPostPage site={site} locale={site.defaultLocale} slug={slug} />
-    </SiteShell>
+    <SiteRender>
+      <SiteShell site={site} locale={site.defaultLocale} currentPath={`/blog/${slug}`}>
+        <BlogPostPage site={site} locale={site.defaultLocale} slug={slug} />
+      </SiteShell>
+    </SiteRender>
   );
 }

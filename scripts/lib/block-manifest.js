@@ -183,7 +183,7 @@ const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 // #1463 —— manifest `skin` 的合法值（§checkManifestShape 按它 fail-closed 校验，§isSiteCssSkin 读它）。
 const SKINS = ['site-css'];
 
-const SLOT_KINDS = ['text', 'list', 'link', 'image', 'object', 'color', 'richtext'];
+const SLOT_KINDS = ['text', 'list', 'link', 'image', 'object', 'color', 'richtext', 'code'];
 // 📌 #1425（T3）—— 原来还有 `links` / `flag` / `control` 三个：只有旧库的块在用，随旧库删了（词表只收今天有槽在用的 kind）。
 // 📌 #1463 —— 第九个 `color`：一块底色（`hero.bg`）。取值 `#rrggbb`（大小写都收）或 `brand`，
 //    判据在 `contrast.js` §isColorValue，`validateSite` 与编辑器的取色器共用那一条正则。
@@ -191,6 +191,10 @@ const SLOT_KINDS = ['text', 'list', 'link', 'image', 'object', 'color', 'richtex
 //    写法是 `scripts/lib/richtext.js` 认的那个 markdown 子集。它**不是** `text`：编辑器给多行文本框、
 //    validateSite 查「写了 HTML」「链接协议不认」两条（§validateSite ⑨），块用同一个解析器画。
 //    其余按 kind 分支的地方（block-catalog / demo-content / image-slots / editor-convert …）把它当字符串，正是对的。
+// 📌 #1833 —— `code`：Custom HTML 块的 `html` / `css`（`blocks/custom-html`），值是一个字符串，老板贴的代码原样存。
+//    它**不是** `text`：页面上没有这一格的字（没有 `data-slot`，不能就地改），编辑器给一个代码框（`control: 'code'`，
+//    面板标题取槽上的 `codeLabel`）；不带 `editLabel`。入库前的整理在 `scripts/lib/custom-html.js`，画布里的净化在
+//    `scripts/lib/sanitize-canvas.js`。
 
 // 🔴 **这八个不是抄来的，是量出来的，而且有一道守卫盯着它别过期**（§slotKindVocabularyProblems，
 // 跑在 `block-manifest.test.js`）：它拿这个常量跟 `blocks/` 里**实际出现**的取值做两向差集，
@@ -238,7 +242,10 @@ const NON_EDITABLE_TEXT_SLOTS = [];
 // 📌 #1424 / #1455 —— 新库那一版顶栏 / 页脚进来时同一个理由。#1425（T3）把它们改回正名 `header` / `footer`、
 //    接回 `SiteShell` —— 但 data 是构建期从 navigation.json + brand.json 派生的（PM 2026-10-02 裁定 ①），
 //    不是页面里一块能点选、能存回的块 ⟹ 照旧不标 `editLabel`，名单里就是这两个名字。
-const NO_SLOT_PATH_BLOCKS = ['header', 'footer'];
+// 📌 #1833 —— `custom-html` 也整块不进这一维：块里是老板自己贴的代码，画布里锁成整块（能删、能挪，改代码走右栏的代码框，
+//    设计文档 §8.1）。页面上没有一段「我们的字」可以点了就改；`label`（老板给的名字）是右栏一格（`panelOnly`），
+//    `frozenFrom`（T4c 写）谁都不改。
+const NO_SLOT_PATH_BLOCKS = ['header', 'footer', 'custom-html'];
 
 // ── #1352 —— 一份 manifest 上「老板能直接改的字」都在哪儿 ──────────────────────────────────────
 //
@@ -258,6 +265,9 @@ function editableSlotPaths(manifest) {
     // #1497 —— 声明了 `intRange` 的槽（`blog.postCount`）是一个**设置**，不是页面上的一段字：没有 `data-slot` 可挂，
     //    检查器面板也不该给它一个「改了页面上找不到对应字」的输入框。编辑器（Puck）另给它一个下拉框（editor-schema §fieldsOf）。
     if (Array.isArray(s.intRange)) continue;
+    // #1833 —— `panelOnly: true`（`custom-html.label`，老板给这一块起的名字）：只在右栏给一格字，页面上没有这段字、没有
+    //    `data-slot` 可挂（发布页根本不画它，画布卡片上只读）。编辑器另给它一个输入框（editor-schema §fieldsOf）。
+    if (s.panelOnly === true) continue;
     if (typeof s.editLabel === 'string') {
       out.push({ path: slot, label: s.editLabel, slot, kind: s.kind, sub: null });
       continue;
@@ -395,6 +405,11 @@ function checkManifestShape(name, m) {
       bad(`slots.${slot} 是 kind: text 但没有 editLabel —— 要么标上（老板能直接改的字），`
         + `要么把它加进 block-manifest.js 的 NON_EDITABLE_TEXT_SLOTS（现在名单上是 `
         + `${NON_EDITABLE_TEXT_SLOTS.join(' / ')}）`);
+    }
+    // #1833 —— `panelOnly` 只给「一格字 + 一个字符串 editLabel」的槽（右栏一个输入框）。写在别处的失败方向是静默的：
+    //    那一格既不出就地编辑、也不出面板字段，老板改不了它。
+    if (s.panelOnly !== undefined && (s.panelOnly !== true || s.kind !== 'text' || !isStr(s.editLabel))) {
+      bad(`slots.${slot}.panelOnly 只能是 true，而且只给 kind: text、editLabel 是字符串的槽（现在 panelOnly ${JSON.stringify(s.panelOnly)} · kind ${s.kind}）`);
     }
     if (typeof s.required !== 'boolean') bad(`slots.${slot}.required 必须是 true/false（现在是 ${JSON.stringify(s.required)}）`);
     if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
@@ -662,6 +677,11 @@ function checkManifestShape(name, m) {
   if (m.skin !== undefined && !SKINS.includes(m.skin)) {
     bad(`skin 是 ${JSON.stringify(m.skin)} —— 只能是 ${SKINS.map((x) => JSON.stringify(x)).join(' / ')}，或者不写`
       + '（不写 = 主题表上皮；"site-css" = 皮和部件类名由编出来的 site.css 提供，主题表不画它）');
+  }
+  // #1833 —— `offerToAi: false`：AI 建站 / 改站不放这一块（`custom-html`：老板自己贴的代码，AI 写它是 T4a-3 的事）。
+  //    只收 false：写成 `"false"` / `0` 的失败方向是静默的（AI 照样被提供这一块）。
+  if (m.offerToAi !== undefined && m.offerToAi !== false) {
+    bad(`offerToAi 有的话只能是 false（现在是 ${JSON.stringify(m.offerToAi)}）—— 不写就是「AI 可以放这一块」`);
   }
   if (m.region !== undefined && typeof m.region !== 'boolean') {
     bad(`region 有的话必须是 true/false（现在是 ${JSON.stringify(m.region)}）—— 它说的是「这个块是外壳区，不进页面 JSON、不在 registry.generated.ts 里」`);
@@ -1645,6 +1665,14 @@ function registryNames(registryPath) {
 }
 
 /** 这个块是不是外壳区（manifest 里显式写了 `region: true`）。#1353。 */
+/**
+ * #1833 —— AI 不放的块（manifest `offerToAi: false`）的类型名，排好序。建站把它们并进「后台关掉的块」（create-site.js），
+ * AI 改站那一行块清单的守卫（edit-site-prompt.test.js）按它把注册表那一侧排除。判据只住这一处。
+ */
+function notOfferedToAi(manifests = loadManifests()) {
+  return [...manifests.values()].filter((m) => m && m.offerToAi === false).map((m) => m.type).sort();
+}
+
 function isRegionManifest(dir, type) {
   const m = loadManifests(dir).get(type);
   return !!(m && m.region === true);
@@ -1753,6 +1781,7 @@ module.exports = {
   EDIT_LABEL_KINDS,
   NON_EDITABLE_TEXT_SLOTS,
   NO_SLOT_PATH_BLOCKS,
+  notOfferedToAi,
   nonEditableExceptionProblems,
   slotKindVocabularyProblems,
   editableSlotPaths,

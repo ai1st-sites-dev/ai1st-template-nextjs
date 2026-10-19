@@ -57,6 +57,8 @@ const AC2 = {
   contact: 'presets | introPosition introAlign choice:introEyebrow.style | sidePosition form formStyle | itemsLayout itemStyle itemAlign itemIcon | map | color:bg',
   content: 'presets | headlinePosition textAlign choice:introEyebrow.style | textStyle count:ctas | image | frame | color:bg',
   cta: 'presets | layout frame textAlign image form | choice:eyebrow.style count:ctas | color:bg',
+  // #1833 —— Custom HTML：没有旋钮、没有预设、没有颜色（排版归老板自己的代码），工具条上只剩恒在第一位的那一组。
+  'custom-html': 'presets',
   faq: 'presets | introPosition introAlign choice:introEyebrow.style part:help | itemsMode itemsColumns | itemStyle itemToggle | color:bg',
   features: 'presets | introPosition introAlign choice:introEyebrow.style count:introCtas introImage | itemsLayout itemsColumns itemsImage | itemStyle itemAlign itemIcon itemImage itemConnector | color:bg',
   footer: 'presets | layout brand | color:bg | form',
@@ -78,7 +80,7 @@ const cellSide = (line) => line.split(' | ').map((g) => g.split(' ').filter((t) 
 console.log('② AC2 —— 17 个块的序列（admin 一侧含 count:*，单格页一侧不含）');
 const blocks = fs.readdirSync(BLOCKS).filter((b) => fs.existsSync(path.join(BLOCKS, b, 'manifest.json'))).sort();
 if (blocks.length === 0) die(`${BLOCKS} 下一个块都没有`);
-eq(blocks, Object.keys(AC2).sort(), `块的集合 == AC2 表的 17 行（${blocks.length} 个）`);
+eq(blocks, Object.keys(AC2).sort(), `块的集合 == AC2 表的 17 行 + #1833 的 custom-html（${blocks.length} 个）`);
 for (const b of blocks) {
   const m = manifestOf(b);
   const all = toolbarControlsOf(m);

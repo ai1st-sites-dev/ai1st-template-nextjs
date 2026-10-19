@@ -29,8 +29,10 @@ const fs = require('fs');
 const path = require('path');
 
 let bp; let schemaLib; let convert; let localeWords; let blockShapeCatalog;
+let NOT_OFFERED = []; // #1833 —— offerToAi: false 的块（block-manifest.js §notOfferedToAi）
 try {
   bp = require('./lib/block-placeholders.js');
+  NOT_OFFERED = require('./lib/block-manifest').notOfferedToAi();
   schemaLib = require('./lib/editor-schema.js');
   convert = require('./lib/editor-convert.js');
   localeWords = require('./lib/locale-words.js');
@@ -205,7 +207,9 @@ for (const c of schema.components) {
   }
   const sent = bp.fillFields(c, props);
   const names = sent.map((f) => f.name);
-  check(names.length >= 1, `${c.type}：交给 fill 的格 ≥1（交 0 格 manager 回 400）`, names.length);
+  // 📌 #1833 —— `offerToAi: false` 的块（custom-html）AI 不写：交 0 格，编辑器那一侧 §startFill 见 0 格就不发请求（不会撞 400）。
+  if (NOT_OFFERED.includes(c.type)) check(names.length === 0, `${c.type}：offerToAi: false ⟹ 交给 fill 的格 = 0（AI 不写它）`, names);
+  else check(names.length >= 1, `${c.type}：交给 fill 的格 ≥1（交 0 格 manager 回 400）`, names.length);
   // #1767 改：原来断言「一块交的格 ≤ rewriteMaxFields」—— pricing 现在交 38 格；编辑器按条分批发（§fillBatches），要守的是每一批。
   const batches = bp.fillBatches(sent);
   check(batches.every((b) => b.length >= 1 && b.length <= rewriteMaxFields), `${c.type}：交给 fill ${names.length} 格，分 ${batches.length} 批，每批 ≤ rewriteMaxFields=${rewriteMaxFields}（超了那一批 400）`, batches.map((b) => b.length));
