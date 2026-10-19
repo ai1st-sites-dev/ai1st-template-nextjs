@@ -3,18 +3,20 @@
 /**
  * edit-site.js — AI chat editing via Claude tool_use
  *
- * Reads JSON input from stdin (siteId, message, conversationHistory),
- * uses Claude tool_use to read/write site config files,
- * then syncs changes via sync-config.js for HMR preview refresh.
+ * Reads JSON input from stdin (siteId, siteDir, message, conversationHistory),
+ * uses Claude tool_use to read/write the site's content files under `siteDir`.
  *
- * Usage: echo '{"siteId":"a1b2c3d4","message":"Change hero title"}' | ANTHROPIC_API_KEY=xxx node scripts/edit-site.js
+ * #1830 (SiteAsData T3b) —— 不再单独跑：`site.js edit`（`lib/site-edit.js`）把库里那份内容铺进一个私有临时目录，
+ * 用 `siteDir` 告诉这里，跑完把目录读回、过 `site.js validate`，再交给 manager 落库。所以这里**不提交、不推送、
+ * 不跑 sync-config、不等预览、不查坐标**（改了地址由 manager 排 `kind=geocode`）—— 那些都是站容器时代的事。
+ * 「构建得出来吗」那道闸（原来是 sync-config）在 `lib/site-edit.js` §validate。
+ *
+ * Usage: node scripts/site.js edit --site <content file> --message <text> --out-dir <dir>   （见 site.js 文件头）
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const http = require('http');
-const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 // #1013 洞 4 —— 块校验（#999）此前在这条路上一条都不跑：write_file 只看「是合法 JSON」就落盘。
 // 跑的是**同一个函数**，不是第二份实现（#999 定的规矩，本票 AC6）。
@@ -57,9 +59,6 @@ const { createPageProgress, normalizeSitePath } = require('./lib/page-progress')
 const { createTextRelay } = require('./lib/text-relay');
 // #1623 —— 提示词里站级块示例的按钮落点取配方那一页，不手抄（配方里没有 quote 页）。
 const { CTA_PAGE } = require('./lib/site-recipe');
-// #1489 —— 改了地址就重查一次坐标（contact 的地图），理由整段在那个文件头。
-const { refreshGeoAfterEdit } = require('./lib/geocode');
-const { withSiteFilesLock } = require('./lib/site-files-lock');
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 const { scrubRowImageUrls, scrubSiteBlocks } = require('./lib/row-image-urls');
 
@@ -362,36 +361,6 @@ function keptFilesNote(kept) {
   return ` ⚠️ Before that, the AI had already changed ${kept.join(', ')}, and ${one ? 'that file was' : 'those files were'} then saved again `
     + `somewhere else (for example in the visual editor) on top of the AI's version. ${one ? 'It was' : 'They were'} left exactly as `
     + `${one ? 'it is' : 'they are'} now so that save is not lost — ${one ? 'it includes' : 'they include'} the AI's change, so please check ${one ? 'it' : 'them'}.`;
-}
-
-// ─── Dev server health check ─────────────────────────────────────────────────
-
-/**
- * HTTP GET the dev server root. Resolves with the status code, or 0 on error.
- */
-function checkDevServer(port) {
-  return new Promise(resolve => {
-    const req = http.get(`http://localhost:${port}/`, res => {
-      res.resume(); // drain
-      resolve(res.statusCode);
-    });
-    req.on('error', () => resolve(0));
-    req.setTimeout(1000, () => { req.destroy(); resolve(0); });
-  });
-}
-
-/**
- * Poll the dev server until it responds with < 500 (or timeout).
- * Returns true if healthy, false if timed out.
- */
-async function waitForDevServer(port, timeoutMs = 30000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const status = await checkDevServer(port);
-    if (status > 0 && status < 500) return true;
-    await new Promise(r => setTimeout(r, 2000));
-  }
-  return false;
 }
 
 // ─── Read stdin ───────────────────────────────────────────────────────────────
@@ -1293,10 +1262,6 @@ slot or a list slot that is not a list is refused here too.
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-// #1807 —— 改站点文件的那几步（write_file · 替 AI 改写 · 回滚 · 提交）在站点文件锁里做（`lib/site-files-lock.js`）。
-//    拿不到锁照旧做（那几步各自的读后核对还在），只是记一行。
-const lockedSiteFiles = (fn) => withSiteFilesLock(fn, { onUnlocked: (why) => debug(`🔴 #1807 site-files lock not taken, doing this step without it: ${why}`) });
-
 async function main() {
   let input;
   try {
@@ -1316,8 +1281,9 @@ async function main() {
   if (!message) fatal('message is required');
   if (!process.env.ANTHROPIC_API_KEY) fatal('ANTHROPIC_API_KEY is required');
 
-  const rootDir = path.resolve(__dirname, '..');
-  const siteDir = path.join(rootDir, 'site');
+  // #1830 —— 站目录由 `site.js edit` 给（库里那份内容铺出来的私有临时目录）。
+  if (typeof input.siteDir !== 'string' || !path.isAbsolute(input.siteDir)) fatal('siteDir is required (an absolute path)');
+  const siteDir = input.siteDir;
 
   // #1351 —— 这一轮被收窄到哪一个块。`null` = 没收窄，这条路跟本票之前逐字节一样。
   const scope = blockScope.scopeFromInput(input, siteShape.readSiteShape(siteDir));
@@ -1382,18 +1348,6 @@ async function main() {
   // #1420 r2 —— 这一轮 AI 写过的文件 → 它最后写进去那份字节的 sha256（回滚前核对用，§rollbackWrittenFiles）。
   const aiWrote = new Map();
   let staleWrites = 0;
-  let commitHash = '';
-  // #1192 —— 提交（`git add -A && git commit`）失败时那句话。它跟 archiveError 是两件不同的事：
-  // 推送失败 = 本地存下了、GitHub 上没有（改动仍然生效）；**提交失败 = 什么都没存下**，而这一次编辑
-  // 就不该被报成成功。Chris 2026-08-25 的原话：这类是异常，要做异常处理，告诉用户「现在有异常，
-  // 请联系管理员」。以前它只有一行 `debug()`（本文件开头那段注释点名的就是它），老板照样收到
-  // `edit-complete`，于是改动停在磁盘上、不在历史里、撤不回来，而下一次编辑的 `git add -A` 会把它
-  // 一起提交。
-  let commitError = '';
-  // #1164 —— 归档推送（`git push`）失败时那句话。它跟 commitHash 是两个独立的事实：改动已经在容器里
-  // commit 了（预览照常），但没进 GitHub。以前这两件事都被下面那个 catch 咽掉，`edit-complete` 照样
-  // 带着 commitHash 发出去，任务侧和用户侧都看起来成功 —— 2026-08-23 四次编辑就是这样丢掉的。
-  let archiveError = '';
   // 🔴 下面 MODEL_PRICING 不是文档,是【记账输入】:getModelPricing(model) 的结果乘 token 数既写进 operation_runs.cost,又经 manager/credit_metering.go 的 debitEditCredit 真扣客人额度。写错一行不报错、只静默错记。
   const model = configModel;
   // 🔴 改它之前去 https://platform.claude.com/docs/en/about-claude/pricing 现取一次,别凭记忆 —— #1249 修的两行原来逐字是【已退役】型号的真价钱(Opus 4/4.1 = $15/$75 · Haiku 3.5 = $0.80/$4),不是打错,所以判据是逐行拿官方现价对一遍,不是「哪个数看着不对」。
@@ -1485,7 +1439,7 @@ async function main() {
             // commit 里它进了 HEAD）。
             // ⟹ 顺序跟 #1102 那一支一样是承重的：**先退回去，再说那句话**；退不掉就改口，不硬说。
             // #1441 —— 带上 aiWrote：老板可能在这一轮里存在 AI 已经写成的文件上，那份不退、改口点名它（§keptFilesNote）。
-            const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
+            const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
             debug(`#1200 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
               + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
               + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
@@ -1530,10 +1484,7 @@ async function main() {
           ...(pageProgress && block.input.path ? { pageProgress: pageProgress(block.input.path) } : {}),
         });
 
-        // #1807 —— write_file 的「读后被别处改过没有」核对和落盘在站点文件锁里做（编辑器存盘拿的是同一把）：
-        //    #1420 那道核对与 writeFileSync 之间那个微秒级窗口从此是零。别的工具不写盘，不拿锁。
-        const runTool = () => executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen, aiWrote);
-        const result = block.name === 'write_file' ? await lockedSiteFiles(runTool) : runTool();
+        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen, aiWrote);
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
@@ -1571,7 +1522,7 @@ async function main() {
         detail: `Edit (${totalInputTokens} in / ${totalOutputTokens} out)`,
         duration: Date.now() - startTime,
       });
-      const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
+      const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
       debug(`#1420 gave up after ${staleWrites} stale writes; rollback: restored ${rb.restored.length}`
         + ` · removed ${rb.removed.length} · failed ${rb.failed.length} · kept ${rb.kept.length}`
         + `${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
@@ -1597,122 +1548,14 @@ async function main() {
       const textBlock = response.content.find(b => b.type === 'text');
       const finalMessage = textBlock?.text || 'Changes applied.';
 
-      // Sync changes if any files were modified
-      // #1087 —— `syncError` 非空 = 这次编辑写出来的东西构建不出来。以前这里只有一行 debug（进容器
-      // stderr，谁都看不到），而下面那段 git add -A && commit && push 在**另一个 try 里、无条件地**跑
-      // ⟹ 「同步失败」与「保存成功」可以同时成立，坏值进了站仓，界面上显示的是 Changes applied.
-      // 站仓就是这个站的真相来源，一旦坏值落进去，它以后的每一次构建都是死的。
-      // 所以这个变量把两件事串起来：① 失败要说出来（下面变成一条 error 事件）② 失败就不许再保存。
-      let syncError = null;
+      // #1830 —— 这一轮写过文件 ⟹ 替 AI 剔掉 contact 抄进来的值、页面里不认识的成排小图地址（同站容器时代那两步）。
+      //    「构建得出来吗」那道闸（原来是这里的 sync-config）和落库都在外面：`site.js edit` 读回这个目录、过
+      //    `lib/site-edit.js` §validate，过不了就把这一条 edit-complete 换成 error（老板读到的那句话也在那边）。
+      //    🔴 不再在这里查坐标（#1489 的 refreshGeoAfterEdit）：它在脚本进程里自己发请求、绕过全局节流；改了地址由
+      //    manager 落库时排 `kind=geocode`（manager/site_content.go §afterSiteContentWrite）。
       if (filesModified) {
-        // #1489 —— 这一次改了第一个地点的地址 ⟹ 重查一次坐标写回 brand.json（contact 的地图要它）；
-        //    地址没变一个请求都不发。查不到就删掉旧 geo。放在同步之前：写回的那一份跟着这次一起构建、一起提交。
-        //    🔴 r2（QA1 打回 r1）：写回走 §rewriteOnBehalfOfAi —— 它把 `aiWrote` 换成新字节的 sha，同步失败时
-        //    brand.json 才会随 writeSnapshots 一起回滚。r1 这里直接写盘，回滚把它当成「老板存过」不退。
-        const brandPath = path.join(siteDir, 'brand.json');
-        if (writeSnapshots.has(brandPath)) {
-          const snap = writeSnapshots.get(brandPath);
-          const geo = await refreshGeoAfterEdit(brandPath, Buffer.isBuffer(snap) ? snap : null, {
-            log: debug,
-            // #1807 —— 查坐标（网络）在锁外，只有写回那一刻进锁。
-            write: (p, bytes) => lockedSiteFiles(() => rewriteOnBehalfOfAi(p, bytes, aiWrote)),
-          });
-          debug(`Geocode after edit: ${geo}`);
-        }
-        await lockedSiteFiles(() => {
-          scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote);
-          scrubRowImagesAfterEdit(siteDir, writeSnapshots, aiWrote, input.uploadsDomain);
-        });
-        emit('progress', { message: 'Syncing changes to preview...' });
-        // 🔴 #1807 —— 这一句**不许**进站点文件锁：派生写盘那一刻自己要拿它（derive-site.js §flush），包在锁里就是自己等自己。
-        try {
-          execSync('node scripts/sync-config.js', {
-            cwd: rootDir,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          });
-          debug('sync-config.js sync complete');
-        } catch (e) {
-          // sync-config 把「哪里不对」写在 stderr（`console.error` + `process.exit(1)`），优先取 stderr。
-          // 🔴 #1134 —— 这里原来给的理由是「而 `e.message` **只有一句 "Command failed"**」，
-          //    **那是假的**。`execSync` 抛的 `e.message` 逐字是
-          //        Command failed: <整条命令>\n\n<stderr 原文>
-          //    stderr 就在里面（实测：拿一个只往 stderr 写字再 exit(1) 的子进程量，
-          //    `String(e.message).includes(<那句话>)` === true）。
-          //    代码本身没问题（优先取 stderr 更干净：没有那行命令回显、没有 node 自己的栈），
-          //    错的只是给它的那个理由 —— 而这句理由恰好是 #1103 新增那一格判据的来源，
-          //    所以它值得被更正，不然下一个人会据「message 里没有」去推别的结论。
-          syncError = String((e.stderr && e.stderr.toString().trim()) || e.message || '').slice(0, 2000);
-          debug(`sync-config.js sync error: ${e.message}`);
-        }
-      }
-
-      // 🔴 下面这一整段（预览健康检查 + 自动保存）只在同步成功时跑。同步失败时 `out/` 没被重建、
-      // 预览还是上一版，没有什么要等它热更新的；而**保存必须跳过**——那是本票要治的那一半。
-      if (filesModified && !syncError) {
-        const port = process.env.PREVIEW_PORT || '4000';
-        debug('Polling dev server up to 5s for hot reload...');
-        const startWait = Date.now();
-        let status = 0;
-        while (Date.now() - startWait < 5000) {
-          status = await checkDevServer(port);
-          if (status === 200) break;
-          await new Promise(r => setTimeout(r, 200));
-        }
-        debug(`Dev server check after ${Date.now() - startWait}ms: ${status}`);
-
-        if (status >= 500 || status === 0) {
-          emit('progress', { message: 'Dev server error detected, restarting...' });
-          // 🔴 WE DO NOT KILL ANYTHING HERE — WE WAIT FOR THE ENTRYPOINT'S LOOP. Since TICKET-275a the
-          // preview is a production static build served by `serve out` (see the comment above
-          // start_preview_server() in worker/entrypoint.sh), and that loop is what brings it back when
-          // it dies. #1059 deleted a `pkill -f "next dev"` that used to stand here: there is no
-          // `next dev` on such a container for it to match, so it restarted nothing.
-          //
-          // 🔴 And it was not free. `execSync` runs on WHICHEVER MACHINE this script is on. In
-          // production that is the site's own container, but we run this script by hand on the shared
-          // dev box to verify things — and there `pkill -f "next dev"` matches by command line without
-          // caring whose process it is, so it killed other people's dev servers. Two separate
-          // avoidance rules had been written down for that (point PREVIEW_PORT at a stand-in that
-          // always answers 200, so this branch is never reached); deleting the line retires both.
-          debug('Dev server unhealthy — waiting for the preview server to come back on its own');
-          const recovered = await waitForDevServer(port, 30000);
-          if (recovered) {
-            debug('Dev server recovered after restart');
-          } else {
-            debug('Dev server did not recover within 30s');
-          }
-        }
-
-        // Auto-save: git commit + push
-        emit('progress', { message: 'Saving changes...' });
-        try {
-          const commitMsg = 'Edit: ' + finalMessage.substring(0, 72).replace(/["`$\\]/g, '');
-          // #1807 —— `git add -A` 读的是工作树：编辑器存盘写到一半（写了文件、还没提交）时它会把那一半捞进这一笔。
-          //    在站点文件锁里做 ⟹ 编辑器那一笔的「写盘 + 提交」整段要么全在前、要么全在后。推送在锁外（不碰工作树）。
-          await lockedSiteFiles(() => execSync(`git add -A && git commit -m "${commitMsg}"`, {
-            cwd: rootDir,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          }));
-          commitHash = execSync('git rev-parse --short HEAD', { cwd: rootDir }).toString().trim();
-          // #1164 —— 推送自己一个 try。它失败的意思是「本地存下了、GitHub 上没有」，跟 commit 失败
-          // （什么都没存下）是两回事，处置也不同：这里不回滚、不报错误，只把这句话带到用户面前。
-          // 令牌会出现在 git 的报错里（remote URL 就带着它），所以打印前先抹掉。
-          try {
-            execSync('git push origin main', { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
-            debug(`git commit + push complete (${commitHash})`);
-          } catch (pushErr) {
-            const raw = (pushErr.stderr ? pushErr.stderr.toString() : '') || pushErr.message || 'unknown error';
-            archiveError = raw.replace(/x-access-token:[^@]*@/g, 'x-access-token:***@').trim().slice(0, 500);
-            debug(`git push FAILED — saved locally as ${commitHash} but NOT archived to GitHub: ${archiveError}`);
-          }
-        } catch (e) {
-          // #1192 —— 提交失败：记下来，下面走异常那条路。`stderr` 优先（execSync 的 `e.message` 只
-          // 有命令行本身），令牌照 #1164 那条一样先抹掉 —— remote URL 里带着它，而 git 的报错会把
-          // 整条 URL 打出来。
-          const raw = (e.stderr ? e.stderr.toString() : '') || e.message || 'unknown error';
-          commitError = raw.replace(/x-access-token:[^@]*@/g, 'x-access-token:***@').trim().slice(0, 500);
-          debug(`🔴 git commit FAILED — nothing was saved to this website's history: ${commitError}`);
-        }
+        scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote);
+        scrubRowImagesAfterEdit(siteDir, writeSnapshots, aiWrote, input.uploadsDomain);
       }
 
       // Emit cost
@@ -1732,109 +1575,10 @@ async function main() {
         duration,
       });
 
-      // #1087 —— 同步失败 ⟹ 这次编辑的终态是失败，不是 `edit-complete`。`error` 在 manager 那边是
-      // 终态事件（`manager/edit.go` 里 `if eventType == "error"` 那一支），它会被推到老板的聊天窗口。
-      //
-      // 🔴 这里【不】走 `fatal()`（那个 helper 会 `process.exit(1)`）。理由是量出来的：worker 在
-      // `cmd.Wait()` 报错时会再发一条自己的 error 并**覆盖** `last-event:<editID>`
-      // （`worker/main.go` 里 `errMsg = fmt.Sprintf("Edit failed: %v", err)` 那三行），内容是一句
-      // 没有信息的 "Edit failed: exit status 1"。实时那条 SSE 连接读到的是下面这条没错，但浏览器
-      // 断线重连走的是 catch-up 那条路（manager 那边 `rdb.Get(ctx, "last-event:"+editID)`）——
-      // 于是「哪里不对」在重连之后就没了。本票要治的正是「失败说不清楚」，所以这里正常返回，
-      // 让这条带原因的事件留在 `last-event` 里。
-      // （行号有意不写：这两处在别的仓/别的文件里，会漂；上面那几个字符串是当场 grep 得到的锚点。）
-      if (syncError) {
-        // #1102 —— 先把这次写出去的文件退回上一次提交的样子，**再**说那句话。顺序是承重的：
-        // 「没有保存」这句话的真假取决于磁盘上还剩什么（下一次成功编辑的 `git add -A` 读的是磁盘），
-        // 所以要么先让它成立、要么就别那么说。理由整段在 rollbackWrittenFiles 上面。
-        // #1441 —— 带上 aiWrote（同 #1420 那一支）：AI 写成之后老板又存过的文件不退，否则连他那一笔一起退掉。
-        const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
-        debug(`#1102 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
-          + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
-          + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
-        // 🔴 退不掉的时候**改口**，不硬说那句话（这是本票要治的那个毛病本身：跟老板说的话后来变成
-        // 假的而没人被告知）。退不掉 = 那几个文件还带着这次的改动躺在工作树上，下一次成功的编辑
-        // 会把它们一起提交。
-        // 🔴 #1441 —— `kept` 非空时也改口：那份文件被编辑器存盘 commit + 重建过，带着 AI 那一处已经在网站上了
-        //    ⟹「rolled back / still shows the previous version」都不成立（§keptFilesNote）。
-        emit('error', {
-          message: rb.kept.length
-            ? 'This change was not saved. Rebuilding the site\'s configuration failed, so nothing from this '
-              + `request was committed.${keptFilesNote(rb.kept)}`
-              + (rb.failed.length
-                ? ` ⚠️ Part of it could not be undone on disk either (${rb.failed.join('; ')}), so it may be `
-                  + 'included the next time an edit is saved.'
-                : '')
-              + '\n\n' + syncError
-            : rb.failed.length
-            ? 'Rebuilding the site\'s configuration failed, so nothing was committed and the site still '
-              + 'shows the previous version. ⚠️ This change could not be undone on disk either '
-              + `(${rb.failed.join('; ')}), so it may be included the next time an edit is saved:\n\n`
-              + syncError
-            : 'This change was not saved. Rebuilding the site\'s configuration failed, so nothing '
-              + 'was committed, the change was rolled back and the site still shows the previous '
-              + 'version:\n\n' + syncError,
-        });
-        debug(`Edit aborted (sync failed): ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
-        return;
-      }
-
-      // #1192 —— 提交失败 ⟹ 这次编辑的终态是**异常**，不是 `edit-complete`。
-      //
-      // 🔴 顺序：放在 syncError 那一支后面。同步失败发生得更早（那时还没走到提交），两者不会同时为真；
-      // 写在后面是为了让「更早的那个原因」永远先说话。
-      //
-      // 🔴 为什么这里也回滚这次写过的文件（跟 #1102 同一套，不新造）：什么都没提交，而文件还在磁盘上。
-      // 不退的话下一次成功编辑的 `git add -A` 会把它们一起提交 —— 老板被告知「失败了」，改动却在几分钟
-      // 后自己生效了。本文件开头那段注释描述的第三种解释（在磁盘上、从来没进过 HEAD）正是这么来的。
-      //
-      // 🔴 不走 `fatal()`：理由跟上面 syncError 那一支逐字相同（worker 的 `cmd.Wait()` 会用一句没有
-      // 信息的 "Edit failed: exit status 1" 覆盖掉 `last-event`）。
-      //
-      // 🔴 这条路**不重建**，而这不需要任何代码去保证：#1192 起重建是 commit 的后置条件，没有 commit
-      // 就没有重建（worker §settleCommittedWork 读的是容器仓的 HEAD）。
-      // 🔴 #1441 —— 所以「网站还是之前那样」只在 `kept` 为空时成立。`kept` 非空 = 这一轮里老板在编辑器里存过
-      //    AI 已经写成的那份文件，而**那一次存盘自己** commit + push + 重建了（`worker/blocks_task.go` 头注 ④）
-      //    ⟹ 那份文件（连同 AI 那一处）已经在网站上了，这条路不重建也改变不了这一点。那时改口点名它（§keptFilesNote），
-      //    不说「rolled back / still shows the previous version」；别的文件照样退回，它们没进过任何 commit。
-      if (commitError) {
-        const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));
-        debug(`#1192 rollback after a failed commit: restored ${rb.restored.length} · removed ${rb.removed.length}`
-          + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
-          + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
-        emit('error', {
-          message: rb.kept.length
-            ? `Something went wrong saving this change, so this request was NOT saved.${keptFilesNote(rb.kept)}`
-              + (rb.failed.length
-                ? ` ⚠️ Part of it could not be undone on disk either (${rb.failed.join('; ')}), so it may be `
-                  + 'included the next time an edit is saved.'
-                : '')
-              + ' Please contact your administrator — the server log has the details:\n\n' + commitError
-            : rb.failed.length
-            ? 'Something went wrong saving this change, so it was NOT saved and your website has not '
-              + `changed. ⚠️ It could not be undone on disk either (${rb.failed.join('; ')}), so it may be `
-              + 'included the next time an edit is saved. Please contact your administrator — the server '
-              + `log has the details:\n\n${commitError}`
-            : 'Something went wrong saving this change, so it was NOT saved, the change was rolled back '
-              + 'and your website still shows the previous version. Please contact your administrator — '
-              + `the server log has the details:\n\n${commitError}`,
-          commitFailed: true,
-        });
-        debug(`Edit aborted (commit failed): ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
-        return;
-      }
-
-      // #1164 —— 归档失败要让站主看见。`message` 是 manager 存成聊天里那条 assistant 回复的字段
-      // （manager/main.go dispatch 那段 `evt["message"]`），所以把这句话接在它后面，用户在聊天里
-      // 就读得到；`archiveFailed` / `archiveError` 给机器读。预览行为不变：改动已经在本地存下了。
-      const archiveNotice = archiveError
-        ? '\n\nNote: this change is saved in your preview but could NOT be archived to GitHub yet, '
-          + 'so it is not backed up. Your next successful save will push it along with this one.'
-        : '';
       emit('edit-complete', {
-        message: finalMessage + archiveNotice,
-        ...(commitHash ? { commitHash } : {}),
-        ...(archiveError ? { archiveFailed: true, archiveError } : {}),
+        message: finalMessage,
+        // #1830 —— 这一轮有没有写成过文件（`site.js edit` 据此决定要不要读回、校验、交 manager 落库）。
+        filesModified,
         inputTokens: totalInputTokens,
         outputTokens: totalOutputTokens,
         cost,

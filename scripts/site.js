@@ -83,6 +83,16 @@
 //       + stampSchemaVersions）。照片在 `<目录>/photos/`、logo 在 `<目录>/logo.png`。失败 ⟹ 退出码非 0（`error` 事件已发）。
 //       --out-dir 由 manager 每次 mkdtemp 新建；Resume 时 manager 先把阶段内容写进 `<目录>/site/`。
 //
+// #1830（T3b）—— AI 改站，manager 的执行器 `kind=ai-edit` 时 spawn（实现在 `lib/site-edit.js`，那份文件头有完整约定）：
+//   node scripts/site.js edit --site <站 JSON 文件> --message <老板那句话> [--scope <JSON>] --out-dir <目录>
+//       标准输入：这一轮其余的载荷（siteId / conversationHistory / images / model / maxTokens / uploadsDomain）。
+//       --scope：`{page, locale?, blockId?, blockIndex?, region?}`（「让 AI 改这一块」/ #1791 顶栏页脚）。
+//       标准输出：edit-site.js 的 JSON-lines 原样转出；这一轮改成了东西 ⟹ 在 edit-complete 之前多一行
+//       `{"event":"edited","result":"<目录>/result.json","files":[…],"summary":"…"}`（result.json = `{content, summary, geo?}`，
+//       已过 validate）。校验不过 ⟹ 那条 edit-complete 换成一条 `error`。退出码同 edit-site.js。
+//   node scripts/site.js validate --prev <站 JSON> --next <站 JSON> [--scope <JSON>]
+//       上面那一步单独拿出来（输出约定同编辑器那几条）：{"ok":true,"content":{…},"files":[…],"geo"?} / ok:false + refused。
+//
 // 🔴 渲染只读不写：拿到的 content 不回写（菜单同步、custom.css 的补丁只用在这一次的输出里，设计文档 §6.1「渲染任务只读库」）。
 const fs = require('fs');
 const os = require('os');
@@ -93,6 +103,8 @@ const { DEFAULT_OUTDIR } = require('./lib/render-bundle');
 
 // 不带值的开关（只有 `save --keep`）。不登记在这里的 `--x` 一律要跟一个值。
 const BOOLEAN_FLAGS = new Set(['keep']);
+// #1830 —— 值是老板打的字（`edit --message`）：它自己就可能以 `--` 开头，下一个参数原样就是它的值。
+const FREE_TEXT_FLAGS = new Set(['message']);
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -102,7 +114,7 @@ function parseArgs(argv) {
     const key = a.slice(2);
     if (BOOLEAN_FLAGS.has(key)) { out[key] = true; continue; }
     const val = argv[i + 1];
-    if (val === undefined || val.startsWith('--')) throw new Error(`${a} 后面要跟一个值`);
+    if (val === undefined || (val.startsWith('--') && !FREE_TEXT_FLAGS.has(key))) throw new Error(`${a} 后面要跟一个值`);
     out[key] = val;
     i += 1;
   }
@@ -129,6 +141,7 @@ const EDITOR_COMMANDS = {
   'site-css': (a, ed) => ed.siteCss({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   'theme-css': (a, ed) => ed.themeCss({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   geocode: (a, ed) => ed.geocode({ address: a.address }),
+  validate: (a) => require('./lib/site-edit').validate({ prev: requiredJsonArg(a.prev, 'prev'), next: requiredJsonArg(a.next, 'next'), scope: jsonArg(a.scope, 'scope') || null }),
   'catalog-site-css': (a, ed) => catalogSiteCss({ theme: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }, ed),
 };
 
@@ -432,6 +445,18 @@ async function main() {
     process.exitCode = await require('./lib/site-create').create({ outDir: path.resolve(a['out-dir']), stdinText: Buffer.concat(chunks).toString('utf-8') });
     return;
   }
+  if (cmd === 'edit') {
+    checkPathArg('site', a.site);
+    checkPathArg('out-dir', a['out-dir']);
+    if (typeof a.message !== 'string' || !a.message.trim()) throw new Error('要给 --message');
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    process.exitCode = await require('./lib/site-edit').edit({
+      sitePath: a.site, message: a.message, scope: jsonArg(a.scope, 'scope') || null,
+      outDir: path.resolve(a['out-dir']), stdinText: Buffer.concat(chunks).toString('utf-8'),
+    });
+    return;
+  }
   if (cmd === 'bundle') {
     const m = await bundle(a['out-dir'] ? path.resolve(a['out-dir']) : DEFAULT_OUTDIR);
     process.stdout.write(`${JSON.stringify({ event: 'bundled', ...m })}\n`);
@@ -472,7 +497,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ event: 'rendered', ...result })}\n`);
     return;
   }
-  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', 'create', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
+  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', 'create', 'edit', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
 }
 
 if (require.main === module) {

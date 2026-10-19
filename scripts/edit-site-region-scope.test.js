@@ -51,10 +51,17 @@ function deadPort() {
   });
 }
 
+// #1830 —— 跑的是 manager 执行器 spawn 的那一条：`site.js edit --site <内容> --message … --scope <JSON> --out-dir <临时>`。
+//    范围从命令行进去（执行器元素里那一份原样拼上），`site.js edit` 再交给 edit-site.js —— 这一跳丢了 region，下面那句就不会吐。
 function runEdit(work, port, extra) {
-  const input = { siteId: 'region01', message: 'Change the hero headline to Hello', ...extra };
-  const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'edit-site.js')], {
-    input: JSON.stringify(input), cwd: work, encoding: 'utf8', timeout: 120000,
+  const { readTree } = require('./lib/site-editor');
+  const contentFile = path.join(path.dirname(work), 'content.json');
+  fs.writeFileSync(contentFile, JSON.stringify(readTree(path.join(work, 'site'))));
+  const out = fs.mkdtempSync(path.join(path.dirname(work), 'ai-out-'));
+  const args = [path.join(work, 'scripts', 'site.js'), 'edit', '--site', contentFile, '--message', 'Change the hero headline to Hello', '--out-dir', out];
+  if (Object.keys(extra).length) args.push('--scope', JSON.stringify(extra));
+  const r = cp.spawnSync(process.execPath, args, {
+    input: JSON.stringify({ siteId: 'region01' }), cwd: work, encoding: 'utf8', timeout: 120000,
     env: { ...process.env, ANTHROPIC_API_KEY: 'sk-ant-test-not-a-real-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}` },
   });
   const events = (r.stdout || '').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
@@ -94,6 +101,34 @@ function runEdit(work, port, extra) {
 
   if (fs.readFileSync(path.join(work, 'site', 'en', 'pages', 'home.json'), 'utf8') === homeBefore) ok('跑完首页一个字节没变');
   else bad('首页被改了');
+
+
+  // #1830 —— 只放行那一个键（票 AC「--scope 两层验」的模板那一层）：AI 这一轮的整份产出交给 manager 之前过 `site.js validate`，
+  //    带着同一份 scope。顶栏范围：改 header 放行、改 footer 拒；同一笔不带 scope 放行（那一拒是 scope 拒的）。
+  console.log('\n── site.js validate 带 region=header：只放行 navigation.json 的 header');
+  {
+    const { readTree } = require('./lib/site-editor');
+    const prev = readTree(path.join(work, 'site'));
+    const nav = JSON.parse(typeof prev['en/navigation.json'] === 'string' ? prev['en/navigation.json'] : JSON.stringify(prev['en/navigation.json']));
+    const dir = path.dirname(work);
+    const validate = (next, scope) => {
+      fs.writeFileSync(path.join(dir, 'prev.json'), JSON.stringify(prev));
+      fs.writeFileSync(path.join(dir, 'next.json'), JSON.stringify(next));
+      const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'site.js'), 'validate', '--prev', path.join(dir, 'prev.json'),
+        '--next', path.join(dir, 'next.json'), ...(scope ? ['--scope', JSON.stringify(scope)] : [])], { cwd: work, encoding: 'utf8', timeout: 120000 });
+      const line = (r.stdout || '').split('\n').filter((l) => l.startsWith('{')).pop();
+      try { return JSON.parse(line); } catch { return { ok: false, message: `（没有结果行）rc=${r.status} ${(r.stderr || '').slice(-300)}` }; }
+    };
+    const scope = { page: 'home', locale: 'en', region: 'header' };
+    const header = validate({ ...prev, 'en/navigation.json': { ...nav, header: { ...(nav.header || {}), cta: { label: 'Call now 1830', href: '/contact' } } } }, scope);
+    if (header.ok) ok('改 header ⟹ 放行'); else bad(`改 header 被拒了: ${header.message}`);
+    const footerNext = { ...prev, 'en/navigation.json': { ...nav, footer: { ...(nav.footer || {}), tagline: 'Footer 1830' } } };
+    const footer = validate(footerNext, scope);
+    if (!footer.ok && /header/.test(footer.message) && /footer/.test(footer.message)) ok('改 footer ⟹ 拒（回执点名 header 范围、footer 那个键）');
+    else bad(`改 footer 没被拒: ${JSON.stringify(footer).slice(0, 240)}`);
+    const unscoped = validate(footerNext, null);
+    if (unscoped.ok) ok('对照：同一笔不带 scope ⟹ 放行'); else bad(`对照没过: ${unscoped.message}`);
+  }
 
   for (const t of temps) fs.rmSync(t, { recursive: true, force: true });
   console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
