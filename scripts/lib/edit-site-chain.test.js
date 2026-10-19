@@ -5,6 +5,13 @@
  *   跑法:  node scripts/lib/edit-site-chain.test.js   （或 `npm run test:scripts`，它按文件名发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
+ * ══ #1830 起这份测的是哪条路 ═══════════════════════════════════════════════════════════════════
+ * 站从库里来（SiteAsData T3b）：每一格都跑 manager 执行器 spawn 的那一条 `site.js edit`（§runEdit），AI 在它铺出来的私有
+ * 临时目录里改，跑完过 `site.js validate`（白名单 · 块校验 · 整站派生 = 原来 sync-config 那道闸）。这棵树的 `site/` 扮演
+ * 「库里那一行」，测试扮演 manager：出了 `edited` 才把 result.json 写回 `site/` 并 commit —— 所以下面所有「有没有 commit」
+ * 读的都是「落没落库」。退役的几节（⑤ 的计数半 · ⑬F5/F6 · ⑰ · ⑱）原地写着为什么。`site.js validate` 自己的几件事
+ * （stampSchemaVersions · contentPatchesOf · geo）在 `site-edit.test.js`。
+ *
  * ══ 为什么要有它 ═══════════════════════════════════════════════════════════════════════════════
  * #1087 给 `edit-site.js` 加了两条行为，其中一条**没有任何东西盯着**（#1103 正文的表）：
  *
@@ -44,6 +51,7 @@ const cp = require('child_process');
 
 const NEXT = path.resolve(__dirname, '..', '..');
 const EDIT_SITE = path.join(NEXT, 'scripts', 'edit-site.js');
+const { readTree } = require('./site-editor');
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -241,8 +249,13 @@ function makeRoot(label) {
   git('git init -q -b main');
   git('git config user.email t@t.test && git config user.name t');
   git(`git remote add origin "${bare}"`);
-  return { root, work, bare, git };
+  // #1830 —— `site.js edit` 的 --out-dir（manager 每一跑 mkdtemp 一个）：每一跑开头清空重建（§runEdit）。放在固定位置，
+  //    「AI 写到了哪儿」那几格（㉒ 整条路径长度）才有一个算得出来的站目录（§aiSiteDir）。
+  return { root, work, bare, git, out: path.join(root, 'ai-out') };
 }
+
+/** AI 这一跑真正写盘的那个站目录（`site.js edit` 铺出来的私有那份）。 */
+const aiSiteDir = (ctx) => path.join(ctx.out, 'site');
 
 /**
  * 一份**真的**站，用仓里那条 skipAI 建站路造出来（不调 AI、不花钱 —— `create-site.js` 的 skipAI
@@ -266,7 +279,20 @@ function writeSite(work) {
   if (!fs.existsSync(path.join(site, 'brand.json'))) {
     die(`夹具立不起来：create-site.js 的 skipAI 路没造出 site/brand.json\n${(r.stderr || '').slice(-600)}`);
   }
+  // #1830 —— 站从此住在库里（一行 JSON），`site.js edit` 每一轮把它铺回目录。夹具先按库里那份的字节格式重写一遍
+  //    （`site-editor.js` §materialize：`JSON.stringify(v, null, 2) + '\n'`），铺盘才跟这棵树逐字节相同 —— 不然每一轮
+  //    一开始就有一堆「被改过」的文件，下面那些按字节 / 按 git 状态的断言读的就不是这一轮做的事。
+  storeContent(site, readTree(site));
   return site;
+}
+
+/** 「库」那一侧：把一份 content 原样写进这棵树（多出来的文件删掉）。测试在这里扮演 manager 落库的那一步。 */
+function storeContent(site, content) {
+  for (const rel of Object.keys(readTree(site))) if (!Object.prototype.hasOwnProperty.call(content, rel)) fs.rmSync(path.join(site, rel));
+  for (const [rel, v] of Object.entries(content)) {
+    fs.mkdirSync(path.dirname(path.join(site, rel)), { recursive: true });
+    fs.writeFileSync(path.join(site, rel), typeof v === 'string' ? v : `${JSON.stringify(v, null, 2)}\n`);
+  }
 }
 
 /** 这份夹具是不是**真的**能通过 sync-config —— 立不起来就 exit 2，不给读数。 */
@@ -282,6 +308,11 @@ function assertSyncsClean(work, where) {
 
 /**
  * 跑一次真的编辑。返回这一跑留下的全部痕迹 —— 事件、退出码、仓里多了几个 commit、bare 上有没有。
+ *
+ * #1830 —— 跑的是 `site.js edit`（manager 的执行器 spawn 的那一条）：这棵树的 `site/` 就是「库里那一行」，读成一份
+ * content 交给它；它铺在**自己的** `--out-dir`（每一跑一个新临时目录，同 manager 的 mkdtemp）里改。
+ * 它说 `edited` ⟹ 测试扮演 manager 落库：result.json 的 content 写回 `site/`、commit、push（「commit 数」于是就是
+ * 「落了几次库」）。没有 `edited`（校验不过 / 没改 / 出错）⟹ 什么都不落 —— `site/` 一个字节不动，这就是「没存」。
  */
 function runEdit(ctx, script, stdinExtra = {}, envExtra = {}) {
   const dir = temp('edit-stub-');
@@ -293,8 +324,22 @@ function runEdit(ctx, script, stdinExtra = {}, envExtra = {}) {
   fs.writeFileSync(callsPath, '');
 
   const before = ctx.git('git rev-list --count HEAD').toString().trim();
-  const r = cp.spawnSync(process.execPath, ['--require', stubPath, path.join(ctx.work, 'scripts', 'edit-site.js')], {
-    input: JSON.stringify({ siteId: 'test1234', message: 'change something', ...stdinExtra }),
+  const site = path.join(ctx.work, 'site');
+  fs.rmSync(ctx.out, { recursive: true, force: true });
+  fs.mkdirSync(ctx.out, { recursive: true });
+  const contentPath = path.join(dir, 'content.json');
+  fs.writeFileSync(contentPath, JSON.stringify(readTree(site)));
+  const rest = { ...stdinExtra };
+  const scope = {};
+  for (const k of ['page', 'locale', 'blockId', 'blockIndex', 'region']) {
+    if (Object.prototype.hasOwnProperty.call(rest, k)) { scope[k] = rest[k]; delete rest[k]; }
+  }
+  const message = typeof rest.message === 'string' ? rest.message : 'change something';
+  delete rest.message;
+  const r = cp.spawnSync(process.execPath, ['--require', stubPath, path.join(ctx.work, 'scripts', 'site.js'), 'edit',
+    '--site', contentPath, '--message', message, '--out-dir', ctx.out,
+    ...(Object.keys(scope).length ? ['--scope', JSON.stringify(scope)] : [])], {
+    input: JSON.stringify({ siteId: 'test1234', ...rest }),
     cwd: ctx.work,
     encoding: 'utf8',
     env: {
@@ -308,6 +353,18 @@ function runEdit(ctx, script, stdinExtra = {}, envExtra = {}) {
     },
     timeout: 120000,
   });
+  const edited = (r.stdout || '').split('\n').map((l) => { try { return JSON.parse(l); } catch (e) { return null; } })
+    .find((e) => e && e.event === 'edited');
+  if (edited) {
+    storeContent(site, JSON.parse(fs.readFileSync(edited.result, 'utf8')).content);
+    fs.rmSync(edited.result, { force: true });
+    ctx.git('git add -A && git commit -q -m "AI edit" && git push -q origin main');
+    // 落库之后 manager 排一次预览（commitSiteContent §afterSiteContentWrite）。这里拿 sync-config 当那一次渲染的替身，
+    // 「站真的变了」那几格（产物里有没有探针）读的就是它 —— 读的是库里那一份，不是 AI 那个临时目录。
+    cp.spawnSync(process.execPath, [path.join(ctx.work, 'scripts', 'sync-config.js')], { cwd: ctx.work, encoding: 'utf8', stdio: 'pipe' });
+    // 渲染只读不写（site.js 文件头「渲染只读不写」）：sync-config 顺手改回 site/ 的那几处（菜单同步）不算库里的东西。
+    ctx.git('git checkout -q -- site && git clean -qfd -- site');
+  }
   const after = ctx.git('git rev-list --count HEAD').toString().trim();
   let pushed = '';
   try { pushed = cp.execSync(`git --git-dir="${ctx.bare}" rev-list --count main`, { stdio: 'pipe' }).toString().trim(); }
@@ -583,16 +640,8 @@ console.log('\n⑤ 同一个文件两种写法写两遍：回滚回到编辑之�
     if (!dirty) ok('工作树里 about.json 不脏 ⟹ 下一次成功的编辑不会把它带进 commit');
     else bad(`🔴 工作树里 about.json 还带着这次的改动：${dirty}`);
 
-    // 计数那一半。`debug()` 无条件写 stderr（`edit-site.js` 的 `const debug =`），所以这行一定在。
-    const m = res.stderr.match(/#1102 rollback: restored (\d+) · removed (\d+) · failed (\d+)/);
-    if (!m) {
-      bad(`⑤ stderr 里找不到那行回滚读数 ⟹ 计数这一半没测到（stderr 尾：${res.stderr.slice(-200)}）`);
-    } else if (m[1] === '2' && m[3] === '0') {
-      ok(`回滚把别名收成了一个文件：restored 2（about.json + services.json）· failed 0`);
-    } else {
-      bad(`🔴 回滚算成了 restored ${m[1]} · removed ${m[2]} · failed ${m[3]} —— `
-        + '别名被当成了两个不同的文件（同一个物理文件记了两条快照）');
-    }
+    // #1830 —— 计数那一半退役：这条路上没有磁盘回滚了（AI 改的是 `site.js edit` 的私有临时目录，校验不过 ⟹ 整个目录
+    //    扔掉、不落库），所以没有「restored N」可数。上面那一半（库里那份逐字节没变）是现在真正要保的性质。
   }
 }
 
@@ -1517,68 +1566,14 @@ console.log('\n⑬ 图片取不到 ⟹ 一句人话，不是一段 JS 栈（#120
   if (t.secondEditCommitted && !t.markInHead) ok('⑬F4 下一次成功编辑之后，HEAD 里的 about.json 不带这次的字节 ⟹ 老板的站上真的没有它');
   else bad(`🔴 ⑬F4 它进 HEAD 了（第二次编辑 commit=${t.secondEditCommitted}、HEAD 里有标记=${t.markInHead}）—— 这正是 QA2 量到的那条时间线`);
 
-  // ── 反向对照（AC5 那一维）：把新加的那次回滚拿掉，上面四条必须红，而且红在**它该红的那一格** ──
-  {
-    const m = timeline('nofix', {
-      from: '            const rb = await lockedSiteFiles(() => rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote));',   // #1441 起是三参；#1807 起包在站点文件锁里
-      to:   '            const rb = { restored: [], removed: [], failed: [], kept: [] };',
-    });
-    if (m.anchorMissing) {
-      bad('⑬F5 变异锚点找不到 —— 这一臂什么都没证明');
-    } else if (!m.aboutIsBack && m.markInHead && /Nothing on your site was changed\./.test(m.msg)) {
-      ok(`⑬F5 反向对照：拿掉那次回滚 ⟹ 老板照样收到「什么都没改」，而 about.json 留在盘上（工作树 ${m.dirty.replace(/\n/g, ' | ')}）并进了 HEAD ⟹ ⑬F2/F4 量的就是这次修法`);
-    } else {
-      bad(`⑬F5 反向对照没红成它该红的样子：aboutIsBack=${m.aboutIsBack} markInHead=${m.markInHead} 措辞=「${m.msg.slice(0, 120)}」`);
-    }
-  }
-
-  // ── F6：退不掉的时候**改口**，不硬说那句话 ────────────────────────────────────────────────
+  // ── ⑬F5 / ⑬F6 退役（#1830）──────────────────────────────────────────────────────────────────────
   //
-  // 新那段有两条出路（跟 #1102 / #1192 两处同一套）：退干净 ⟹ 说「Nothing on your site was
-  // changed.」；退不掉 ⟹ 改口。上面 F1~F5 全部走的是前一条 —— 后一条要是从来没被跑过，
-  // 「它会改口」就只是我写在注释里的一句话。
-  //
-  // 🔴 触发用的是**真机制**，不是变异：`write_file` 在落盘之前给这个文件拍快照，而
-  //    `st.size > SNAPSHOT_MAX_BYTES`（32 MB）时它记的是一句「太大，存不下」而不是字节
-  //    （`edit-site.js` 搜 `SNAPSHOT_MAX_BYTES`）。所以先把 `en/seo.json` 撑过 32 MB。
-  {
-    const c = makeRoot('img-error-undo-failed');
-    const site = writeSite(c.work);
-    assertSyncsClean(c.work, '⑬F6 夹具');
-    c.git('git add -A && git commit -q -m base && git push -q origin main');
-
-    const seoPath = path.join(site, 'en', 'seo.json');
-    const seo = JSON.parse(fs.readFileSync(seoPath, 'utf8'));
-    fs.writeFileSync(seoPath, JSON.stringify({ ...seo, __pad: 'x'.repeat(33 * 1024 * 1024) }));
-    const padded = fs.statSync(seoPath).size;
-
-    const res = runEdit(c, [
-      reply([textBlock('Updating SEO first.'),
-        writeCall('t1', 'en/seo.json', JSON.stringify({ ...seo, metaTitle: MARK }, null, 2))], 'tool_use'),
-      T1200_DOWNLOAD_400,
-      T1200_DOWNLOAD_400,
-      reply([textBlock('.')]),
-    ], {
-      message: 'Now put this photo on the home page',
-      images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }],
-    });
-    const done = ev(res, 'edit-complete');
-    const msg = done.length ? String(done[0].message) : '';
-    const failedN = /#1200 rollback: .* failed (\d+)/.exec(res.stderr);
-
-    if (padded > 32 * 1024 * 1024 && failedN && Number(failedN[1]) === 1) {
-      ok(`⑬F6 前提成立：撑到 ${padded} 字节 ⟹ 快照记的是「太大」，这一跑回滚 failed=1`);
-    } else {
-      bad(`⑬F6 前提不成立：padded=${padded} failed=${failedN && failedN[1]} ⟹ 下面那条断言什么都没证明。stderr 尾：${res.stderr.slice(-400)}`);
-    }
-    const changedTack = !/Nothing on your site was changed\./.test(msg)
-      && /could not be undone/.test(msg) && /seo\.json/.test(msg);
-    if (done.length === 1 && changedTack) ok(`⑬F6 它改口了，没硬说那句话：「${msg}」`);
-    else bad(`🔴 ⑬F6 退不掉却还在说「什么都没改」：${res.events.map(e => e.event).join(' ')}｜「${msg}」`);
-    // 诚实性自检：改口的前提是那份改动**真的**还在盘上 —— 不然改口本身才是那句假话。
-    if (fs.readFileSync(seoPath, 'utf8').includes(MARK)) ok('⑬F6 那份改动确实还在盘上 ⟹ 改口说的是实话');
-    else bad('🔴 ⑬F6 改了口，但盘上其实已经退干净了 —— 这次是反过来吓唬老板');
-  }
+  // 两格量的都是「edit-site.js 自己那次磁盘回滚是不是承重的」：F5 拿掉它看 F2/F4 红不红，F6 让它退不掉看它改不改口。
+  // 从 #1830 起这条路上它**不再承重**：AI 改的是 `site.js edit` 铺出来的私有临时目录，这一支发的 `edit-complete` 不带
+  // `filesModified` ⟹ `lib/site-edit.js` 不读回、不校验、不出 `edited`，manager 什么都不落，整个目录随后删掉。
+  // 回滚退得掉退不掉，库里那一份都一个字节不变 —— F2~F4 现在按构造为真，量的是「临时目录没漏进库」。
+  // 📌 F6 那句「could not be undone … may be included the next time」在这条路上从此是一句不会成立的话（要一份
+  //    32 MB 以上的内容文件才走得到）；它连同这套回滚一起留给 T5 删（本票不动 edit-site.js 的循环）。
 }
 
 // ══ ⑭（#1248）后台那个 max tokens 设置：值要走到 API 调用上，而且必须走【流式】那条路 ═══════════
@@ -1809,185 +1804,12 @@ console.log('\n⑯ 块带 ref 又带自己的 data（#1430）：坏链接被拒�
   else bad(`🔴 ⑯ 对照：合法的没照收 —— 块库 href=${JSON.stringify(gotHref)} · 首页 ref 条目 ${refs.length} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
 }
 
-// ══ ⑰ 读完之后别处改过 ⟹ 这一笔写被拒、模型重读后照常写；一直被改 ⟹ 到上限就失败并告诉老板（#1420）════
+// ══ ⑰ 退役（#1830）：读完之后别处改过（#1420）════════════════════════════════════════════════════════════
 //
-// 形状照 #1420 在夹具上复现的那一条：AI 读了一份 → 老板在编辑器里存了一处 → AI 把手上那份旧读数整份写回。
-// 判据是**谓词**（这一轮读过的任何文件），所以两种文件各走一遍：页面 JSON 和站级块库。
-// 🔴 判「被拒」看三样：老板那一处还在、那条 tool_result 带着这一关的话（不是别的关拒的）、以及模型重读后
-//    写的那一笔真的落盘（不是「什么都拒」）。
-// 🔴 对照臂：同样的脚本、`__before` 去掉 ⟹ 第一笔就落盘。没有这一臂，上面三条也可能是「这条路坏了」。
-console.log('\n⑰ 读完之后别处改过（#1420）：拒 → 重读 → 写；一直被改 ⟹ 第 3 次失败、回滚、告诉老板');
-{
-  const ctx = makeRoot('stale');
-  const site = writeSite(ctx.work);
-  const homeFile = path.join(site, 'en', 'pages', 'home.json');
-  const libFile = path.join(site, 'en', 'blocks', 'site-blocks.json');
-  const home = JSON.parse(fs.readFileSync(homeFile, 'utf8'));
-  const arrayKey = Array.isArray(home.blocks) ? 'blocks' : null;
-  if (!arrayKey) die('⑰ 前提不成立：建出来的首页没有 blocks');
-  const lib = {
-    // #1425（T3）：原来是 cta-banner（随旧库删了），换成 cta
-    promo: { type: 'cta', data: { headline: 'Promo ORIGINAL', body: 'Call us today.', ctas: [{ label: 'Call', href: '/contact', style: 'solid' }] } },
-    badge: { type: 'cta', data: { headline: 'Badge ORIGINAL', body: 'Same-day service.', ctas: [{ label: 'Book', href: '/contact', style: 'solid' }] } },
-  };
-  fs.mkdirSync(path.dirname(libFile), { recursive: true });
-  fs.writeFileSync(libFile, JSON.stringify(lib, null, 2));
-  home.blocks = home.blocks.concat([{ ref: 'promo', weight: 95 }, { ref: 'badge', weight: 96 }]);
-  fs.writeFileSync(homeFile, JSON.stringify(home, null, 2));
-  assertSyncsClean(ctx.work, '⑰');
-  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
-  const baseLib = fs.readFileSync(libFile, 'utf8');
-  const baseHome = fs.readFileSync(homeFile, 'utf8');
-  // 每一臂都从同一个底开始：前面的臂会 commit（HEAD 往前走），所以回的是底那个 commit，不是 HEAD。
-  const baseSha = ctx.git('git rev-parse HEAD').toString().trim();
-  const reset = () => ctx.git(`git reset -q --hard ${baseSha} && git push -q -f origin main`);
-
-  const libEditorSaved = (() => { const l = JSON.parse(baseLib); l.promo.data.headline = 'Promo EDITOR SAVED'; return JSON.stringify(l, null, 2); })();
-  const libAi = (from) => { const l = JSON.parse(from); l.badge.data.headline = 'Badge AI'; return JSON.stringify(l, null, 2); };
-  const heroOf = (text) => JSON.parse(text).blocks.find((b) => b && b.type === 'hero');
-  // 老板改 hero 的标题；AI 改另一个块（第一个带 headline 的非 hero 块）—— 两处不相干，旧版的整份写照样会把前者退回。
-  const homeEditorSaved = (() => { const h = JSON.parse(baseHome); heroOf(baseHome) && (h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED'); return JSON.stringify(h, null, 2); })();
-  const otherOf = (h) => h.blocks.find((b) => b && b.type !== 'hero' && b.data && typeof b.data.headline === 'string');
-  if (!heroOf(baseHome) || !otherOf(JSON.parse(baseHome))) die('⑰ 前提不成立：首页上要有一个 hero 和另一个带 headline 的块');
-  const homeAi = (from) => { const h = JSON.parse(from); otherOf(h).data.headline = 'Other AI'; return JSON.stringify(h, null, 2); };
-
-  for (const arm of [
-    { name: '站级块库', rel: 'en/blocks/site-blocks.json', file: libFile, base: baseLib, editor: libEditorSaved, ai: libAi,
-      editorStill: (t) => JSON.parse(t).promo.data.headline === 'Promo EDITOR SAVED', aiLanded: (t) => JSON.parse(t).badge.data.headline === 'Badge AI' },
-    { name: '页面 JSON', rel: 'en/pages/home.json', file: homeFile, base: baseHome, editor: homeEditorSaved, ai: homeAi,
-      editorStill: (t) => heroOf(t).data.headline === 'Hero EDITOR SAVED', aiLanded: (t) => t.includes('"Other AI"') },
-  ]) {
-    reset();
-    const res = runEdit(ctx, [
-      reply([readCall('r1', arm.rel)], 'tool_use'),
-      // 老板在这一段存了一处；AI 拿着 r1 读到的旧份写回。
-      Object.assign(reply([writeCall('w1', arm.rel, arm.ai(arm.base))], 'tool_use'), { __before: [{ file: arm.file, content: arm.editor }] }),
-      reply([readCall('r2', arm.rel)], 'tool_use'),
-      reply([writeCall('w2', arm.rel, arm.ai(arm.editor))], 'tool_use'),
-      reply([textBlock('Done.')], 'end_turn'),
-    ]);
-    const receipt = String(toolResultContent(res, 2, 'w1'));
-    const now = fs.readFileSync(arm.file, 'utf8');
-    if (/changed somewhere else/.test(receipt) && /Nothing was written/.test(receipt)) ok(`⑰ ${arm.name}：旧读数那一笔被这一关拒（回执 ${receipt.slice(0, 90)}…）`);
-    else bad(`🔴 ⑰ ${arm.name}：旧读数那一笔没被这一关拒 —— 回执 ${receipt.slice(0, 200)}`);
-    if (arm.editorStill(now)) ok(`⑰ ${arm.name}：老板在编辑器里存的那一处还在`);
-    else bad(`🔴 ⑰ ${arm.name}：老板存的那一处被 AI 退回了`);
-    if (arm.aiLanded(now) && ev(res, 'edit-complete').length === 1) ok(`⑰ ${arm.name}：模型重读后那一笔落盘、编辑正常完成（commit ${res.commitsBefore}→${res.commitsAfter}）`);
-    else bad(`🔴 ⑰ ${arm.name}：重读后那一笔没落盘 / 没完成 —— events ${JSON.stringify(res.events.map((e) => e.event))} · ${res.stderr.slice(-300)}`);
-  }
-
-  // 对照臂：同样的脚本，没有「别处改过」⟹ 第一笔就落盘（上面那几条不是「这条路什么都拒」）。
-  reset();
-  const ctl = runEdit(ctx, [
-    reply([readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
-    reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'),
-    reply([textBlock('Done.')], 'end_turn'),
-  ]);
-  const ctlReceipt = String(toolResultContent(ctl, 2, 'w1'));
-  if (/Written/.test(ctlReceipt) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI') ok('⑰ 对照：没人在中间改 ⟹ 第一笔就落盘');
-  else bad(`🔴 ⑰ 对照：第一笔没落盘 —— 回执 ${ctlReceipt.slice(0, 200)}`);
-
-  // 同一轮里先写后写：自己写进去的那份不算「别处改过」。
-  reset();
-  const twice = runEdit(ctx, [
-    reply([readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
-    reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'),
-    reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib).replace('Badge AI', 'Badge AI 2'))], 'tool_use'),
-    reply([textBlock('Done.')], 'end_turn'),
-  ]);
-  if (/Written/.test(String(toolResultContent(twice, 3, 'w2'))) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI 2') ok('⑰ 同一轮先写后写：第二笔照收（自己写进去的不算别处改过）');
-  else bad(`🔴 ⑰ 同一轮先写后写：第二笔被拒 —— ${String(toolResultContent(twice, 3, 'w2')).slice(0, 200)}`);
-
-  // 上限：每次读完都被改 ⟹ 第 3 次被拒时这一轮失败；这一轮先写成功的别的文件退回去；老板收到一句话。
-  reset();
-  const hero = heroOf(baseHome);
-  const homeTouched = (() => { const h = JSON.parse(baseHome); h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero AI (should be rolled back)'; return JSON.stringify(h, null, 2); })();
-  const bump = (n) => [{ file: libFile, content: libEditorSaved.replace('Promo EDITOR SAVED', `Promo EDITOR SAVED ${n}`) }];
-  const cap = runEdit(ctx, [
-    reply([readCall('r0', 'en/pages/home.json'), readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
-    Object.assign(reply([writeCall('h1', 'en/pages/home.json', homeTouched), writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(1) }),
-    reply([readCall('r2', 'en/blocks/site-blocks.json')], 'tool_use'),
-    Object.assign(reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(2) }),
-    reply([readCall('r3', 'en/blocks/site-blocks.json')], 'tool_use'),
-    Object.assign(reply([writeCall('w3', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(3) }),
-    reply([textBlock('should never be asked for')], 'end_turn'),
-  ]);
-  const errs = ev(cap, 'error');
-  if (errs.length === 1 && /was not saved/.test(errs[0].message) && /somewhere else/.test(errs[0].message) && ev(cap, 'edit-complete').length === 0) ok(`⑰ 上限：第 3 次被拒 ⟹ 失败并告诉老板（${errs[0].message.slice(0, 80)}…）`);
-  else bad(`🔴 ⑰ 上限：没按失败收场 —— events ${JSON.stringify(cap.events.map((e) => e.event))}`);
-  if (cap.requests.length === 6) ok('⑰ 上限：第 3 次被拒之后没有再问模型（6 次请求）');
-  else bad(`🔴 ⑰ 上限：请求了 ${cap.requests.length} 次（应为 6）`);
-  if (heroOf(fs.readFileSync(homeFile, 'utf8')).data.headline === hero.data.headline) ok('⑰ 上限：这一轮先写成功的首页被退回原样');
-  else bad('🔴 ⑰ 上限：首页留着这一轮的改动');
-  if (JSON.parse(fs.readFileSync(libFile, 'utf8')).promo.data.headline === 'Promo EDITOR SAVED 3') ok('⑰ 上限：老板最后存的那一处还在');
-  else bad('🔴 ⑰ 上限：老板存的那一处没了');
-  if (cap.commitsAfter === cap.commitsBefore) ok('⑰ 上限：没有 commit');
-  else bad(`🔴 ⑰ 上限：多了 ${cap.commitsAfter - cap.commitsBefore} 个 commit`);
-  if (ev(cap, 'cost').length === 1) ok('⑰ 上限：花掉的 token 照样记账（cost 事件 1 条）');
-  else bad(`🔴 ⑰ 上限：cost 事件 ${ev(cap, 'cost').length} 条`);
-
-  // 上限之后那次回滚，碰上【老板存在 AI 已经写成的文件上】（#1420 r1 QA3 终审打回的那条）：
-  // AI 先写成首页 → 老板在编辑器里基于 AI 那份改了首页的 hero → AI 在块库上连拒 3 次放弃。
-  // r1 的回滚拿「这一轮之前」的首页整份写回 ⟹ 老板的 hero 没了，而报文照说「Nothing on your site was changed」。
-  // 🔴 同一次还让 AI 写成 about.json、老板不碰它 ⟹ 它照样要被退回（修法只跳过「写完之后又被改过」的那份，不是不回滚）。
-  reset();
-  const aboutFile = path.join(site, 'en', 'pages', 'about.json');
-  const baseAbout = fs.readFileSync(aboutFile, 'utf8');
-  const aboutAi = baseAbout.replace(/"title"\s*:\s*"[^"]*"/, '"title": "About AI (should be rolled back)"');
-  if (aboutAi === baseAbout) die('⑰ 上限+老板改过：前提不成立 —— about.json 里没有 title 可改');
-  const homeAiWrote = homeAi(baseHome);
-  const homeOwnerOnTop = (() => { const h = JSON.parse(homeAiWrote); heroOf(homeAiWrote) && (h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED'); return JSON.stringify(h, null, 2); })();
-  const kept = runEdit(ctx, [
-    reply([readCall('r0', 'en/pages/home.json'), readCall('ra', 'en/pages/about.json'), readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
-    reply([writeCall('h1', 'en/pages/home.json', homeAiWrote), writeCall('a1', 'en/pages/about.json', aboutAi)], 'tool_use'),
-    Object.assign(reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: [{ file: homeFile, content: homeOwnerOnTop }, ...bump(1)] }),
-    reply([readCall('r2', 'en/blocks/site-blocks.json')], 'tool_use'),
-    Object.assign(reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(2) }),
-    reply([readCall('r3', 'en/blocks/site-blocks.json')], 'tool_use'),
-    Object.assign(reply([writeCall('w3', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(3) }),
-    reply([textBlock('should never be asked for')], 'end_turn'),
-  ]);
-  const kErrs = ev(kept, 'error');
-  const kMsg = kErrs.length === 1 ? String(kErrs[0].message) : '';
-  if (kErrs.length === 1 && /was not saved/.test(kMsg) && ev(kept, 'edit-complete').length === 0) ok('⑰ 上限+老板改过：仍按失败收场');
-  else bad(`🔴 ⑰ 上限+老板改过：没按失败收场 —— events ${JSON.stringify(kept.events.map((e) => e.event))}`);
-  const homeNow = fs.readFileSync(homeFile, 'utf8');
-  if (homeNow === homeOwnerOnTop) ok('⑰ 上限+老板改过：老板存在首页上的 hero 还在（回滚跳过了写完之后又被改过的那份）');
-  else bad(`🔴 ⑰ 上限+老板改过：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(homeNow).data.headline}"`);
-  if (fs.readFileSync(aboutFile, 'utf8') === baseAbout) ok('⑰ 上限+老板改过：老板没碰的 about.json 照样逐字节退回');
-  else bad('🔴 ⑰ 上限+老板改过：about.json 留着这一轮的改动（该退的没退）');
-  // 🔴 改口要说对：首页是【有意不退】、而且带着 AI 那一处（老板是在 AI 那份上存的）—— 不是「退不掉、下次可能带上」。
-  if (!/Nothing on your site was changed/.test(kMsg) && /en\/pages\/home\.json/.test(kMsg) && /that file was then saved again/.test(kMsg) && /includes the AI's change/.test(kMsg) && !/could not be undone/.test(kMsg)) ok(`⑰ 上限+老板改过：报文改口、点名首页、说清它带着 AI 那一处（${kMsg.slice(kMsg.indexOf('⚠️'), kMsg.indexOf('⚠️') + 70)}…）`);
-  else bad(`🔴 ⑰ 上限+老板改过：报文不对 —— 「${kMsg.slice(0, 300)}」`);
-
-  // 同一件事的第二条路（#1420 r2 真模型跑出来的轨迹）：老板存在 AI 写过的首页上之后，AI 又去写首页 → 被拒 →
-  // **重读**（读到的是老板那份）→ 在老板那份上改完**写成功**。这时盘上 == AI 最后写的那份，只比「盘上是不是
-  // AI 写的」会判成「没人动过」⟹ 回滚退回这一轮之前的首页，老板的 hero 又没了。
-  // 🔴 判据因此是「AI 写过之后，别人有没有【任何一次】碰过它」，一旦碰过就不退（它已经是两边混在一起的字节）。
-  reset();
-  const homeAiMerged = (() => { const h = JSON.parse(homeOwnerOnTop); otherOf(h).data.headline = 'Other AI again'; return JSON.stringify(h, null, 2); })();
-  const merged = runEdit(ctx, [
-    reply([readCall('r0', 'en/pages/home.json'), readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
-    reply([writeCall('h1', 'en/pages/home.json', homeAiWrote)], 'tool_use'),
-    Object.assign(reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: [{ file: homeFile, content: homeOwnerOnTop }, ...bump(1)] }),
-    reply([writeCall('h2', 'en/pages/home.json', homeAiWrote)], 'tool_use'),
-    reply([readCall('r2', 'en/pages/home.json')], 'tool_use'),
-    reply([writeCall('h3', 'en/pages/home.json', homeAiMerged)], 'tool_use'),
-    reply([readCall('r3', 'en/blocks/site-blocks.json')], 'tool_use'),
-    Object.assign(reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(2) }),
-    reply([textBlock('should never be asked for')], 'end_turn'),
-  ]);
-  const mMsg = ev(merged, 'error').length === 1 ? String(ev(merged, 'error')[0].message) : '';
-  if (/changed somewhere else/.test(String(toolResultContent(merged, 4, 'h2'))) && /Written/.test(String(toolResultContent(merged, 6, 'h3')))) ok('⑰ 上限+重读后写成：前提成立（h2 被拒、h3 在老板那份上写成）');
-  else bad(`⑰ 上限+重读后写成：前提不成立 —— h2 ${String(toolResultContent(merged, 4, 'h2')).slice(0, 80)} · h3 ${String(toolResultContent(merged, 6, 'h3')).slice(0, 80)}`);
-  if (mMsg && ev(merged, 'edit-complete').length === 0) ok('⑰ 上限+重读后写成：仍按失败收场');
-  else bad(`🔴 ⑰ 上限+重读后写成：没按失败收场 —— events ${JSON.stringify(merged.events.map((e) => e.event))}`);
-  const mHome = fs.readFileSync(homeFile, 'utf8');
-  if (heroOf(mHome).data.headline === 'Hero EDITOR SAVED') ok('⑰ 上限+重读后写成：老板存的 hero 还在');
-  else bad(`🔴 ⑰ 上限+重读后写成：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(mHome).data.headline}"`);
-  if (!/Nothing on your site was changed/.test(mMsg) && /en\/pages\/home\.json/.test(mMsg) && /includes the AI's change/.test(mMsg)) ok('⑰ 上限+重读后写成：报文改口、点名首页');
-  else bad(`🔴 ⑰ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
-}
+// 这一节量的是「AI 跑的那几十秒里，老板在编辑器里存进了 AI 正在改的同一棵树」：读后被改就拒写、撞满上限就失败回滚。
+// 从 #1830 起这件事在这条路上**发生不了**：老板存的是库（manager §commitSiteContent），AI 改的是 `site.js edit` 每一跑
+// 新铺的私有临时目录，两边不共用任何一个文件。两边都改了怎么办由 manager 落库时管：按文件三方合并，真撞同一份文件
+// 才 `conflict`（Go 侧 `manager/ticket1830_test.go` 测）。edit-site.js 里那道读后核对仍在（循环不动），只是不会再被触发。
 
 // ══ ⑲ 模型说的话逐段发出来：`text` 事件（#1410）══════════════════════════════════════════════════
 //
@@ -2022,102 +1844,12 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   else bad(`🔴 ⑲ edit-complete 变了：${JSON.stringify(complete)}`);
 }
 
-// ══ ⑱ 另三条回滚路也不退老板存在 AI 那份上的改动，而且不说「什么都没改」（#1441）══════════════════
+// ══ ⑱ 退役（#1830）：三条回滚路不退老板存在 AI 那份上的改动（#1441）══════════════════════════════════════
 //
-// #1420 让「撞满上限放弃」那条回滚带上 aiWrote；同一个回滚还被三条老路调用：#1102 同步失败、#1200 图片 400、
-// #1192 提交失败。三臂同一个形状，只换触发：
-//   第 1 轮 AI 写成首页 + about（同步那一臂再加一份坏的 services.json 当触发）
-//   → 第 2 轮发出之前老板在编辑器里基于 AI 那份首页改了 hero（`__before`，同 ⑰）
-//   → 这一轮失败 ⟹ 回滚。
-// 触发都是**真机制**：① 那份 `services.json must be an array`、⑬F 那对 400、以及 git 读不到身份时 commit 的
-// `Author identity unknown`（GIT_CONFIG_GLOBAL / SYSTEM 指 /dev/null + 本仓 user.useConfigOnly=true）。
-// 🔴 每一臂四样：老板那份首页原样在盘上 · 他没碰的 about（和同步那一臂的 services）逐字节退回（修法不许变成
-//    不回滚）· 报文点名首页、不说「什么都没改 / 网站还是之前那样」· 终点照 ⑬F：下一次成功编辑之后 HEAD 里
-//    首页带着老板那一笔、about 里没有这一轮的字节。
-{
-  const MARK = 'MARK-1441-SHOULD-BE-ROLLED-BACK';
-  const heroOf = (text) => JSON.parse(text).blocks.find((b) => b && b.type === 'hero');
-  const otherOf = (h) => h.blocks.find((b) => b && b.type !== 'hero' && b.data && typeof b.data.headline === 'string');
-  const NOTHING_CHANGED = /Nothing on your site was changed|still shows the previous version|has not changed|rolled back/;
-
-  function arm1441(trigger) {
-    const c = makeRoot(`rollback-kept-${trigger}`);
-    const site = writeSite(c.work);
-    assertSyncsClean(c.work, `⑱(${trigger}) 夹具`);
-    c.git('git add -A && git commit -q -m base && git push -q origin main');
-
-    const homeFile = path.join(site, 'en', 'pages', 'home.json');
-    const aboutFile = path.join(site, 'en', 'pages', 'about.json');
-    const servicesFile = path.join(site, 'en', 'services.json');
-    const baseHome = fs.readFileSync(homeFile, 'utf8');
-    const baseAbout = fs.readFileSync(aboutFile);
-    const baseServices = fs.readFileSync(servicesFile);
-    if (!heroOf(baseHome) || !otherOf(JSON.parse(baseHome))) die('⑱ 前提不成立：首页上要有一个 hero 和另一个带 headline 的块');
-    const homeAi = (() => { const h = JSON.parse(baseHome); otherOf(h).data.headline = 'Other AI 1441'; return JSON.stringify(h, null, 2); })();
-    const homeOwner = (() => { const h = JSON.parse(homeAi); h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED 1441'; return JSON.stringify(h, null, 2); })();
-    const aboutAi = JSON.stringify({ ...JSON.parse(baseAbout.toString('utf8')), title: MARK }, null, 2);
-
-    const writes = [writeCall('h1', 'en/pages/home.json', homeAi), writeCall('a1', 'en/pages/about.json', aboutAi)];
-    if (trigger === 'sync') writes.push(writeCall('s1', 'en/services.json', JSON.stringify({ oops: 'an object, not an array' })));
-    const ownerSaves = { __before: [{ file: homeFile, content: homeOwner }] };
-    let script; let stdin = {}; let env = {};
-    if (trigger === 'image') {
-      script = [reply(writes, 'tool_use'), Object.assign({}, T1200_DOWNLOAD_400, ownerSaves), T1200_DOWNLOAD_400, reply([textBlock('.')])];
-      stdin = { message: 'Now put this photo on the home page', images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }] };
-    } else {
-      script = [reply(writes, 'tool_use'), Object.assign(reply([textBlock('Changes applied.')], 'end_turn'), ownerSaves)];
-    }
-    if (trigger === 'commit') {
-      c.git('git config --unset user.email && git config --unset user.name && git config user.useConfigOnly true');
-      env = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
-    }
-    const res = runEdit(c, script, stdin, env);
-    if (trigger === 'commit') c.git('git config user.email t@t.test && git config user.name t && git config --unset user.useConfigOnly');
-
-    const final = ev(res, trigger === 'image' ? 'edit-complete' : 'error');
-    const msg = final.length === 1 ? String(final[0].message) : '';
-    const kept = /rollback[^\n]* kept (\d+)/.exec(res.stderr);
-    const out = {
-      events: res.events.map((e) => e.event).join(' '), msg, stderrTail: res.stderr.slice(-400),
-      finalOk: final.length === 1 && (trigger === 'image' ? !ev(res, 'error').length : !ev(res, 'edit-complete').length),
-      kept: kept ? Number(kept[1]) : null, commits: res.commitsAfter - res.commitsBefore,
-      commitFailed: final.length === 1 && final[0].commitFailed === true,
-      ownerOnDisk: fs.readFileSync(homeFile, 'utf8') === homeOwner,
-      heroNow: heroOf(fs.readFileSync(homeFile, 'utf8')).data.headline,
-      aboutBack: fs.readFileSync(aboutFile).equals(baseAbout),
-      servicesBack: fs.readFileSync(servicesFile).equals(baseServices),
-    };
-    // 终点（同 ⑬F）：一次改别的文件的成功编辑，它的 `git add -A` 读的是盘上剩下的东西。
-    const good = [{ id: 's1', name: 'Renamed', shortDescription: 'a', fullDescription: 'b', icon: 'leaf', features: [], products: [] }];
-    const res2 = runEdit(c, [
-      reply([textBlock('Renaming the service.'), writeCall('t1', 'en/services.json', JSON.stringify(good, null, 2))], 'tool_use'),
-      reply([textBlock('Changes applied.')], 'end_turn'),
-    ]);
-    const head = (f) => { try { return cp.execSync(`git show HEAD:site/en/pages/${f}`, { cwd: c.work, encoding: 'utf8' }); } catch (e) { return ''; } };
-    out.secondCommitted = res2.commitsAfter === res2.commitsBefore + 1;
-    out.ownerInHead = head('home.json').includes('Hero EDITOR SAVED 1441');
-    out.markInHead = head('about.json').includes(MARK);
-    return out;
-  }
-
-  for (const [trigger, name] of [['sync', '#1102 同步失败'], ['image', '#1200 图片 400'], ['commit', '#1192 提交失败']]) {
-    console.log(`\n⑱ ${name}：老板存在 AI 写成的首页上 ⟹ 回滚不退它、报文点名它（#1441）`);
-    const t = arm1441(trigger);
-    const pre = trigger === 'sync' ? /services\.json must be an array/.test(t.msg)
-      : trigger === 'image' ? /gone\.png/.test(t.msg)
-        : t.commitFailed && /Author identity unknown/.test(t.msg) && t.commits === 0;
-    if (t.finalOk && pre && t.kept === 1) ok(`⑱ ${name}：前提成立（走的是这条失败路、回滚 kept 1）`);
-    else bad(`⑱ ${name}：前提不成立 —— events ${t.events} · kept=${t.kept} · commits=${t.commits} ·「${t.msg.slice(0, 160)}」· stderr 尾 ${t.stderrTail}`);
-    if (t.ownerOnDisk) ok(`⑱ ${name}：老板存在首页上的那份原样在盘上`);
-    else bad(`🔴 ⑱ ${name}：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${t.heroNow}"`);
-    if (t.aboutBack && t.servicesBack) ok(`⑱ ${name}：老板没碰的 about${trigger === 'sync' ? ' / services' : ''} 照样逐字节退回`);
-    else bad(`🔴 ⑱ ${name}：该退的没退 —— about 退回=${t.aboutBack} services 退回=${t.servicesBack}`);
-    if (!NOTHING_CHANGED.test(t.msg) && /en\/pages\/home\.json/.test(t.msg) && /includes the AI's change/.test(t.msg) && !/could not be undone/.test(t.msg)) ok(`⑱ ${name}：报文改口、点名首页（${t.msg.slice(t.msg.indexOf('⚠️'), t.msg.indexOf('⚠️') + 70)}…）`);
-    else bad(`🔴 ⑱ ${name}：报文不对 —— 「${t.msg.slice(0, 300)}」`);
-    if (t.secondCommitted && t.ownerInHead && !t.markInHead) ok(`⑱ ${name}：下一次成功编辑之后 HEAD 里首页带着老板那一笔、about 没有这一轮的字节`);
-    else bad(`🔴 ⑱ ${name}：终点不对 —— 第二次编辑 commit=${t.secondCommitted} · 老板那笔在 HEAD=${t.ownerInHead} · about 标记在 HEAD=${t.markInHead}`);
-  }
-}
+// 同 ⑰：前提是「老板存进了 AI 正在改的那棵树」，从 #1830 起不成立（库 vs 私有临时目录）。三条失败路各自现在的样子：
+//   #1102 同步失败 → `site.js validate` 不过 ⟹ 一条 error、什么都不落（① 那一格）；
+//   #1200 图片 400 → 那一支的 edit-complete 不带 filesModified ⟹ 什么都不落（⑬F2~F4）；
+//   #1192 提交失败 → 这条路上没有 git 提交了，落库失败由 manager 报（site_ai_edit.go）。
 
 // ══ ⑳ 脚本替 AI 再写的那一笔（查坐标写回 brand.json · 剔掉 contact 抄进来的值）也跟着回滚（#1489 r2）═════
 //
@@ -2181,8 +1913,10 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   }
   const rolledBackClean = (name, t, extra = '') => {
     // `restored 2` 是前提：AI 那两笔（brand.json 或首页 + 坏 services）真的都写进去了，不是被门拦下之后空转绿。
-    if (t.failed && t.brandBack && !t.dirty && !KEPT_NOTE.test(t.msg) && /restored 2 .* kept 0/.test(t.rb) && (!extra || t.homeBack)) {
-      ok(`⑳ ${name}：同步失败 ⟹ 回到编辑之前、工作树干净、报文不带「别处存过」（${t.rb.replace('#1102 rollback: ', '')}）`);
+    // #1830 —— 没有磁盘回滚了：前提改成「AI 那两笔真的写成了」（两条 file_written），终点是库里那份（site/）一个字节没变。
+    const written = ev(t.res, 'file_written').length;
+    if (t.failed && t.brandBack && !t.dirty && !KEPT_NOTE.test(t.msg) && written >= 2 && (!extra || t.homeBack)) {
+      ok(`⑳ ${name}：校验不过 ⟹ 什么都没落库、报文不带「别处存过」（AI 写成 ${written} 笔，都留在它的临时目录里）`);
     } else {
       bad(`🔴 ⑳ ${name}：失败=${t.failed} · brand 回去=${t.brandBack}${extra ? ` · 首页回去=${t.homeBack}` : ''} · 脏=${JSON.stringify(t.dirty)} · ${t.rb} ·「${t.msg.slice(0, 200)}」`);
     }
@@ -2193,14 +1927,14 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   rolledBackClean('改了地址、查不到（cleared）', arm1489({ label: 'cleared', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'throw', breakSync: true }));
   rolledBackClean('阳性对照：写了 brand.json 但地址没变', arm1489({ label: 'same', newAddress: null, mode: 'hit', breakSync: true }));
 
-  const good = arm1489({ label: 'good', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'hit' });
-  const headGeo = (() => { try { return JSON.parse(good.headBrand).locations[0].geo; } catch (e) { return null; } })();
-  if (good.committed && headGeo && headGeo.lat === 43.1111 && headGeo.lng === -79.2222 && !good.dirty) ok('⑳ 反向对照：同一条路成功时，查到的坐标真的写进 brand.json 并提交了（HEAD 里 geo = 43.1111,-79.2222）');
-  else bad(`🔴 ⑳ 成功那条路没把坐标提交上去：commit=${good.committed} · HEAD geo=${JSON.stringify(headGeo)} · 脏=${JSON.stringify(good.dirty)}`);
-
-  const race = arm1489({ label: 'race', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'owner-saves' });
-  if (race.brandNow.tagline === OWNER_MARK && !(race.brandNow.locations[0].geo && race.brandNow.locations[0].geo.lat === 43.1111)) ok('⑳ 查坐标那几秒里老板存了 brand.json ⟹ 脚本不在他那份上再写一笔（他的 tagline 原样、没有叠上 geo）');
-  else bad(`🔴 ⑳ 查坐标时老板存的那份被盖掉了：tagline=${JSON.stringify(race.brandNow.tagline)} · geo=${JSON.stringify(race.brandNow.locations[0].geo)}`);
+  // #1830 —— 改站这条路**不再查坐标**（#1489 的 refreshGeoAfterEdit 关掉了：它在脚本进程里自己发请求、绕过全局节流）。
+  //    改了地址由 manager 落库时排 `kind=geocode`（site_content.go §afterSiteContentWrite）。所以成功那条路上：地址进了库、
+  //    库里的 brand.json 不带坐标（坐标住 sites.geo，§validate 剥掉）、假 fetch 一次都没被调（'owner-saves' 那一臂若被调会改 tagline）。
+  const good = arm1489({ label: 'good', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'owner-saves' });
+  const headLoc = (() => { try { return JSON.parse(good.headBrand).locations[0]; } catch (e) { return null; } })();
+  if (good.committed && headLoc && headLoc.address === '900 Probe Avenue, Toronto, ON' && !('geo' in headLoc)
+    && good.brandNow.tagline !== OWNER_MARK && !good.dirty) ok('⑳ 成功那条路：新地址落库、库里 brand.json 没有 geo、改站过程中没查过坐标（假 fetch 没被调）');
+  else bad(`🔴 ⑳ 成功那条路不对：commit=${good.committed} · HEAD 地点=${JSON.stringify(headLoc)} · tagline=${JSON.stringify(good.brandNow.tagline)} · 脏=${JSON.stringify(good.dirty)}`);
 
   console.log('\n⑳ contact 的 items 里抄进来的值（#1489 r2，QA2 打回 r1）：改站同步之前剔掉，失败时照样回滚');
   const copied = (b) => [
@@ -2365,7 +2099,8 @@ console.log('\n㉒ slug / 整条路径太长（#1574）：拒、同轮改口、�
     const about = JSON.parse(fs.readFileSync(path.join(ctx.work, 'site', 'en', 'pages', 'about.json'), 'utf8'));
     return { ctx, about };
   }
-  const siteDirOf = (ctx) => path.join(ctx.work, 'site');
+  // #1830 —— AI 写在 `site.js edit` 的私有目录里（§aiSiteDir），整条路径长度按那一棵算。
+  const siteDirOf = aiSiteDir;
   const withSlug = (page, slug) => JSON.stringify({ ...page, slug }, null, 2);
   const slugOf = (n) => 's'.repeat(n);   // ASCII：字符数 = 字节数（构建那端的读数见交接留言 AC3）
   // 一次写一笔、读回结果：'written' / 'rejected' / '?'
@@ -2450,7 +2185,8 @@ console.log('\n㉒ slug / 整条路径太长（#1574）：拒、同轮改口、�
   {
     const { ctx, about } = fresh('reject-disk');
     const pages = path.join(siteDirOf(ctx), 'en', 'pages');
-    const before = listing(pages);
+    // #1830 —— 拒之前那份 = 库里那份（site/）；AI 的私有目录这一跑才铺出来，铺出来的跟它逐字节相同。
+    const before = listing(path.join(ctx.work, 'site', 'en', 'pages'));
     const okPage = withSlug(about, 'page-a');
     const deep = deepRel(siteDirOf(ctx), 4300);
     const res = runEdit(ctx, [

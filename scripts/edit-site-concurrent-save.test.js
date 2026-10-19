@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 'use strict';
-// #1807 验收 4 —— 「AI 改站」与「编辑器存盘」撞一次：两笔都不丢，报文不出现「说存好了其实没存」。
+// #1807 验收 4 → #1830 改走新路 —— 「AI 改站」与「编辑器存盘」撞一次：两笔都不丢。
 //
 //   node scripts/edit-site-concurrent-save.test.js   （`npm run test:scripts` 按文件名发现）
 //   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
 //
-// 被测的是**真的** `edit-site.js`（真的 write_file 闸、真的 sync-config 派生、真的 git），唯一换掉的是模型（同
-// `lib/edit-site-chain.test.js` 那一招：`node --require` 一个钩子把 `@anthropic-ai/sdk` 换成按脚本回放的假客户端）。
-// 站是仓里那条 skipAI 建站路建的、先派生一次再提交（真站提交进站仓的就是派生过的那份）。
+// #1807 那一版撞的是同一棵树、同一个 git（AI 的 sync-config 派生 vs 编辑器的写盘 + commit），用站点文件锁排开。
+// #1830 起两边不再共用任何一个文件：编辑器存的是库（manager §commitSiteContent），AI 改的是 `site.js edit` 每一跑新铺的
+// 私有临时目录，跑完把整份产出交给 manager，manager 拿「这一轮开始时那一版」当基准落库 —— 基准之后老板改过的文件，只要
+// AI 没碰，按文件三方合并留下；两边真改了同一份才 conflict（Go 侧 `manager/ticket1830_test.go` 测合并）。
 //
-// 撞的那一刻：AI 这一轮写完一页、进到 sync-config（派生）。派生把菜单读进内存之后、写回之前，本进程像编辑器存盘那样
-// 拿着站点文件锁改顶栏按钮并 `git commit`（worker §processBlockPatchTask 的「写盘 + commit」整段）。
-//   · 时序判据（默认，`T1807_TRIGGER=flock`）：本进程先拿锁，等到派生的 flock 子进程出现 —— 那一刻派生已经读完菜单、
-//     正卡在写盘前 —— 才写。没有睡眠、没有猜。
-//   · `T1807_TRIGGER=timer`：sync-config 起来 2.5 秒后写（改之前的派生不拿锁，等不到 flock 子进程；只给交接里的
-//     阳性对照用 —— 同一把尺子在改之前的字节上必须读到旧值）。
-//
-// 读数：① AI 那一轮的终态是 edit-complete（不是 error）· ② AI 改的那一页在 HEAD 里 · ③ 编辑器那颗按钮在工作树里、
-//       也在 HEAD 里 · ④ HEAD 与工作树的 navigation.json 逐字节相同 · 并核「派生的写盘确实在编辑器那一笔之后」。
+// 所以这一侧要钉的是**合并能成立的前提**：AI 那一轮的产出（`edited.files` 和 result.json）只算它自己改的文件，不把这一轮
+// 开始时的旧菜单当成「AI 的改动」带出去。读数：
+//   ① 终态 edit-complete，前面有一条 `edited`
+//   ② `edited.files` 只有 about 页（navigation.json 不在里面 —— 在里面就是一次假冲突，或者老板那颗按钮被盖掉）
+//   ③ result.json 里的 navigation.json 跟这一轮开始时那份逐字相同（AI 没碰它）
+//   ④ 编辑器在 AI 跑的半路写进「库」的那一笔原样在（`site.js edit` 从不写 --site 那份）
+//   ⑤ `edit-site.js` 里没有 site-files-lock 了（票的 AC：改之前 2 处）
+//   并核：编辑器那一笔确实发生在 AI 跑的半路（第二轮模型请求之前写下的）。
 
 const fs = require('fs');
 const os = require('os');
@@ -25,7 +25,6 @@ const path = require('path');
 const cp = require('child_process');
 
 const NEXT = path.resolve(__dirname, '..');
-const TRIGGER = process.env.T1807_TRIGGER || 'flock';
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -33,51 +32,26 @@ const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const check = (cond, m, detail) => (cond ? ok(m) : bad(detail ? `${m} —— ${detail}` : m));
 function die(msg) { console.log(`💥 跑不起来: ${msg}`); process.exit(2); }
 
-if (cp.spawnSync('flock', ['--version']).status !== 0) die('这台机器上没有 flock（util-linux）');
-if (!fs.existsSync('/proc/self/cmdline')) die('要读 /proc 认出派生进程，这台机器没有 /proc');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'edit-1830-concurrent-'));
+process.on('exit', () => fs.rmSync(root, { recursive: true, force: true }));
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'edit-1807-'));
-const children = [];
-process.on('exit', () => {
-  for (const c of children) { try { c.kill('SIGKILL'); } catch (e) { /* 已经退了 */ } }
-  fs.rmSync(root, { recursive: true, force: true });
-});
-process.env.AI1ST_SITE_FILES_LOCK = path.join(root, 'site-files.lock');
-const lock = require('./lib/site-files-lock');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// ── 预览端口的替身（edit-site.js 存盘前问一次预览活不活；没人答就睡 35 秒 —— 同 edit-site-chain.test.js）──
-function startPreviewStandIn() {
-  const portFile = path.join(root, 'port');
-  const child = cp.spawn(process.execPath, ['-e', `
-    // 闸（场景 B 用）：root/gate 在 ⟹ 先写 root/hit 报到，等 root/go 出现（≤ 900 ms，edit-site 那一问 1 秒超时）再答。
-    const fs = require('fs'); const R = ${JSON.stringify(root)};
-    const s = require('http').createServer((q, r) => {
-      if (!fs.existsSync(R + '/gate')) { r.writeHead(200); r.end('ok'); return; }
-      fs.writeFileSync(R + '/hit', '1');
-      const t0 = Date.now();
-      const tick = () => { if (fs.existsSync(R + '/go') || Date.now() - t0 > 900) { r.writeHead(200); r.end('ok'); } else setTimeout(tick, 10); };
-      tick();
-    });
-    s.listen(0, '127.0.0.1', () => fs.writeFileSync(${JSON.stringify(portFile)}, String(s.address().port)));`],
-  { stdio: 'ignore' });
-  children.push(child);
-  const deadline = Date.now() + 20000;
-  while (Date.now() < deadline) {
-    if (fs.existsSync(portFile) && fs.readFileSync(portFile, 'utf8').trim()) return fs.readFileSync(portFile, 'utf8').trim();
-    cp.spawnSync('sleep', ['0.05']);
-  }
-  return die('预览替身没起来');
-}
-
+// 假模型（同 lib/edit-site-chain.test.js 那一招）。一条回复可以带 `__before`：在把它交给 edit-site.js 之前先做的写盘 ——
+// 这里拿它扮演「老板在 AI 跑的半路点了存盘」。
 const STUB = `
 'use strict';
+const fs = require('fs');
 const Module = require('module');
-const script = JSON.parse(require('fs').readFileSync(process.env.EDIT_STUB_SCRIPT, 'utf8'));
+const script = JSON.parse(fs.readFileSync(process.env.EDIT_STUB_SCRIPT, 'utf8'));
 let turn = 0;
 class FakeAnthropic {
   constructor() {
-    const next = () => { const r = script[turn]; turn += 1; if (!r) throw new Error('回放脚本用完了'); return r; };
+    const next = () => {
+      const r = script[turn]; turn += 1;
+      if (!r) throw new Error('回放脚本用完了');
+      for (const w of r.__before || []) { fs.writeFileSync(w.file, w.content); fs.writeFileSync(w.file + '.at-turn', String(turn)); }
+      const { __before, ...reply } = r;
+      return reply;
+    };
     this.messages = {
       stream: () => { const r = next(); return { on: () => {}, finalMessage: async () => r }; },
       create: async () => next(),
@@ -95,196 +69,81 @@ const reply = (content, stop = 'end_turn') => ({
   stop_reason: stop, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 20 },
 });
 
-function makeSite(label) {
-  const work = path.join(root, label);
-  cp.execSync(`cp -a --no-dereference "${NEXT}" "${work}"`, { stdio: 'pipe' });
-  for (const junk of ['out', '.next', '.out-backup', '.out-temp', 'site', 'node_modules']) {
-    fs.rmSync(path.join(work, junk), { recursive: true, force: true });
-  }
-  fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
-  const r = cp.spawnSync(process.execPath, ['scripts/create-site.js'], {
-    input: JSON.stringify({ siteId: 'edit1807', siteUrl: 'https://edit1807.example.com', companyName: 'Northside Auto Care',
-      industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' }),
-    cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
+/** 一份真的站（skipAI 建站，同 site-create.test.js），就是「库里那一行」。 */
+function makeContent() {
+  const out = path.join(root, 'create');
+  const env = { ...process.env };
+  delete env.ANTHROPIC_API_KEY;
+  const r = cp.spawnSync(process.execPath, [path.join(NEXT, 'scripts', 'site.js'), 'create', '--out-dir', out], {
+    input: JSON.stringify({ siteId: 'edit1830c', siteUrl: 'https://edit1830c.example.com', companyName: 'Northside Auto Care',
+      industry: 'auto repair', location: 'Toronto', skipAI: true, skipGeocode: true, language: 'en' }),
+    cwd: NEXT, env, encoding: 'utf8', maxBuffer: 64 << 20, timeout: 180000,
   });
-  if (!fs.existsSync(path.join(work, 'site', 'en', 'navigation.json'))) die(`夹具立不起来（rc=${r.status}）\n${(r.stderr || '').slice(-600)}`);
-  const d = cp.spawnSync(process.execPath, ['scripts/sync-config.js'], { cwd: work, encoding: 'utf8', timeout: 180000 });
-  if (d.status !== 0) die(`夹具过不了 sync-config（rc=${d.status}）\n${(d.stdout + d.stderr).slice(-600)}`);
-  const bare = path.join(root, `${label}-origin.git`);
-  const git = (c) => cp.execSync(c, { cwd: work, stdio: 'pipe' }).toString();
-  cp.execSync(`git init --bare -q -b main "${bare}"`, { stdio: 'pipe' });
-  git('git init -q -b main && git config user.email t@t.test && git config user.name t');
-  git('git add -A && git commit -qm fixture');
-  git(`git remote add origin "${bare}" && git push -q origin HEAD:main`);
-  return { work, git };
+  const created = (r.stdout || '').split('\n').map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).find((e) => e && e.event === 'created');
+  if (r.status !== 0 || !created) die(`夹具立不起来（site.js create rc=${r.status}）\n${(r.stderr || '').slice(-600)}`);
+  return JSON.parse(fs.readFileSync(created.result, 'utf8')).content;
 }
 
-/** /proc 里 cwd 是 `work`、命令行带着 `needle` 的进程；`ppid` 给了就只认它的子进程。 */
-function findProc(work, needle, ppid) {
-  for (const pid of fs.readdirSync('/proc').filter((p) => /^\d+$/.test(p))) {
-    try {
-      const cmd = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-      if (!cmd.includes(needle)) continue;
-      if (ppid !== undefined) {
-        const pp = fs.readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1].split(' ')[1];
-        if (Number(pp) !== ppid) continue;
-      } else if (fs.readlinkSync(`/proc/${pid}/cwd`) !== work) continue;
-      return Number(pid);
-    } catch (e) { /* 读的时候刚好退了 */ }
-  }
-  return null;
-}
+// 深拷贝：content 里的值本来就是对象，改 about / 顶栏不许改到 content 本身。
+const asObj = (v) => JSON.parse(typeof v === 'string' ? v : JSON.stringify(v));
+const NAV = 'en/navigation.json';
+const ABOUT = 'en/pages/about.json';
 
-const NAV = 'site/en/navigation.json';
-const ABOUT = 'site/en/pages/about.json';
+function main() {
+  console.log('\n#1830 AI 改站跑到半路，老板在编辑器里存了顶栏 ⟹ AI 的产出只算 about 页');
+  const content = makeContent();
+  if (!content[NAV] || !content[ABOUT]) die(`夹具里没有 ${NAV} / ${ABOUT}`);
+  const db = path.join(root, 'content.json'); // 「库」
+  fs.writeFileSync(db, JSON.stringify(content));
 
-/** 起一次 AI 改站（改 about 页的标题）；回 { edit, exited, out(), errOut() }。 */
-function startEdit(work, port) {
-  if (!fs.existsSync(path.join(work, ABOUT))) die(`夹具里没有 ${ABOUT}`);
+  // AI 改 about 页里一个块的标题（不碰页面标题 —— 那会经菜单同步改到 navigation.json，是另一件事）。
+  const about = asObj(content[ABOUT]);
+  const block = (about.blocks || []).find((b) => b && b.data && typeof b.data.headline === 'string');
+  if (!block) die('about 页上没有带 headline 的块');
+  block.data.headline = 'Edited by the AI (#1830)';
+  // 编辑器那一笔：库里的顶栏多一颗按钮（manager 的 site.js save 落库后那一行的样子）。
+  const ownerNav = asObj(content[NAV]);
+  ownerNav.header = { ...(ownerNav.header || {}), buttons: [...((ownerNav.header || {}).buttons || []), { label: 'SAVED-IN-THE-EDITOR', href: '/contact' }] };
+  const ownerContent = { ...content, [NAV]: ownerNav };
 
-  // AI 这一轮：改 about 页的标题，然后收尾。
-  const about = JSON.parse(fs.readFileSync(path.join(work, ABOUT), 'utf8'));
-  about.title = 'About us — edited by the AI (#1807)';
   const script = [
-    reply([{ type: 'tool_use', id: 'w1', name: 'write_file', input: { path: 'en/pages/about.json', content: JSON.stringify(about, null, 2) } }], 'tool_use'),
-    reply([{ type: 'text', text: 'Updated the About page title.' }]),
+    reply([{ type: 'tool_use', id: 'w1', name: 'write_file', input: { path: ABOUT, content: JSON.stringify(about, null, 2) } }], 'tool_use'),
+    { ...reply([{ type: 'text', text: 'Updated the About page.' }]), __before: [{ file: db, content: JSON.stringify(ownerContent) }] },
   ];
-  const stub = path.join(work, '..', `${path.basename(work)}-stub.js`);
-  const scriptPath = path.join(work, '..', `${path.basename(work)}-script.json`);
+  const stub = path.join(root, 'stub.js');
+  const scriptPath = path.join(root, 'script.json');
   fs.writeFileSync(stub, STUB);
   fs.writeFileSync(scriptPath, JSON.stringify(script));
-
-  const edit = cp.spawn(process.execPath, ['--require', stub, 'scripts/edit-site.js'], {
-    cwd: work, stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ANTHROPIC_API_KEY: 'stub-not-used', EDIT_STUB_SCRIPT: scriptPath, PREVIEW_PORT: port },
+  const out = path.join(root, 'ai-out');
+  fs.mkdirSync(out);
+  const r = cp.spawnSync(process.execPath, ['--require', stub, path.join(NEXT, 'scripts', 'site.js'), 'edit',
+    '--site', db, '--message', 'Change the About page', '--out-dir', out], {
+    cwd: NEXT, encoding: 'utf8', input: JSON.stringify({ siteId: 'edit1830c' }), timeout: 180000,
+    env: { ...process.env, ANTHROPIC_API_KEY: 'stub-not-used', EDIT_STUB_SCRIPT: scriptPath },
   });
-  children.push(edit);
-  let out = '';
-  let errOut = '';
-  edit.stdout.on('data', (d) => { out += d; });
-  edit.stderr.on('data', (d) => { errOut += d; });
-  const exited = new Promise((r) => edit.on('exit', r));
-  edit.stdin.end(JSON.stringify({ siteId: 'edit1807', message: 'Change the About page title' }));
-  return { edit, exited, out: () => out, errOut: () => errOut };
-}
+  const events = (r.stdout || '').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (e) { return {}; } });
+  const edited = events.find((e) => e.event === 'edited');
+  const terminal = events.filter((e) => e.event === 'edit-complete' || e.event === 'error');
 
-/** 读 AI 那一轮的终态事件。 */
-function terminalOf(out) {
-  return out.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (e) { return {}; } })
-    .filter((e) => e.event === 'edit-complete' || e.event === 'error');
-}
-
-// ── 场景 A：撞一次 ───────────────────────────────────────────────────────────────────────────────
-async function scenarioCollide(port) {
-  const { work, git } = makeSite('a');
-  const { edit, exited, out: outOf, errOut: errOf } = startEdit(work, port);
-
-  // ── 编辑器存盘撞进来 ─────────────────────────────────────────────────────────────────────────
-  let sync = null;
-  const deadline = Date.now() + 120000;
-  while (!sync && Date.now() < deadline && edit.exitCode === null) { sync = findProc(work, 'sync-config.js'); if (!sync) await sleep(20); }
-  if (!sync) die(`等不到 AI 改站那一轮的 sync-config 起来（edit-site 已退出：${edit.exitCode}）\n${errOf().slice(-800)}`);
-  let held = null;
-  let how;
-  if (TRIGGER === 'timer') {
-    await sleep(2500);
-    held = await lock.hold();
-    how = 'sync-config 起来 2.5 秒后';
-  } else {
-    held = await lock.hold();
-    if (!held.locked) die(`测试自己拿不到站点文件锁：${held.why}`);
-    let blocked = null;
-    while (!blocked && Date.now() < deadline && findProc(work, 'sync-config.js') === sync) {
-      // 认锁文件的路径（这一跑独有的临时路径），不认父进程：sync-config 是 execSync 经 sh 起的，flock 是它的孙子。
-      // 本进程自己那个 flock 的 cwd 不是 `work`，findProc 按 cwd 已经把它排除了。
-      blocked = findProc(work, process.env.AI1ST_SITE_FILES_LOCK);
-      if (!blocked) await sleep(20);
-    }
-    if (!blocked) { held.release(); die('派生没有在写盘前去拿站点文件锁（等不到它的 flock 子进程）—— 这一格要的时序立不起来'); }
-    how = '派生读完菜单、卡在写盘前（它的 flock 子进程已出现）';
+  check(fs.existsSync(`${db}.at-turn`) && fs.readFileSync(`${db}.at-turn`, 'utf8') === '2',
+    '前提：编辑器那一笔写在 AI 跑的半路（第二轮模型请求之前）');
+  check(r.status === 0 && terminal.length === 1 && terminal[0].event === 'edit-complete' && !!edited,
+    '① 终态 edit-complete、前面有一条 edited', `rc=${r.status} · ${events.map((e) => e.event).join(' ')}\n${(r.stderr || '').slice(-600)}`);
+  if (edited) {
+    check(JSON.stringify(edited.files) === JSON.stringify([ABOUT]), '② edited.files 只有 about 页', JSON.stringify(edited.files));
+    const result = JSON.parse(fs.readFileSync(edited.result, 'utf8'));
+    check(JSON.stringify(asObj(result.content[NAV])) === JSON.stringify(asObj(content[NAV])),
+      '③ result.json 里的 navigation.json 跟这一轮开始时那份逐字相同（AI 没碰它，manager 合并时留老板那份）');
+    check(JSON.stringify(asObj(result.content[ABOUT])).includes('Edited by the AI (#1830)'), '③b result.json 里 about 页带着 AI 那一处');
   }
-  const nav = JSON.parse(fs.readFileSync(path.join(work, NAV), 'utf8'));
-  nav.header.buttons = [...(nav.header.buttons || []), { label: 'SAVED-IN-THE-EDITOR', href: '/contact' }];
-  fs.writeFileSync(path.join(work, NAV), JSON.stringify(nav, null, 2));
-  git(`git add -- ${NAV} && git commit -qm "Edit the website's layout"`);
-  const editorAt = Date.now();
-  held.release();
-  console.log(`  （编辑器那一笔在${how}写下并提交）`);
+  const dbNow = JSON.parse(fs.readFileSync(db, 'utf8'));
+  check(JSON.stringify(dbNow[NAV]).includes('SAVED-IN-THE-EDITOR') && !JSON.stringify(dbNow[ABOUT]).includes('Edited by the AI'),
+    '④ 「库」里是编辑器那一笔、没被 site.js edit 写过');
+  const lockHits = (fs.readFileSync(path.join(NEXT, 'scripts', 'edit-site.js'), 'utf8').match(/site-files-lock/g) || []).length;
+  check(lockHits === 0, '⑤ edit-site.js 里没有 site-files-lock 了', `${lockHits} 处`);
 
-  const code = await exited;
-  const terminal = terminalOf(outOf());
-  const siteCss = path.join(work, 'public', 'site.css');
-  if (!fs.existsSync(siteCss) || fs.statSync(siteCss).mtimeMs <= editorAt) {
-    die('尺子没咬到窗口：AI 那一轮的派生写盘不在编辑器那一笔之后（public/site.css 的改动时间更早）—— 这一格的绿/红都不算数');
-  }
-
-  console.log('验收 4：AI 改站与编辑器存盘撞一次');
-  check(code === 0 && terminal.length === 1 && terminal[0].event === 'edit-complete',
-    `① AI 那一轮的终态是 edit-complete（rc=${code}，终态 ${JSON.stringify(terminal.map((e) => e.event))}）`, errOf().slice(-400));
-  let headAbout = '';
-  try { headAbout = git(`git show HEAD:${ABOUT}`); } catch (e) { headAbout = ''; }
-  check(headAbout.includes('edited by the AI (#1807)'), '② AI 改的那一页在 HEAD 里');
-  const workNav = fs.readFileSync(path.join(work, NAV), 'utf8');
-  let headNav = '';
-  try { headNav = git(`git show HEAD:${NAV}`); } catch (e) { headNav = ''; }
-  check(workNav.includes('SAVED-IN-THE-EDITOR') && headNav.includes('SAVED-IN-THE-EDITOR'),
-    '③ 编辑器那颗按钮在工作树里、也在 HEAD 里',
-    `工作树 buttons=${JSON.stringify(JSON.parse(workNav).header.buttons)}`);
-  check(workNav === headNav, '④ HEAD 与工作树的 navigation.json 逐字节相同');
-}
-
-// ── 场景 B：AI 改站自己那两处写（write_file、提交）排在站点文件锁后面 ────────────────────────────────
-// 拿掉 edit-site.js 里 write_file 或 `git add -A && git commit` 那一处的锁，⑤ / ⑥ 当场红（#1807 验收 5）。
-async function scenarioEditWaits(port) {
-  const { work, git } = makeSite('b');
-  const lockPath = process.env.AI1ST_SITE_FILES_LOCK;
-  const aboutBefore = fs.readFileSync(path.join(work, ABOUT), 'utf8');
-  const headBefore = git('git rev-parse HEAD').trim();
-  fs.writeFileSync(path.join(root, 'gate'), '1');
-  fs.rmSync(path.join(root, 'hit'), { force: true });
-  fs.rmSync(path.join(root, 'go'), { force: true });
-  const waitFor = async (what, cond, ms = 60000) => {
-    const end = Date.now() + ms;
-    while (!cond()) { if (Date.now() > end) die(`等不到：${what}`); await sleep(20); }
-  };
-  // 等「它去拿锁了」最多 ms：等不到**不**判跑不起来 —— 拿掉锁的那种变异正是等不到，它该落在下面那条断言上（红），不是 exit 2。
-  const waitUpTo = async (cond, ms) => { const end = Date.now() + ms; while (!cond() && Date.now() < end) await sleep(20); };
-
-  let held = await lock.hold();
-  if (!held.locked) die(`测试自己拿不到站点文件锁：${held.why}`);
-  const { exited, out: outOf, errOut: errOf } = startEdit(work, port);
-  await waitUpTo(() => findProc(work, lockPath) || fs.readFileSync(path.join(work, ABOUT), 'utf8') !== aboutBefore, 15000);
-  await sleep(1000);
-  const aboutWhileHeld = fs.readFileSync(path.join(work, ABOUT), 'utf8');
-  held.release();
-  check(aboutWhileHeld === aboutBefore, '⑤ 别人拿着站点文件锁时，AI 的 write_file 一个字节都没写（它在等锁）');
-
-  await waitFor('AI 那一轮走到「问预览活不活」（同步之后、提交之前）', () => fs.existsSync(path.join(root, 'hit')));
-  held = await lock.hold();
-  if (!held.locked) die(`测试自己拿不到站点文件锁：${held.why}`);
-  fs.writeFileSync(path.join(root, 'go'), '1');
-  await waitUpTo(() => findProc(work, lockPath) || git('git rev-parse HEAD').trim() !== headBefore, 5000);
-  await sleep(1000);
-  const headWhileHeld = git('git rev-parse HEAD').trim();
-  held.release();
-  check(headWhileHeld === headBefore, '⑥ 别人拿着站点文件锁时，AI 那一轮没有提交（它在等锁）');
-  fs.rmSync(path.join(root, 'gate'), { force: true });
-
-  const code = await exited;
-  const terminal = terminalOf(outOf());
-  let headAbout = '';
-  try { headAbout = git(`git show HEAD:${ABOUT}`); } catch (e) { headAbout = ''; }
-  check(code === 0 && terminal.length === 1 && terminal[0].event === 'edit-complete' && headAbout.includes('edited by the AI (#1807)'),
-    `⑦ 锁放了之后那一轮照常做完、提交进 HEAD（rc=${code}，终态 ${JSON.stringify(terminal.map((e) => e.event))}）`, errOf().slice(-400));
-}
-
-(async () => {
-  const port = startPreviewStandIn();
-  await scenarioCollide(port);
-  if (TRIGGER !== 'timer') {
-    console.log('AI 改站自己那两处写排在站点文件锁后面');
-    await scenarioEditWaits(port);
-  }
-  console.log(`\n${pass} passed, ${fail} failed`);
+  console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
   process.exit(fail ? 1 : 0);
-})().catch((e) => die(e && e.stack));
+}
+
+main();
