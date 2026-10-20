@@ -28,6 +28,8 @@
 //                                能不能存由 `topbar-links.js` §topbarLinksProblem 说）
 //   headerLinks                → <语言>/navigation.json 的 header.links（#1781，菜单 `[{label, href}]`，href 是字符串或电话 / 邮箱引用；
 //                                每一项要有名字和链接，§checkShape）
+//   siteTitle / siteDescription / seoMode → <语言>/seo.json 的同名键（#1945，首页的搜索结果标题 / 描述 / 模式）：标题清空 ⟹ 这一格
+//                                不写、原值不动；描述清空 ⟹ 删键；模式只有 "custom"，别的值（编辑器发 '' = Automatic）⟹ 删键
 // 🔴 那张表是唯一的一份：读、写、往返守卫都照它走。少一行 ⟹ 那个字段改了不落盘，守卫点名它
 //    （`scripts/editor-root.test.js` ①）。
 //
@@ -123,7 +125,24 @@ function readRootValues({ siteDir, localeDir, locale, layoutsDir }) {
     footerOptions: regions.footer.options || {},
     ...readBrandValues(siteDir, locale),
     ...readHeaderButtons(localeDir),
+    ...readSeoValues(localeDir),
   };
+}
+
+/**
+ * #1945 —— 首页的搜索结果三样（这种语言的 `seo.json`）。读不出 ⟹ 一个都不回（同 §readBrandValues：不回空值去盖构建时那份）。
+ * `seoMode` 读成 `'custom'` 或 `''`（Automatic），跟编辑器发回来的值同一个形状。
+ */
+function readSeoValues(localeDir) {
+  let seo;
+  try {
+    seo = JSON.parse(fs.readFileSync(path.join(localeDir, 'seo.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+  if (!isObj(seo)) return {};
+  const str = (v) => (typeof v === 'string' ? v : '');
+  return { siteTitle: str(seo.siteTitle), siteDescription: str(seo.siteDescription), seoMode: seo.seoMode === 'custom' ? 'custom' : '' };
 }
 
 /**
@@ -223,6 +242,11 @@ function checkShape(root, layouts) {
   // #1759 —— logo：一个地址（空串 = 删掉）。#1787 —— 顶栏按钮：`[{label, href}]`，label 是字符串（链接能不能用由 §commitWrites
   //    那道链接判据说，同页面块的按钮）；href 是字符串，或电话 / 邮箱引用（#1779，§isButtonRef：源不认识、多余的键都拒）。
   if ('logoUrl' in root && typeof root.logoUrl !== 'string') bad(`logoUrl 必须是字符串：${JSON.stringify(root.logoUrl)}`);
+  // #1945 —— 搜索结果三样：标题 / 描述是文字；模式是 'custom' 或 ''（Automatic）。标题清空不是错（这一格不写，§planRootWrite）。
+  for (const field of ['siteTitle', 'siteDescription']) {
+    if (field in root && typeof root[field] !== 'string') bad(`${field} 必须是字符串：${JSON.stringify(root[field])}`);
+  }
+  if ('seoMode' in root && root.seoMode !== 'custom' && root.seoMode !== '') bad(`seoMode 只能是 "custom" 或 ""：${JSON.stringify(root.seoMode)}`);
   // #1785 —— 社交链接：`[{platform, url}]`；平台名是图标名那种形状；网址空的那一行写盘时去掉，不空就得是网址（https://…）。
   if ('socialLinks' in root) {
     const v = root.socialLinks;
@@ -363,6 +387,9 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
   const byFile = new Map();
   for (const f of ROOT_FIELDS) {
     if (!(f.field in root)) continue;
+    // #1945 —— 标题清空：这一格不写、文件里原值不动（编辑器那头提示 Title is required）。放在取文件之前：
+    //    只改了它的一笔连 seo.json 都不该重写。🔴 不是 setAt(…, null)：那是删键，这里要的是原值还在。
+    if (f.field === 'siteTitle' && !root.siteTitle.trim()) continue;
     const file = fileFor(f, siteDir, localeDir);
     if (!byFile.has(file)) {
       let cur = null;
@@ -428,6 +455,16 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
         }) : [];
         return kids.length ? { ...one(l), children: kids } : one(l);
       }));
+      continue;
+    }
+    if (f.field === 'siteDescription') {
+      // #1945 —— 空 = 删掉这个键（不是存一个空串；`setAt` 只在 null 时删）。同 logoUrl 那条。
+      setAt(entry.doc, key, v.trim() ? v : null);
+      continue;
+    }
+    if (f.field === 'seoMode') {
+      // #1945 —— 只有 "custom" 落盘；Automatic = 没有这个键（#1938 看到它从 custom 变成没有会排一次重写）。
+      setAt(entry.doc, key, v === 'custom' ? 'custom' : null);
       continue;
     }
     setAt(entry.doc, key, BRAND_FIELDS.includes(f.field) && f.field !== 'brandName' && !v.trim() ? null : v);

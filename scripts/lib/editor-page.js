@@ -27,6 +27,7 @@ const { readSiteBlocks, findBlockInPage, generatedBlockId, normalizeLocalePages 
 const { decorateBlocks } = require('./block-decorate.js');
 const { resolveSiteRegionLayout } = require('./site-regions.js');
 const { readRootValues } = require('./editor-root.js');
+const { pageSeoToPuck } = require('./editor-convert.js');
 
 /**
  * @param {string} rootDir 模板根（`site/` 的上一层）
@@ -216,6 +217,12 @@ function editorBaseline(opts) {
     root = readRootValues({ siteDir, localeDir, locale, layoutsDir: path.join(rootDir, 'page-layouts') });
   } catch {
     root = undefined;
+  }
+  // #1945 —— 搜索结果三样跟 `editor-props.ts` 同形：首页是这种语言 seo.json 那一组；子页换成这一页 JSON 那一组
+  //    （§pageSeoToPuck）—— 子页带着首页那组的话，它们会被当成这一页的 root 字段交出去、凭空重写一次 seo.json。
+  if (root && slug !== 'home') {
+    const { siteTitle, siteDescription, seoMode, ...rest } = root;
+    root = { ...rest, ...pageSeoToPuck(src.raw) };
   }
   // #1781 —— 菜单不再单带一格 `nav`：它是 `navigation.json` 的 `header.links`，跟两颗按钮一起在 `root` 里（`editor-root.js` §readHeaderButtons）。
   return {

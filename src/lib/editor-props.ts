@@ -6,11 +6,11 @@
 // 浏览器包（dashboard 的编辑器）不引它，props 由 manager 递过去。
 // 不返回 `trustedOrigin`：那是「框住编辑器的那个页面的 origin」，容器那条路自己拼，dashboard 那条路用不到。
 import path from 'path';
-import { getPage, getForms, getBrandName, getNavigation } from '@/lib/config';
+import { getPage, getForms, getBrandName, getNavigation, getSeo } from '@/lib/config';
 import { editorSource, locateInRaw, effectiveWeights } from '../../scripts/lib/editor-page.js';
 import { editorSchema } from '../../scripts/lib/editor-schema.js';
 import { blocksDir, registryPath } from '../../scripts/lib/block-paths.js';
-import { pageToPuck, rootToPuck } from '../../scripts/lib/editor-convert.js';
+import { pageToPuck, pageSeoToPuck, rootToPuck } from '../../scripts/lib/editor-convert.js';
 import { editorPages } from '../../scripts/lib/editor-pages.js';
 import { topbarLinksOf } from '../../scripts/lib/topbar-links.js';
 import { iconTableFor, usesIconTable } from '../../scripts/lib/icons.js';
@@ -87,24 +87,34 @@ export function editorProps({ site, root, siteDir, locale, slug }: { site: SiteD
       siteBlocks: src.siteBlocks,
     }),
     root: {
-      props: rootToPuck({
-        layout: pageLayout.id,
-        headerShape: regions.header.shape,
-        footerShape: regions.footer.shape,
-        // #1738 —— 顶栏 / 页脚的底色 + 旋钮（`regions.<区>.options`，没存过 = {}）。
-        headerOptions: regions.header.options || {},
-        footerOptions: regions.footer.options || {},
-        // #1681 —— Business info 四样：名字取这种语言那一格，同站上顶栏的读法。
-        brandName: getBrandName(site, locale),
-        phone: site.brand.locations?.[0]?.phone ?? '',
-        email: site.brand.email ?? '',
-        address: site.brand.locations?.[0]?.address ?? '',
-        // #1759 —— 顶栏 Content 页：logo、按钮（#1787）、菜单（#1781）—— 按钮和菜单都在这种语言的 navigation.json。
-        logoUrl: site.brand.logoUrl ?? '',
-        // #1785 —— Social links：读法同站里 `editor-root.js` §readBrandValues（两种老形状都读成数组、平台名小写）。
-        socialLinks: socialPairs(site.brand.socialLinks).map(([platform, url]) => ({ platform: platform.toLowerCase(), url })),
-        ...headerContent(getNavigation(site, locale)),
-      }),
+      props: {
+        ...rootToPuck({
+          layout: pageLayout.id,
+          headerShape: regions.header.shape,
+          footerShape: regions.footer.shape,
+          // #1738 —— 顶栏 / 页脚的底色 + 旋钮（`regions.<区>.options`，没存过 = {}）。
+          headerOptions: regions.header.options || {},
+          footerOptions: regions.footer.options || {},
+          // #1681 —— Business info 四样：名字取这种语言那一格，同站上顶栏的读法。
+          brandName: getBrandName(site, locale),
+          phone: site.brand.locations?.[0]?.phone ?? '',
+          email: site.brand.email ?? '',
+          address: site.brand.locations?.[0]?.address ?? '',
+          // #1759 —— 顶栏 Content 页：logo、按钮（#1787）、菜单（#1781）—— 按钮和菜单都在这种语言的 navigation.json。
+          logoUrl: site.brand.logoUrl ?? '',
+          // #1785 —— Social links：读法同站里 `editor-root.js` §readBrandValues（两种老形状都读成数组、平台名小写）。
+          socialLinks: socialPairs(site.brand.socialLinks).map(([platform, url]) => ({ platform: platform.toLowerCase(), url })),
+          ...headerContent(getNavigation(site, locale)),
+          // #1945 —— 首页的搜索结果三样（这种语言的 seo.json；子页不放，它们的三样在下面按那一页的 JSON 放）。
+          ...(slug === 'home' ? {
+            siteTitle: getSeo(site, locale).siteTitle ?? '',
+            siteDescription: getSeo(site, locale).siteDescription ?? '',
+            seoMode: getSeo(site, locale).seoMode === 'custom' ? 'custom' : '',
+          } : {}),
+        }),
+        // #1945 —— 子页的搜索结果三样：那一页 JSON 顶层的 title / description / seoMode（存盘时 puckToPage 写回同一份文件）。
+        ...(slug === 'home' ? {} : pageSeoToPuck(src.raw)),
+      },
     },
   };
 

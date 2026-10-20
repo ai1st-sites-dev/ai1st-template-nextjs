@@ -42,6 +42,11 @@ const ROOT_FIELDS = [
   // #1785 —— Website settings 的 Social links：整站一份，一律写成数组 `[{platform, url}]`（空了 = 删掉这个键）。
   { field: 'socialLinks', scope: 'site', file: 'brand.json', key: ['socialLinks'] },
   { field: 'headerLinks', scope: 'locale', file: 'navigation.json', key: ['header', 'links'] },
+  // #1945 —— Website settings 的 Search result（首页那一份）：这种语言的 `seo.json`。`seoMode` 只有 `"custom"` 一个值，没有这个键 = 自动。
+  //    子页的标题 / 描述 / 模式**不在这张表里**：它们住在那一页自己的 JSON 里，由 `editor-convert.js` §puckToPage 写（那份文件只许一个写者）。
+  { field: 'siteTitle', scope: 'locale', file: 'seo.json', key: ['siteTitle'] },
+  { field: 'siteDescription', scope: 'locale', file: 'seo.json', key: ['siteDescription'] },
+  { field: 'seoMode', scope: 'locale', file: 'seo.json', key: ['seoMode'] },
 ];
 
 module.exports = { ROOT_FIELDS };

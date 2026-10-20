@@ -254,9 +254,9 @@ function contentImagesOf(page, manifests) {
 
 // #1563 —— 这个数住在 seo-limits.json：dashboard 的 Lead 主词框从同一份文件取它当上限（Lead 主词就是首页的目标词，
 //    首页 title 必须含它且 ≤ TITLE_MAX ⟹ 超过它的主词必然让整站建不出来）。JSON 不带依赖，浏览器能直接 import。
-const { titleMax: TITLE_MAX } = require('./seo-limits.json');
-const SUFFIX = ' | ';
-const MIN_PAGE_TITLE_BUDGET = 20; // 正文做什么 4：子页 page.title 的预算 < 20 ⟹ 长度那一半不判（品牌名是用户填的）
+// #1945 —— TITLE_MAX / SUFFIX / MIN_PAGE_TITLE_BUDGET / §pageTitleBudget 住在 `search-result.js`（纯函数，编辑器的 Search result
+//    组在浏览器里 import 它；这份文件顶上读块清单，浏览器 import 不了）。这里原样取来再导出，判据仍只有一份。
+const { TITLE_MAX, SUFFIX, MIN_PAGE_TITLE_BUDGET, pageTitleBudget } = require('./search-result.js');
 
 /** 主语言的品牌名：`brand.name[locale]`，不回退到别的语言（正文做什么 1）。 */
 function brandNameOf(brand, locale) {
@@ -264,11 +264,6 @@ function brandNameOf(brand, locale) {
   if (typeof n === 'string') return n;
   if (n && typeof n === 'object' && typeof n[locale] === 'string') return n[locale];
   return '';
-}
-
-/** 子页 `page.title` 最多几个字：60 − 3 − 品牌名字数。 */
-function pageTitleBudget(brandName) {
-  return TITLE_MAX - charLen(SUFFIX) - charLen(brandName);
 }
 
 // ── 事实出处（规则 8）──────────────────────────────────────────────────────────────────────────

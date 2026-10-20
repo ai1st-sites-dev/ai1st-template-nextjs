@@ -169,7 +169,10 @@ export interface SeoConfig {
   indexable?: boolean;
   locale: string;
   siteTitle: string;
-  siteDescription: string;
+  /** #1945 —— 可以没有：编辑器 Search result 里清空描述 = 删键。 */
+  siteDescription?: string;
+  /** #1945 —— 首页的搜索结果模式：`"custom"` = 老板自己写的；没有这个键 = 自动。编辑器 Website settings 的 Search result 写它。 */
+  seoMode?: 'custom';
   /** #1548 —— 挖出来的关键词（`sites.payload.keywords` 的拷贝，建站时写、重新生成时重写）。只有主语言的 seo.json 有；
    *  老站没有。取代了 AI 编的那串 `keywords`（已删）。 */
   targetKeywords?: {
@@ -307,7 +310,10 @@ export interface PageConfig {
 export interface DynamicPageConfig {
   slug: string;
   title: string;
-  description: string;
+  /** #1945 —— 可以没有：编辑器 Search result 里清空描述 = 删键。 */
+  description?: string;
+  /** #1945 —— 这一页的搜索结果模式，同 `SeoConfig.seoMode`（子页写在自己的页面 JSON 顶层）。 */
+  seoMode?: 'custom';
   navLabel?: string;
   navOrder?: number;
   changeFrequency?: string;

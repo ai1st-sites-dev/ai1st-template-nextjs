@@ -432,7 +432,7 @@ function assignWeights(slots) {
  * 顺序没变、没增没删 ⟹ 一个 `weight` 都不写（只改一个字不该让整页多出权重）。
  * 顺序变了 / 增删过 ⟹ 数组按画布顺序重排，并按 §assignWeights 给每一条（含 `{ref}`）写 `weight`。
  */
-function puckToPage({ raw, data, initial, schema, slug, moved }) {
+function puckToPage({ raw, data, initial, schema, slug, moved, saved }) {
   // #1406 —— `moved`：老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有被拖过的才写成
   // 这一页的 `{ref}`；没拖过的仍是锚点 —— 顺着别的块的挪动把它也写成 ref，会让「从块库的 visibility 里撤掉
   // 这一页」从此对这一页失效（ref 那条来路还留着它）。
@@ -508,7 +508,54 @@ function puckToPage({ raw, data, initial, schema, slug, moved }) {
     });
   }
   next[key] = arr;
+  applyPageSeo(next, raw, data && data.root && data.root.props, saved);
   return next;
+}
+
+// ── #1945 子页的搜索结果三样（标题 / 描述 / 模式）──────────────────────────────────────────────────
+//
+// 住在那一页自己的 JSON 顶层（`title` / `description` / `seoMode`），不在 root 分派表里（`editor-root-fields.js`）：
+// 那份文件只许一个写者（`page-write.js` §planPageWrite，baseHash 照旧管用）。编辑器打开时把它们放进 Puck root props，
+// 用另外的名字（本文件 §PAGE_SEO_PROPS）—— 不在 `schema.root.fields` 里 ⟹ 本文件的 §puckRootChanges 按构造不会把它们交成 root 字段
+// （`editor-root.js` §checkShape 对不认识的字段是硬拒，整笔存盘会被退掉）。存盘时由 §puckToPage 写回 `next.*`。
+// 首页的那三样在 `seo.json`，走分派表（siteTitle / siteDescription / seoMode）；首页的 root props 里没有这三个键。
+
+/** 页面 JSON 的键 → Puck root props 里的名字。 */
+const PAGE_SEO_PROPS = Object.freeze({ title: 'pageTitle', description: 'pageDescription', seoMode: 'pageSeoMode' });
+
+/** 页面 JSON → 面板里那三格的值。模式读成 `'custom'` 或 `''`（Automatic）。 */
+function pageSeoToPuck(raw) {
+  const r = isPlainObject(raw) ? raw : {};
+  return {
+    pageTitle: typeof r.title === 'string' ? r.title : '',
+    pageDescription: typeof r.description === 'string' ? r.description : '',
+    pageSeoMode: r.seoMode === 'custom' ? 'custom' : '',
+  };
+}
+
+/**
+ * 面板里那三格 → `next`（§puckToPage 从 `raw` 拷出来的那份）。只动**跟 raw 读出来的不一样**的格：没碰过的一格不改文件
+ * （例如 raw 里 description 不是字符串时，面板读成 ''，原样不碰）。
+ *   · 标题清空 ⟹ 文件里的标题不动（面板提示 Title is required）。「文件里的」= `saved`（这次会话上一次存下去的那份），
+ *     不是 `raw`：`raw` 是打开时那份，一次会话里不跟着存盘换 ⟹ 先存过自己写的标题再清空，拿 `raw` 兜底就把文件
+ *     写回了打开时那句（#1945 QA1 r1 ①）。没传 `saved` ⟹ 就是 `raw`（打开以来没存过）。
+ *   · 描述清空 ⟹ 删键（不存空串）
+ *   · 模式 'custom' ⟹ 写 `seoMode: "custom"`；Automatic ⟹ 删键
+ */
+function applyPageSeo(next, raw, props, saved) {
+  if (!isPlainObject(props)) return;
+  const disk = isPlainObject(saved) ? saved : raw;
+  const was = pageSeoToPuck(raw);
+  const v = (k) => props[PAGE_SEO_PROPS[k]];
+  if (typeof v('seoMode') === 'string' && v('seoMode') !== was.pageSeoMode) {
+    if (v('seoMode') === 'custom') next.seoMode = 'custom'; else delete next.seoMode;
+  }
+  if (typeof v('title') === 'string' && !v('title').trim()) {
+    if (typeof disk.title === 'string') next.title = disk.title;
+  } else if (typeof v('title') === 'string' && v('title') !== was.pageTitle) next.title = v('title');
+  if (typeof v('description') === 'string' && v('description') !== was.pageDescription) {
+    if (v('description').trim()) next.description = v('description'); else delete next.description;
+  }
 }
 
 // ── #1406 站级共用块 ────────────────────────────────────────────────────────────────────────────
@@ -695,6 +742,9 @@ function rootToPuck(values) {
   // #1780 —— 顶栏上面那一行的链接列表（`[{label, href}]`，href 可以是电话 / 邮箱引用；站里读出来时没写过的已经补成默认两项）。
   if (Array.isArray(values.headerTopbar)) out.headerTopbar = clone(values.headerTopbar);
   if (Array.isArray(values.headerLinks)) out.headerLinks = clone(values.headerLinks);
+  // #1945 —— 首页的搜索结果三样（`seo.json`）；模式只有 'custom' / ''（Automatic）。
+  for (const k of ['siteTitle', 'siteDescription']) if (typeof values[k] === 'string') out[k] = values[k];
+  if (typeof values.seoMode === 'string') out.seoMode = values.seoMode === 'custom' ? 'custom' : '';
   // #1785 —— Social links（`brand.json` 的 `socialLinks`，读进来已经是数组 `[{platform, url}]`）。
   if (Array.isArray(values.socialLinks)) {
     out.socialLinks = values.socialLinks.filter(isPlainObject)
@@ -1074,6 +1124,10 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
       else reweighted = true;
     });
     before.forEach((e, i) => { if (!seen.has(keyOf(e, i))) parts.push(`Removed ${entryLabel(e, idx, lib)}`); });
+    // #1945 —— 子页的搜索结果三样在页面 JSON 顶层：记录名同首页那三条（`rootLabels` 按 Puck 里的名字给）。
+    for (const [k, prop] of Object.entries(PAGE_SEO_PROPS)) {
+      if (!deepEqual(isPlainObject(saved) ? saved[k] : undefined, json[k])) parts.push((rootLabels && rootLabels[prop]) || k);
+    }
     // 位置：按 key 对上号的形状比生效顺序（§movedBlock）。老的 sections 形状按下标对号，挪一块就是「这一格的内容全变了」，
     // 说不出谁挪了 —— 照旧一句 `Section order`。
     const mv = byKey ? movedBlock(shownBefore, shownAfter, keyOf, dragged) : (reweighted ? 'many' : null);
@@ -1307,6 +1361,7 @@ function categoriesOf(schema) {
 
 module.exports = {
   UNKNOWN_TYPE, categoriesOf, describeSave, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
+  PAGE_SEO_PROPS, pageSeoToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
   aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions, nestedPartSet,
   recordAiNote, aiNotesForSave, settleAiNotes, AI_ACTION_PHRASES,

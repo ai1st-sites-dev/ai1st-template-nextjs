@@ -31,12 +31,15 @@ export function pageToPuck(args: {
 }): PuckLikeData;
 export function puckToPage(args: {
   raw: Record<string, unknown>;
-  data: { content?: { type: string; props: Record<string, unknown> }[] };
+  /** #1945：`root.props` 里的 pageTitle / pageDescription / pageSeoMode（子页才有）写回页面 JSON 顶层 */
+  data: { content?: { type: string; props: Record<string, unknown> }[]; root?: { props?: Record<string, unknown> } };
   initial: PuckLikeData;
   schema: EditorSchema;
   slug: string;
   /** #1406：画布上被拖过的块（Puck id） */
   moved?: string[] | Set<string>;
+  /** #1945：这次会话上一次存下去的那份页面 JSON；子页标题清空时文件里的标题按它不动（没传 = raw） */
+  saved?: Record<string, unknown>;
 }): Record<string, unknown>;
 export function fieldProps(component: EditorComponent, data: unknown): Record<string, unknown>;
 export function dataFromProps(component: EditorComponent, base: unknown, props: Record<string, unknown>): Record<string, unknown>;
@@ -79,8 +82,15 @@ export interface RootValues {
   headerLinks?: import('./nav-editor').MenuItem[];
   /** #1785 —— Website settings 的 Social links（`brand.json` 的 `socialLinks`，一律数组） */
   socialLinks?: { platform: string; url: string }[];
+  /** #1945 —— 首页的搜索结果三样（这种语言的 `seo.json`）；模式 'custom' | ''（Automatic） */
+  siteTitle?: string;
+  siteDescription?: string;
+  seoMode?: string;
 }
 export function rootToPuck(values: RootValues): Record<string, unknown>;
+/** #1945 —— 子页的搜索结果三样：页面 JSON 顶层的键 → Puck root props 里的名字 */
+export const PAGE_SEO_PROPS: Readonly<{ title: 'pageTitle'; description: 'pageDescription'; seoMode: 'pageSeoMode' }>;
+export function pageSeoToPuck(raw: unknown): { pageTitle: string; pageDescription: string; pageSeoMode: '' | 'custom' };
 export function puckRootChanges(args: {
   initial: { root?: { props?: Record<string, unknown> } };
   now: { root?: { props?: Record<string, unknown> } };

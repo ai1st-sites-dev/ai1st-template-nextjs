@@ -80,13 +80,14 @@ function build(work) {
     return JSON.parse(m[1]);
   };
   // #1452 —— 外壳四样在构建里的那一份（编辑器页 page.tsx 喂给 rootToPuck 的就是这几样）。
-  lastRoot = { regions: grab('regions'), pageLayout: grab('pageLayout'), nav: grab('navigationByLocale'), brand: grab('brand'), defaultLocale: grab('defaultLocale') };
+  lastRoot = { regions: grab('regions'), pageLayout: grab('pageLayout'), nav: grab('navigationByLocale'), brand: grab('brand'), defaultLocale: grab('defaultLocale'), seo: grab('seoByLocale') };
   return grab('pagesByLocale');
 }
 let lastRoot = null;
 
-/** #1452 —— page.tsx 的 root 初值原样。#1425（T3）：公告条那两样（topbarMessage / topbarLink）随公告条那个区删了。 */
-function builtRoot(locale) {
+/** #1452 —— page.tsx 的 root 初值原样。#1425（T3）：公告条那两样（topbarMessage / topbarLink）随公告条那个区删了。
+ *  #1945 —— 搜索结果三样（`editor-props.ts`）：首页取这种语言的 seo（同 getSeo）；子页取这一页 JSON 顶层（`raw`）。 */
+function builtRoot(locale, slug = 'home', raw = {}) {
   const { brand, defaultLocale } = lastRoot;
   const loc = (brand.locations || [])[0] || {};
   return {
@@ -121,6 +122,12 @@ function builtRoot(locale) {
         : {};
       return { headerButtons: list.filter((b) => b && typeof b === 'object' && !Array.isArray(b)).map(btn), headerTopbar: topbarLinksOf(h.topbarLinks), ...links };
     })(),
+    ...(() => {
+      const str = (v) => (typeof v === 'string' ? v : '');
+      if (slug !== 'home') return { pageTitle: str(raw.title), pageDescription: str(raw.description), pageSeoMode: raw.seoMode === 'custom' ? 'custom' : '' };
+      const seo = lastRoot.seo[locale] ?? lastRoot.seo[defaultLocale] ?? {};
+      return { siteTitle: str(seo.siteTitle), siteDescription: str(seo.siteDescription), seoMode: seo.seoMode === 'custom' ? 'custom' : '' };
+    })(),
   };
 }
 
@@ -140,7 +147,7 @@ function compare(work, flat, baselineFn) {
       const want = {
         raw: src.raw, siteBlocks: src.siteBlocks, hash: src.baseHash, blocks: p.blocks, located,
         weights: lib.effectiveWeights(src.raw, src.siteBlocks, p.blocks, located),
-        root: builtRoot(locale),
+        root: builtRoot(locale, p.slug, src.raw),
       };
       out.shaped += p.blocks.filter((b) => typeof b.shape === 'string' && b.shape).length;
       const bads = got && got.ok ? Object.keys(want).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want[k])) : ['ok=false'];
@@ -286,21 +293,25 @@ console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存�
     socialLinks: [{ platform: 'instagram', url: 'https://instagram.com/northside1785' }],
     // #1781 —— 菜单也在 en/navigation.json（`header.links`），同一条写路；一项指向本店电话（引用写法原样存、原样读回）。
     headerLinks: [{ label: 'Home', href: '/' }, { label: 'Order online', href: 'https://example.com' }, { label: 'Call us', href: { source: 'phone' } }],
+    // #1945 —— 首页的搜索结果三样在 en/seo.json，同一条写路、同一个底稿。
+    siteTitle: `${before.siteTitle} 1945`,
+    siteDescription: `${before.siteDescription} 1945`,
+    seoMode: 'custom',
   };
   const writes = editorRoot.planRootWrite({
     siteDir, localeDir, locale: 'en', shape: { flat: false, locales: ['en'] }, root: change,
     layoutsDir: path.join(multi, 'page-layouts'),
   });
   for (const w of writes) fs.writeFileSync(w.file, w.content);
-  check(writes.length === 4, `写了 4 份文件（page-layout.json / theme.json / brand.json / en/navigation.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
+  check(writes.length === 5, `写了 5 份文件（page-layout.json / theme.json / brand.json / en/navigation.json / en/seo.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
   const got = editorBaseline({ rootDir: multi, page: 'home', locale: 'en' });
   // #1738 —— 底色 + 旋钮是对象：按值比（JSON），不按引用。
   const eq = (x, y) => JSON.stringify(x) === JSON.stringify(y);
   const sameRoot = (a, b) => !!a && Object.keys(b).length === Object.keys(a).length && Object.keys(b).every((k) => eq(a[k], b[k]));
-  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那十四样', JSON.stringify(got.root));
+  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那十七样', JSON.stringify(got.root));
   // 反向：构建里（= 编辑器页烤进去的首屏）还是旧的 —— 不送 root 的话编辑器显示的就是这一份（票正文「不见了」）。
   const stale = Object.keys(change).filter((k) => eq(before[k], (got.root || {})[k]));
-  check(stale.length === 0, '十四样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
+  check(stale.length === 0, '十七样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
 
   // 读不出来 ⟹ 不带 root（编辑器沿用构建时那份），底稿其余照常。
   // #1425（T3）：弄坏的原来是 navigation.json（公告条那一样住在那儿，今天 root 不读它了）。root 今天读的站级文件
