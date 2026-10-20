@@ -17,9 +17,6 @@
 // 用的地方（都只跑 `true` 的）：
 //   · 写库那一笔（`derive-core.js` §contentPatchesOf 的 `touchedFiles`）—— 只迁这一笔本来就碰的文件，其余原样
 //   · 读的时候（§migrateInMemory，`editor-data` / `render`）—— 全量迁、不落库
-//     #1840 (T4d) —— 读的时候还多跑一种：类型在这份包里**已经没有了**（块文件夹删了），而某个还在的块的表里有一步
-//     `'<旧>→<新>'` 标着 `preservesLook: true` ⟹ 换成新类型再往上走（设计文档 §8.3 自愈的「先迁后冻」）。不然 `render`
-//     入口报 `unknown block type <旧>`，manager 就去拿旧包冻成 Custom HTML —— 明明有一条不改样子的路。写库那一笔不跑它。
 const fs = require('fs');
 const path = require('path');
 const blockPaths = require('./block-paths');
@@ -109,34 +106,8 @@ function migrateBlock(block, versions, type = block && block.type) {
   return { block: cur, changed };
 }
 
-/**
- * #1840 —— 这份包里已经没有的类型 → 一步 `preservesLook: true` 的跨类型迁移 `{ to, step }`（目标类型要还在）。
- * 有两家都写了同一个旧类型时取块目录次序里的第一家（同 block-changes.js §crossStepsOf）。
- */
-function deletedTypeSteps(versions) {
-  const out = new Map();
-  for (const info of versions.values()) {
-    for (const [key, step] of Object.entries(info.migrations || {})) {
-      const m = key.match(TYPE_STEP_RE);
-      if (m && step.preservesLook === true && !versions.has(m[1]) && versions.has(m[2]) && !out.has(m[1])) out.set(m[1], { to: m[2], step });
-    }
-  }
-  return out;
-}
-
-/** 已删类型的块走它那一步 `true` 的跨类型迁移、再按新类型往上走。不是这种块 ⟹ `{ block, changed: false }`。 */
-function migrateDeletedType(block, versions, deleted) {
-  if (!isObj(block) || typeof block.type !== 'string') return { block, changed: false };
-  const x = deleted.get(block.type);
-  if (!x) return { block, changed: false };
-  const next = x.step.migrate(clone(block));
-  if (!isObj(next)) throw new Error(`${block.type}→${x.to} 的迁移没有返回一个对象`);
-  const moved = { ...next, type: x.to, schemaVersion: versions.get(x.to).schemaVersion };
-  return { block: migrateBlock(moved, versions).block, changed: true };
-}
-
 /** content 里一份文件迁一遍（页面 / 共用块 / 菜单的顶栏页脚；别的文件原样）。回新对象，没变回 `null`。 */
-function migrateFile(rel, value, versions, deleted) {
+function migrateFile(rel, value, versions) {
   const isPage = PAGE_KEY_RE.test(rel);
   const isShared = SHARED_KEY_RE.test(rel);
   const isNav = NAV_KEY_RE.test(rel);
@@ -150,16 +121,14 @@ function migrateFile(rel, value, versions, deleted) {
     for (const field of ['blocks', 'sections']) {
       if (!Array.isArray(doc[field])) continue;
       out[field] = doc[field].map((b) => {
-        const d = deleted ? migrateDeletedType(b, versions, deleted) : { changed: false };
-        const r = d.changed ? d : migrateBlock(b, versions);
+        const r = migrateBlock(b, versions);
         if (r.changed) changed = true;
         return r.block;
       });
     }
   } else if (isShared) {
     for (const [id, b] of Object.entries(doc)) {
-      const d = deleted ? migrateDeletedType(b, versions, deleted) : { changed: false };
-      const r = d.changed ? d : migrateBlock(b, versions);
+      const r = migrateBlock(b, versions);
       if (r.changed) { out[id] = r.block; changed = true; }
     }
   } else {
@@ -175,26 +144,22 @@ function migrateFile(rel, value, versions, deleted) {
  * 只迁 `touchedFiles` 里那几份（写库那一笔本来就碰的文件）。回 `{ '<相对路径>': 迁过的对象 }`，没变的不在里面。
  * 🔴 只落碰到的文件：平台涨了版本之后，老板第一次保存不该顺手改掉所有含旧块的页（另一个标签页 / AI 改别的页会撞 409）。
  */
-function migrateTouched(content, touchedFiles = [], { blocksDir, deletedTypes = false } = {}) {
+function migrateTouched(content, touchedFiles = [], { blocksDir } = {}) {
   const out = {};
   if (!touchedFiles.length) return out;
   const versions = loadBlockVersions(blocksDir);
-  const deleted = deletedTypes ? deletedTypeSteps(versions) : null;
   for (const rel of touchedFiles) {
     if (!Object.prototype.hasOwnProperty.call(content, rel)) continue;
-    const m = migrateFile(rel, content[rel], versions, deleted && deleted.size ? deleted : null);
+    const m = migrateFile(rel, content[rel], versions);
     if (m) out[rel] = m;
   }
   return out;
 }
 
-/**
- * 读的时候用（`editor-data` / `render`）：整份 content 全量迁、不落库。回一份新 content（没变的文件原样共享）。
- * #1840：已删类型的 `true` 跨类型那一步也在这里跑（文件头）。
- */
+/** 读的时候用（`editor-data` / `render`）：整份 content 全量迁、不落库。回一份新 content（没变的文件原样共享）。 */
 function migrateInMemory(content, { blocksDir } = {}) {
   if (!isObj(content)) return content;
-  return { ...content, ...migrateTouched(content, Object.keys(content), { blocksDir, deletedTypes: true }) };
+  return { ...content, ...migrateTouched(content, Object.keys(content), { blocksDir }) };
 }
 
-module.exports = { loadBlockVersions, migrateBlock, migrateFile, migrateTouched, migrateInMemory, checkMigrationTable, deletedTypeSteps };
+module.exports = { loadBlockVersions, migrateBlock, migrateFile, migrateTouched, migrateInMemory, checkMigrationTable };

@@ -39,9 +39,6 @@
 //                             那一段：生成的网格 / 图位 / 块头规则 + block.css + 各形态 shape.css）+ 同名 `.attrs.json`（`<section>`
 //                             容器自己的属性）；同一个 id 在几种语言里都有就每种语言一份。不编 Sass、不扫不认识的块（别的块
 //                             这份包不认识也照画这几个）；页面数据仍由派生组出来（派生对不认识的块只警告）。没找到的 id ⟹ 退出码 1。
-//       --freeze-from <JSON | 文件>  #1840（T4d 自愈）：`[{type, rendered, ids, label?}]` —— 这几块在入口扫描之前先在内存里换成
-//                             Custom HTML（`rendered` = 一份旧包按 `--only-blocks` 画出来的目录，转换同 `freeze`）。不写库；没换成的块
-//                             照样被入口扫描报出来（退出码 3）。标准输出那一行多一个 `frozen: ["<类型>#<块 id>", …]`。
 //     标准输出：一行 JSON（`{"event":"rendered", …}`，含页数、平台文件清单、耗时）。派生的日志走标准错误。
 //     失败 ⟹ 退出码 1；content 里有这份包画不出来的块 ⟹ 退出码 3，`--out` 一个文件都不写，标准错误每块一行
 //       `unknown block type <t> at <文件>#<块 id>` / `unsupported schemaVersion <n> of <t> at <文件>#<块 id>`（§content-blocks.js）。
@@ -61,9 +58,7 @@
 //       = `upgrade-<类型>`、`summary` = "Updated the <Type> block to its latest version"。changes 可以只有 page / locale。
 //   node scripts/site.js migrate --site <站 JSON> --dry-run --only <块 id,…>
 //       #1839：升级弹窗的「后」。{"ok":true,"content":{…},"migrated":[…]}，不落库；不带 --dry-run 一律 bad。
-//   node scripts/site.js freeze --site <站 JSON> --type <块类型> [--bundle-dir <目录>] [--rendered <目录>] [--ids <块 id,…>] [--label <名字>]
-//       #1840：--rendered = 那几块已经由一份还认识这个类型的旧包按 `--only-blocks` 画好（manager 从 archives/ 解的），这里只转换、
-//       不画；--ids = 只冻这几块；--label = 弹窗 / summary 里的名字（类型在这份包里已删时，从旧包的 manifest 取）。
+//   node scripts/site.js freeze --site <站 JSON> --type <块类型> [--bundle-dir <目录>]
 //       #1839：那一型的块冻成 Custom HTML（用这份模板按 --only-blocks 画一次，`<style>` + `<section>` 里那段 + 容器属性 `attrs`）。
 //       {"ok":true,"content":{…},"frozen":[id…],"label":"…","summary":"Kept the <Type> block as it was"}；没有这一型 ⟹ frozen 空、
 //       content 原样。包：--bundle-dir，没给看 AI1ST_BUNDLE_DIR（测试专用），都没有 = render/dist。manager 执行器 kind=freeze spawn。
@@ -162,10 +157,7 @@ const EDITOR_COMMANDS = {
   validate: (a) => require('./lib/site-edit').validate({ prev: requiredJsonArg(a.prev, 'prev'), next: requiredJsonArg(a.next, 'next'), scope: jsonArg(a.scope, 'scope') || null }),
   'catalog-site-css': (a, ed) => catalogSiteCss({ theme: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }, ed),
   migrate: (a, ed) => migrateDryRun({ content: requiredJsonArg(a.site, 'site'), only: idList(a.only), dryRun: !!a['dry-run'] }, ed),
-  freeze: (a, ed) => freeze({
-    content: requiredJsonArg(a.site, 'site'), type: a.type, bundleDir: a['bundle-dir'],
-    rendered: a.rendered, ids: a.ids === undefined ? undefined : idList(a.ids), label: a.label,
-  }, ed),
+  freeze: (a, ed) => freeze({ content: requiredJsonArg(a.site, 'site'), type: a.type, bundleDir: a['bundle-dir'] }, ed),
 };
 
 /** `--migrate a,b` / `--only a,b` → 去空的 id 数组；没给 ⟹ []。 */
@@ -191,60 +183,39 @@ async function migrateDryRun({ content, only, dryRun }, ed) {
  * （§block-changes.js freezeContent）。不连库：哪些站要冻、写版本，都是 manager 的事（`-freeze-type` 排队、执行器 kind=freeze 提交）。
  * 这份 content 里没有这一型 ⟹ `frozen: []`、content 原样（执行器据此不写版本）。有块画不出来 ⟹ 整个拒（不写半份）。
  */
-async function freeze({ content, type, bundleDir, rendered: renderedDir, ids: onlyIds, label }, ed) {
+async function freeze({ content, type, bundleDir }, ed) {
   if (typeof type !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(type)) throw new ed.SiteEditorError('bad', `--type 要是一个块类型：${JSON.stringify(type)}`);
   if (type === 'custom-html') throw new ed.SiteEditorError('bad', 'custom-html 本身就是冻结的形状，不能再冻');
   if (content === null || typeof content !== 'object' || Array.isArray(content)) throw new ed.SiteEditorError('bad', '--site 要是一份 content 对象');
   const changes = require('./lib/block-changes');
-  const all = changes.blockIdsOfType(content, type);
-  const ids = onlyIds ? all.filter((id) => onlyIds.includes(id)) : all;
-  if (!ids.length) return { content, frozen: [], summary: '', label: label || changes.labelOf(require('./lib/block-migrations').loadBlockVersions(), type) };
-  // #1840 —— `--rendered <目录>`：那几块已经由一份旧包（manager 从 archives/ 解出来的、还认识这个类型的那一份）按
-  //   `--only-blocks` 画好了，这里只做转换、不画 —— 这份包已经不认识这个类型，自己画只会画出空的。
-  if (renderedDir !== undefined) {
-    checkPathArg('rendered', renderedDir);
-    return freezeFromRendered(content, { type, rendered: renderedDir, ids, label }, ed);
-  }
+  const ids = changes.blockIdsOfType(content, type);
+  if (!ids.length) return { content, frozen: [], summary: '', label: changes.labelOf(require('./lib/block-migrations').loadBlockVersions(), type) };
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'site-freeze-'));
   try {
     // 包：`--bundle-dir`，没给看 `AI1ST_BUNDLE_DIR`（测试专用，同 AI1ST_BLOCKS_DIR 那一对：manager 的测试 spawn 不带参数），都没有 = render/dist。
     const bundleAt = bundleDir || process.env.AI1ST_BUNDLE_DIR;
     await render({ content, out, onlyBlocks: ids, ...(bundleAt ? { bundleDir: path.resolve(bundleAt) } : {}) });
-    return freezeFromRendered(content, { type, rendered: out, ids: onlyIds ? ids : undefined, label }, ed);
+    const rendered = new Map();
+    const dir = path.join(out, 'blocks');
+    const locales = fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
+    for (const locale of locales) {
+      for (const f of fs.readdirSync(path.join(dir, locale))) {
+        if (!f.endsWith('.html')) continue;
+        const id = f.slice(0, -'.html'.length);
+        const base = path.join(dir, locale, id);
+        rendered.set(`${locale}/${id}`, {
+          html: fs.readFileSync(`${base}.html`, 'utf-8'),
+          css: fs.readFileSync(`${base}.css`, 'utf-8'),
+          attrs: JSON.parse(fs.readFileSync(`${base}.attrs.json`, 'utf-8')),
+        });
+      }
+    }
+    const r = changes.freezeContent(content, type, rendered, undefined, { defaultLocale: locales[0] || 'en' });
+    if (r.missing.length) throw new ed.SiteEditorError('bad', `这几块画不出来，没冻：${r.missing.join(', ')}`);
+    return { content: r.content, frozen: r.frozen, label: r.label, summary: `Kept the ${r.label} block as it was` };
   } finally {
     fs.rmSync(out, { recursive: true, force: true });
   }
-}
-
-/** `render --only-blocks` 的产物（输出合同见文件头）读回来：`<locale>/<id>` → { html, css, attrs }，外加有哪几种语言。 */
-function readRenderedBlocks(out) {
-  const rendered = new Map();
-  const dir = path.join(out, 'blocks');
-  const locales = fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
-  for (const locale of locales) {
-    for (const f of fs.readdirSync(path.join(dir, locale))) {
-      if (!f.endsWith('.html')) continue;
-      const id = f.slice(0, -'.html'.length);
-      const base = path.join(dir, locale, id);
-      rendered.set(`${locale}/${id}`, {
-        html: fs.readFileSync(`${base}.html`, 'utf-8'),
-        css: fs.existsSync(`${base}.css`) ? fs.readFileSync(`${base}.css`, 'utf-8') : '',
-        attrs: JSON.parse(fs.readFileSync(`${base}.attrs.json`, 'utf-8')),
-      });
-    }
-  }
-  return { rendered, locales };
-}
-
-/**
- * 一份画好的 `--only-blocks` 产物 → 那一型（给了 ids 就只那几块）冻成 Custom HTML（§block-changes.js freezeContent）。
- * `ed` 给了（freeze 命令）⟹ 有块没画出来整个拒；没给（render --freeze-from）⟹ 回 missing，没冻的块留给入口那一遍扫描去报。
- */
-function freezeFromRendered(content, { type, rendered: dir, ids, label }, ed) {
-  const { rendered, locales } = readRenderedBlocks(dir);
-  const r = require('./lib/block-changes').freezeContent(content, type, rendered, undefined, { defaultLocale: locales[0] || 'en', ids, label });
-  if (ed && r.missing.length) throw new ed.SiteEditorError('bad', `这几块画不出来，没冻：${r.missing.join(', ')}`);
-  return { content: r.content, frozen: r.frozen, missing: r.missing, label: r.label, summary: `Kept the ${r.label} block as it was` };
 }
 
 /** #1828 —— 图册按主题编的 site.css（见文件头）。 */
@@ -315,22 +286,13 @@ class UnrenderableContentError extends Error {
 
 async function render({
   content: input, out, siteId, geo, siteUrl, leadApi, gscToken, indexnowKey, version = 0, buildVersion = '',
-  target = 'live', cacheDir, lastModified = {}, platformOut, bundleDir = DEFAULT_OUTDIR, onlyBlocks, freezeFrom,
+  target = 'live', cacheDir, lastModified = {}, platformOut, bundleDir = DEFAULT_OUTDIR, onlyBlocks,
 }) {
   const t0 = Date.now();
   if (target !== 'live' && target !== 'preview') throw new Error(`--target 只认 live / preview：${JSON.stringify(target)}`);
   if (!out) throw new Error('要给 --out');
   // #1838 —— 读的时候内存里全量迁（只跑 `preservesLook: true` 的，§block-migrations），不落库：老站的 v1 块按新版画。
-  let content = { ...require('./lib/block-migrations').migrateInMemory(input) };
-  // #1840 (T4d 自愈) —— `--freeze-from`：这份包画不出来的那几块，manager 已经拿还认识它们的旧包画好了（`--only-blocks`），
-  //   这里在内存里把它们换成 Custom HTML 再往下画（设计文档 §8.3「只在内存里冻、不写库、不重跑」）。没换成的块原样留着，
-  //   下面那一遍扫描照样报它 ⟹ 退出码 3，跟没有自愈时一样。
-  const frozen = [];
-  for (const f of Array.isArray(freezeFrom) ? freezeFrom : []) {
-    const r = freezeFromRendered(content, f);
-    content = r.content;
-    frozen.push(...r.frozen.map((id) => `${f.type}#${id}`));
-  }
+  const content = { ...require('./lib/block-migrations').migrateInMemory(input) };
 
   // #1826 —— 先整体扫一遍，有这份包画不出来的块就整跑不出产物（设计文档 §8.3；为什么在这里不在 SectionRenderer，见 content-blocks.js）。
   //    --only-blocks 不扫：它就是拿旧包去画「新包不认识」的那几块，content 里别的块这份旧包不认识是常态。
@@ -424,7 +386,7 @@ async function render({
   return {
     pages: pages.length, files: Object.keys(files).length,
     platform: platform.map((p) => p.path), siteCssKey: derived.siteCss.key, siteCssCached: Boolean(derived.siteCss.cached),
-    externals: manifest.externals, ...(frozen.length ? { frozen } : {}), ms: Date.now() - t0,
+    externals: manifest.externals, ms: Date.now() - t0,
   };
 }
 
@@ -543,23 +505,6 @@ async function renderCatalog({ out, buildVersion = '' }) {
   return { cells: pairs.length, failed: problems.length, problems, ms: Date.now() - t0 };
 }
 
-/**
- * #1840 —— `render --freeze-from <JSON | 文件>`：`[{ "type": "<块类型>", "rendered": "<--only-blocks 的 --out>", "ids": [块 id…],
- * "label"?: "<名字>" }]`（manager 的自愈写，site_heal.go）。形状不对 ⟹ 整跑拒，不当成空。
- */
-function freezeFromArg(v) {
-  const list = jsonArg(v, 'freeze-from');
-  if (list === undefined) return undefined;
-  if (!Array.isArray(list)) throw new Error('--freeze-from 要是一个数组 [{type, rendered, ids, label?}]');
-  return list.map((f, i) => {
-    const bad = (why) => new Error(`--freeze-from 第 ${i + 1} 项${why}：${JSON.stringify(f)}`);
-    if (!f || typeof f !== 'object' || typeof f.type !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(f.type) || f.type === 'custom-html') throw bad('的 type 不是一个能冻的块类型');
-    if (!Array.isArray(f.ids) || !f.ids.length || f.ids.some((x) => typeof x !== 'string' || !x)) throw bad('的 ids 要是非空的块 id 数组');
-    checkPathArg('freeze-from 的 rendered', f.rendered);
-    return { type: f.type, rendered: path.resolve(f.rendered), ids: f.ids, label: typeof f.label === 'string' ? f.label : undefined };
-  });
-}
-
 /** `--out` / `--site` 原样就得是它自己：带 `.` / `..` / 空段的拒（绝对路径开头那一个 `/` 不算空段）。 */
 function checkPathArg(name, v) {
   if (typeof v !== 'string' || v === '') throw new Error(`要给 --${name}`);
@@ -616,10 +561,8 @@ async function main() {
     checkPathArg('out', a.out);
     const onlyBlocks = a['only-blocks'] === undefined ? undefined : a['only-blocks'].split(',').map((x) => x.trim()).filter(Boolean);
     if (onlyBlocks && onlyBlocks.length === 0) throw new Error('--only-blocks 要给至少一个块 id');
-    const freezeFrom = freezeFromArg(a['freeze-from']);
     const result = await render({
       onlyBlocks,
-      freezeFrom,
       content: JSON.parse(fs.readFileSync(a.site, 'utf-8')),
       out: path.resolve(a.out),
       siteId: a['site-id'],
