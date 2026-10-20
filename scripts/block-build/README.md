@@ -38,6 +38,10 @@ node scripts/block-build/build-blocks.js --check
 
 - **加一个形态**：新建 `blocks/<块>/<形态名>/`，放 `shape.css` + `shape.md`，跑生成器。不改任何清单。
 - **加一个块**：新建 `blocks/<块>/`，放 `manifest.json` + `Section.tsx` + `floor.css` + 至少一个形态子文件夹，跑生成器。
+- **改一个块的数据形状**：manifest 的 `schemaVersion` 加一，同一个 PR 在它文件夹里的 `migrations.js` 写上 `'<n>→<n+1>'`（格式见 `scripts/lib/block-migrations.js` 文件头）。
+- **删一个块**：要么在还在的某个块的 `migrations.js` 里写一步 `'<旧类型>→<新类型>'`，要么在 `templates/nextjs/blocks-retired.json` 登记 `"<旧类型>": "freeze"`。
+  这两条由 `check-migrations.js`（#1917）拿工作树跟上一个 `build-*` tag 比着拦：`ci` 里 push main 之后、release 之前跑一次，
+  ship 前 `ai-team/dispatcher/ship-check-block-migrations.sh` 再跑一次。本机自己跑：`node scripts/block-build/check-migrations.js`。
 
 ## 为什么生成物进 git
 
