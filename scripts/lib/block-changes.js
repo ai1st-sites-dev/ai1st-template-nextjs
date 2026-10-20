@@ -10,8 +10,8 @@
 //   migrateBlocks(content, ids, versions)   点 Update：只迁 `ids` 里还待升级的那几块，整条链（`false` 的那几步也跑）+ 跨类型那一步，
 //       版本号写成新号（§stamp-schema-versions 对带号的块不动 ⟹ 不会被盖回旧号）。→ { content, migrated: [{ blockId, type, toType, label }] }
 //   upgradeAt(content, scope, versions)     AI 改站的 `--scope` 指到的是不是一块待升级的块（`needs-upgrade`，§site-edit.js）。
-//   freezeContent(content, type, rendered, versions)   冻结：那一型的每一块换成 Custom HTML（`frozenFrom`、`attrs`），
-//       `rendered` 是 `site.js render --only-blocks` 的产物（`<locale>/<id>` → { html, css, attrs }）。
+//   freezeContent(content, type, rendered, versions, { ids?, label? })   冻结：那一型的每一块（给了 ids 就只那几块）换成
+//       Custom HTML（`frozenFrom`、`attrs`），`rendered` 是 `site.js render --only-blocks` 的产物（`<locale>/<id>` → { html, css, attrs }）。
 //
 // 🔴 「样子会不会变」只问迁移表自己的 `preservesLook`，不另判；`true` 的那几步由 §block-migrations 在读写时悄悄跑，这里不碰。
 const { loadBlockVersions } = require('./block-migrations');
@@ -196,12 +196,16 @@ function localeOfFile(rel, defaultLocale) {
  *   html  = `<style>`（那一型在 shapes.css 里那一段）+ `<section>` 里面那段，逐字（Custom HTML 没有 css 字段了，样式就写在 html 里）
  *   attrs = 容器自己的属性，去掉 `data-block-id` / `id`（身份只认块的 id）；套回去时过 §sanitize-css.js frozenContainerAttrs
  */
-function freezeContent(content, type, rendered, versions = loadBlockVersions(), { defaultLocale = 'en' } = {}) {
-  const label = labelOf(versions, type);
+function freezeContent(content, type, rendered, versions = loadBlockVersions(), { defaultLocale = 'en', ids, label: named } = {}) {
+  // #1840 (T4d 自愈) —— `ids`：只冻这几块（`unsupported schemaVersion` 只点名停在画不出那一版的块，同型别的块照常画）；
+  //   `label`：类型在这份包里已经删了时，名字从画它的那份旧包的 manifest 来（这份包只剩 §humanize）。
+  const only = Array.isArray(ids) ? new Set(ids) : null;
+  const label = typeof named === 'string' && named ? named : labelOf(versions, type);
   const frozen = [];
   const missing = [];
   const r = mapBlocks(content, ({ rel, block, id }) => {
     if (block.type !== type) return block;
+    if (only && !only.has(id)) return block;
     const got = id ? rendered.get(`${localeOfFile(rel, defaultLocale)}/${id}`) || rendered.get(`${defaultLocale}/${id}`) : null;
     if (!got) { missing.push(`${rel}#${id || '(no id)'}`); return block; }
     const { 'data-block-id': _id, id: _htmlId, ...attrs } = got.attrs || {};
