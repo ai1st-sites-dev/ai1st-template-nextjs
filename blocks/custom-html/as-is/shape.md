@@ -11,6 +11,6 @@ layout_intent:
 
 # custom-html · as-is
 
-**长什么样：** 老板贴的那段 HTML 原样画在块的 `<section>` 里，块自己的 `css` 加 `[data-block-id="…"]` 前缀只作用在这一块。
+**长什么样：** 老板贴的那段 HTML 原样画在块的 `<section>` 里；样式写在 HTML 里（`style="…"` 或 `<style>` 块）。
 
 只有这一个形态：Custom HTML 的意义就是不按我们的排版走（设计文档 §8.1），所以没有预设、没有旋钮。

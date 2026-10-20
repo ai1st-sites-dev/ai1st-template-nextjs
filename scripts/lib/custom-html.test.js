@@ -13,6 +13,8 @@
  *   ④ `site.js validate`（site-edit.js §validate）：AI 那一轮改过的页面里的 custom-html 落库前整理；没改的文件原样；超限 /
  *      `<plaintext>` ⟹ `refused`。
  *   ⑤ customHtmlOf：页面和站级块里每一块 custom-html 的 html 都收（值是对象或 JSON 原文都认），别的块不收 —— PurgeCSS 看的就是它。
+ *   ⑥ 老形状的页面（`sections`，#998 两种并存）：整理和 customHtmlOf 都认（#1833 r5 —— 只认 `blocks` 时样例站 allblocks 页那张
+ *      `table-sm` 表被 PurgeCSS 剪掉，theme-css 两片都红；同样的页面在真站上存盘也不会被整理）。
  *
  *   node scripts/lib/custom-html.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -222,6 +224,16 @@ async function main() {
   });
   check(JSON.stringify(got.sort()) === JSON.stringify(['<a class="btn btn-outline-primary">x</a>', '<p class="lead">zh</p>', '<span class="badge">shared</span>'].sort()),
     '页面（原文 / 对象）+ 站级块里的 custom-html 都收；别的块、别的文件、坏 JSON 不收', got);
+
+  console.log('⑥ 老形状的页面（sections）');
+  const old = { slug: 'allblocks', sections: [{ type: 'hero', data: { headline: 'x' } }, block(UNCLOSED)] };
+  const to = ch.tidyCustomHtmlInPage(old);
+  check(Array.isArray(to.sections) && !('blocks' in to) && to.sections[1].data.html === TIDIED && to.sections[0] === old.sections[0],
+    'sections 形状：custom-html 那一块整理了、还是 sections、别的块原样', to);
+  const oldGot = ch.customHtmlOf({ 'en/pages/allblocks.json': JSON.stringify({ sections: [block('<table class="table table-sm"></table>')] }) });
+  check(oldGot.length === 1 && oldGot[0].includes('table-sm'), 'customHtmlOf 收 sections 形状页面里的 custom-html', oldGot);
+  const both = ch.customHtmlOf({ [HOME]: { blocks: [block('<i class="a">b</i>')], sections: [block('<i class="s">s</i>')] } });
+  check(both.length === 1 && both[0].includes('class="a"'), '两个键都在 ⟹ 只读 blocks（同 blocks.js 的判法）', both);
 
   console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} 过 · ${fail} 失败`);
   process.exit(fail === 0 ? 0 : 1);

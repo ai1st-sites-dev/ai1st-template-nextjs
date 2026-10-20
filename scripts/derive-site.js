@@ -94,6 +94,9 @@ const publicDir = path.join(rootDir, 'public');
 
 const ready = deriveSite({
   content, outDir, purge: !isPreview, lastModified, siteLabel: siteDir, buildTime,
+  // #1833 —— Custom HTML 块里老板写的类要被 PurgeCSS 看见（同 `site.js render` 那一处）。发布前 `sync-config.js` 跑的就是这里，
+  //    漏了它，老板代码里只在 Custom HTML 里出现的 Bootstrap 类会被剪掉（r5：图册页的 `table-sm` 就是这么红的）。
+  customHtml: require('./lib/custom-html').customHtmlOf(content),
 }).then((r) => withSiteFilesLock(() => {
   try {
     // #1807 —— 写回 site/：开头读过的那份跟盘上现在这份不一样 = 派生读完之后别处（编辑器存盘 / AI 改站）改过它 ⟹ 不写。

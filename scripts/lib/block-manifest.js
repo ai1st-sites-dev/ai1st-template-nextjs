@@ -194,7 +194,7 @@ const SLOT_KINDS = ['text', 'list', 'link', 'image', 'object', 'color', 'richtex
 //    写法是 `scripts/lib/richtext.js` 认的那个 markdown 子集。它**不是** `text`：编辑器给多行文本框、
 //    validateSite 查「写了 HTML」「链接协议不认」两条（§validateSite ⑨），块用同一个解析器画。
 //    其余按 kind 分支的地方（block-catalog / demo-content / image-slots / editor-convert …）把它当字符串，正是对的。
-// 📌 #1833 —— `code`：Custom HTML 块的 `html` / `css`（`blocks/custom-html`），值是一个字符串，老板贴的代码原样存。
+// 📌 #1833 —— `code`：Custom HTML 块的 `html`（`blocks/custom-html`；r5 起没有 `css` 槽），值是一个字符串，老板贴的代码原样存。
 //    它**不是** `text`：页面上没有这一格的字（没有 `data-slot`，不能就地改），编辑器给一个代码框（`control: 'code'`，
 //    面板标题取槽上的 `codeLabel`）；不带 `editLabel`。入库前的整理在 `scripts/lib/custom-html.js`，画布里的净化在
 //    `scripts/lib/sanitize-canvas.js`。

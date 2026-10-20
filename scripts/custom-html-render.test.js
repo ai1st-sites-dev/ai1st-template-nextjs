@@ -10,11 +10,12 @@
  *   ② 卡片：原文含 `<script>` ⟹ 卡片（名字 + 「Runs on your preview link and your website」+ Open preview）**和**净化后剩下的 `hi`，
  *      输出里没有 `<script`；纯标记（表格）⟹ 照常画、不出卡片；`frozenFrom: "pricing"` ⟹「This was a Pricing block. It's kept as-is.」；
  *      没有预览地址 ⟹ 卡片不出 Open preview。
- *   ③ 发布：`<section data-block-id>` 里原样写 html；css 加 `[data-block-id="…"]` 前缀放在前面；css 里的 `</style` 收不了尾。
+ *   ③ 发布：`<section data-block-id>` 里原样写 html（连同里面的 `<style>` 块和 `style="…"`）。#1833 r5 起没有 `css` 字段：
+ *      老内容里带着它的照常渲染，`css` 不出现在输出里（发布、画布两边都量）；画布里 `<style>` 块删掉、`style="…"` 留着。
  *   ④ 整理过的 html（`lib/custom-html.js`）进发布页 ⟹ 下一个块的根元素是它的兄弟；没整理的原文 ⟹ 被吞成后代（反向对照）。
  *   ⑤ 源码守卫：Section.tsx 画布那一支的 `dangerouslySetInnerHTML` 只吃 `sanitizeForCanvas` 的输出；dashboard 的编辑器
- *      （`dashboard/src/editor/`）和模板那份编辑器里，代码框一处 `dangerouslySetInnerHTML` 都没有 —— 块的 html 在 dashboard 里
- *      只有画布那一条路能落成 DOM。
+ *      （`dashboard/src/editor/`）和模板那份编辑器里，代码框一处 `dangerouslySetInnerHTML` 都没有，dashboard 的「Edit HTML」弹窗
+ *      （`EditHtmlDialog.tsx`，r5）也没有 —— 块的 html 在 dashboard 里只有画布那一条路能落成 DOM。
  *
  *   node scripts/custom-html-render.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -98,7 +99,7 @@ check(!/onerror/i.test(canvasOut), '画布模式：输出里没有 onerror', can
 check(/<img src=x onerror="document.title=1">/.test(liveOut), '发布模式：原样在', liveOut);
 {
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const needle = 'sanitizeForCanvas(html, { scope })';
+  const needle = 'sanitizeForCanvas(html)';
   if (!src.includes(needle)) die(`Section.tsx 里找不到 \`${needle}\` —— 反向对照的改法要跟着改`);
   const Broken = loadSection(src.replace(needle, 'html'));
   check(/onerror/i.test(render(Broken, { html: ONERROR }, { canvas: true })), '反向对照：不净化的那份 ⟹ 画布输出里出现 onerror（上一格量得出接线）');
@@ -135,11 +136,17 @@ check(frozenOut.includes('This was a Pricing block. It&#x27;s kept as-is.') || f
 check(!/data-ch-open-preview/.test(render(Section, { html: '<script>x()</script>' }, { canvas: true })), '没有预览地址 ⟹ 卡片不出 Open preview');
 check(/data-ch-open-preview/.test(render(Section, { html: '<iframe src="https://calendly.com/x"></iframe>' }, { canvas: true, preview: PREVIEW })), '<iframe> 也算「会跑的东西」⟹ 出卡片');
 
-console.log('③ 发布：原样写 html，css 加前缀');
-const pub = render(Section, { html: '<p class="lead">x</p>', css: 'p { color: red } p::after { content: "</style><script>alert(1)</script>" }' }, { id: 'blk-7' });
-check(/^<section[^>]*data-block="custom-html"[^>]*data-block-id="blk-7"/.test(pub), '<section data-block="custom-html" data-block-id="blk-7">', pub.slice(0, 160));
-check(pub.includes('[data-block-id="blk-7"] p { color: red }') && pub.indexOf('<style>') < pub.indexOf('<p class="lead">'), 'css 加了前缀、放在 html 前面', pub);
-check(!/<\/style><script>/i.test(pub) && (pub.match(/<\/style>/g) || []).length === 1, 'css 里的 </style 收不了尾（只有我们自己那一个 </style>）', pub);
+console.log('③ 发布：原样写 html；老内容里的 css 不读');
+{
+  const OLD_CSS = 'p { color: red } p::after { content: "</style><script>alert(1)</script>" }';
+  const HTML = '<style>h1 { color: red }</style><h1 style="color:red">Hi</h1><p class="lead">x</p>';
+  const pub = render(Section, { html: HTML, css: OLD_CSS }, { id: 'blk-7' });
+  check(/^<section[^>]*data-block="custom-html"[^>]*data-block-id="blk-7"/.test(pub), '<section data-block="custom-html" data-block-id="blk-7">', pub.slice(0, 160));
+  check(pub.endsWith(`>${HTML}</section>`), 'html 原样写进去：<style> 块、style 属性都在', pub);
+  check(!pub.includes('[data-block-id=') && !pub.includes('p::after') && (pub.match(/<style>/g) || []).length === 1, '老内容带着的 css 不出现在发布输出里（只有老板 html 里自己那一个 <style>）', pub);
+  const cv = render(Section, { html: HTML, css: OLD_CSS }, { canvas: true, id: 'blk-7' });
+  check(!/<style/i.test(cv) && !cv.includes('p::after') && /<h1 style="color:red">Hi<\/h1>/.test(cv), '画布：<style> 块删掉、css 不读、style 属性留着', cv);
+}
 
 console.log('④ 整理过的 html 不吞后面的块');
 // 「干净」= 下一个块是 <body> 下紧挨着它的兄弟，而且它自己的字没被续上前一块没收尾的 <b>。
@@ -167,6 +174,9 @@ console.log('⑤ 源码守卫：html 在 dashboard 里只经 sanitizeForCanvas �
   check((canvasPart.match(/dangerouslySetInnerHTML/g) || []).length === uses.length, '画布那一支没有别的写法的 dangerouslySetInnerHTML');
   const editors = [path.join(REPO, 'dashboard', 'src', 'editor'), path.join(SRC, 'components', 'editor')].filter((d) => fs.existsSync(d));
   check(editors.length === 2, `两份编辑器都在（${editors.length}/2）`);
+  const dialog = path.join(REPO, 'dashboard', 'src', 'editor', 'EditHtmlDialog.tsx');
+  const dialogCode = fs.existsSync(dialog) ? fs.readFileSync(dialog, 'utf-8').replace(/^\s*\/\/.*$/gm, '') : null;
+  check(dialogCode !== null && /CodeControl/.test(dialogCode) && !/dangerouslySetInnerHTML/.test(dialogCode), 'dashboard/src/editor/EditHtmlDialog.tsx：弹窗用的是那个代码框，不经 dangerouslySetInnerHTML');
   for (const d of editors) {
     const f = path.join(d, 'CodeField.tsx');
     const code = fs.existsSync(f) ? fs.readFileSync(f, 'utf-8').replace(/^\s*\/\/.*$/gm, '') : null;

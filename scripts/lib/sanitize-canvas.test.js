@@ -8,8 +8,8 @@
  *   ② 真跑一次：自家那几条能跑脚本的写法，原样放进一个 `runScripts: 'dangerously'` 的 jsdom 会把哨兵写上（证明夹具是活的），
  *      净化之后放进去哨兵不动。
  *   ③ 反向对照：`sanitizeForCanvas` 换成恒等函数 ⟹ ① 和 ② 都点名（这把尺量得出「没净化」）。
- *   ④ `sanitizeCss`：只留能落在 `[data-block-id="…"]` 下面的规则；`@import`、`expression()`、`url(javascript:)`（含 CSS 转义写法）
- *      各读红；`scopeCss`（发布用）只加前缀不删东西。
+ *   ④ 留下来的还是那些东西；块里自带的 `<style>` 整块删、`style="…"` 属性留着（#1833 r5：没有 `css` 字段、没有 CSS 净化了 ——
+ *      `<style>` 在画布里不留，它会改到画布里编辑器自己的东西和别的块；预览 / 网站上原样）。
  *
  *   node scripts/lib/sanitize-canvas.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -32,9 +32,8 @@ try {
 } catch (e) {
   die(`加载不了被测模块 / jsdom: ${e.message}`);
 }
-const { sanitizeForCanvas, sanitizeCss, scopeCss, blockScope } = lib;
+const { sanitizeForCanvas } = lib;
 const WIN = new JSDOM('<!doctype html><html><body></body></html>').window;
-const SCOPE = blockScope('b1');
 // 恒等对照里会喂进去很多坏样式表，jsdom 默认往 stderr 打「Could not parse CSS stylesheet」—— 那不是读数，关掉。
 const quiet = () => new VirtualConsole();
 
@@ -108,7 +107,7 @@ async function main() {
 
   console.log(`① ${upstream.length} 条上游向量 + ${OWN.length} 条自家的，过 sanitizeForCanvas 之后没有能跑的东西`);
   const runAll = (fn) => vectors.map((v) => ({ v, problems: problemsOf(fn(v.payload)) })).filter((r) => r.problems.length);
-  const dirty = runAll((h) => sanitizeForCanvas(h, { window: WIN, scope: SCOPE }));
+  const dirty = runAll((h) => sanitizeForCanvas(h, { window: WIN }));
   check(dirty.length === 0, `${vectors.length} 条全部干净`, dirty.slice(0, 5).map((r) => `${r.v.name}: ${r.problems.join(', ')}`).join(' · '));
   check(OWN.length >= 10, `自家向量 ${OWN.length} 条（≥ 10）`);
 
@@ -123,7 +122,7 @@ async function main() {
   };
   for (const [i, p] of RUNNABLE.entries()) {
     const raw = await ran(p);
-    const clean = await ran(sanitizeForCanvas(p, { window: WIN, scope: SCOPE }));
+    const clean = await ran(sanitizeForCanvas(p, { window: WIN }));
     check(raw > 0 && clean === 0, `自家 #${i}：原样跑了 ${raw} 次（夹具是活的），净化之后 ${clean} 次`);
   }
 
@@ -134,43 +133,15 @@ async function main() {
   check(ranRaw.every((n) => n > 0), `恒等函数下 ${RUNNABLE.length} 条能跑的写法全都跑了`, ranRaw);
 
   console.log('④ 留下来的东西还是那些东西（白名单不是一刀切）');
-  const keep = sanitizeForCanvas('<table class="table"><tr><td>x</td></tr></table><p>hi <b>there</b></p>', { window: WIN, scope: SCOPE });
+  const keep = sanitizeForCanvas('<table class="table"><tr><td>x</td></tr></table><p>hi <b>there</b></p>', { window: WIN });
   check(/<table class="table">/.test(keep) && /<td>x<\/td>/.test(keep) && /<b>there<\/b>/.test(keep), '表格 / 段落 / 加粗 / class 原样留下', keep);
-  const frame = sanitizeForCanvas('<iframe src="https://calendly.com/acme" width="100%" height="600"></iframe>', { window: WIN, scope: SCOPE });
+  const frame = sanitizeForCanvas('<iframe src="https://calendly.com/acme" width="100%" height="600"></iframe>', { window: WIN });
   check(/<iframe[^>]*src="https:\/\/calendly\.com\/acme"/.test(frame) && /sandbox=""/.test(frame), 'https 的 iframe 留下，带上空的 sandbox', frame);
-  const styled = sanitizeForCanvas('<style>p { color: red } @import url(x.css);</style><p>x</p>', { window: WIN, scope: SCOPE });
-  check(styled.includes(`${SCOPE} p`) && !/@import/.test(styled), '块里自带的 <style>：规则加上前缀，@import 删掉', styled);
-  check(!/color/.test(sanitizeForCanvas('<style>p{color:red}</style>', { window: WIN })), '没给 scope ⟹ <style> 里一条规则都不留（落不到这一块下面）');
-
-  console.log('⑤ sanitizeCss（画布）/ scopeCss（发布）');
-  const cssCases = [
-    ['@import', '@import url("https://evil.example/a.css"); p { color: red }', /@import/],
-    ['expression()', 'p { width: expression(alert(1)); color: blue }', /expression/],
-    ['url(javascript:)', 'p { background: url(javascript:alert(1)); color: blue }', /javascript/i],
-    ['转义写的 javascript:', 'p { background: url(\\6a avascript:alert(1)); color: blue }', /6a avascript|javascript/i],
-    ['-moz-binding', 'p { -moz-binding: url(x.xml#y); color: blue }', /binding/],
-  ];
-  for (const [name, css, badRe] of cssCases) {
-    const out = sanitizeCss(css, SCOPE);
-    check(!badRe.test(out) && out.includes(`${SCOPE} p`) && /color: (red|blue)/.test(out), `sanitizeCss 去掉 ${name}，别的规则留下并加前缀`, out);
-    check(badRe.test(css), `夹具自证：${name} 原文里真的有那一段`);
-  }
-  check(sanitizeCss('body { margin: 0 } html, :root { color: red }', SCOPE).startsWith(`${SCOPE} {`), 'body / html / :root 落到这一块自己身上');
-  check(/^@media \(min-width: 600px\) \{\s*\[data-block-id="b1"\] \.x \{ color: red \}/.test(sanitizeCss('@media (min-width: 600px) { .x { color: red } }', SCOPE)), '@media 留下，里面的规则加前缀');
-  check(!/keyframes/.test(sanitizeCss('@keyframes k { from { opacity: 0 } } .x { color: red }', SCOPE)), '@keyframes 落不到前缀下面 ⟹ 画布里删掉');
-  check(/@keyframes/.test(scopeCss('@keyframes k { from { opacity: 0 } } .x { color: red }', SCOPE)) && scopeCss('.x{color:red}', SCOPE).includes(`${SCOPE} .x`),
-    'scopeCss（发布）只加前缀，@keyframes 原样留着（老板的代码不设闸）');
-  // #1833 r3（QA3 不挡票那两条）：选择器按 postcss 切（认引号、括号），scopeCss 不删注释。
-  const attrComma = scopeCss('a[title="x,y"] { color: red }', SCOPE);
-  check(attrComma === `${SCOPE} a[title="x,y"] { color: red }`, '属性值里的逗号不切：a[title="x,y"] 整条加一次前缀', attrComma);
-  const isList = scopeCss(':is(h1, h2), p { color: red }', SCOPE);
-  check(isList.startsWith(`${SCOPE} :is(h1, h2),`) && isList.includes(`${SCOPE} p`), '括号里的逗号不切：:is(h1, h2) 原样，外层两段各加前缀', isList);
-  check(sanitizeCss('a[title="x,y"] { color: red }', SCOPE).startsWith(`${SCOPE} a[title="x,y"]`), 'sanitizeCss 同一种切法');
-  check(scopeCss('/* keep me */ p { color: red }', SCOPE).includes('/* keep me */'), 'scopeCss（发布）注释原样留着');
-  check(!/keep me/.test(sanitizeCss('/* keep me */ p { color: red }', SCOPE)), 'sanitizeCss（画布）注释照删');
-  check(scopeCss('p{color:red}, body{background:url(javascript:)}', SCOPE).split('{').length - 1 === scopeCss('p{color:red}, body{background:url(javascript:)}', SCOPE).split(SCOPE).length - 1,
-    '逗号逃逸不出去：每个规则块前都有前缀');
-  check(blockScope('a"b\\c') === '[data-block-id="a\\"b\\\\c"]', 'blockScope：id 里的引号 / 反斜杠转义好');
+  // #1833 r5 —— `<style>` 整块删（连同规则，没有前缀、没有挑规则那一说了）；`style` 属性只管它自己那个元素，留着。
+  const styled = sanitizeForCanvas('<style>h1 { color: red } @import url(x.css);</style><h1 style="color:red">Hi</h1>', { window: WIN });
+  check(styled === '<h1 style="color:red">Hi</h1>', '块里自带的 <style> 整块删掉，style 属性原样留下', styled);
+  const nested = sanitizeForCanvas('<div><style>p{color:red}</style><p>x</p></div><svg><style>circle{fill:red}</style><circle r="2"/></svg>', { window: WIN });
+  check(!/<style|color:red|fill:red/.test(nested) && /<p>x<\/p>/.test(nested) && /<circle r="2"><\/circle>/.test(nested), '嵌在别的元素 / svg 里的 <style> 也删，旁边的标记留下', nested);
 
   console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} 过 · ${fail} 失败`);
   process.exit(fail === 0 ? 0 : 1);

@@ -8,7 +8,7 @@
 //                                   之后这一页改任何一块再保存都被拒。
 //                                   含 `<plaintext>` ⟹ 抛（话是「Custom HTML can't use the <plaintext> tag」），理由见下。
 //   tidyCustomHtmlBlock(block)      一块 `type: custom-html` 的 data.html / data.css 过上面那一道；别的块原样回。
-//   tidyCustomHtmlInPage(page)      一份页面 JSON（`{ blocks: [...] }`）里每一块 custom-html 过一遍。
+//   tidyCustomHtmlInPage(page)      一份页面 JSON（`{ blocks: [...] }`，或老形状 `{ sections: [...] }`，#998 两种并存）里每一块 custom-html 过一遍。
 //   tidyCustomHtmlInSiteBlocks(o)   `blocks/site-blocks.json`（id → 块）同上。
 //   tidyCustomHtmlData(data)        一块 custom-html 的 data（或共用块改动里那份 data）：`html` 整理、`css` 限长，别的键原样。
 //   tidyCustomHtmlInContent(c, ks)  content 里点名的那几个键（页面 / 站级块文件）逐块整理；改了的那几个换成对象，没改的原样。
@@ -24,8 +24,6 @@
 //    整理闭合不了它；序列化又每一遍多补一个 `</plaintext>`，永远到不了不动点。所以直接拒，不存。
 //    跑到 MAX_PASSES 遍还在变（今天没见过 `<plaintext>` 以外的料）同样拒，不存一份还会变的东西。
 // T4a-2（全站代码面板）和 T4a-3（AI 写）也调这一份，不各写一遍。
-
-const parse5 = require('parse5');
 
 const TYPE = 'custom-html';
 const MAX_BYTES = 64 * 1024;
@@ -60,6 +58,9 @@ function hasPlaintext(node) {
 function tidyHtml(html) {
   if (typeof html !== 'string') return '';
   checkSize(html); // 先挡一次：超限的原文不值得解析
+  // 用到时才 require（同 site-css.js 的 sass / purgecss）：`derive-site.js` 顶层就调 §customHtmlOf，那条派生路不该因为整理用的包
+  // 先崩 —— remediation.test.js ⑦b 只拷 `scripts/` 真跑 sync-config，顶层 require 会让它在布局校验之前就 MODULE_NOT_FOUND（#1833 r5）。
+  const parse5 = require('parse5');
   let tree = parse5.parseFragment(html);
   if (hasPlaintext(tree)) throw new CustomHtmlError(NO_PLAINTEXT, 'plaintext');
   let out = parse5.serialize(tree);
@@ -87,9 +88,16 @@ function tidyCustomHtmlBlock(block) {
   return { ...block, data: tidyCustomHtmlData(block.data) };
 }
 
+/** 页面的块数组在哪个键下：`blocks`（#998 新形状）优先，否则老形状的 `sections`；都不是数组 ⟹ null。 */
+function pageListKey(page) {
+  if (Array.isArray(page.blocks)) return 'blocks';
+  return Array.isArray(page.sections) ? 'sections' : null;
+}
+
 function tidyCustomHtmlInPage(page) {
-  if (!isObj(page) || !Array.isArray(page.blocks)) return page;
-  return { ...page, blocks: page.blocks.map(tidyCustomHtmlBlock) };
+  const key = isObj(page) ? pageListKey(page) : null;
+  if (!key) return page;
+  return { ...page, [key]: page[key].map(tidyCustomHtmlBlock) };
 }
 
 function tidyCustomHtmlInSiteBlocks(siteBlocks) {
@@ -134,7 +142,8 @@ function customHtmlOf(content) {
   for (const [rel, value] of Object.entries(isObj(content) ? content : {})) {
     const v = PAGE_JSON.test(rel) || SITE_BLOCKS_JSON.test(rel) ? parsed(value) : null;
     if (!v) continue;
-    if (PAGE_JSON.test(rel)) (Array.isArray(v.blocks) ? v.blocks : []).forEach(take);
+    // 老形状（`sections`）的页面也算：样例站的 allblocks 页就是它，只认 `blocks` 时那一页的类被剪掉、theme-css 两片都红（#1833 r5）。
+    if (PAGE_JSON.test(rel)) { const key = pageListKey(v); if (key) v[key].forEach(take); }
     else Object.values(v).forEach(take);
   }
   return out;

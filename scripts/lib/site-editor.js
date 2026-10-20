@@ -290,8 +290,8 @@ async function save({ content, changes, keep = false }) {
   const hasRoot = Object.keys(root).length > 0;
   if (!json && !hasRoot && !shared && !forms && !nav) throw new SiteEditorError('bad', '这次存盘既没有页面、也没有 root 字段、也没有共用块、也没有表单、也没有菜单');
   // #1833 —— Custom HTML 入库前整理一次（`lib/custom-html.js`：闭合、去外壳、整理到不动点、≤ 64 KB、不收 `<plaintext>`），在算页面哈希之前 —— 编辑器拿到的
-  //    baseHash 就是落盘那份字节的。页面里每一块 custom-html；共用块改动里带 `html` / `css` 的那份 data（块库里只有
-  //    custom-html 有这两个槽）。超了 64 KB / 含 `<plaintext>` ⟹ `bad`（manager 回 400 + 那句话，编辑页原样说给老板）。
+  //    baseHash 就是落盘那份字节的。页面里每一块 custom-html；共用块改动里带 `html` 的那份 data（块库里只有
+  //    custom-html 有它；`css` 是 r5 删掉的槽，老内容里还可能带着，照旧限长）。超了 64 KB / 含 `<plaintext>` ⟹ `bad`（manager 回 400 + 那句话，编辑页原样说给老板）。
   {
     const ch = require('./custom-html.js');
     try {

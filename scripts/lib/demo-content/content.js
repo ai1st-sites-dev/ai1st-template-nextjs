@@ -249,7 +249,6 @@ const DEMO_CONTENT = {
     html: '<table class="table table-sm"><thead><tr><th>Day</th><th>Hours</th></tr></thead><tbody>'
       + '<tr><td>Monday – Friday</td><td>8:00 – 18:00</td></tr><tr><td>Saturday</td><td>9:00 – 14:00</td></tr>'
       + '<tr><td>Sunday</td><td>Closed</td></tr></tbody></table>',
-    css: 'table { max-width: 32rem; }',
     label: 'Opening hours',
     frozenFrom: null,
     attrs: null,

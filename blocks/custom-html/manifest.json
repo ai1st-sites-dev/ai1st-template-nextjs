@@ -24,12 +24,6 @@
       "promptOptional": false,
       "codeLabel": "HTML"
     },
-    "css": {
-      "kind": "code",
-      "required": false,
-      "promptOptional": true,
-      "codeLabel": "CSS"
-    },
     "label": {
       "kind": "text",
       "required": false,

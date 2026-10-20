@@ -181,7 +181,7 @@ function fieldsOf(manifest) {
         gradients: grads.map((g) => normalizeBg(g)) });
       continue;
     }
-    // #1833 —— `kind: code`（Custom HTML 的 html / css）：一个代码框，面板标题是槽上的 `codeLabel`。页面上没有这一格的字
+    // #1833 —— `kind: code`（Custom HTML 的 html）：一个代码框，面板标题是槽上的 `codeLabel`。页面上没有这一格的字
     //    （不在 editableSlotPaths 里），所以在这里单出。
     if (spec && spec.kind === 'code') {
       fields.push({ slot, kind: 'code', label: typeof spec.codeLabel === 'string' && spec.codeLabel ? spec.codeLabel : humanize(slot), control: 'code', subs: [],
