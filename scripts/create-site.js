@@ -64,7 +64,7 @@ const { apiRetryDelayMs } = require('./lib/ai-backoff');
 // #1598 —— 建站五个阶段的存档（阶段表、site_meta.json 的 buildPhase、site/.build/state.json、续跑点怎么读）。
 const buildPhases = require('./lib/build-phases');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
-const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace, hasPhrase,
+const { rulesFor: seoRulesFor, promptLocation, missingPhrases,
   contentImagesOf, brandNameOf, words: seoWords, NOT_TEXT: SEO_NOT_TEXT, H1_BLOCKS: SEO_H1_BLOCKS, H2_BLOCKS: SEO_H2_BLOCKS, CJK: SEO_CJK } = require('./lib/seo-problems');
 // #1600 —— 建站报告（`site/build-report.json`）：各阶段往里记，结束时写盘；死链由 entrypoint 在 next build 之后并进来。
 const buildReportLib = require('./lib/build-report');
@@ -108,7 +108,8 @@ const { validateAiJson, saveRawResponse } = require('./lib/ai-json');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
 // #1549 重开 —— description 的长度区间按主语言取；r4 拆成两个区间（都只在 description-fit.js 定义）：提示词给目标区间（中 / 日 / 韩 50–80，其余 70–155），
 //    检查只拦底线区间（20–200 / 40–300），超过底线上限由代码裁到目标上限；重写后仍缺地点由代码补。
-const { fitPageDescriptions, appendPlace, placeFits, descriptionAccept, descriptionSpec, isCjkLocale } = require('./lib/description-fit');
+const { fitPageDescriptions, descriptionSpec, isCjkLocale } = require('./lib/description-fit');
+const seoPage = require('./lib/seo-page');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
@@ -779,13 +780,8 @@ function brandNameRecord(companyName, brandNameByLocale, defaultLocale) {
   return brandName;
 }
 
-// #1549 做什么 4 —— 子页 `page.title` 的长度要求，提示词和 seoProblems 第 1 条用同一个数（60 − 3 − 品牌名字数）。
-// 预算 < 20（品牌名 ≥ 38 字）时检查那一侧不判长度，提示词这一侧也不给一个做不到的数。
-function pageTitleSpec(brandName) {
-  const budget = pageTitleBudget(brandName);
-  const tail = `" | ${brandName}" is appended automatically — do not add it yourself`;
-  return budget >= MIN_PAGE_TITLE_BUDGET ? `max ${budget} chars; ${tail}` : `as short as possible; ${tail}`;
-}
+// #1938 —— pageTitleSpec 搬到了 lib/seo-page.js（编辑之后的自动重写用同一句提示词）。
+const { pageTitleSpec } = seoPage;
 
 // #1593 —— 第二语言 SEO 检查用的品牌名：表单里按语言填过的就用它，否则退回主语言那个（渲染时 getBrandName 也是这么退的）。
 function brandNameOfLocale(brand, locale, defaultLocale) {
@@ -794,13 +790,8 @@ function brandNameOfLocale(brand, locale, defaultLocale) {
   return (n && (n[locale] || n[defaultLocale])) || '';
 }
 
-// #1593 —— 第二语言 SEO 检查看的地点（第 2 条「含地点」）。建站表格里 `location` 是 Google Ads 的英文地名，`locationLocalized`
-// 是主语言的译名（#1569）：英文第二语言 ⟹ 用 `location`；别的第二语言手上没有它那种语言的地名 ⟹ 「含地点」那一半不判
-// （不让代码把英文地名补进一句中文 description 的末尾）。
-function secondarySeoPayload(payload, locale) {
-  if (/^en\b/i.test(locale)) return { ...payload, locationLocalized: '' };
-  return { ...payload, location: '', locationLocalized: '' };
-}
+// #1938 —— secondarySeoPayload 搬到了 lib/seo-page.js（编辑之后的自动重写在第二语言的页上也要它）。
+const { secondarySeoPayload } = seoPage;
 
 function normalizeLocale(input) {
   if (!input || typeof input !== 'string') return null;
@@ -3852,10 +3843,8 @@ async function finishKeywordPages({
 //   · #1596 —— 骨架页（`seo.placeholder: true`，§pageSkeleton）不进检查：修补占位文案只是多花一次 AI，它已经有自己那一笔降级。
 //   · 「关键词页 N/M」只进日志和 `seo-check` 事件（只有主语言发）。建站页显示的是 #1550 的 `keyword-pages` 事件。
 
-/** 一页的目标词（T4 #1548 挂在 `page.seo.targetKeyword`）。 */
-function seoTargetOf(page) {
-  return page && page.seo && typeof page.seo.targetKeyword === 'string' ? page.seo.targetKeyword : '';
-}
+// #1938 —— seoTargetOf / seoCheckPage / seoAppendPlace 搬到了 lib/seo-page.js（编辑之后的自动重写也用它们），这里只把日志接到 debug。
+const { seoTargetOf } = seoPage;
 
 /**
  * #1593 —— 代码补出来的服务详情页（§kwPages.ensureServiceDetailPages）有目标词时，第 7 条要 2 个 H2；服务没写全文（代码补的服务
@@ -3874,31 +3863,12 @@ function ensureH2Slots(page, svc, disabledBlocks = []) {
   return true;
 }
 
-/** 一页的 seoProblems + 日志一行（`[seo] 检查 <slug> · …`）。 */
-function seoCheckPage({ page, content, payload, locale, tag = '检查', who = '[seo]' }) {
-  const kw = seoTargetOf(page);
-  const problems = seoProblems({ page, pages: content.pages, targetKeyword: kw, brand: content.brand, payload, locale, seo: content.seo });
-  debug(`${who} ${tag} ${page.slug} · 目标词 ${kw ? `「${kw}」` : '（无）'} · 跑了第 ${seoRulesFor(kw).join('/')} 条 · `
-    + (problems.length ? `${problems.length} 条问题：\n    ${problems.join('\n    ')}` : '0 条问题'));
-  // #1603 —— 地点那一半不判时要响：每页只在第一遍检查时说一次（seoProblems 是纯函数，不打日志）。
-  const place = sitePlace(payload);
-  if (tag === '检查' && kw && place && !placeFits(place, kw, locale)) {
-    debug(`${who} 不补地点 ${page.slug}：目标词「${kw}」${[...kw].length} 字 + 分隔符 + 地点「${place}」${[...place].length} 字 `
-      + `已超过 description 底线上限 ${descriptionAccept(locale).max} 字 ⟹ 第 2 条「含地点」那一半不判、建站不拦`);
-  }
-  return problems;
+function seoCheckPage(args) {
+  return seoPage.seoCheckPage({ log: debug, ...args });
 }
 
-/** 缺地点由代码补在 description 末尾（#1549 重开；#1603 补的时候不裁掉目标词）。补了回 true。 */
-function seoAppendPlace({ page, content, payload, locale, when = '', who = '[seo]' }) {
-  const kw = seoTargetOf(page);
-  if (!missingPhrases({ page, targetKeyword: kw, payload, seo: content.seo, locale }).some((m) => m.what === 'place')) return false;
-  const place = sitePlace(payload);
-  const isHome = page.slug === 'home';
-  const next = appendPlace(isHome ? content.seo.siteDescription : page.description, place, locale, { keep: (s) => hasPhrase(s, kw) });
-  if (isHome) content.seo.siteDescription = next; else page.description = next;
-  debug(`${who} ${when}补地点 ${page.slug}：「${place}」→ ${[...next].length} 字（代码补，不叫 AI）`);
-  return true;
+function seoAppendPlace(args) {
+  return seoPage.seoAppendPlace({ log: debug, ...args });
 }
 
 /**

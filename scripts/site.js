@@ -106,6 +106,11 @@
 //   node scripts/site.js validate --prev <站 JSON> --next <站 JSON> [--scope <JSON>]
 //       上面那一步单独拿出来（输出约定同编辑器那几条）：{"ok":true,"content":{…},"files":[…],"geo"?} / ok:false + refused。
 //
+// #1938 —— 一页的 title / description 自动维护，manager 的执行器 `kind=seo-refresh` 时 spawn（实现在 `lib/seo-refresh.js`，那份
+//   文件头有完整约定）：
+//   node scripts/site.js seo-refresh --site <站 JSON 文件> --before <站 JSON 文件> --locale <l> --page <slug|home> [--force] [--skip-ai] --out-dir <目录>
+//       标准输入：建站表格（地点 / 行业 / 事实出处）。最后一行 `{"event":"seo-refresh", "result"?: "<目录>/result.json", "skipped"?: …}`。
+//
 // 🔴 渲染只读不写：拿到的 content 不回写（菜单同步、custom.css 的补丁只用在这一次的输出里，设计文档 §6.1「渲染任务只读库」）。
 const fs = require('fs');
 const os = require('os');
@@ -114,8 +119,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { DEFAULT_OUTDIR } = require('./lib/render-bundle');
 
-// 不带值的开关（`save --keep`、#1839 `migrate --dry-run`）。不登记在这里的 `--x` 一律要跟一个值。
-const BOOLEAN_FLAGS = new Set(['keep', 'dry-run']);
+// 不带值的开关（`save --keep`、#1839 `migrate --dry-run`、#1938 `seo-refresh --force / --skip-ai`）。不登记在这里的 `--x` 一律要跟一个值。
+const BOOLEAN_FLAGS = new Set(['keep', 'dry-run', 'force', 'skip-ai']);
 // #1830 —— 值是老板打的字（`edit --message`）：它自己就可能以 `--` 开头，下一个参数原样就是它的值。
 const FREE_TEXT_FLAGS = new Set(['message']);
 
@@ -539,6 +544,18 @@ async function main() {
     });
     return;
   }
+  if (cmd === 'seo-refresh') {
+    checkPathArg('site', a.site);
+    checkPathArg('out-dir', a['out-dir']);
+    if (!a.force) checkPathArg('before', a.before);
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    process.exitCode = await require('./lib/seo-refresh').seoRefreshCommand({
+      sitePath: a.site, beforePath: a.before, locale: a.locale, page: a.page, force: !!a.force, skipAI: !!a['skip-ai'],
+      outDir: path.resolve(a['out-dir']), stdinText: Buffer.concat(chunks).toString('utf-8'),
+    });
+    return;
+  }
   if (cmd === 'bundle') {
     // #1838 —— `--blocks-dir` / `--registry`：测试包（假块 A / B 那份块目录 + 它生成的注册表），见文件头。
     if (!!a['blocks-dir'] !== !!a.registry) throw new Error('--blocks-dir 和 --registry 要一起给');
@@ -582,7 +599,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ event: 'rendered', ...result })}\n`);
     return;
   }
-  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', 'create', 'edit', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
+  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', 'create', 'edit', 'seo-refresh', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
 }
 
 if (require.main === module) {
