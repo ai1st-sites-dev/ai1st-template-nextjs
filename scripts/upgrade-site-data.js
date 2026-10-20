@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-// upgrade-site-data.js —— 升级一个已有站时改写它数据里的老块类型名（#1166 第 2 步的命令行入口）。
+// upgrade-site-data.js —— 升级一个已有站时对它数据做的检查和回填（#1166 第 2 步的命令行入口；做什么见
+// `lib/site-data-migration.js` 文件头 —— #1916 起那里不再改块类型名）。
 //
 // 用法（在站容器的 /app/repo 里跑）：
 //   node scripts/upgrade-site-data.js            # 真改
@@ -8,7 +9,7 @@
 //   node scripts/upgrade-site-data.js --site site --root .
 //
 // 输出是 JSON-lines（跟 create-site.js / edit-site.js 同一种），worker 读它：
-//   {"event":"plan","changes":[…],"blockers":[…]}
+//   {"event":"plan","blockers":[…],"related":[…]}
 //   {"event":"migrated","files":[…]}                 真改完了
 //   {"event":"blocked","blockers":[…],"message":"…"} 有迁不了的 ⟹ 退出码 3，一个字节都没写
 //
@@ -50,14 +51,10 @@ try {
 emit({
   event: 'plan',
   dryRun,
-  changes: plan.changes.map((c) => ({
-    file: path.relative(rootDir, c.file), index: c.index, id: c.id,
-    from: c.from, to: c.to, renamed: c.renamed, roleAdded: c.roleAdded,
-  })),
   blockers: plan.blockers.map((b) => ({
     file: path.relative(rootDir, b.file), index: b.index, id: b.id, type: b.type, reason: b.reason,
   })),
-  // #1639 —— 补了页尾那一组回服务详情页链接的关键词页（不是块改名，所以不进 changes）。
+  // #1639 —— 补了页尾那一组回服务详情页链接的关键词页。📌 #1916 前这里还有一个 `changes`（块改名），随改名机器删了。
   related: plan.related.map((r) => ({ file: path.relative(rootDir, r.file), slug: r.slug })),
 });
 

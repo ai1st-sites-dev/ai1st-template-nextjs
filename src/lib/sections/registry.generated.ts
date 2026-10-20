@@ -39,7 +39,7 @@ export const blockSchemaVersions: Record<string, { schemaVersion: number; render
   "team": { schemaVersion: 1, renders: [1] },
   "testimonials": { schemaVersion: 1, renders: [1] },
   "footer": { schemaVersion: 1, renders: [1] },
-  "header": { schemaVersion: 1, renders: [1] },
+  "header": { schemaVersion: 2, renders: [1, 2] },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

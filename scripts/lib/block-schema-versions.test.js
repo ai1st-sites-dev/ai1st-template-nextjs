@@ -238,14 +238,16 @@ async function main() {
     const created = (r.stdout || '').split('\n').filter((l) => l.startsWith('{')).map((l) => { try { return JSON.parse(l); } catch { return {}; } }).find((e) => e.event === 'created');
     if (r.status !== 0 || !created) die(`site.js create rc=${r.status}\n${(r.stderr || '').slice(-800)}`);
     const content = JSON.parse(fs.readFileSync(created.result, 'utf-8')).content;
+    // #1916 —— 这里原来写死「每个都是 1」；顶栏涨到 2 之后改成跟真块目录里这一型的当前版比（create 盖的就是它）。
+    const current = (type) => JSON.parse(fs.readFileSync(path.join(REAL_BLOCKS, type, 'manifest.json'), 'utf-8')).schemaVersion;
     const missing = [];
     let n = 0;
     for (const [rel, v] of Object.entries(content)) {
-      if (/pages\/.+\.json$/.test(rel)) for (const b of v.blocks || []) { n += 1; if (b.schemaVersion !== 1) missing.push(`${rel}#${b.id}`); }
-      if (/navigation\.json$/.test(rel)) for (const reg of ['header', 'footer']) { n += 1; if (!v[reg] || v[reg].schemaVersion !== 1) missing.push(`${rel}#${reg}`); }
+      if (/pages\/.+\.json$/.test(rel)) for (const b of v.blocks || []) { n += 1; if (b.schemaVersion !== current(b.type)) missing.push(`${rel}#${b.id}=${b.schemaVersion}`); }
+      if (/navigation\.json$/.test(rel)) for (const reg of ['header', 'footer']) { n += 1; if (!v[reg] || v[reg].schemaVersion !== current(reg)) missing.push(`${rel}#${reg}=${v[reg] && v[reg].schemaVersion}`); }
     }
     if (n < 5) die(`create 出来的站只数到 ${n} 个块 —— 下一格成了空尺`);
-    check(missing.length === 0, `create：${n} 个块（含顶栏 / 页脚）每个都带 schemaVersion 1`, `没带的：${missing.join(', ')}`);
+    check(missing.length === 0, `create：${n} 个块（含顶栏 / 页脚）每个都带这一型当前的 schemaVersion（顶栏 ${current('header')}）`, `不对的：${missing.join(', ')}`);
   }
 
   // ── ⑥ 「碰到的文件」白名单 ────────────────────────────────────────────────────────────────────
