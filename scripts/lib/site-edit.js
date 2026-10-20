@@ -133,6 +133,8 @@ async function validate({ prev, next, scope = null }) {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+  // #1941 —— 版本号只收整数（渲染入口按 `renders.includes` 比，别的形状写进去就整站发布不出来）。
+  for (const p of require('./content-blocks').schemaVersionProblems(next, files.filter((k) => !removed.includes(k)))) problems.push(p);
   if (problems.length) throw new SiteEditorError('refused', `${NOT_SAVED}\n\n${problems.map((p) => `  - ${p}`).join('\n')}`);
 
   // 坐标剥掉：只在 AI 这一轮碰过 brand.json 时（没碰的话这一份跟 prev 一样，剥了反而算成「这一笔改了 brand.json」）。

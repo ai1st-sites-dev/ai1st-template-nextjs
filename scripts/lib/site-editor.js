@@ -394,6 +394,9 @@ async function save({ content, changes, keep = false, migrate = [] }) {
     next = Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]]));
 
     const files = Object.keys({ ...content, ...next }).filter((k) => JSON.stringify(content[k]) !== JSON.stringify(next[k])).sort();
+    // #1941 —— 跟 AI 那条路（site-edit.js §validate）同一个判据：这一笔改到的文件里，块的 schemaVersion 只收整数。
+    const badVersions = require('./content-blocks').schemaVersionProblems(next, files);
+    if (badVersions.length) throw new SiteEditorError('refused', `Not saved — ${badVersions.join('; ')}.`);
     const after = editorSource(dir, target.locale, slug, siteDir);
     const addr = addressOf(next);
     return {

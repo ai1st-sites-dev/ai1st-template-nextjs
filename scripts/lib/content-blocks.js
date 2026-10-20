@@ -79,4 +79,34 @@ function unrenderableBlocks(content, known) {
   return problems;
 }
 
-module.exports = { knownBlockTypes, contentBlocks, unrenderableBlocks };
+const NAV_KEY_RE = /(^|\/)navigation\.json$/;
+
+/**
+ * #1941 —— 写进库之前：`keys` 这几份文件里，每个块的 schemaVersion 必须是整数（没写 = 1，不算）。页面块、共用块，
+ * 加上 navigation.json 的 header / footer（外壳区的号记在那儿，迁移拿它做 `<` 比较）。一条一句，空数组 = 都对。
+ * 🔴 判据跟上面 §unrenderableBlocks 读的是同一个值：渲染入口拿 `renders.includes(v)` 比，`"2"` / `2.5` / `null` 一律画不出 ——
+ *    这里不收，它们就进不了库（AI 改站的 `validate`、编辑器的 `save` 都走这里）。
+ */
+function schemaVersionProblems(content, keys) {
+  const wanted = new Set(keys);
+  const say = (v, type, where) => `schemaVersion ${JSON.stringify(v)} of ${typeof type === 'string' ? type : JSON.stringify(type)} at ${where} is not a whole number`;
+  const out = [];
+  const only = {};
+  for (const k of wanted) if (Object.prototype.hasOwnProperty.call(content, k)) only[k] = content[k];
+  for (const b of contentBlocks(only)) {
+    if (b.schemaVersion !== undefined && !Number.isInteger(b.schemaVersion)) out.push(say(b.schemaVersion, b.type, `${b.key}#${b.id}`));
+  }
+  for (const key of Object.keys(only).sort()) {
+    if (!NAV_KEY_RE.test(key)) continue;
+    let nav;
+    try { nav = parsed(only[key]); } catch { continue; }
+    if (!isObj(nav)) continue;
+    for (const region of ['header', 'footer']) {
+      const r = nav[region];
+      if (isObj(r) && r.schemaVersion !== undefined && !Number.isInteger(r.schemaVersion)) out.push(say(r.schemaVersion, region, `${key}#${region}`));
+    }
+  }
+  return out;
+}
+
+module.exports = { knownBlockTypes, contentBlocks, unrenderableBlocks, schemaVersionProblems };
