@@ -4,7 +4,12 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // 数据：`html`（入库前已经过 `scripts/lib/custom-html.js` 整理：闭合、去外壳、≤ 64 KB）· `label`（老板给的名字）
-//      · `frozenFrom`（T4c 冻结出来的块写它是哪一型）· `attrs`（T4c 用，本票只留字段、不读）。manifest `schemaVersion: 1`，永不升级。
+//      · `frozenFrom`（T4c 冻结出来的块写它是哪一型）· `attrs`（T4c：冻结前那块 `<section>` 容器自己的属性，套回容器 —— 见下）。
+//      manifest `schemaVersion: 1`，永不升级。
+// #1839（T4c）—— `attrs` 套回容器只过白名单（`scripts/lib/sanitize-css.js` §frozenContainerAttrs）：`class`、`style`（逐条声明净化）、
+//   `data-*`；别的（`onclick` …）一律丢 —— `attrs` 存在 content 里，老板能经保存 API 改，不过白名单就是一个新的 XSS 入口。
+//   冻结出来的那一型的样式按 `[data-block="<旧类型>"]` 点名（shapes.css），所以 `data-block` / `data-shape` / `data-tone` … 照原样
+//   回到容器上；`data-block-id` / `id` 只认内容里块自己的 id。站上、画布两支都套。
 //
 // 🔴 两条路，判据是「站的渲染入口有没有明确说『我是老板的网站』」（`SiteRenderContext`，`components/SiteRender.tsx` 给 true），
 //    而且不在编辑器画布里（`EditorCanvasContext`）。🔴 **默认是画布那一支**（#1833 r2）：r1 的判据是「画布的根给 true，没给就原样」，
@@ -26,6 +31,7 @@ import { blockAttrs } from '@template/lib/sections/blockAttrs';
 import type { BlockConfig } from '@template/lib/types/config';
 import { EditorCanvasContext, EditorPreviewContext, SiteRenderContext } from '@template/lib/editor-canvas';
 import { sanitizeForCanvas } from '../../scripts/lib/sanitize-canvas.js';
+import { frozenContainerAttrs } from '../../scripts/lib/sanitize-css.js';
 
 export interface CustomHtmlData {
   html?: string;
@@ -48,8 +54,19 @@ function typeName(type: string): string {
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 }
 
+/** 容器属性：没有 `attrs` ⟹ 原样（blockAttrs）；有 ⟹ 身份那几样 + 白名单过后的 `attrs`（见文件头 #1839）。 */
+function containerAttrs(base: ReturnType<typeof blockAttrs>, raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...base };
+  return {
+    'data-block': base['data-block'], 'data-role': base['data-role'],
+    ...(base['data-block-id'] ? { 'data-block-id': base['data-block-id'], id: base.id } : {}),
+    ...frozenContainerAttrs(raw),
+  };
+}
+
 function CanvasCard({ label, frozenFrom, preview }: { label: string; frozenFrom: string; preview: string }) {
-  const note = frozenFrom ? `This was a ${typeName(frozenFrom)} block. It's kept as-is.` : 'Runs on your preview link and your website';
+  // #1839 —— 冻结时 `label` 写的就是那一型的显示名（manifest `displayName`）；没写才按类型名拼。
+  const note = frozenFrom ? `This was a ${label || typeName(frozenFrom)} block. It's kept as-is.` : 'Runs on your preview link and your website';
   return (
     <div className="ch-card" data-ch-card="">
       {label ? <span className="ch-card-label" data-ch-card-label="">{label}</span> : null}
@@ -68,7 +85,7 @@ export default function CustomHtmlSection({ data, block }: Props) {
   const preview = useContext(EditorPreviewContext);
   const d = data || {};
   const html = typeof d.html === 'string' ? d.html : '';
-  const attrs = blockAttrs('custom-html', block);
+  const attrs = containerAttrs(blockAttrs('custom-html', block), d.attrs);
 
   if (asSite) {
     return <section {...attrs} dangerouslySetInnerHTML={{ __html: html }} />;

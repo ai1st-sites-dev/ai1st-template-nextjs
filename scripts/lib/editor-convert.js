@@ -1293,11 +1293,13 @@ function settleAiNotes(notes, used) {
  * #1838 —— Puck 的分类（左栏「可添加」列表）：区块库里的页面块进 Sections；页面里有而库里没有的块那一格（§UNKNOWN_TYPE）
  * 藏起来，Puck 自己的「其他」也藏。纯函数：输入是 `editor-schema.js` §editorSchema 的结果（它从块注册表 + 块目录算），
  * 测试拿假注册表算的那份喂它，不碰真 EditorApp。
+ * #1839 —— manifest 标了 `retired: true` 的块不进 Sections、单独一格藏起来：已有的照画照编，只是不能新增。
  */
 function categoriesOf(schema) {
   const components = schema && Array.isArray(schema.components) ? schema.components : [];
   return {
-    sections: { title: 'Sections', components: components.map((c) => c.type) },
+    sections: { title: 'Sections', components: components.filter((c) => c.retired !== true).map((c) => c.type) },
+    retired: { components: components.filter((c) => c.retired === true).map((c) => c.type), visible: false },
     unknown: { components: [UNKNOWN_TYPE], visible: false },
     other: { visible: false },
   };

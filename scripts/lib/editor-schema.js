@@ -835,6 +835,8 @@ function editorSchema(opts = {}) {
       // content-split 的四个）在它里面已经落回了默认。所以把塌缩之前的两格原料也交出去。
       themeShape: typeof selection[type] === 'string' && selection[type] ? selection[type] : null,
       fallbackShape: defaultShapeOf(m) || null,
+      // #1839 —— 退役 = 只是不可添加（§editor-convert.js categoriesOf 把它放进藏起来的那一格），已有的照画、照编。
+      retired: m.retired === true,
     });
   }
   return { components, root: rootSchema(catalog, opts) };

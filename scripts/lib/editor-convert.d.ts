@@ -47,8 +47,9 @@ export function nestedPartSet(value: unknown, sub: string, text: unknown): Recor
 export const ITEM_ORIG: string;
 export const UNKNOWN_TYPE: string;
 /** #1838 —— Puck 的分类（左栏「可添加」列表），从 editorSchema 的结果算。 */
-export function categoriesOf(schema: { components: ReadonlyArray<{ type: string }> }): {
+export function categoriesOf(schema: { components: ReadonlyArray<{ type: string; retired?: boolean }> }): {
   sections: { title: string; components: string[] };
+  retired: { components: string[]; visible: false };
   unknown: { components: string[]; visible: false };
   other: { visible: false };
 };

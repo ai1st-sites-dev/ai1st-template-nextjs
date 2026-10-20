@@ -52,7 +52,7 @@ function checkMigrationTable(type, table, file) {
 const cache = new Map();
 
 /**
- * 块目录里每个块的版本信息：类型 → `{ schemaVersion, renders, region, migrations }`。没写版本 = 1 / [1]。
+ * 块目录里每个块的版本信息：类型 → `{ schemaVersion, renders, region, migrations, retired, label }`。没写版本 = 1 / [1]。
  * 默认块目录经 §block-paths（测试改道到带假块的临时目录时跟着走）。同一个目录一个进程只读一次。
  */
 function loadBlockVersions(dir = blockPaths.blocksDir()) {
@@ -73,6 +73,9 @@ function loadBlockVersions(dir = blockPaths.blocksDir()) {
       renders: Array.isArray(m.renders) ? m.renders : [schemaVersion],
       region: m.region === true,
       migrations,
+      // #1839 (T4c) —— 退役（只是不可添加，代码留着照画）和弹窗里说的名字（manifest 的 `displayName`，没写 = 类型名）。
+      retired: m.retired === true,
+      label: typeof m.displayName === 'string' && m.displayName ? m.displayName : type,
     });
   }
   cache.set(dir, out);

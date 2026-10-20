@@ -1,0 +1,10 @@
+[data-block="fake-c"] {
+  background-color: rgb(236, 248, 255);
+  border-radius: 14px;
+}
+[data-block="fake-c"] .fc-title {
+  color: rgb(180, 30, 60);
+  font-size: 31px;
+  font-weight: 800;
+  margin: 7px 0 11px;
+}

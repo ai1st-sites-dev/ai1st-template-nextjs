@@ -100,6 +100,8 @@ export interface EditorComponent {
   themeShape: string | null;
   /** #1443：manifest 默认形态（落回时的落点） */
   fallbackShape: string | null;
+  /** #1839：manifest 标了 `retired: true` —— 已有的照画照编，不能新增（菜单里没有、不能复制） */
+  retired: boolean;
 }
 /** #1405 —— root 字段（外壳四样）的可选值。 */
 export interface EditorLayout {

@@ -162,7 +162,7 @@ function withGeo(content, geo) {
  * `{ content: null }` 原样回 `{ content: null }`（还没存过内容的站，#1796 形状 (a)）—— 编辑页据此说「Nothing to edit yet」。
  * 否则 `{ props, styles: { themeCss, customCss }, siteCssKey, locale, page }`。页面 / 语言不存在 ⟹ throw `bad`。
  */
-async function editorData({ content: input, geo, locale, page, themeId, cacheDir, buildVersion = '' }) {
+async function editorData({ content: input, geo, locale, page, themeId, cacheDir, buildVersion = '', uiFlags }) {
   if (input === null || input === undefined) return { content: null };
   if (!isObj(input)) throw new SiteEditorError('bad', 'content 必须是对象（键 = site/ 下的相对路径）');
   if (Object.keys(input).length === 0) return { content: null };
@@ -188,10 +188,14 @@ async function editorData({ content: input, geo, locale, page, themeId, cacheDir
     // #1415 的底稿形状（raw / blocks / located / weights / hash / root …）：AI 改完、别处改过时宿主拿它递 `ai1st:editor-baseline`，
     // 编辑器那一侧按它决定换不换画布、记不记撤销（同一个函数，原来由 manager `GET /pages` 在容器里调）。
     const baseline = require('./editor-page.js').editorBaseline({ rootDir: ROOT, siteDir, page: slug, locale: loc });
+    // #1839 —— 打开编辑器要弹的两种窗（整站算，不只这一页）：样子会变的待升级块、冻结过而老板还没点 OK 的块（`uiFlags` = sites.ui_flags）。
+    const pending = require('./block-changes').pendingChangesOf(input, undefined, { uiFlags });
     return {
       locale: loc,
       page: slug,
       props: r.props,
+      pendingUpgrades: pending.upgrades,
+      pendingRetired: pending.retired,
       ...(baseline && baseline.ok ? { baseline } : {}),
       styles: { themeCss: read('theme.css'), customCss: read('custom.css') },
       siteCssKey: derived.siteCss.key,
@@ -274,7 +278,7 @@ function touchedFilesOf({ changes, target, siteDir, slug, pageFiles }) {
  *                    manager/site_content.go §afterSiteContentWrite）
  * 拒收（给老板看的那句话）⟹ throw `refused`；页面在别处改过（只在不 keep 时可能）⟹ throw `stale`；形状不对 ⟹ `bad`。
  */
-async function save({ content, changes, keep = false }) {
+async function save({ content, changes, keep = false, migrate = [] }) {
   if (!isObj(content) || Object.keys(content).length === 0) throw new SiteEditorError('bad', 'this website has no content');
   if (!isObj(changes)) throw new SiteEditorError('bad', 'changes 必须是一个对象');
   const unknown = unknownChangeField(changes);
@@ -288,7 +292,8 @@ async function save({ content, changes, keep = false }) {
   const forms = obj(changes.forms);
   const nav = obj(changes.nav);
   const hasRoot = Object.keys(root).length > 0;
-  if (!json && !hasRoot && !shared && !forms && !nav) throw new SiteEditorError('bad', '这次存盘既没有页面、也没有 root 字段、也没有共用块、也没有表单、也没有菜单');
+  // #1839 —— 只点了 Update（手上没有别的改动）的那一笔只带 `migrate`。
+  if (!json && !hasRoot && !shared && !forms && !nav && !migrate.length) throw new SiteEditorError('bad', '这次存盘既没有页面、也没有 root 字段、也没有共用块、也没有表单、也没有菜单');
   // #1833 —— Custom HTML 入库前整理一次（`lib/custom-html.js`：闭合、去外壳、整理到不动点、≤ 64 KB、不收 `<plaintext>`），在算页面哈希之前 —— 编辑器拿到的
   //    baseHash 就是落盘那份字节的。页面里每一块 custom-html；共用块改动里带 `html` 的那份 data（块库里只有
   //    custom-html 有它；`css` 是 r5 删掉的槽，老内容里还可能带着，照旧限长）。超了 64 KB / 含 `<plaintext>` ⟹ `bad`（manager 回 400 + 那句话，编辑页原样说给老板）。
@@ -376,6 +381,14 @@ async function save({ content, changes, keep = false }) {
       if (value === null) delete next[rel];
       else next[rel] = value;
     }
+    // #1839 —— 老板点了 Update：那几块（只迁还待升级的）整条链迁到新版，号写成新号。在套完这一笔之后迁 —— 待升级的块在画布里是锁住的，
+    //    这一笔里它还是旧形状（页面 JSON 整份交来），先迁再套就被旧形状盖回去了。盖号对带号的块不动，所以它不会被盖回旧号。
+    let upgraded = [];
+    if (migrate.length) {
+      const m = require('./block-changes').migrateBlocks(next, migrate);
+      next = m.content;
+      upgraded = m.migrated;
+    }
     // #1838 —— 最后盖号：画布新插的块（`puckToPage` 不带号）盖当前号，老块继承迁过之后的号。
     next = require('./stamp-schema-versions').stampSchemaVersions(before, next);
     next = Object.fromEntries(Object.keys(next).sort().map((k) => [k, next[k]]));
@@ -385,7 +398,8 @@ async function save({ content, changes, keep = false }) {
     const addr = addressOf(next);
     return {
       content: next,
-      summary: typeof changes.summary === 'string' ? changes.summary.slice(0, 500) : '',
+      summary: upgraded.length ? upgradeSummary(upgraded) : typeof changes.summary === 'string' ? changes.summary.slice(0, 500) : '',
+      ...(upgraded.length ? { upgraded, reason: `upgrade-${upgraded[0].type}` } : {}),
       files,
       ...(pageHash ? { hash: pageHash } : {}),
       ...(s && s.notice ? { notice: s.notice } : {}),
@@ -395,6 +409,13 @@ async function save({ content, changes, keep = false }) {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** #1839 —— 升级那一笔的版本说明（票正文「做什么 2 ④」原话）：一种块一句，几种块拼一句。 */
+function upgradeSummary(upgraded) {
+  const labels = [...new Set(upgraded.map((u) => u.label))];
+  if (labels.length === 1) return `Updated the ${labels[0]} block to its latest version`;
+  return `Updated the ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]} blocks to their latest versions`;
 }
 
 /**

@@ -12,6 +12,8 @@
 //   ② 块没了没交代：基准里有、现在没有的块类型，既没有任何还在的块的 `migrations.js` 里写着 `'<旧>→<还在的块>'`，
 //      也没有在 `templates/nextjs/blocks-retired.json` 登记 `"<旧>": "freeze"` ⟹ 红，点名块。
 //      🔴 跨类型那一步只可能写在【别的块】的表里 —— 块文件夹一删，它自己那份 `migrations.js` 跟着没了。
+//   ③ 不许退役的块标了退役（#1839，设计文档 §8.2）：带表单或交互的六个块（§NEVER_RETIRED）manifest 里写了 `retired: true` ⟹ 红。
+//      退役机制（不可添加、待升级锁块、冻成 Custom HTML）对它们不可用：表单 / 灯箱 / 价格切换冻成静态 HTML 就不工作了。
 //
 // 基准 = 上一个 `build-*` tag（release 每次部署打的那种，`build-<sha 前 12 位>`），排除这个 commit 自己那枚 ——
 //   `ci` 在 release 打完 tag 之后被重跑时，不排除就是拿自己跟自己比，恒绿。
@@ -35,6 +37,8 @@ const { loadBlockVersions } = require('../lib/block-migrations');
 const BLOCKS_REL = 'templates/nextjs/blocks';
 const RETIRED_REL = 'templates/nextjs/blocks-retired.json';
 const TYPE_STEP_RE = /^([a-z0-9-]+)→([a-z0-9-]+)$/;
+// #1839 —— 带表单或交互的块，永不退役（设计文档 §8.2「只能改不能删」）。
+const NEVER_RETIRED = ['contact', 'header', 'footer', 'gallery', 'testimonials', 'pricing'];
 
 /** 跑不起来（rc=2）—— 跟「有块没交代」（rc=1）分开。 */
 class CannotCheck extends Error {}
@@ -113,6 +117,12 @@ function compare(base, current, frozen) {
   return { checked: base.size, problems };
 }
 
+/** ③：六个永不退役的块里有谁的 manifest 标了 `retired: true`。 */
+function neverRetiredProblems(current) {
+  return NEVER_RETIRED.filter((t) => current.has(t) && current.get(t).retired === true)
+    .map((t) => `块 ${t} 的 manifest 标了 retired: true —— 带表单或交互的块（${NEVER_RETIRED.join(' / ')}）永不退役，只能改`);
+}
+
 function run({ repo, base }) {
   const ref = base || findBase(repo);
   const old = extractBlocks(repo, ref);
@@ -136,6 +146,7 @@ function run({ repo, base }) {
   problems.push(...retired.problems);
   const r = compare(baseVersions, current, retired.frozen);
   problems.push(...r.problems);
+  problems.push(...neverRetiredProblems(current));
   return { ref, checked: r.checked, problems };
 }
 
@@ -169,4 +180,4 @@ function main(argv) {
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { compare, readRetired, findBase, run, main };
+module.exports = { compare, readRetired, findBase, run, main, neverRetiredProblems, NEVER_RETIRED };

@@ -204,6 +204,14 @@ async function edit({ sitePath, message, scope = null, outDir, stdinText }) {
     emit('error', { message: `Failed to read input: ${e.message}` });
     return 1;
   }
+  // #1839 —— 「让 AI 改这一块」指到的是一块待升级的旧块（样子会变的新版本还没点 Update）⟹ 不替他升、也不改，说一句就收（设计文档 §8.2 ②）。
+  //    `needs-upgrade` 由聊天那一侧接（dashboard useEditorChat 的那句提示）；edit-complete 那句进聊天记录，不带版本 = 什么都没改。
+  const pendingBlock = require('./block-changes').upgradeAt(prev, scope);
+  if (pendingBlock) {
+    emit('needs-upgrade', { blockId: pendingBlock.blockId, type: pendingBlock.type, label: pendingBlock.label });
+    emit('edit-complete', { message: `I didn't change it: the ${pendingBlock.label} block has a newer version. Click Update on that block in the editor, then ask me again.`, filesModified: false, cost: 0 });
+    return 0;
+  }
   const siteDir = path.join(outDir, 'site');
   fs.mkdirSync(siteDir, { recursive: true });
   for (const [rel, value] of Object.entries(prev)) {

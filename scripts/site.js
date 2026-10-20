@@ -50,8 +50,18 @@
 //       --geo 是 `sites.geo`（`{lat, lng, address}`），并进第一家门店的规矩同上面 render 的 --geo。
 //       --theme（#1874）：content 先在内存里穿上那一套（同 `theme` 那条的换装，不写库）再算 —— 只读画布按 `?theme=` 画用。
 //       编辑器的初始 props + 画布样式（theme.css / custom.css）+ site.css 的缓存键。`--site` 的内容是 null ⟹ {"ok":true,"content":null}。
-//   node scripts/site.js save --site <站 JSON> --changes <编辑器那一笔> [--keep]
-//       {"ok":true,"content":{…},"summary":"…","files":[…],"hash"?,"notice"?,"shared"?,"addressChanged"?}
+//       --ui-flags（#1839）：`sites.ui_flags`。输出多两样：`pendingUpgrades`（样子会变的待升级块）、`pendingRetired`（冻结过、
+//       ui_flags.frozenAcknowledged 里还没有的块），整站算（§lib/block-changes.js pendingChangesOf）。
+//   node scripts/site.js save --site <站 JSON> --changes <编辑器那一笔> [--keep] [--migrate <块 id,…>]
+//       {"ok":true,"content":{…},"summary":"…","files":[…],"hash"?,"notice"?,"shared"?,"addressChanged"?,"upgraded"?,"reason"?}
+//       --migrate（#1839，老板点了 Update）：套完这一笔之后，这几块（只认还待升级的）整条链迁到新版；迁了 ⟹ `reason`
+//       = `upgrade-<类型>`、`summary` = "Updated the <Type> block to its latest version"。changes 可以只有 page / locale。
+//   node scripts/site.js migrate --site <站 JSON> --dry-run --only <块 id,…>
+//       #1839：升级弹窗的「后」。{"ok":true,"content":{…},"migrated":[…]}，不落库；不带 --dry-run 一律 bad。
+//   node scripts/site.js freeze --site <站 JSON> --type <块类型> [--bundle-dir <目录>]
+//       #1839：那一型的块冻成 Custom HTML（用这份模板按 --only-blocks 画一次，`<style>` + `<section>` 里那段 + 容器属性 `attrs`）。
+//       {"ok":true,"content":{…},"frozen":[id…],"label":"…","summary":"Kept the <Type> block as it was"}；没有这一型 ⟹ frozen 空、
+//       content 原样。包：--bundle-dir，没给看 AI1ST_BUNDLE_DIR（测试专用），都没有 = render/dist。manager 执行器 kind=freeze spawn。
 //   node scripts/site.js theme --site <站 JSON> [--theme <id>] [--tweaks <JSON>] [--presets <JSON>] [--color-scheme light|dark|auto]
 //       #1873：换主题 / Customize 的 Apply（manager 执行器 `kind=theme` spawn，实现 `lib/site-editor.js` §theme）。
 //       {"ok":true,"content":{…},"summary":"Changed the theme to <名字>" | "Adjusted the theme colors","files":[…]}
@@ -72,7 +82,7 @@
 //       走 `derive-core.js` §buildSiteCssCached（同一个 `siteCssKey` 缓存）。{"ok":true,"key":"…","cached":…,"css":"…","theme":"<id>"}
 //       主题不在池里 ⟹ ok:false + code bad。manager `GET /api/admin/catalog/site.css?theme=` spawn 它。
 //       📌 不走上面那条 `site-css`：它跑整站 `deriveSite`，喂一份只带配色的站 JSON 会被拒（`Required file missing: site/seo.json`）。
-//   这七条的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
+//   这几条（#1839 起含 migrate / freeze）的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
 //     成功          标准输出一行 {"ok":true, …}                                  退出码 0
 //     拒收 / 不合法  标准输出一行 {"ok":false,"code":"refused|bad|stale","message":"…","field"?}   退出码 3
 //                   （`field`：这一笔里有编辑器改不了的字段时，那个字段名）
@@ -104,8 +114,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { DEFAULT_OUTDIR } = require('./lib/render-bundle');
 
-// 不带值的开关（只有 `save --keep`）。不登记在这里的 `--x` 一律要跟一个值。
-const BOOLEAN_FLAGS = new Set(['keep']);
+// 不带值的开关（`save --keep`、#1839 `migrate --dry-run`）。不登记在这里的 `--x` 一律要跟一个值。
+const BOOLEAN_FLAGS = new Set(['keep', 'dry-run']);
 // #1830 —— 值是老板打的字（`edit --message`）：它自己就可能以 `--` 开头，下一个参数原样就是它的值。
 const FREE_TEXT_FLAGS = new Set(['message']);
 
@@ -138,15 +148,75 @@ function requiredJsonArg(v, name) {
 
 // #1801 —— 编辑器那四条 + #1828 图册的 catalog-site-css + #1873 的 theme + #1874 的 theme-css（输出约定见文件头）。
 const EDITOR_COMMANDS = {
-  'editor-data': (a, ed) => ed.editorData({ content: requiredJsonArg(a.site, 'site'), geo: jsonArg(a.geo, 'geo'), locale: a.locale, page: a.page, themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
-  save: (a, ed) => ed.save({ content: requiredJsonArg(a.site, 'site'), changes: requiredJsonArg(a.changes, 'changes'), keep: !!a.keep }),
+  'editor-data': (a, ed) => ed.editorData({ content: requiredJsonArg(a.site, 'site'), geo: jsonArg(a.geo, 'geo'), locale: a.locale, page: a.page, themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'], uiFlags: jsonArg(a['ui-flags'], 'ui-flags') }),
+  save: (a, ed) => ed.save({ content: requiredJsonArg(a.site, 'site'), changes: requiredJsonArg(a.changes, 'changes'), keep: !!a.keep, migrate: idList(a.migrate) }),
   theme: (a, ed) => ed.theme({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, tweaks: jsonArg(a.tweaks, 'tweaks'), presets: jsonArg(a.presets, 'presets'), colorScheme: a['color-scheme'] }),
   'site-css': (a, ed) => ed.siteCss({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   'theme-css': (a, ed) => ed.themeCss({ content: requiredJsonArg(a.site, 'site'), themeId: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }),
   geocode: (a, ed) => ed.geocode({ address: a.address }),
   validate: (a) => require('./lib/site-edit').validate({ prev: requiredJsonArg(a.prev, 'prev'), next: requiredJsonArg(a.next, 'next'), scope: jsonArg(a.scope, 'scope') || null }),
   'catalog-site-css': (a, ed) => catalogSiteCss({ theme: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }, ed),
+  migrate: (a, ed) => migrateDryRun({ content: requiredJsonArg(a.site, 'site'), only: idList(a.only), dryRun: !!a['dry-run'] }, ed),
+  freeze: (a, ed) => freeze({ content: requiredJsonArg(a.site, 'site'), type: a.type, bundleDir: a['bundle-dir'] }, ed),
 };
+
+/** `--migrate a,b` / `--only a,b` → 去空的 id 数组；没给 ⟹ []。 */
+function idList(v) {
+  return typeof v === 'string' ? v.split(',').map((x) => x.trim()).filter(Boolean) : [];
+}
+
+/**
+ * #1839 —— `migrate --dry-run --only <ids>`：升级弹窗的「后」。只迁 `ids` 里还待升级的那几块（§block-changes.js migrateBlocks，
+ * 样子会变的那几步也跑），不落库。没有 `--dry-run` 一律拒：落库只走保存那一笔（`save --migrate`），这里没有第二条写路。
+ */
+async function migrateDryRun({ content, only, dryRun }, ed) {
+  if (!dryRun) throw new ed.SiteEditorError('bad', 'migrate 只有 --dry-run（真迁走 save --migrate）');
+  if (!only.length) throw new ed.SiteEditorError('bad', '要给 --only <块 id,…>');
+  if (content === null || typeof content !== 'object' || Array.isArray(content)) throw new ed.SiteEditorError('bad', '--site 要是一份 content 对象');
+  const r = require('./lib/block-changes').migrateBlocks(content, only);
+  return { content: r.content, migrated: r.migrated };
+}
+
+/**
+ * #1839 —— `freeze --type <t>`：把一份 content 里那一型的块冻成 Custom HTML（设计文档 §8.2 ③ / §8.3）。用这份模板（还认识 t 的
+ * 旧代码）按 `--only-blocks` 画一次那几块，切出来的 `<section>` 里面那段 + 那一型的样式 + 容器属性写成 Custom HTML 块
+ * （§block-changes.js freezeContent）。不连库：哪些站要冻、写版本，都是 manager 的事（`-freeze-type` 排队、执行器 kind=freeze 提交）。
+ * 这份 content 里没有这一型 ⟹ `frozen: []`、content 原样（执行器据此不写版本）。有块画不出来 ⟹ 整个拒（不写半份）。
+ */
+async function freeze({ content, type, bundleDir }, ed) {
+  if (typeof type !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(type)) throw new ed.SiteEditorError('bad', `--type 要是一个块类型：${JSON.stringify(type)}`);
+  if (type === 'custom-html') throw new ed.SiteEditorError('bad', 'custom-html 本身就是冻结的形状，不能再冻');
+  if (content === null || typeof content !== 'object' || Array.isArray(content)) throw new ed.SiteEditorError('bad', '--site 要是一份 content 对象');
+  const changes = require('./lib/block-changes');
+  const ids = changes.blockIdsOfType(content, type);
+  if (!ids.length) return { content, frozen: [], summary: '', label: changes.labelOf(require('./lib/block-migrations').loadBlockVersions(), type) };
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'site-freeze-'));
+  try {
+    // 包：`--bundle-dir`，没给看 `AI1ST_BUNDLE_DIR`（测试专用，同 AI1ST_BLOCKS_DIR 那一对：manager 的测试 spawn 不带参数），都没有 = render/dist。
+    const bundleAt = bundleDir || process.env.AI1ST_BUNDLE_DIR;
+    await render({ content, out, onlyBlocks: ids, ...(bundleAt ? { bundleDir: path.resolve(bundleAt) } : {}) });
+    const rendered = new Map();
+    const dir = path.join(out, 'blocks');
+    const locales = fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
+    for (const locale of locales) {
+      for (const f of fs.readdirSync(path.join(dir, locale))) {
+        if (!f.endsWith('.html')) continue;
+        const id = f.slice(0, -'.html'.length);
+        const base = path.join(dir, locale, id);
+        rendered.set(`${locale}/${id}`, {
+          html: fs.readFileSync(`${base}.html`, 'utf-8'),
+          css: fs.readFileSync(`${base}.css`, 'utf-8'),
+          attrs: JSON.parse(fs.readFileSync(`${base}.attrs.json`, 'utf-8')),
+        });
+      }
+    }
+    const r = changes.freezeContent(content, type, rendered, undefined, { defaultLocale: locales[0] || 'en' });
+    if (r.missing.length) throw new ed.SiteEditorError('bad', `这几块画不出来，没冻：${r.missing.join(', ')}`);
+    return { content: r.content, frozen: r.frozen, label: r.label, summary: `Kept the ${r.label} block as it was` };
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+}
 
 /** #1828 —— 图册按主题编的 site.css（见文件头）。 */
 async function catalogSiteCss({ theme, cacheDir, buildVersion = '' }, ed) {
@@ -279,7 +349,8 @@ async function render({
   const { manifest, render: r } = loadBundle(bundleDir);
   if (onlyBlocks) {
     try {
-      return { ...renderOnlyBlocks(r, site, onlyBlocks, { out, target, version, platform: manifest.platform }), ms: Date.now() - t0 };
+      const shapesFile = manifest.platform && manifest.platform.shapesCss ? path.join(bundleDir, manifest.platform.shapesCss.replace(/^\//, '')) : '';
+      return { ...renderOnlyBlocks(r, site, onlyBlocks, { out, target, version, platform: manifest.platform, shapesFile }), ms: Date.now() - t0 };
     } finally {
       fs.rmSync(work, { recursive: true, force: true });
     }
@@ -342,15 +413,19 @@ function extractSection(html, id) {
   return null;
 }
 
-/** shapes.css 里这个块类型那一段（`build-blocks.js` §buildShapesCss 每个块一段，以 `/* ══ <类型> ═…` 打头）。 */
-function blockTypeCss(type) {
-  const css = fs.readFileSync(path.join(ROOT, 'public', 'shapes.css'), 'utf-8');
+/**
+ * shapes.css 里这个块类型那一段（`build-blocks.js` §buildShapesCss 每个块一段，以 `/* ══ <类型> ═…` 打头）。
+ * #1839 —— 读的是画这一次的那份包自己的 shapes.css（`manifest.platform.shapesCss`）：测试包的假块只在它那份里；没有才退回模板树那份。
+ */
+function blockTypeCss(type, shapesFile) {
+  const file = shapesFile && fs.existsSync(shapesFile) ? shapesFile : path.join(ROOT, 'public', 'shapes.css');
+  const css = fs.readFileSync(file, 'utf-8');
   const parts = css.split(/(?=^\/\* ══ [^ ]+ ═+ \*\/$)/m);
   return parts.find((p) => p.startsWith(`/* ══ ${type} ═`)) || '';
 }
 
 /** `--only-blocks`：只把这几块画出来（输出合同见文件头）。 */
-function renderOnlyBlocks(r, site, ids, { out, target, version, platform }) {
+function renderOnlyBlocks(r, site, ids, { out, target, version, platform, shapesFile }) {
   const wanted = [...new Set(ids)];
   const found = new Map(); // `${locale}/${id}` → { attrs, inner }
   const opts = { target, version, platform, siteCssHref: '' };
@@ -382,7 +457,7 @@ function renderOnlyBlocks(r, site, ids, { out, target, version, platform }) {
     if (!base.startsWith(path.join(outAbs, 'blocks') + path.sep) || /[\\/]/.test(id)) throw new Error(`块 id 不能当文件名：${JSON.stringify(id)}`);
     fs.mkdirSync(path.dirname(base), { recursive: true });
     fs.writeFileSync(`${base}.html`, inner);
-    fs.writeFileSync(`${base}.css`, blockTypeCss(attrs['data-block']));
+    fs.writeFileSync(`${base}.css`, blockTypeCss(attrs['data-block'], shapesFile));
     fs.writeFileSync(`${base}.attrs.json`, `${JSON.stringify(attrs, null, 2)}\n`);
     written.push(`blocks/${locale}/${id}`);
   }
