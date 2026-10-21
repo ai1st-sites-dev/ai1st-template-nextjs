@@ -79,7 +79,7 @@ function fallbackPages({ companyName, services, location, locale }) {
  * 站级规划那一通整个没成时（第 1–4 条）的站级计划，形状同那一通的回包（create-site.js §generateContent 往下读的那些字段）。
  * 之后每页那一通照常调 AI —— 这里只定页面清单和站级字段。
  */
-function fallbackSitePlan({ companyName, services, location, address, phone, email, locale }) {
+function fallbackSitePlan({ companyName, services, location, address, phone, email, locations = null, locale }) {
   const loc = str(location);
   const addr = str(address);
   const tel = str(phone);
@@ -92,6 +92,8 @@ function fallbackSitePlan({ companyName, services, location, address, phone, ema
   // 没给的那一格不写（BrandLocation 的 address / phone 可以没有）；两样都没给 ⟹ 空数组 —— brand.json 的 locations 是必填项，
   // 而读它的地方（JsonLd · contact-facts · item-sources · geocode）对空数组都按「没有地点」处理。
   brand.locations = addr || tel ? [{ label: 'Main Office', ...(addr ? { address: addr } : {}), ...(tel ? { phone: tel } : {}) }] : [];
+  // #1977 —— payload 带地点（`lib/payload-locations.js` §payloadLocations 的结果）⟹ 写全部地点（营业时间、评分之后由 create-site.js §locationsWithFacts 补）。
+  if (locations) brand.locations = locations.map((r) => ({ ...r.location }));
   return {
     brand,
     navigation: { ctaLabel: 'Contact Us', ctaPage: 'contact', footerDescription: `${companyName} — Your trusted local business.` },

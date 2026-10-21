@@ -115,6 +115,7 @@ const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
 const { verifyTranscription, ratingFrom } = require('./lib/local-business-facts');
 const { withLocationIds } = require('./lib/locations');
+const { payloadLocations } = require('./lib/payload-locations');
 // #1489 r2 —— contact 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 const { scrubRowImageUrls } = require('./lib/row-image-urls');
@@ -890,6 +891,8 @@ async function main() {
 
   // #1569 —— 主语言非英语的站，向导多存一份按主语言翻好的地点（`locationLocalized`）：提示词里两份都给（§lib/seo-problems.js promptLocation）。
   const location = promptLocation(input);
+  // #1977 —— 确认页那张地点列表（`[{ location, hours }]`，`lib/payload-locations.js` §payloadLocations）；payload 没有 `locations`（管理员 Resume 老任务）⟹ null，走今天的路。
+  const locationRows = payloadLocations(input.locations);
 
   // Override AI model/tokens from Admin Settings (passed through by Manager)
   if (input.model) { model = input.model; pricing = getModelPricing(model); }
@@ -1219,6 +1222,8 @@ async function main() {
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
     const content = getDemoConfig(siteId, siteUrl);
+    // #1977 —— payload 带地点 ⟹ Demo 那一家换成它们（没有 AI：营业时间文字不转写 ⟹ 不写 hours；坐标也不写）。
+    if (locationRows) content.brand.locations = withLocationIds(locationRows.map((r) => r.location));
     // #1620 —— 每一页的块换成演示内容包那一份（`lib/demo-site.js`）：块库里每个页面块都出现，站的骨架仍是 getDemoConfig 的。
     {
       const placed = demoSite.demoSitePages(content.pages, loadBlockManifests());
@@ -1434,7 +1439,7 @@ async function main() {
     // #1661 —— 服务名按主语言写：有翻译种子的服务用翻译种子（跟它那组换上去的主词是同一个词）。
     serviceNames: targetKw.promptServiceNames(services, keywords),
     theme, languageName, refSite, refPrefs, refAnalysis,
-    reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
+    reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl, locationRows,
     // #1134（来源 #1139）—— 这个站会不会有服务子页。判据跟 Call 2 真去生成那些页时用的是
     // 同一个函数,不是第二份实现。
     hasKeywordPages: keywordPagesFrom(keywords, services).keywordPagesList.length > 0,
@@ -2238,6 +2243,8 @@ async function generateContent(opts) {
     // scope (stdin payload). Empty string when not configured →
     // generateLogoViaNanoBanana throws + caller falls back to text logo.
     geminiApiKey = '',
+    // #1977 —— payload 的地点（§payloadLocations；null = 没带，走今天的路）。
+    locationRows = null,
     // #1034: 这个站的首页开场配方。null = 不参与（payload 关了 / skipAI / 用户点名照抄参照站布局），
     // 那时下面每一处都逐字回到改动之前 —— 判据是 `homepage-recipe.test.js` 那一格拿
     // `git show origin/main:` 的提示词跟 recipe=null 的提示词逐字节比。
@@ -2440,7 +2447,13 @@ Service names are written in ${languageName}: if a name above is not in ${langua
   if (brandDescription) businessContext += `\nBRAND DESCRIPTION: ${brandDescription}`;
   // #1551 —— 营业时间：老板写了才问 AI，而且只让它**转写**这一句（下面 JSON 结构里 openingHours 那一行也只在这时出现）；
   //    转写回来由 §verifyTranscription 再核一遍。没写 ⟹ 提示词里一个字都不提，不给样例（写死的样例会被原样抄回来）。
-  if (hours) businessContext += `\nHOURS OF OPERATION: ${hours}\n(For seo.openingHours: transcribe ONLY these hours — English day names, 24-hour HH:MM, one entry per distinct time range, leave closed days out. Never add a day or a time that is not in this text.)`;
+  // #1977 —— payload 带地点时：地点由代码写（§locationsWithFacts），营业时间逐个地点转写进 seo.openingHoursByLocation，各自核。
+  const hoursOfRows = locationRows ? locationRows.map((r, i) => ({ n: i + 1, text: r.hours })).filter((r) => r.text) : [];
+  if (locationRows) {
+    const name = (r) => [r.location.label, r.location.address].filter(Boolean).join(' — ') || '(no name)';
+    businessContext += `\nLOCATIONS:\n${locationRows.map((r, i) => `${i + 1}. ${name(r)}${r.location.phone ? ` · Phone: ${r.location.phone}` : ''}${r.hours ? ` · Hours: ${r.hours}` : ''}`).join('\n')}`;
+    if (hoursOfRows.length) businessContext += `\n(For seo.openingHoursByLocation: one entry per location that has Hours above, "location" = its number. Transcribe ONLY that location's hours — English day names, 24-hour HH:MM, one entry per distinct time range, leave closed days out. Never add a day or a time that is not in its text.)`;
+  } else if (hours) businessContext += `\nHOURS OF OPERATION: ${hours}\n(For seo.openingHours: transcribe ONLY these hours — English day names, 24-hour HH:MM, one entry per distinct time range, leave closed days out. Never add a day or a time that is not in this text.)`;
   if (priceRange) businessContext += `\nPRICE RANGE: ${priceRange}`;
   if (additionalContext) businessContext += `\nADDITIONAL CONTEXT FROM THE OWNER: ${additionalContext}`;
 
@@ -2712,9 +2725,8 @@ Generate a JSON object with this EXACT structure:
   "brand": {
     "tagline": "<catchy tagline, max 60 chars>",
     "logoIcon": "<icon from list>",
-    "email": "${email || '<realistic email>'}",
-    "locations": [{ "label": "<name>", "address": "${address || rawLocation || '<City, Province, Country>'}", "phone": "${phone || '<phone>'}" }]
-  },
+    "email": "${email || '<realistic email>'}"${locationRows ? '' : ','}
+${locationRows ? '' : `    "locations": [{ "label": "<name>", "address": "${address || rawLocation || '<City, Province, Country>'}", "phone": "${phone || '<phone>'}" }]\n`}  },
   "navigation": {
     "ctaLabel": "<CTA button text, max 25 chars>",
     "ctaPage": "${recipePlan ? recipePlan.ctaPage : '<slug of the CTA target page, e.g. contact>'}",
@@ -2725,7 +2737,8 @@ ${primaryWordsShape}  "seo": {
     "siteDescription": "<${descSpec}, location + services + CTA>",
     "areaServed": [{"type":"City","name":"<city>"}],
     "addresses": [{"locality":"<city>","region":"<province code>","country":"<country code>"}],
-${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens": "<HH:MM>", "closes": "<HH:MM>" }],\n' : ''}    "priceRange": "$$",
+${hoursOfRows.length ? '    "openingHoursByLocation": [{ "location": <location number>, "openingHours": [{ "days": ["<English day name>", "..."], "opens": "<HH:MM>", "closes": "<HH:MM>" }] }],\n'
+    : !locationRows && hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens": "<HH:MM>", "closes": "<HH:MM>" }],\n' : ''}    "priceRange": "$$",
     "offerCatalogName": "<catalog name>"
   },
   "services": [
@@ -2811,7 +2824,27 @@ ${FACTS_ONLY_FROM_FORM_RULE}
   //    出图之前就要它们；images 阶段照旧调它们，再往 brand 里添坐标 / logo、往页里填图（那几步不碰导航和 seo）。
   //    `say` = 日志：images 阶段那一次打 debug，预览那几次不打（同一段日志不重复三遍）。
   // #1976 —— 营业时间 / 评分按地点存（`lib/locations.js` 文件头）：写进第一个地点，seo.json 不再有；每个地点带稳定 id（§withLocationIds）。
+  // #1977 —— payload 带地点 ⟹ 地点就是它们（AI 没被要求写）：营业时间逐个地点核（核不过的那一家不写 hours）；评分用各地点自己的，
+  //    一家都没带时第一家照今天走 §ratingFrom（只填 Yelp、Google 没抓到的站今天就有分）。有人带了就不兜底 —— 平台评分里的 Google
+  //    是各地点的加权总分，兜底会把它记到没分的那一家头上。
+  const payloadLocationsWithFacts = (say) => {
+    const byLocation = Array.isArray(ai.seo && ai.seo.openingHoursByLocation) ? ai.seo.openingHoursByLocation : [];
+    const out = withLocationIds(locationRows.map(({ location, hours: text }, i) => {
+      if (!text) return { ...location };
+      const entry = byLocation.find((e) => e && typeof e === 'object' && Number(e.location) === i + 1);
+      const check = verifyTranscription(text, entry && entry.openingHours);
+      if (check.reason) say(`[hours] 第 ${i + 1} 个地点营业时间不出：${check.reason}`);
+      else if (check.segments.length) say(`[hours] 第 ${i + 1} 个地点营业时间 ${check.segments.length} 段，逐个小时数都在原文里`);
+      return check.segments.length ? { ...location, hours: check.segments } : { ...location };
+    }));
+    if (!out.some((l) => l.rating)) {
+      const rating = ratingFrom(onlinePresence);
+      if (rating) out[0] = { ...out[0], rating };
+    }
+    return out;
+  };
   const locationsWithFacts = (locations, say) => {
+    if (locationRows) return payloadLocationsWithFacts(say);
     if (!Array.isArray(locations) || !locations.length || !locations[0] || typeof locations[0] !== 'object') return locations;
     const hoursCheck = verifyTranscription(hours, ai.seo && ai.seo.openingHours);
     if (hoursCheck.reason) say(`[hours] 营业时间不出：${hoursCheck.reason}`);
@@ -2999,7 +3032,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
           : e.lastText ? 'Failed to parse AI response as JSON after retries'
             : `AI call failed: ${e.message}`;
       degrade('site-plan', 'site plan', `${why} —— 用代码拼的站级计划（home + services + 每个服务一页 + contact）`);
-      ai = fallbackSite.fallbackSitePlan({ companyName, services, location: rawLocation, address, phone, email, locale: locales.primary.code });
+      ai = fallbackSite.fallbackSitePlan({ companyName, services, location: rawLocation, address, phone, email, locations: locationRows, locale: locales.primary.code });
       brandByCode = true;
       // 第二语言的站级字也由代码给（同 §contactPageIn 对 contact 那一页）：给一份空的 ⟹ 写盘时每一格退回主语言那句通用话
       // （§buildSecondaryContent「站级的字缺哪一格，那一格退回主语言」）。不给的话下面那段把整个第二语言放弃掉（PM 2026-10-06 A）。
@@ -3041,7 +3074,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     // #1596 第 5 条 —— 回包里别的字段照用，只有页面清单换成代码拼的那份（缺的站级字段也从那份里补，免得下面读到 undefined）。
     if (!ai.pages.length) {
       degrade('site-plan-pages', 'pages', 'The site plan from the AI has no pages (#1568: Call 1 site-level answer without a usable "pages" list) —— 页面清单换成代码拼的那份');
-      const plan = fallbackSite.fallbackSitePlan({ companyName, services, location: rawLocation, address, phone, email, locale: locales.primary.code });
+      const plan = fallbackSite.fallbackSitePlan({ companyName, services, location: rawLocation, address, phone, email, locations: locationRows, locale: locales.primary.code });
       if (!ai.brand || typeof ai.brand !== 'object') brandByCode = true;
       for (const k of ['brand', 'seo', 'navigation']) if (!ai[k] || typeof ai[k] !== 'object') ai[k] = plan[k];
       if (!Array.isArray(ai.services) || !ai.services.some((s) => s && typeof s.id === 'string' && s.id)) ai.services = plan.services;
@@ -3110,7 +3143,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       try { return pageTargetKeywords(ai) || {}; } catch (e) { debug(`[pages] 目标词算不出来（${e.message}），每页提示词不带目标词`); return {}; }
     })();
     // 每页提示词里的「事实」：营业时间那句只对站级那一通的 seo.openingHours 有意义，页里只留原文。
-    const pageBusinessContext = businessContext.replace(/\n\(For seo\.openingHours:[^\n]*\)/, '');
+    const pageBusinessContext = businessContext.replace(/\n\(For seo\.openingHours(ByLocation)?:[^\n]*\)/, '');
     const svcById = new Map((Array.isArray(ai.services) ? ai.services : []).filter((s) => s && s.id).map((s) => [s.id, s]));
     const hrefOf = (slug) => (slug === 'home' ? '/' : `/${slug}`);
     const siteLines = [
