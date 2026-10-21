@@ -16,8 +16,13 @@
 //    （§resolveKnobs），不成立的组合由 `scripts/lib/header-knobs.js` 纠正 —— 工具栏和这里用的是同一个函数。
 //    排版由旋钮派生成根上的三个类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-on|off`），几何在
 //    `blocks/header/block.css`；这里只决定「每一格里放什么」。`logo=right` 就是 logo 在右的镜像（#1468 前
-//    是一个布尔修饰，已退役）：网格两格对调、紧凑条反向、顶条两段对调都在 block.css；markup 里只有顶条那两行
-//    挂一个 `hdr-flip`（它们不是网格格子，CSS 要一个钩子）。
+//    是一个布尔修饰，已退役）：网格两格对调、紧凑条反向、顶条两段对调都在 block.css；markup 里只有顶条外层那一行
+//    挂一个 `hdr-flip`（它不是网格格子，CSS 要一个钩子）。顶条右端那一组（链接 · 社交 · 语言，最多三个子项）不靠 CSS 翻：
+//    `order` 那条规则只对两个子项等于镜像（#1973），所以 logo=right 时块直接倒序输出。
+//
+// 🔴 **语言开关**（#1973，多语言站才有）：数据由外壳算好传进来（`languages`，`src/lib/config.ts` §languageMenuOf），
+//    一份 markup（§languageMenu）画在三处之一 + 抽屉：开了 topbar ⟹ 顶条右端最后（`bar-lang`）；没开 ⟹ 右格按钮后面
+//    （`nav-lang`）；< 992 ⟹ 抽屉最下面一排（`drawer-lang`）。紧凑条不放。单语言站不传 ⟹ 一个元素都不画。
 //
 // 🔴 **折叠点 992**（`lg`）：iPad（768–991）跟手机一样是 logo ·（topbar 开时）电话图标 · 汉堡 +
 //    抽屉 —— 真实站的菜单项是「Brake repair and diagnostics」这种长度，820 宽必折行（T2.1 验收截图）。
@@ -65,6 +70,7 @@ import SiteLink from '@template/components/SiteLink';
 import { buttonClass, resolveButtonStyle } from '@template/components/Button';
 import { blockAttrs } from '@template/lib/sections/blockAttrs';
 import type { BlockConfig } from '@template/lib/types/config';
+import type { LanguageMenu } from '@template/lib/config';
 import manifest from './manifest.json';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import {
@@ -164,6 +170,8 @@ interface Props {
   homeHref?: string;
   /** #1786 —— 编辑器画布（或它的缩略图）在画：`options.sticky` 不生效，照普通顶栏画。站上 / 预览不传。 */
   editorCanvas?: boolean;
+  /** #1973 —— 语言开关的数据（外壳算好，§文件头）。不是老板编辑的内容，所以不在 data 里；单语言站不传。 */
+  languages?: LanguageMenu;
 }
 
 /**
@@ -188,7 +196,7 @@ const STICKY_SHADOW_AT = 40;
 
 type CollapseCtor = { getInstance(el: Element): { hide(): void } | null };
 
-function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, homeHref = '/', editorCanvas = false }: Props) {
+function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, homeHref = '/', editorCanvas = false, languages }: Props) {
   // 抽屉 = Bootstrap Collapse（§文件头）。按钮和抽屉靠这个 id 对上；一页只有一个顶栏，块没 id 就叫 main。
   const drawerId = `hdr-drawer-${(block && block.id) || 'main'}`;
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -396,6 +404,29 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
     </div>
   ) : null);
 
+  // #1973 —— 语言下拉（原生 `<details>`，#134 / #138 那一份 markup 原样搬来）。`summary` 跟顶条上电话 / 邮箱同一档字色
+  //    （`mutedTone`：填了深底时块根被写成 light 主题，写死 `text-body-secondary` 会是深底深灰字，#1523 / #960 同病）；
+  //    卡片是自己的一块底（`bg-body text-body`），深底顶栏上是白卡深字。`place`：
+  //      · `end` / `start` —— 浮层卡片贴右 / 贴左展开。开关在左边时（logo=right）用 start，贴右会伸出视口左边。
+  //      · `flow` —— 抽屉里那份：卡片不浮起来，排在 summary 下面把抽屉撑高。开了 Sticky 时抽屉自己是滚动框
+  //        （block.css §hdr-sticky 那条 `overflow-y: auto`），浮层卡片挂在它最底下会整张落到框外被裁掉（#1973 QA2 r1）。
+  //        展开时把卡片滚进抽屉可视区（菜单长、抽屉已经满一屏时它在框底下面）。
+  //    类名写全，不拼：site.css 按源码里出现的类名 purge。
+  const languageMenu = (part: string, place: 'end' | 'start' | 'flow' = 'end') => (languages ? (
+    <details key={part} className="position-relative d-inline-block" data-hdr-part={part}
+      onToggle={place === 'flow' ? (e) => { const d = e.currentTarget; if (d.open) d.lastElementChild?.scrollIntoView({ block: 'nearest' }); } : undefined}>
+      <summary className={`cursor-pointer text-sm fw-medium list-unstyled ${mutedTone}`}>{languages.currentLabel}</summary>
+      <ul className={`${place === 'flow' ? '' : `position-absolute ${place === 'start' ? 'start-0' : 'end-0'} top-100 `}mt-2 bg-body text-body shadow rounded p-2 list-unstyled mb-0`}
+        style={place === 'flow' ? { minWidth: 140 } : { minWidth: 140, zIndex: 10 }}>
+        {languages.items.map((it) => (
+          <li key={it.locale}>
+            <SiteLink href={it.href} className="d-block px-2 py-1 text-sm link-body-emphasis text-decoration-none text-nowrap">{it.label}</SiteLink>
+          </li>
+        ))}
+      </ul>
+    </details>
+  ) : null);
+
   // `compact` = 手机 / iPad 那一条：店名要让位给电话图标和汉堡 —— 可以收缩、可以换成两行，不许把后两个挤到
   // 下一行（QA2 #1462 r1：390 宽 topbar 预设整条折成两行，汉堡掉到第二行最左边；320 宽连 logo-left 也折）。
   // 店名不截断：生意名是这一条上最要紧的字。桌面那三格里仍是一行不收缩。
@@ -419,23 +450,25 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
   const besideCtas = (divider: boolean) => (hasTopbar ? null
     // 竖线左边那 1.5rem 是 `ps-6`（Webpixels 的间距刻度：4 = 1rem、6 = 1.5rem，不是 Bootstrap 的那一套）。
     : socialIcons('social', divider ? ['border-start', lineTone, 'ps-6'].filter(Boolean).join(' ') : '', 'd-none d-xl-flex'));
+  // #1973 —— 没开 topbar 时语言开关在右格最后（按钮后面）；开了的话它在顶条里，主行不画。
+  const navLang = hasTopbar ? null : languageMenu('nav-lang', right ? 'start' : 'end');
   const cells: Record<'a' | 'b' | 'c', ReactNode> = { a: null, b: null, c: null };
   if (menu === 'beside') {
     cells.a = brandLink();
-    cells.c = <>{navList(nav, 'nav')}{besideCtas(true)}{ctaButtons('ctas')}</>;
+    cells.c = <>{navList(nav, 'nav')}{besideCtas(true)}{ctaButtons('ctas')}{navLang}</>;
   } else if (menu === 'center') {
     cells.a = brandLink();
     cells.b = navList(nav, 'nav');
-    cells.c = <>{besideCtas(false)}{ctaButtons('ctas')}</>;
+    cells.c = <>{besideCtas(false)}{ctaButtons('ctas')}{navLang}</>;
   } else if (menu === 'left') {
     // #1788 —— 菜单不切两半：整条菜单在左、logo 正中、社交（有才出）+ 按钮在右。
     cells.a = navList(nav, 'nav');
     cells.b = brandLink();
-    cells.c = <>{besideCtas(false)}{ctaButtons('ctas')}</>;
+    cells.c = <>{besideCtas(false)}{ctaButtons('ctas')}{navLang}</>;
   } else {
     cells.a = hasTopbar ? null : socialIcons('social');
     cells.b = brandLink();
-    cells.c = ctaButtons('ctas');
+    cells.c = <>{ctaButtons('ctas')}{navLang}</>;
   }
 
   const headerBlock = { ...(block || {}), type: 'header', shape } as BlockConfig;
@@ -505,9 +538,11 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
                 </span>
               ))}
             </div>
-            <div className={`d-flex align-items-center gap-5 ${right ? 'hdr-flip' : ''}`}>
-              {toolLinks('bar-links')}
-              {socialIcons('bar-social')}
+            {/* #1973 —— 链接 · 社交 · 语言；logo=right 时倒序输出（§文件头：三个子项不能靠 hdr-flip 翻），开关在最左、卡片贴左展开。 */}
+            <div className="d-flex align-items-center gap-5">
+              {right
+                ? [languageMenu('bar-lang', 'start'), socialIcons('bar-social'), toolLinks('bar-links')]
+                : [toolLinks('bar-links'), socialIcons('bar-social'), languageMenu('bar-lang')]}
             </div>
           </div>
         </div>
@@ -560,7 +595,7 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
 
       {/* 抽屉：一直在 HTML 里，开没开由 Bootstrap Collapse 说（`.collapse` 藏、`.show` 显，#1514）；只在 < 992 出现
           （`d-lg-none`）。顺序 = 菜单 → 按钮（全部竖排占满宽，主按钮在最上；#1787 起 topbar 开时也全出）→
-          （topbar 开时）联系信息 → 链接 → 社交。 */}
+          （topbar 开时）联系信息 → 链接 → 社交 →（多语言站）语言（#1973）。 */}
       <div id={drawerId} ref={drawerRef} className={`hdr-drawer collapse d-lg-none border-top ${lineTone}`} data-hdr-part="drawer">
         <div className="container-lg py-4 vstack gap-4">
           <ul className="navbar-nav" data-hdr-part="drawer-nav">
@@ -576,6 +611,8 @@ function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, ho
           {drawerContact}
           {/* #1785 —— 没开 topbar 时社交图标也在抽屉最下面一排（开了的话在 drawerContact 里，同一份 markup）。 */}
           {!hasTopbar && social.length ? <div className={`border-top ${lineTone} pt-4`}>{socialIcons('drawer-social')}</div> : null}
+          {/* #1973 —— 语言开关在抽屉最下面一排（不进联系信息段）；卡片排在它下面、不浮起来（§languageMenu 的 flow）。 */}
+          {languages ? <div className={`border-top ${lineTone} pt-4`}>{languageMenu('drawer-lang', 'flow')}</div> : null}
         </div>
       </div>
     </header>

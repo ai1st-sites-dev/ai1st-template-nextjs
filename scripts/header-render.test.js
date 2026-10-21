@@ -303,22 +303,98 @@ console.log('\n⑤ 图标是内联 SVG');
   check(!g.includes('data-icon="no-such-icon-xyz"') && !/visually-hidden">Ghost/.test(g), '查不到的图标名不画，且那一项的字不被藏起来');
 }
 
-// ══ ⑥ #1468：logo=right（原 reverse）只改根上的类和顶条那两个钩子，markup 别处不动 ══════════════════
+// ══ ⑥ #1468：logo=right（原 reverse）只改根上的类、顶条外层那个钩子，和顶条右端那一组的顺序（#1973）════════════
 console.log('\n⑥ logo=right');
 {
   const l = render('topbar', clone(DEMO));
   const r = render('topbar', withOpts({ logo: 'right' }));
   check(attr(r, 'data-logo') === 'right' && attr(r, 'data-menu') === 'beside' && (attr(r, 'class') || '').includes('hdr-logo-right'), 'logo=right ⟹ 根上 hdr-logo-right、menu 仍是 beside');
-  check((r.match(/\bhdr-flip\b/g) || []).length === 2 && !/\bhdr-flip\b/.test(l), '顶条那两行挂 hdr-flip（logo=left 时没有）');
-  const body = (h) => h.replace(/<header[^>]*>/, '').replace(/hdr-flip/g, '');
-  check(body(l) === body(r), '除根元素和 hdr-flip 之外，logo=right 与 logo=left 的 markup 逐字相同（换位全在 block.css）');
+  check((r.match(/\bhdr-flip\b/g) || []).length === 1 && !/\bhdr-flip\b/.test(l), '只有顶条外层那一行挂 hdr-flip（logo=left 时没有）—— #1973 起右端那一组不挂');
+  // #1973 —— 右端那一组倒序输出（三个子项不能靠 hdr-flip 的 order 规则翻）；除此之外逐字相同。
+  const barParts = (h) => [...h.slice(h.indexOf('hdr-topbar'), h.indexOf('<nav')).matchAll(/data-hdr-part="(bar-(?:links|social|lang))"/g)].map((m) => m[1]);
+  check(JSON.stringify(barParts(l)) === '["bar-links","bar-social"]' && JSON.stringify(barParts(r)) === '["bar-social","bar-links"]',
+    '顶条右端那一组：logo=left 链接 → 社交，logo=right 社交 → 链接（DOM 顺序）', `${barParts(l)} / ${barParts(r)}`);
+  const body = (h) => {
+    const t = h.replace(/<header[^>]*>/, '').replace(/hdr-flip/g, '');
+    const parts = ['bar-links', 'bar-social'].map((k) => { const i = t.indexOf(`data-hdr-part="${k}"`); const st = t.lastIndexOf('<div', i); return t.slice(st, t.indexOf('</div>', i) + 6); });
+    return parts.reduce((acc, x) => acc.replace(x, '<PART/>'), t);
+  };
+  check(l.includes('data-hdr-part="bar-links"') && body(l) === body(r), '除根元素、hdr-flip 和右端那一组的顺序之外，logo=right 与 logo=left 的 markup 逐字相同（换位全在 block.css）');
   check(!/\breverse\b/.test(ORIGINAL), 'Section.tsx 里没有 reverse 这个词');
-  // 反向对照：换位钩子不挂 ⟹ 上面「顶条那两行挂 hdr-flip」那格会红。
-  const s2 = mutate("gap-5 ${right ? 'hdr-flip' : ''}", 'gap-5 ');
+  // 反向对照：外层换位钩子不挂 ⟹ 上面「外层挂 hdr-flip」那格会红。
+  const s2 = mutate("gap-6 ${right ? 'hdr-flip' : ''}", 'gap-6 ');
   if (!s2) bad('反向对照没改到源码（锚点找不到）');
   else {
     const rr = render('topbar', withOpts({ logo: 'right' }), loadSection(s2));
-    check((rr.match(/\bhdr-flip\b/g) || []).length === 1, '反向对照：拿掉一处 hdr-flip ⟹ 只剩 1 个（上面那格红得起来）');
+    check((rr.match(/\bhdr-flip\b/g) || []).length === 0, '反向对照：拿掉外层 hdr-flip ⟹ 一个都不剩（上面那格红得起来）');
+    C = loadSection();
+  }
+}
+
+// ══ ⑥b #1973：语言开关画在顶栏块里 —— topbar 开 ⟹ bar-lang（顶条右端最后）；关 ⟹ nav-lang（右格按钮后面）；抽屉最后一排 drawer-lang ══
+console.log('\n⑥b 语言开关（#1973）');
+{
+  const LANGS = { current: 'en', currentLabel: '🌐 English', items: [{ locale: 'zh', label: '🌐 简体中文', href: '/zh/about' }] };
+  const renderL = (shape, data, languages = LANGS, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: ICONS, ...(languages ? { languages } : {}) }));
+  const langParts = (h) => [...h.matchAll(/data-hdr-part="([a-z]+-lang)"/g)].map((m) => m[1]);
+  for (const [n, , , topbar] of TABLE) {
+    const h = renderL(n, clone(DEMO));
+    const desk = topbar === 'on' ? 'bar-lang' : 'nav-lang';
+    check(JSON.stringify(langParts(h)) === JSON.stringify([desk, 'drawer-lang']), `${n}：开关两份 = ${desk} + drawer-lang`, langParts(h).join(' · '));
+    check(!h.slice(h.indexOf('hdr-compact'), h.indexOf('hdr-grid')).includes('-lang"'), `${n}：紧凑条里没有开关`);
+    check(h.includes('href="/zh/about"') && h.includes('>🌐 简体中文<') && h.includes('>🌐 English<'), `${n}：当前语言 + 另一种语言的链接都画出来`);
+    if (topbar === 'on') {
+      const bar = h.slice(h.indexOf('hdr-topbar'), h.indexOf('<nav'));
+      check(/data-hdr-part="bar-social"[\s\S]*data-hdr-part="bar-lang"/.test(bar), `${n}：bar-lang 在顶条里、排在 bar-social 后面`);
+      check(!h.slice(h.indexOf('class="hdr-grid'), h.indexOf('data-hdr-part="drawer"')).includes('-lang"'), `${n}：topbar 开时主行不画开关`);
+    } else {
+      const c = h.slice(h.indexOf('class="hdr-c '), h.indexOf('</nav>'));
+      check(c.includes('data-hdr-part="nav-lang"') && c.indexOf('data-hdr-cta') < c.indexOf('nav-lang'), `${n}：nav-lang 在右格、按钮后面`);
+    }
+    // 抽屉：最后一个直接子元素里是 drawer-lang，卡片贴左展开。
+    const drawer = h.slice(h.indexOf('data-hdr-part="drawer"'));
+    const lastRow = drawer.slice(drawer.lastIndexOf('<div class="border-top'));
+    check(lastRow.includes('data-hdr-part="drawer-lang"') && !drawer.slice(0, drawer.lastIndexOf('<div class="border-top')).includes('drawer-lang'), `${n}：drawer-lang 在抽屉最后一排`);
+    // QA2 r1：开了 Sticky 抽屉是滚动框（overflow-y: auto），浮层卡片挂在最底下会被裁掉 ⟹ 抽屉那份不浮起来，排在 summary 下面。
+    const drawerUl = (drawer.match(/data-hdr-part="drawer-lang"[\s\S]*?<ul class="([^"]*)"/) || [])[1];
+    check(drawerUl !== undefined && !/position-absolute/.test(drawerUl), `${n}：抽屉那份卡片不是浮层（不带 position-absolute）`, drawerUl);
+  }
+  // 反向对照：抽屉那份退回浮层（start）⟹ 上面「不是浮层」那格红。
+  {
+    const s4 = mutate("languageMenu('drawer-lang', 'flow')", "languageMenu('drawer-lang', 'start')");
+    if (!s4) bad('反向对照没改到源码（锚点找不到）');
+    else {
+      const d4 = renderL('topbar', clone(DEMO), LANGS, loadSection(s4));
+      const u4 = (d4.slice(d4.indexOf('data-hdr-part="drawer"')).match(/data-hdr-part="drawer-lang"[\s\S]*?<ul class="([^"]*)"/) || [])[1] || '';
+      check(/position-absolute/.test(u4), '反向对照：抽屉那份退回浮层 ⟹ 「不是浮层」那格红得起来');
+      C = loadSection();
+    }
+  }
+  // 单语言站（不传）⟹ 一个元素都不多：跟改之前那份 HTML 逐字相同。
+  for (const n of NAMES) {
+    const h = renderL(n, clone(DEMO), null);
+    check(h === render(n, clone(DEMO)) && !h.includes('-lang"') && !h.includes('🌐') && !h.includes('<details'), `${n}：不传 languages ⟹ 没有 *-lang、没有 🌐、没有 <details>`);
+  }
+  // logo=right + topbar：右端那一组 语言 → 社交 → 链接，卡片贴左；logo=left 时 链接 → 社交 → 语言，卡片贴右。
+  const order = (h) => [...h.slice(h.indexOf('hdr-topbar'), h.indexOf('<nav')).matchAll(/data-hdr-part="(bar-[a-z]+)"/g)].map((m) => m[1]).filter((x) => x !== 'bar-message');
+  const rt = renderL('topbar', withOpts({ logo: 'right' }));
+  const lt = renderL('topbar', clone(DEMO));
+  check(JSON.stringify(order(rt)) === '["bar-lang","bar-social","bar-links"]' && JSON.stringify(order(lt)) === '["bar-links","bar-social","bar-lang"]',
+    'logo=right：语言 → 社交 → 链接；logo=left：链接 → 社交 → 语言', `${order(rt)} / ${order(lt)}`);
+  const cardOf = (h, part) => (h.match(new RegExp(`data-hdr-part="${part}"[\\s\\S]*?<ul class="position-absolute ([a-z]+-0) `)) || [])[1];
+  check(cardOf(rt, 'bar-lang') === 'start-0' && cardOf(lt, 'bar-lang') === 'end-0', 'bar-lang 卡片：logo=right 贴左（start-0）、logo=left 贴右（end-0）', `${cardOf(rt, 'bar-lang')} / ${cardOf(lt, 'bar-lang')}`);
+  // 字色：summary 跟顶条电话那一组同一档 —— 深底 hdr-muted-on-deep、浅底 text-body-secondary；卡片 bg-body text-body。
+  const sumOf = (h, part) => (h.match(new RegExp(`data-hdr-part="${part}"><summary class="([^"]*)"`)) || [])[1] || '';
+  const deep = renderL('topbar', { ...clone(DEMO), bg: '#0f172a' });
+  check(/\bhdr-muted-on-deep\b/.test(sumOf(deep, 'bar-lang')) && !/text-body-secondary/.test(sumOf(deep, 'bar-lang')), '深底顶栏：summary 带 hdr-muted-on-deep、不带 text-body-secondary', sumOf(deep, 'bar-lang'));
+  check(/\btext-body-secondary\b/.test(sumOf(lt, 'bar-lang')), '浅底：summary 是 text-body-secondary', sumOf(lt, 'bar-lang'));
+  check(/<ul class="position-absolute [a-z]+-0 top-100 mt-2 bg-body text-body /.test(deep), '卡片自带 bg-body text-body');
+  // 反向对照：summary 写死 text-body-secondary ⟹ 深底那格红。
+  const s3 = mutate('list-unstyled ${mutedTone}`}>{languages.currentLabel}', 'list-unstyled text-body-secondary`}>{languages.currentLabel}');
+  if (!s3) bad('反向对照没改到源码（锚点找不到）');
+  else {
+    const d3 = renderL('topbar', { ...clone(DEMO), bg: '#0f172a' }, LANGS, loadSection(s3));
+    check(!/\bhdr-muted-on-deep\b/.test(sumOf(d3, 'bar-lang')), '反向对照：summary 写死 text-body-secondary ⟹ 深底那格红得起来');
     C = loadSection();
   }
 }

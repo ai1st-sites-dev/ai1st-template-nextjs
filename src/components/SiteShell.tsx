@@ -1,10 +1,8 @@
-import { Fragment } from 'react';
 import Header, { type HeaderNewData } from '@blocks/header/Section';
 import Footer, { type FooterNewData } from '@blocks/footer/Section';
 import type { IconTable } from './InlineIcon';
-import LanguageSwitcher from './LanguageSwitcher';
 import { LocalBusinessJsonLd, WebSiteJsonLd } from './JsonLd';
-import { getServices, leadFormSite, localeSwitchIndex } from '@template/lib/config';
+import { getServices, languageMenuOf, leadFormSite } from '@template/lib/config';
 import { itemSourceContext, resolveItemSources } from '@template/lib/sections/item-sources';
 import type { BlockConfig, SiteData } from '@template/lib/types/config';
 import { applyRegionOptions } from '../../scripts/lib/region-options.js';
@@ -92,10 +90,11 @@ function footerLeadFormOf(site: SiteData, locale: string) {
 
 // #1628 —— `notFound`：只有 app/not-found.tsx 传，交给语言开关（404 页上一律回目标语言首页）。
 // #1794 —— `currentPath`：这一页去掉语言前缀的路径（`/`、`/about`、`/blog/x`），交给语言开关（它不再 `usePathname`）。
+// #1973 —— 语言开关画在顶栏块里（`blocks/header/Section.tsx` §languageMenu）；这里只算它的数据（`languages`，§languageMenuOf）。
 //    默认语言的 `/about` 和 `/fr/about` 是同一页，这里只认去掉前缀那个。不传时按 `page` 推（首页的 page 是 `'home'`）——
 //    博客页没有 `page`，推出来是 `/`，所以 app/ 下的调用方都显式传；只有编辑器画布（EditorApp）今天不传。
 export default function SiteShell({ site, locale, page, currentPath, shell, notFound, children }: { site: SiteData; locale: string; page?: string; currentPath?: string; shell?: ShellOverride; notFound?: boolean; children: React.ReactNode }) {
-  const { defaultLocale, locales, pageLayout, regions: siteRegions } = site;
+  const { defaultLocale, pageLayout, regions: siteRegions } = site;
   const regions = shell ? shell.layout.regions : pageLayout.regions;
   const repeatVariants = (shell ? shell.layout.repeatVariants : pageLayout.repeatVariants) || {};
 
@@ -114,6 +113,8 @@ export default function SiteShell({ site, locale, page, currentPath, shell, notF
   const footerLeadForm = footerLeadFormOf(site, locale);
   // #1784 —— 页脚的 logo 跟顶栏那份 `logoType` / `logoSize`（图高 px）走（`scripts/lib/brand-logo.js`）。
   const headerLogoOptions = (headerData.options || {}) as Record<string, unknown>;
+  // #1973 —— 单语言站是 undefined，顶栏不多画一个元素。
+  const languages = languageMenuOf(site, locale, currentPath ?? (page && page !== 'home' ? '/' + page : '/'), notFound);
 
   return (
     <>
@@ -122,24 +123,9 @@ export default function SiteShell({ site, locale, page, currentPath, shell, notF
       {regions.map((region) => {
         switch (kindOf(region)) {
           case 'header':
-            // 🔴 #1425（T3）—— 语言开关。旧 header 自己在顶栏里画它（唯一的渲染方）；新库的 header 是纯 props、markup 里
-            //    没有这一格，所以外壳在顶栏**上方**挂一条细带（PM 2026-10-02 裁定：放进顶栏那一行是改块，另开 T2.n）。
-            //    只在多语言站挂：单语言站的 DOM 一个元素都不多（不靠 LanguageSwitcher 自己 return null —— 那样外面这层
-            //    div 还在）。不挂 `data-block`：它不是块，编辑器 / 检查器 / 主题表都不该把它当块（同 #1000 外壳固定件）。
-            return (
-              <Fragment key={region}>
-                {locales.length > 1 ? (
-                  <div className="bg-body border-bottom">
-                    <div className="container d-flex justify-content-end py-1">
-                      <LanguageSwitcher currentLocale={locale} currentPath={currentPath ?? (page && page !== 'home' ? '/' + page : '/')} notFound={notFound} locales={locales} switchIndex={localeSwitchIndex(site)} />
-                    </div>
-                  </div>
-                ) : null}
-                {/* #1786 —— 收到 `shell` = 编辑器画布在画（站上 / 预览都不传）⟹ Sticky 不生效（Header 文件头）。 */}
-                <Header shape={shell?.headerShape || siteRegions.header.shape} data={headerData as HeaderNewData} homeHref={homeHref}
-                  iconTable={shellIconTable(site, 'header', locale)} editorCanvas={!!shell} />
-              </Fragment>
-            );
+            // #1786 —— 收到 `shell` = 编辑器画布在画（站上 / 预览都不传）⟹ Sticky 不生效（Header 文件头）。
+            return <Header key={region} shape={shell?.headerShape || siteRegions.header.shape} data={headerData as HeaderNewData} homeHref={homeHref}
+              iconTable={shellIconTable(site, 'header', locale)} editorCanvas={!!shell} languages={languages} />;
           case 'content':
             // #1351 —— `data-locale` 跟 `data-page` 一起写：多语言站里同一个站级块 id 在每种语言下都存在，
             //    只说页面仍然分不清是哪一份。值取的是**站自己的语言目录名**（`site/<locale>/`），不是

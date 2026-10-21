@@ -5575,10 +5575,12 @@
   overflow-wrap: anywhere;
 }
 
-/* logo=right（#1468）：紧凑条两头对调 —— logo 到右头，汉堡到最左（电话图标在汉堡和 logo 之间）；顶条那两段
-   （Section 上挂 `hdr-flip` 的两个 flex 容器，各两个子项）也对调。抽屉内容顺序不动。
-   用 `order` 把第一个子项挪到最后：这几处都只有两个子项（电话图标不在时紧凑条右边那组只剩汉堡），效果跟整条
-   反向相同，而 `justify-content` 不跟着翻。 */
+/* logo=right（#1468）：紧凑条两头对调 —— logo 到右头，汉堡到最左（电话图标在汉堡和 logo 之间）；顶条外层那两段
+   （Section 上挂 `hdr-flip` 的那个 flex 容器，两个子项）也对调。抽屉内容顺序不动。
+   用 `order` 把第一个子项挪到最后：只剩外层顶条和紧凑条在用这条规则，它们都只有两个子项（电话图标不在时紧凑条
+   右边那组只剩汉堡），效果跟整条反向相同，而 `justify-content` 不跟着翻。
+   🔴 #1973 —— 顶条右端那一组（链接 · 社交 · 语言）最多三个子项，这条规则翻出来不是镜像 ⟹ 它不挂 `hdr-flip`，
+   logo=right 时由 Section 直接倒序输出。别给三个子项以上的容器挂 `hdr-flip`。 */
 [data-block="header"].hdr-logo-right .hdr-compact > :first-child,
 [data-block="header"].hdr-logo-right .hdr-compact > div > :first-child,
 [data-block="header"] .hdr-topbar .hdr-flip > :first-child { order: 1; }

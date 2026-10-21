@@ -166,7 +166,7 @@ solid-bar 只有 22 套、multi-column 只有 27 套。**人审读到的那一�
    汉堡按钮是 `md:hidden`，抽屉那一层也是），而**抽屉还得点一下才出来**（`mobileMenuOpen`），
    所以那几个形态一张图都没有，加一个窄视口也拍不到抽屉；
 ② **语言切换** —— 样例站只有一个 locale（`site_meta.json` 的 `locales: ["en"]`），所以每份读数里
-   `langSwitchers` 恒为 0，深色顶栏上那个切换器（`LanguageSwitcher` 的 `data-region-ondark`）没被拍到；
+   `langSwitchers` 恒为 0，深色顶栏上那个切换器（#1973 起画在顶栏块里，`blocks/header/Section.tsx` §languageMenu）没被拍到；
 ③ **topbar 那一区** —— 池成员不发 `supports.topbar`，样例站也用 `standard` 布局（没有 topbar 区），
    所以 `TOPBAR_VARIANTS` 那四种在图册里一张都没有。
    🔴 **而「浮层 + topbar」那条拒绝（#1000 r2）从此够得着了**：`transparent-overlay` 以前在候选这条路上

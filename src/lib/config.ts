@@ -98,8 +98,8 @@ function slugToLocalesOf(site: SiteData): Record<string, string[]> {
 // consolidating links pointing at the root URL for default locale.
 //
 // Returns the path-only form (no domain). Callers prefix the domain themselves.
-// #1665: the only thing it reads is defaultLocale, so it takes just that much of the site — browser components
-// (LanguageSwitcher) are handed `{ defaultLocale }`, not the whole site.
+// #1665: the only thing it reads is defaultLocale, so it takes just that much of the site — callers that hold only a
+// LocaleSwitchIndex hand that in (it carries `defaultLocale`), not the whole site.
 export function localeUrl(
   site: Pick<SiteData, 'defaultLocale'>,
   slug: string,
@@ -135,6 +135,53 @@ export function localeSwitchIndex(site: SiteData): LocaleSwitchIndex {
 }
 export function switchLocaleHref(index: LocaleSwitchIndex, path: string, target: string): string {
   return switchLocaleHrefFrom(path, target, index);
+}
+
+// TICKET-134 v2: native language name + globe icon. Following Vercel / Stripe /
+// Notion convention — flag emojis are an i18n anti-pattern (W3C: en ≠ Canada,
+// es ≠ Spain, etc). Globe icon is region-neutral and renders consistently
+// across platforms (including Windows, where flag emojis degrade to ISO text).
+// TICKET-169: 'zh' (Simplified) and 'zh-tw' (Traditional) render with explicit
+// native names — old "中文" was ambiguous between the two character sets.
+// 🔴 #1973 —— 这一行的写法（类型注解、`= {` 同一行、不 export）别动：134 spec Test 5 用正则逐字匹配它。
+const LANG_META: Record<string, string> = {
+  en: 'English',   zh: '简体中文', 'zh-tw': '繁體中文', fr: 'Français',  es: 'Español',
+  ja: '日本語',    ko: '한국어',    de: 'Deutsch',   it: 'Italiano',
+  pt: 'Português', ru: 'Русский',  vi: 'Tiếng Việt',
+  ar: 'العربية',   hi: 'हिन्दी',     th: 'ไทย',
+};
+
+function renderLocale(locale: string): string {
+  const name = LANG_META[locale];
+  if (!name) return locale.toUpperCase();   // fallback for unknown locale
+  return `🌐 ${name}`;
+}
+
+/** #1973 —— 顶栏块里那个语言下拉要的全部数据（顶栏是岛，只能传数据，不能传 React 元素）。 */
+export interface LanguageMenu {
+  current: string;
+  currentLabel: string;
+  items: { locale: string; label: string; href: string }[];
+}
+
+// #1973 —— 语言开关原来是一个组件（`LanguageSwitcher`，#1425 起由 SiteShell 挂在顶栏上方一条细带里），现在画在顶栏块里，
+// 这里只算它要的数据。单语言站回 undefined（不是空清单）：块按「没传」判，DOM 一个元素不多（#1425 那条 P0）。
+// `currentPath` 已去掉语言前缀（`/`、`/about`、`/blog/x`，#1794）；`notFound`（#1628）：404 页上一律回目标语言首页 ——
+// 那一页本来就没有语言版本。其余页 = 目标语言里同一页，没有就回它的首页（§switchLocaleHref）。
+export function languageMenuOf(site: SiteData, locale: string, currentPath: string, notFound = false): LanguageMenu | undefined {
+  if (site.locales.length <= 1) return undefined;
+  const index = localeSwitchIndex(site);
+  const path = currentPath || '/';
+  return {
+    current: locale,
+    currentLabel: renderLocale(locale),
+    items: site.locales.filter((l) => l !== locale).map((l) => ({
+      locale: l,
+      label: renderLocale(l),
+      // TICKET-129: defaultLocale uses the root URL (no prefix), other locales /<locale>/*.
+      href: notFound ? localeUrl(index, 'home', l) : switchLocaleHref(index, path, l),
+    })),
+  };
 }
 
 // Returns hreflang locale → absolute URL map for a given page slug. Returns {}
