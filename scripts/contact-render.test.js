@@ -111,28 +111,31 @@ const itemsOf = (html) => html.split('data-part="item"').slice(1);
 const CSS = require('./block-build/intro-layout').introLayoutCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'contact')
   + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
-const KNOB_NAMES = ['introPosition', 'introAlign', 'sidePosition', 'form', 'formStyle', 'itemsLayout', 'itemStyle', 'itemAlign', 'itemIcon', 'map'];
+const KNOB_NAMES = ['introPosition', 'introAlign', 'sidePosition', 'form', 'formStyle', 'image', 'itemsLayout', 'itemStyle', 'itemAlign', 'itemIcon', 'locationsLayout', 'locationStyle', 'map'];
+// #1978 —— 新加的三个旋钮也照旧写在根元素上（admin 图册的卡按它读）；「真画了图 / 几组地点」另写 data-image-at / data-locations。
+const ATTR_KNOBS = KNOB_NAMES;
 const dataAttr = (n) => `data-${n.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
 
 // ══ 判据 1：5 个预设逐字、旋钮名 / 值逐字、目录集合、两两不同 ═══════════════════════════════════════
 console.log('── 判据 1 五个预设');
 {
-  // 列：名字 · 形态目录 · 十个旋钮（正文预设表逐字）
+  // 列：名字 · 形态目录 · 十三个旋钮（#1978 正文 §7 预设表；表里没写的 sidePosition / formStyle 取不影响画面的那一档）
   const WANT = [
-    ['Form beside', 'form-beside', 'beside', 'left', 'right', 'full', 'card', 'list', 'plain', 'left', 'left', 'none'],
-    ['Details beside', 'details-beside', 'top', 'center', 'left', 'full', 'plain', 'list', 'plain', 'left', 'left', 'none'],
-    ['Stacked', 'stacked', 'top', 'center', 'bottom', 'full', 'card', 'grid', 'card', 'center', 'top', 'none'],
-    ['Map beside', 'map-beside', 'beside', 'left', 'right', 'none', 'card', 'list', 'plain', 'left', 'left', 'beside'],
-    ['Map', 'map', 'top', 'center', 'right', 'none', 'card', 'grid', 'card', 'center', 'top', 'bottom'],
+    ['Form beside', 'form-beside', 'beside', 'left', 'right', 'full', 'card', 'yes', 'list', 'plain', 'left', 'left', 'list', 'plain', 'none'],
+    ['Location cards', 'location-cards', 'top', 'center', 'right', 'none', 'card', 'none', 'grid', 'card', 'center', 'top', 'grid', 'card', 'none'],
+    ['Photo beside', 'photo-beside', 'beside', 'left', 'right', 'none', 'card', 'yes', 'list', 'plain', 'left', 'left', 'list', 'plain', 'none'],
+    ['Map beside', 'map-beside', 'beside', 'left', 'right', 'none', 'card', 'none', 'list', 'plain', 'left', 'left', 'grid', 'card', 'beside'],
+    ['Compact', 'compact', 'top', 'center', 'right', 'none', 'card', 'none', 'grid', 'plain', 'center', 'left', 'list', 'plain', 'none'],
   ];
   const got = (M.presets || []).map((p) => [p.name, p.shape, ...KNOB_NAMES.map((c) => p.knobs[c])]);
-  check(JSON.stringify(got) === JSON.stringify(WANT), 'presets 5 条与正文表逐字相同（名字 · 形态 · 十列旋钮）', JSON.stringify(got));
-  check((M.presets || []).every((p) => Object.keys(p.knobs).join() === KNOB_NAMES.join()), '每个预设的 knobs 键就是这十个、同一顺序');
+  check(JSON.stringify(got) === JSON.stringify(WANT), 'presets 5 条与正文表逐字相同（名字 · 形态 · 十三列旋钮）', JSON.stringify(got));
+  check((M.presets || []).every((p) => Object.keys(p.knobs).join() === KNOB_NAMES.join()), '每个预设的 knobs 键就是这十三个、同一顺序');
   const knobs = M.slots.options.knobs.map((k) => [k.name, k.values]);
   check(JSON.stringify(knobs) === JSON.stringify([
     ['introPosition', ['top', 'beside']], ['introAlign', ['left', 'center', 'right']],
-    ['sidePosition', ['left', 'right', 'bottom']], ['form', ['none', 'teaser', 'full']], ['formStyle', ['plain', 'card']],
+    ['sidePosition', ['left', 'right', 'bottom']], ['form', ['none', 'teaser', 'full']], ['formStyle', ['plain', 'card']], ['image', ['none', 'yes']],
     ['itemsLayout', ['grid', 'list']], ['itemStyle', ['plain', 'card']], ['itemAlign', ['left', 'center']], ['itemIcon', ['left', 'top']],
+    ['locationsLayout', ['grid', 'list']], ['locationStyle', ['card', 'plain']],
     ['map', ['none', 'beside', 'bottom']],
   ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与旋钮表逐字（#1481 起顺序只管展示，默认看 default ?? values[0]）`);
   check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'itemsLayout')) === 'list', '#1481：itemsLayout 排成 grid · list 之后，没写值时仍是 list（显式 default 钉住，顺序只管展示）');
@@ -145,20 +148,20 @@ console.log('── 判据 1 五个预设');
   const htmls = dirs.map((d) => render(d, clone(DEMO)));
   check(new Set(htmls).size === 5, `同一份夹具下 5 个预设渲染出 ${new Set(htmls).size} 份互不相同的 HTML`);
   const pinned = dirs.map((d) => render(d, withOpts(M.presets[0].knobs)).replace(/data-shape="[^"]*"/g, ''));
-  check(new Set(pinned).size === 1, '反向对照：options 里写死十个旋钮 ⟹ 5 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
+  check(new Set(pinned).size === 1, '反向对照：options 里写死全部旋钮 ⟹ 5 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
   const r = render('form-beside', clone(DEMO));
-  const miss = KNOB_NAMES.filter((n) => attr(r, dataAttr(n)) !== M.presets[0].knobs[n]);
-  check(miss.length === 0, 'Form beside：十个旋钮都写在 <section> 上', miss.join(' · '));
+  const miss = ATTR_KNOBS.filter((n) => attr(r, dataAttr(n)) !== M.presets[0].knobs[n]);
+  check(miss.length === 0, 'Form beside：全部旋钮都写在 <section> 上', miss.join(' · '));
   // 旋钮独立：拧一个，其余九个不变（组件里没有联动纠正）。
   const base = M.presets[0].knobs;
   const moved = [];
-  for (const k of M.slots.options.knobs) {
+  for (const k of M.slots.options.knobs.filter((x) => ATTR_KNOBS.includes(x.name))) {
     for (const v of k.values) {
       const h = render('form-beside', withOpts({ [k.name]: v }));
-      if (attr(h, dataAttr(k.name)) !== v || KNOB_NAMES.filter((n) => n !== k.name).some((n) => attr(h, dataAttr(n)) !== base[n])) moved.push(`${k.name}=${v}`);
+      if (attr(h, dataAttr(k.name)) !== v || ATTR_KNOBS.filter((n) => n !== k.name).some((n) => attr(h, dataAttr(n)) !== base[n])) moved.push(`${k.name}=${v}`);
     }
   }
-  check(moved.length === 0, `旋钮独立（逐个拧 ${M.slots.options.knobs.reduce((n, k) => n + k.values.length, 0)} 档）：拧的那个到位、其余九个不变`, moved.join(' · '));
+  check(moved.length === 0, `旋钮独立（逐个拧 ${M.slots.options.knobs.filter((x) => ATTR_KNOBS.includes(x.name)).reduce((n, k) => n + k.values.length, 0)} 档）：拧的那个到位、其余九个不变`, moved.join(' · '));
 }
 
 // ══ 判据 3：值只有一处 ═════════════════════════════════════════════════════════════════════════════
@@ -239,28 +242,29 @@ console.log('\n── 判据 3（r2，QA2 打回 r1）抄进 title / hint 的值
 console.log('\n── 判据 4 items 可关');
 {
   const empty = withOpts({}, { items: [] });
-  const top = render('details-beside', empty);
+  const top = render('form-beside', withOpts({ introPosition: 'top' }, { items: [] }));
   check(!top.includes('data-part="items"') && !top.includes('data-part="textcol"') && top.includes('data-part="side"') && attr(top, 'data-split') === 'one',
     'items: [] + introPosition=top ⟹ 没有 items 节点、items 列不画、侧列占满（split=one）');
   const beside = render('form-beside', empty);
   const col = (beside.split('data-part="textcol"')[1] || '').split('data-part="side"')[0];
   check(!beside.includes('data-part="items"') && col.includes('data-part="intro"') && attr(beside, 'data-split') === 'form',
     'items: [] + introPosition=beside ⟹ 那一列只剩块头、仍是两列');
-  check(render('details-beside', clone(DEMO)).includes('data-part="items"'), '对照：有 items ⟹ 有那一组');
+  check(render('location-cards', clone(DEMO)).includes('data-part="items"'), '对照：有 items ⟹ 有那一组');
 }
 
 // ══ 判据 5 / 6（DOM 一半）═════════════════════════════════════════════════════════════════════════
 console.log('\n── 判据 5 / 6 列的组成');
 {
-  const introTop = render('details-beside', clone(DEMO));
+  const introTop = render('location-cards', clone(DEMO));
   check(count(introTop, 'data-part="intro"') === 1 && introTop.indexOf('data-part="intro"') < introTop.indexOf('data-part="textcol"'), 'introPosition=top：块头只画一份、在两列上面');
   const introBeside = render('form-beside', clone(DEMO));
   const tc = introBeside.indexOf('data-part="textcol"');
   check(count(introBeside, 'data-part="intro"') === 1 && introBeside.indexOf('data-part="intro"') > tc && introBeside.indexOf('data-part="intro"') < introBeside.indexOf('data-part="items"'),
     'introPosition=beside：块头只画一份、在 items 那一列最上面');
-  const noSide = render('form-beside', withOpts({ form: 'none', map: 'none' }));
+  // #1978 —— Form beside 的 image 是 yes（图也住侧列）：这两格量的是表单 / 地图，把图关掉。
+  const noSide = render('form-beside', withOpts({ form: 'none', map: 'none', image: 'none' }));
   check(!noSide.includes('data-part="side"') && attr(noSide, 'data-split') === 'one', 'form=none + map=none ⟹ 侧列不渲染、split=one');
-  const mapOnly = render('form-beside', withOpts({ form: 'none', map: 'beside' }));
+  const mapOnly = render('form-beside', withOpts({ form: 'none', map: 'beside', image: 'none' }));
   check(mapOnly.includes('data-part="side"') && !/<form\b/.test(mapOnly) && attr(mapOnly, 'data-split') === 'even', 'form=none + map=beside ⟹ 两列各半（split=even）');
   check(attr(introBeside, 'data-split') === 'form', '有表单 ⟹ split=form（5/12 + 7/12）');
   check(/\[data-split="form"\][^{]*\.ct-textcol \{\s*flex: 0 0 auto;\s*width: 41\.6667%;/.test(CSS) && /\[data-split="form"\][^{]*\.ct-sidecol \{\s*flex: 0 0 auto;\s*width: 58\.3333%;/.test(CSS)
@@ -273,8 +277,9 @@ console.log('\n── 判据 5 / 6 列的组成');
 // ══ 判据 7（DOM 一半）：地图 ═══════════════════════════════════════════════════════════════════════
 console.log('\n── 判据 7 地图（点之前是地址卡）');
 {
-  for (const [shape, where] of [['map-beside', 'side'], ['map', 'bottom']]) {
-    const h = render(shape, clone(DEMO));
+  // #1978 —— 「Map」预设删了；map=bottom 那一格用 Location cards + map=bottom 量（同一张大地图，旋钮决定位置）。
+  for (const [shape, where, o] of [['map-beside', 'side', {}], ['location-cards', 'bottom', { map: 'bottom' }]]) {
+    const h = render(shape, withOpts(o));
     const map = (h.split('data-part="map"')[1] || '').split('</div></div>')[0] + (h.split('data-part="map"')[1] || '');
     check(count(h, 'data-part="map"') === 1 && h.includes(`data-map-where="${where}"`) && h.includes('data-map-state="closed"'), `${shape}：一格地图（${where}）、初始是关着的`);
     check(map.includes('data-part="map-address"') && map.includes('>2150 Yonge St, Toronto, ON<') && map.includes('data-part="map-open"') && map.includes('>Open map</button>'),
@@ -287,9 +292,9 @@ console.log('\n── 判据 7 地图（点之前是地址卡）');
   const url = facts.osmEmbedUrl(DEMO_SITE.brand.locations[0].geo);
   check(url.startsWith('https://www.openstreetmap.org/export/embed.html?bbox=') && url.includes('&marker=43.7056,-79.3983'), `嵌入地址 = OSM 官方嵌入、marker=<lat>,<lng>（${url}）`);
   const noGeo = siteOf((s) => { delete s.brand.locations[0].geo; });
-  const ng = render('map', clone(DEMO), { site: noGeo });
+  const ng = render('location-cards', withOpts({ map: 'bottom' }), { site: noGeo });
   check(!ng.includes('data-part="map"') && ng.includes('data-part="items"'), '去掉 geo ⟹ 地图那一格不渲染、其余照常');
-  check(!render('map', clone(DEMO), { site: siteOf((s) => { s.brand.locations[0].address = ''; }) }).includes('data-part="map"'), '对照：有 geo 没地址 ⟹ 也不画（地址卡没东西可写）');
+  check(!render('location-cards', withOpts({ map: 'bottom' }), { site: siteOf((s) => { s.brand.locations[0].address = ''; }) }).includes('data-part="map"'), '对照：有 geo 没地址 ⟹ 也不画（地址卡没东西可写）');
   const mapSrc = fs.readFileSync(path.join(BLOCK, 'ContactMap.tsx'), 'utf-8');
   check(/^'use client';/.test(mapSrc) && !/'use client'/.test(SRC_TEXT), 'ContactMap.tsx 是块里唯一的客户端组件（Section.tsx 是服务端组件）');
   check(/loading="lazy"/.test(mapSrc) && /src=\{embedUrl\}/.test(mapSrc), '点开之后的 iframe：src = 嵌入地址、loading=lazy');
@@ -370,7 +375,7 @@ console.log('\n── 判据 10 validateSite');
   check(v({ items: [{ kind: 'link', title: 'WhatsApp', href: 'https://wa.me/1' }] }).length === 0, '对照：link 带 href 放行');
   for (const p of M.presets) {
     const r = own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'contact', shape: p.shape, data: { ...clone(DEMO), options: p.knobs } }] }], scope: 'edit' }));
-    check(r.length === 0, `预设 ${p.name}（十个旋钮写全）+ 演示内容 ⟹ 放行`, JSON.stringify(r));
+    check(r.length === 0, `预设 ${p.name}（十三个旋钮写全）+ 演示内容 ⟹ 放行`, JSON.stringify(r));
   }
 }
 
@@ -407,13 +412,112 @@ console.log('\n── 判据 13 编辑器 schema');
   check(!!on, 'Puck 组件里有 contact（能从左栏拖进页面）');
   const opt = on.fields[0];
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join() && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(),
-    '第一个字段：预设 5 个 → 十个旋钮');
+    '第一个字段：预设 5 个 → 十三个旋钮');
   const items = on.fields.find((f) => f.slot === 'items');
   check(items && items.control === 'list' && items.subs.map((x) => x.sub).join() === 'title,hint,kind,href'
     && JSON.stringify(items.subs.find((x) => x.sub === 'kind').choices) === JSON.stringify(M.slots.items.itemChoices.kind),
     `items 是列表字段、每条可改 title / hint、kind 是下拉（五个值）、href 一格（${items ? items.subs.map((x) => x.sub).join(' / ') : '无'}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
-  check(presetNameFor(man, M.presets[2].knobs) === 'Stacked' && presetNameFor(man, { ...M.presets[2].knobs, map: 'bottom' }) === 'custom', '点 Stacked = 那一组旋钮；拧偏一个（map=bottom）⟹ custom');
+  check(presetNameFor(man, M.presets[2].knobs) === 'Photo beside' && presetNameFor(man, { ...M.presets[2].knobs, map: 'bottom' }) === 'custom', '点 Photo beside = 那一组旋钮；拧偏一个（map=bottom）⟹ custom');
+}
+
+// ══ #1978 多个地点 · 店面图（验收 2）═════════════════════════════════════════════════════════════════
+console.log('\n── #1978 多个地点 · 店面图');
+{
+  // 验收 2 的数据：三个地点，第二家没有电话，第三家没有邮箱也没有 rating；items 有电话 / 邮箱 / 地址 / 营业时间。
+  const BRAND = {
+    email: 'hello@site.example',
+    locations: [
+      { id: 'loc-a', label: 'Burnaby', address: '4410 Kingsway, Burnaby, BC V5H 2A9', phone: '(604) 555-0142', email: 'burnaby@site.example',
+        geo: { lat: 49.2276, lng: -123.0076 }, hours: [{ days: ['Monday', 'Tuesday'], opens: '07:00', closes: '19:00' }], rating: { ratingValue: 4.6, reviewCount: 158 } },
+      { id: 'loc-b', label: 'Vancouver', address: '1288 Main St, Vancouver, BC V6A 4B6', email: 'vancouver@site.example',
+        geo: { lat: 49.2766, lng: -123.1003 }, rating: { ratingValue: 4.4, reviewCount: 141 } },
+      { id: 'loc-c', label: 'Surrey', address: '10355 King George Blvd, Surrey, BC V3T 2W5', phone: '(604) 555-0163' },
+    ],
+  };
+  const multiFacts = (brand = BRAND) => ({ ...facts.siteFactsFrom(brand, null), locations: facts.locationsFactsFrom(brand, null) });
+  const ITEMS = [{ kind: 'phone', title: 'Call us' }, { kind: 'email', title: 'Email us' }, { kind: 'address', title: 'Visit us' }, { kind: 'hours', title: 'Hours' }];
+  const data = (extra = {}, o = {}) => ({ ...clone(DEMO), items: clone(ITEMS), ...extra, options: { ...o } });
+  const groups = (html) => html.split('data-part="location"').slice(1);
+  const nameOf = (g) => (/data-part="location-name">([^<]*)</.exec(g) || [])[1];
+
+  const fb = render('form-beside', data(), { site: multiFacts() });
+  const gs = groups(fb);
+  check(gs.length === 3 && gs.map(nameOf).join() === 'Burnaby,Vancouver,Surrey', `Form beside：三组、按地点顺序（${gs.map(nameOf).join(' / ')}）`);
+  check(gs[1].includes('href="tel:6045550142"') && gs[1].includes('>(604) 555-0142<'), '第二组没有电话 ⟹ 用第一家的号码（链接和文字都是）');
+  check(gs[2].includes('href="mailto:hello@site.example"') && !gs[2].includes('data-part="location-rating"'), '第三组没有邮箱 ⟹ 网站邮箱；没有 rating ⟹ 名称后面没有星级');
+  check(gs[0].includes('data-part="location-rating"') && gs[0].includes('<b>4.6</b> · 158 Google reviews') && gs[0].includes('data-rating="5"'),
+    '对照：第一组有 rating ⟹ 星级 + 「4.6 · 158 Google reviews」（4.6 四舍五入 5 颗实心）');
+  check(!fb.includes('data-part="items"') && !fb.includes('data-part="item"') && count(fb, 'mailto:hello@site.example') === 1,
+    '块里没有单列的全站邮箱（没有 items 那一组；网站邮箱只出现在第三组那一处）');
+  check(gs.every((g) => g.includes('data-part="location-call"') && g.includes('>Call</a>') && g.includes('data-part="location-maps"') && g.includes('>Open in Google Maps</a>')),
+    '每组有 Call 和 Open in Google Maps 两个链接');
+  check(gs[0].includes('href="https://www.google.com/maps/search/?api=1&amp;query=4410%20Kingsway%2C%20Burnaby%2C%20BC%20V5H%202A9"') && gs[0].includes('target="_blank"'),
+    '没有 googleMapsUrl ⟹ 按地址拼搜索链接、新窗口打开');
+  const own = multiFacts({ ...BRAND, locations: BRAND.locations.map((l, i) => (i === 1 ? { ...l, googleMapsUrl: 'https://maps.app.goo.gl/abc' } : l)) });
+  check(groups(render('form-beside', data(), { site: own }))[1].includes('href="https://maps.app.goo.gl/abc"'), '有 googleMapsUrl ⟹ 用它');
+  check(gs[0].includes('<span>4410 Kingsway<br/>Burnaby, BC V5H 2A9</span>'), '地址两行（第一个逗号前一行）');
+  check(attr(fb, 'data-locations') === 'many' && attr(fb, 'data-locations-layout') === 'list' && attr(fb, 'data-location-style') === 'plain'
+    && attr(render('form-beside', clone(DEMO)), 'data-locations') === null,
+    '根元素写上 data-locations=many 与两个地点旋钮（Form beside = list · plain）；一个地点时没有 data-locations');
+  const lc = render('location-cards', data(), { site: multiFacts() });
+  check(attr(lc, 'data-locations-layout') === 'grid' && attr(lc, 'data-location-style') === 'card' && /<section[^>]*style="background:var\(--x-gray-50, #f8fafc\)"/.test(lc.replace(/;"/g, '"')) === false,
+    'Location cards = grid · card；夹具给了 bg（#ffffff）⟹ 不铺浅灰');
+  check(/<section[^>]*style="background:var\(--x-gray-50, #f8fafc\)/.test(render('location-cards', data({ bg: null }), { site: multiFacts() })),
+    'card + 块没给 bg ⟹ 底色铺浅灰（白卡片、底色浅灰）');
+  check(!groups(render('form-beside', data({ items: [] }), { site: multiFacts() })).length, 'items 为空 ⟹ 不画地点组');
+
+  // location 指定一家 / 指空
+  const onlyC = render('form-beside', data({ location: 'loc-c' }), { site: multiFacts() });
+  const cAlone = { ...facts.locationFactsFrom(BRAND, 'loc-c') };
+  const single = render('form-beside', data(), { site: { phone: cAlone.phone, email: cAlone.email, address: cAlone.address, hours: cAlone.hours, geo: cAlone.geo } });
+  check(onlyC === single && onlyC.includes('data-part="items"') && !onlyC.includes('data-part="location"') && onlyC.includes('10355 King George Blvd'),
+    'location = 第三家 ⟹ 只画第三家、输出跟一个地点的站逐字相同');
+  check(render('form-beside', data({ location: 'loc-nope' }), { site: multiFacts() }) === '', 'location 指一个不存在的 id ⟹ 输出为空');
+
+  // 小地图卡
+  const mb = render('map-beside', data(), { site: multiFacts() });
+  check(count(mb, 'data-map-where="loc"') === 2 && !mb.includes('data-map-where="side"') && !mb.includes('data-map-where="bottom"'),
+    'Map beside + 三家（两家有坐标）⟹ 两张小地图卡、那一张大地图不画');
+  check(!/<iframe\b/.test(mb) && !mb.includes('>Open map<'), '小地图卡点之前没有 iframe、卡上没有「Open map」');
+  check(!render('form-beside', data(), { site: multiFacts() }).includes('data-part="map"'), '对照：map=none ⟹ 一张地图卡都没有');
+
+  // 地点页链接（页面 JSON 顶层 locationPage）
+  const withPage = { ...OWN_SITE, pagesByLocale: { en: [{ slug: 'locations/burnaby', title: 'Burnaby', blocks: [], locationPage: { kind: 'location', id: 'loc-a' } }] } };
+  const linked = renderToStaticMarkup(React.createElement(C, { data: data(), locale: 'en', iconTable: TABLE, site: withPage, block: { id: 'ct', type: 'contact', shape: 'form-beside', data: {} }, siteFacts: multiFacts() }));
+  check(/<a[^>]*class="ct-loc-name"[^>]*href="\/locations\/burnaby"/.test(linked) && !/<a[^>]*class="ct-loc-name"[^>]*>Vancouver/.test(linked),
+    '有地点页的那一家名称链过去，没有的不链');
+
+  // 店面图
+  const IMG = { imageUrl: 'https://img.example/shop.jpg', alt: 'Our shop front' };
+  check(!/<img\b/.test(render('form-beside', data({ image: undefined }, { image: 'yes' }), { site: multiFacts() })), 'image=yes 但块数据没有 image ⟹ 没有 <img>');
+  const right = render('form-beside', data({ image: IMG }, { image: 'yes', sidePosition: 'right', form: 'full' }), { site: multiFacts() });
+  const side = right.slice(right.indexOf('data-part="side"'));
+  check(count(right, '<img') === 1 && /<img[^>]*src="https:\/\/img\.example\/shop\.jpg"[^>]*alt="Our shop front"/.test(right), '图：一个 <img>、src / alt 就是给的那两个值');
+  check(side.includes('<img') && side.indexOf('<img') < side.indexOf('data-part="form"') && right.indexOf('data-part="side"') > 0,
+    'sidePosition=right：图在侧列（data-part="side"）里、按 HTML 先后排在表单前面');
+  const bottom = render('form-beside', data({ image: IMG }, { image: 'yes', sidePosition: 'bottom', form: 'full' }), { site: multiFacts() });
+  const at = (n) => bottom.indexOf(n);
+  check(at('data-part="intro"') < at('<img') && at('<img') < at('data-part="locations"') && at('data-part="locations"') < at('data-part="form"')
+    && !bottom.slice(at('data-part="side"')).includes('<img'), 'sidePosition=bottom：块头 → 图 → 地点组 → 表单，图不在侧列里');
+  check(attr(right, 'data-image-at') === 'side' && attr(bottom, 'data-image-at') === 'bottom' && attr(render('location-cards', data(), { site: multiFacts() }), 'data-image-at') === null
+    && attr(render('form-beside', data({ image: undefined }, { image: 'yes' }), { site: multiFacts() }), 'data-image-at') === null,
+    '根元素 data-image-at：side / bottom；没画图（旋钮 none，或 yes 但没有图）就没有这一项');
+
+  // 一个地点的站：五个预设都渲得出；Form beside 的联系方式那一段跟关掉图时逐字相同（图不碰联系方式）
+  const five = M.presets.map((p) => render(p.shape, clone(DEMO)));
+  check(five.every((h) => h.includes('data-part="items"') && !h.includes('data-part="location"')), '一个地点：五个预设各渲一次都成功（有联系方式、没有地点组）');
+  const itemsPart = (h) => h.slice(h.indexOf('data-part="items"'), h.indexOf('data-part="side"'));
+  check(itemsPart(render('form-beside', clone(DEMO))) === itemsPart(render('form-beside', withOpts({ image: 'none' }))), '一个地点 · Form beside：开不开图，联系方式那一段逐字相同');
+
+  // 校验：locationPage 的形状
+  const vp = (lp) => manifestLib.validateSite({ pages: [{ slug: 'x', locationPage: lp, blocks: [] }] }).problems.filter((m) => m.includes('locationPage'));
+  check(vp({ kind: 'location', id: 'loc-a' }).length === 0 && vp({ kind: 'overview' }).length === 0, 'validateSite：locationPage 两种合法形状放行');
+  check(vp({ kind: 'location' }).length === 1 && vp({ kind: 'city', id: 'x' }).length === 1 && vp('loc-a').length === 1, 'validateSite：location 缺 id / kind 不认识 / 不是对象 ⟹ 各报一条');
+  // facts：老站兜底只属于第一家（PM #1978 第四轮技术判断 2）
+  const SEO = { schema: { openingHours: { days: ['Sunday'], opens: '10:00', closes: '12:00' } } };
+  const lf = facts.locationsFactsFrom(BRAND, SEO);
+  check(lf[0].hours === 'Sun · 10am – 12pm' && lf[1].hours === '' && lf[2].hours === '', 'seo.json 里的老营业时间只给第一家，第二、三家不带');
 }
 
 // 📌 #1425（T3）—— 这里原来测判据 14「contact-form / contact-info / map-area 相对 merge-base 零改动」；三个旧块随旧库删了。

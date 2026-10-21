@@ -448,19 +448,16 @@ console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，
 
   // 🔴 例外名单里写错一个名字也要红 —— 一个拼错的例外等于把那个槽位的检查**关掉**，
   //    而它看起来跟「已经豁免过了」一模一样（AC2 最后一句）。
-  // 📌 #1425（T3）：原来拿名单里真有的一项 `features-grid.columns` 拼错；旧块删了之后名单是**空的**
-  //    （`NON_EDITABLE_TEXT_SLOTS = []`），没有真条目可拼错。换成两臂都自己造：沙箱里给 hero 加一个
-  //    没 editLabel 的 text 槽，内存里改一份名单 —— 拼对 ⟹ 放行（证明豁免这条路真的通）、拼错 ⟹ 红。
+  // 📌 #1425（T3）：原来拿名单里真有的一项 `features-grid.columns` 拼错；旧块删了之后名单是**空的**，两臂改成沙箱里自己造。
+  // 📌 #1978：名单里又有了真条目 `contact.location` ⟹ 回到拿真条目拼错（真 blocks/，不造沙箱）：
+  //    原样 ⟹ 放行（豁免这条路真的通）、拼错 ⟹ 逐槽位那条红、点名 contact 的 location。
   {
     const lib = path.join(NEXTDIR, 'scripts', 'lib', 'block-manifest.js');
     const src = fs.readFileSync(lib, 'utf-8');
-    const marker = 'const NON_EDITABLE_TEXT_SLOTS = [];';
+    const marker = "const NON_EDITABLE_TEXT_SLOTS = ['contact.location'];";
     if (!src.includes(marker)) {
-      bad(`夹具不成立：block-manifest.js 里找不到 ${marker}（名单不再是空的了？那就回到拿真条目拼错）`);
+      bad(`夹具不成立：block-manifest.js 里找不到 ${marker}（名单又变了？照新名单里的一项改这一格）`);
     } else {
-      const root = sandbox((r) => editJson(r, 'hero', (d) => {
-        d.slots.brandNewTextSlot = { kind: 'text', required: false, promptOptional: true };
-      }));
       // 🔴 改过的那份要放在**原文件旁边**，不能放 /tmp：这个模块里全是相对 require（`../blocks`），
       //    搬到别处它第一行就 `Cannot find module`，而那个红跟被测的那一维没有关系（试过了）。
       const withList = (entry) => {
@@ -469,16 +466,16 @@ console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，
         let err = null;
         try {
           delete require.cache[tmp];
-          require(tmp).loadManifests(path.join(root, 'blocks'));
+          require(tmp).loadManifests(path.join(NEXTDIR, 'blocks'));
         } catch (e) { err = e.message; } finally { fs.rmSync(tmp, { force: true }); }
         return err;
       };
-      const right = withList('hero.brandNewTextSlot');
-      const wrong = withList('hero.brandNewTextSlto');
-      if (right) bad(`正臂：名单拼对了也红 —— 豁免这条路不通，下面那条红归因不到「拼错」：${right}`);
-      else ok('正臂：名单里拼对 hero.brandNewTextSlot ⟹ 放行（豁免这条路是通的）');
-      if (wrong && /slots\.brandNewTextSlot 是 kind: text 但没有 editLabel/.test(wrong)) {
-        ok('例外名单里把 brandNewTextSlot 拼错 ⟹ 红（开火的是逐槽位那一条：那个槽不再被豁免）');
+      const right = withList('contact.location');
+      const wrong = withList('contact.locaiton');
+      if (right) bad(`正臂：名单原样也红 —— 豁免这条路不通，下面那条红归因不到「拼错」：${right}`);
+      else ok('正臂：名单里拼对 contact.location ⟹ 放行（豁免这条路是通的）');
+      if (wrong && /slots\.location 是 kind: text 但没有 editLabel/.test(wrong)) {
+        ok('例外名单里把 contact.location 拼错 ⟹ 红（开火的是逐槽位那一条：那个槽不再被豁免）');
       } else if (wrong) {
         bad(`拼错例外名单红了，但报的不是预期那条：${wrong}`);
       } else bad('把例外名单拼错了却没红 —— 那等于可以静默关掉任意一个槽位的检查');

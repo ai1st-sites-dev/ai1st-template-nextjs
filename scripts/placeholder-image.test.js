@@ -126,8 +126,13 @@ for (const [b, m] of Object.entries(MANIFESTS)) {
     if (isImageSlot(m, k.name) || listKnobs(m).has(k.name)) derived.push(`${b}.${k.name}`);
   }
 }
+// 🔴 不垫占位的图旋钮：票里**明写**「旋钮开着、没有图 ⟹ 不画」的。每一条写清出处；它们不进上面那张表，而是在下面
+//    单独量「真的没有占位、也没有 <img>」—— 不是从检查里划掉，是换成相反的那条判据。
+// #1978 —— contact 的店面图（正文第 5 条「`image=yes` 但块数据没有图，结果：不画图，其余照旧」+ 验收 2 那一格）。
+//    跟 #1734 的「没图就垫占位」方向相反，交接时已请 PM 留意（老板仍可在右栏 Image 那一格放图）。
+const NO_PLACEHOLDER = { 'contact.image': '#1978 正文第 5 条 / 验收 2：image=yes 但块数据没有图 ⟹ 不画' };
 const tabled = Object.entries(TABLE).flatMap(([b, ks]) => Object.keys(ks).map((k) => `${b}.${k}`));
-check(JSON.stringify(derived.sort()) === JSON.stringify([...tabled].sort()), `射程 = 正文那张表（manifest 现算 ${derived.length} 个）`, `现算 ${derived.join(',')} · 表 ${tabled.join(',')}`);
+check(JSON.stringify(derived.sort()) === JSON.stringify([...tabled, ...Object.keys(NO_PLACEHOLDER)].sort()), `射程 = 正文那张表 + 不垫占位的 ${Object.keys(NO_PLACEHOLDER).length} 个（manifest 现算 ${derived.length} 个）`, `现算 ${derived.join(',')} · 表 ${tabled.join(',')} · 不垫 ${Object.keys(NO_PLACEHOLDER).join(',')}`);
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const imgTags = (html) => html.match(/<img\b[^>]*>/g) || [];
@@ -186,6 +191,22 @@ let cells;
 try { cells = sweep(); } catch (e) { die(`渲染失败: ${e.stack || e.message}`); }
 for (const c of cells) check(!c.why, `${c.b} ${c.knob}=${c.value}`, c.why);
 check(cells.length >= 30, `一共量了 ${cells.length} 格（9 个旋钮 × 各自的取值）`);
+
+// 不垫占位的那几个（NO_PLACEHOLDER）：旋钮每个值、数据里那一格为空 ⟹ 没有占位地址、也没有那一槽的 <img>；放真图 ⟹ 画真图。
+for (const id of Object.keys(NO_PLACEHOLDER)) {
+  const [b, knob] = id.split('.');
+  const C = load(b);
+  const spec = { cell: knob, slot: knob };
+  for (const value of valuesOf(b, knob)) {
+    const html = render(C, b, fixture(b, knob, spec, value));
+    const own = imgTags(html).filter((t) => attrOf(t, 'data-slot') === knob);
+    check(!html.includes(LITERAL) && own.length === 0, `${b} ${knob}=${value}（${NO_PLACEHOLDER[id]}）：没有占位地址、没有那一槽的 <img>`, `占位 ${html.includes(LITERAL)} · <img> ${own.length}`);
+  }
+  const REAL = { imageUrl: 'https://example.com/real.jpg', alt: 'real' };
+  const on = valuesOf(b, knob).filter((v) => v !== 'none');
+  const real = on.map((v) => imgTags(render(C, b, fixture(b, knob, spec, v, REAL))).filter((t) => attrOf(t, 'data-slot') === knob && attrOf(t, 'src') === REAL.imageUrl).length);
+  check(on.length > 0 && real.every((n) => n === 1), `${b} ${knob}：放真图 ⟹ 每个非 none 的值都画那一张（对照：上面那条不是恒绿）`, real.join(','));
+}
 
 // 反向对照：去掉垫占位那一步 ⟹ 除 none 之外的格子全红，none 照旧绿。
 {

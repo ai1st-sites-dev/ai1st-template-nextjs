@@ -11,6 +11,8 @@
 //    这是条款允许的「真人在看」的正常浏览。地址（`embedUrl`）由服务端按站点数据里的坐标算好传进来（contact-facts.js §osmEmbedUrl）。
 // 🔴 **署名一直在**：点之前、点之后都是同一个角标「© OpenStreetMap contributors」。
 // 🔴 占位卡和 iframe 住在同一个盒子里、盒子的高度由 block.css 定 ⟹ 点开前后不跳动。
+// 🔴 #1978 —— 多地点时每组里那张小地图卡（`where="loc"`）：**整张卡就是按钮**，卡上不放「Open map」（组底下的
+//    「Open in Google Maps」管跳出去）；点之前同样是地址卡、不向第三方发请求，点了才换成 OSM 嵌入。
 // 🔴 这个 `useState` 管的是**延迟加载**（点之前 iframe 不进 DOM ⟹ 不发站外请求），不是显隐 —— 所以 #1514「HTML 的交互归
 //    bootstrap.js」没有把它换成 Collapse：Collapse 只管 display，元素得先在 DOM 里，换了 #1489 验收 7 当场红。换不换等 Chris 拍。
 
@@ -21,12 +23,14 @@ import { island } from '@template/islands/island';
 // #1798 —— 钉子原来是父组件递进来的 React 元素（`pin`）；发布出去的网页上这是一个岛，props 要是 JSON ⟹ 改收图标名 +
 //    只含这一个图标的小表，在这里自己画。
 function ContactMap({ where, address, embedUrl, pinIcon, icons }: {
-  where: 'side' | 'bottom'; address: string; embedUrl: string; pinIcon?: string; icons?: IconTable;
+  where: 'side' | 'bottom' | 'loc'; address: string; embedUrl: string; pinIcon?: string; icons?: IconTable;
 }) {
   const [open, setOpen] = useState(false);
+  const pin = <span className="ct-pin d-inline-flex text-primary" aria-hidden="true">{pinIcon ? <InlineIcon name={pinIcon} icons={icons} /> : null}</span>;
+  const box = where === 'side' ? 'ct-map-side rounded-4' : where === 'loc' ? 'ct-map-loc rounded-3' : 'ct-map-bottom mt-10 rounded-4';
   return (
     <div
-      className={`ct-map ${where === 'side' ? 'ct-map-side' : 'ct-map-bottom mt-10'} rounded-4 position-relative overflow-hidden`}
+      className={`ct-map ${box} position-relative overflow-hidden`}
       data-part="map"
       data-map-where={where}
       data-map-state={open ? 'open' : 'closed'}
@@ -39,9 +43,20 @@ function ContactMap({ where, address, embedUrl, pinIcon, icons }: {
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
         />
+      ) : where === 'loc' ? (
+        <button
+          type="button"
+          className="ct-map-card w-100 h-100 d-flex flex-column align-items-center justify-content-center text-center gap-2 p-4 border-0 bg-transparent"
+          data-part="map-card"
+          aria-label={`Map: ${address}`}
+          onClick={() => setOpen(true)}
+        >
+          {pin}
+          <span className="ct-map-address fw-semibold text-sm" data-part="map-address">{address}</span>
+        </button>
       ) : (
         <div className="ct-map-card h-100 d-flex flex-column align-items-center justify-content-center text-center gap-3 p-6" data-part="map-card">
-          <span className="ct-pin d-inline-flex text-primary" aria-hidden="true">{pinIcon ? <InlineIcon name={pinIcon} icons={icons} /> : null}</span>
+          {pin}
           <div className="ct-map-address fw-semibold" data-part="map-address">{address}</div>
           <button type="button" className="btn btn-sm btn-primary ct-map-open" data-part="map-open" onClick={() => setOpen(true)}>
             Open map

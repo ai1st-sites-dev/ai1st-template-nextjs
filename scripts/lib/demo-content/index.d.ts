@@ -39,6 +39,11 @@ export const DEMO_SITE: {
     socialLinks: Array<{ platform: string; url: string }>;
   };
 };
+/** #1978 —— 演示生意的三个地点（单格页 `?locations=3` 换进去；Surrey 没有 email）。 */
+export const DEMO_LOCATIONS: Array<{
+  id: string; label: string; address: string; phone: string; email?: string; geo: { lat: number; lng: number }; city: string;
+  hours: Array<{ days: string[]; opens: string; closes: string }>; rating: { ratingValue: number; reviewCount: number };
+}>;
 /** #1506 —— 演示内容里的引用展开时用的站点数据（演示生意那一份）；`extra` 盖在上面。 */
 export function demoSourceContext(extra?: Record<string, unknown>): {
   services: typeof DEMO_SITE.services;

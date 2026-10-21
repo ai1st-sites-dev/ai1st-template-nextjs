@@ -54,7 +54,7 @@ eq(arrangeToolbar([], [['a']]), [], '工具条上一个控件都没有 ⟹ 没�
 // 票面 AC2 那张表（`origin/main 2ee8e85a` 现取），只把颜色槽写成 `color:<槽>`。
 const AC2 = {
   blog: 'presets | introPosition introAlign choice:introEyebrow.style | itemsLayout itemsColumns | itemStyle itemImage | color:bg',
-  contact: 'presets | introPosition introAlign choice:introEyebrow.style | sidePosition form formStyle | itemsLayout itemStyle itemAlign itemIcon | map | color:bg',
+  contact: 'presets | introPosition introAlign choice:introEyebrow.style | sidePosition form formStyle image | itemsLayout itemStyle itemAlign itemIcon | locationsLayout locationStyle | map | color:bg',
   content: 'presets | headlinePosition textAlign choice:introEyebrow.style | textStyle count:ctas | image | frame | color:bg',
   cta: 'presets | layout frame textAlign image form | choice:eyebrow.style count:ctas | color:bg',
   // #1833 —— Custom HTML：没有旋钮、没有预设、没有颜色（排版归老板自己的代码），工具条上只剩恒在第一位的那一组。

@@ -1181,6 +1181,8 @@ other type does not show a picture, and putting an image field on one has no eff
   \`"right"\`, or behind it with \`"background"\`; with \`options.image: "none"\` the block draws no picture)
 - a **blog** block → no picture of its own: it shows the site's newest blog articles, and each article's pictures
   live in that article's \`blog/<slug>.json\` — \`coverImage.imageUrl\` (the cover) and \`authorAvatarUrl\` (the author's photo)
+- a **contact** block → \`data.image.imageUrl\` (optional — a photo of the shop front at the top of the side column with
+  \`options.image: "yes"\`, above the contact details when \`options.sidePosition\` is "bottom"; with \`options.image: "none"\` the block draws no picture)
 - a **page-header** block → \`data.image.imageUrl\` (optional — beside the title with \`options.image: "left"\` /
   \`"right"\`, or behind it with \`"background"\`; with \`options.image: "none"\` the block draws no picture)
 - **a blog post** (\`blog/<slug>.json\`) → an \`<img src="...">\` inside its \`content\`, which is rendered as

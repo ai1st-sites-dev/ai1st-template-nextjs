@@ -56,6 +56,10 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Service areas',
     footerPages: 'Pages',
     footerContact: 'Contact',
+    // #1978 —— contact 多地点时每组底下两个按钮 + 评分那一行（blocks/contact/Section.tsx）。
+    contactCall: 'Call',
+    contactOpenInGoogleMaps: 'Open in Google Maps',
+    contactGoogleReviews: 'Google reviews',
   },
   zh: {
     keyFeatures: '主要特色',
@@ -98,6 +102,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: '服务区域',
     footerPages: '页面',
     footerContact: '联系方式',
+    contactCall: '拨打电话',
+    contactOpenInGoogleMaps: '在 Google 地图中打开',
+    contactGoogleReviews: '条 Google 评价',
   },
   fr: {
     keyFeatures: 'Caractéristiques',
@@ -140,6 +147,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Zones desservies',
     footerPages: 'Pages',
     footerContact: 'Contact',
+    contactCall: 'Appeler',
+    contactOpenInGoogleMaps: 'Ouvrir dans Google Maps',
+    contactGoogleReviews: 'avis Google',
   },
   es: {
     keyFeatures: 'Características',
@@ -182,6 +192,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Zonas de servicio',
     footerPages: 'Páginas',
     footerContact: 'Contacto',
+    contactCall: 'Llamar',
+    contactOpenInGoogleMaps: 'Abrir en Google Maps',
+    contactGoogleReviews: 'reseñas de Google',
   },
   ja: {
     keyFeatures: '主な特徴',
@@ -224,6 +237,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: '対応エリア',
     footerPages: 'ページ',
     footerContact: 'お問い合わせ',
+    contactCall: '電話する',
+    contactOpenInGoogleMaps: 'Google マップで開く',
+    contactGoogleReviews: '件の Google レビュー',
   },
   ko: {
     keyFeatures: '주요 기능',
@@ -266,6 +282,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: '서비스 지역',
     footerPages: '페이지',
     footerContact: '연락처',
+    contactCall: '전화하기',
+    contactOpenInGoogleMaps: 'Google 지도에서 열기',
+    contactGoogleReviews: '개의 Google 리뷰',
   },
   de: {
     keyFeatures: 'Hauptmerkmale',
@@ -308,6 +327,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Einsatzgebiete',
     footerPages: 'Seiten',
     footerContact: 'Kontakt',
+    contactCall: 'Anrufen',
+    contactOpenInGoogleMaps: 'In Google Maps öffnen',
+    contactGoogleReviews: 'Google-Rezensionen',
   },
   it: {
     keyFeatures: 'Caratteristiche',
@@ -350,6 +372,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Zone servite',
     footerPages: 'Pagine',
     footerContact: 'Contatti',
+    contactCall: 'Chiama',
+    contactOpenInGoogleMaps: 'Apri in Google Maps',
+    contactGoogleReviews: 'recensioni Google',
   },
   pt: {
     keyFeatures: 'Características',
@@ -392,6 +417,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Áreas atendidas',
     footerPages: 'Páginas',
     footerContact: 'Contato',
+    contactCall: 'Ligar',
+    contactOpenInGoogleMaps: 'Abrir no Google Maps',
+    contactGoogleReviews: 'avaliações no Google',
   },
   ru: {
     keyFeatures: 'Ключевые особенности',
@@ -434,6 +462,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Районы обслуживания',
     footerPages: 'Страницы',
     footerContact: 'Контакты',
+    contactCall: 'Позвонить',
+    contactOpenInGoogleMaps: 'Открыть в Google Картах',
+    contactGoogleReviews: 'отзывов в Google',
   },
   vi: {
     keyFeatures: 'Tính năng chính',
@@ -476,6 +507,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'Khu vực phục vụ',
     footerPages: 'Trang',
     footerContact: 'Liên hệ',
+    contactCall: 'Gọi',
+    contactOpenInGoogleMaps: 'Mở trong Google Maps',
+    contactGoogleReviews: 'đánh giá trên Google',
   },
   ar: {
     keyFeatures: 'الميزات الرئيسية',
@@ -518,6 +552,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'مناطق الخدمة',
     footerPages: 'الصفحات',
     footerContact: 'تواصل معنا',
+    contactCall: 'اتصل',
+    contactOpenInGoogleMaps: 'افتح في خرائط Google',
+    contactGoogleReviews: 'مراجعة على Google',
   },
   hi: {
     keyFeatures: 'मुख्य विशेषताएं',
@@ -560,6 +597,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'सेवा क्षेत्र',
     footerPages: 'पेज',
     footerContact: 'संपर्क',
+    contactCall: 'कॉल करें',
+    contactOpenInGoogleMaps: 'Google Maps में खोलें',
+    contactGoogleReviews: 'Google समीक्षाएं',
   },
   th: {
     keyFeatures: 'คุณสมบัติหลัก',
@@ -602,6 +642,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     footerServiceAreas: 'พื้นที่ให้บริการ',
     footerPages: 'หน้า',
     footerContact: 'ติดต่อ',
+    contactCall: 'โทร',
+    contactOpenInGoogleMaps: 'เปิดใน Google Maps',
+    contactGoogleReviews: 'รีวิวบน Google',
   },
 };
 

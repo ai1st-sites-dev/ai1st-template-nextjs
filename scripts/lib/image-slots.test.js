@@ -528,9 +528,10 @@ const slotsOf = (pages) => {
         }
       }
       check(got.length > 0 && got.every((x) => /=(1|2|3|reuse)$/.test(x)), `真 manifest 上 ${got.length} 个图槽都落进 1 / 2 / 3 / reuse 之一`);
-      const want = ['content.image=1', 'cta.image=1', 'features.introImage=2', 'features.itemsImage=2', 'features.items=3', 'gallery.items=reuse',
+      // #1978 —— contact 的店面图（单张、对象图槽，同 content.image 一档）。
+      const want = ['contact.image=1', 'content.image=1', 'cta.image=1', 'features.introImage=2', 'features.itemsImage=2', 'features.items=3', 'gallery.items=reuse',
         'hero.image=1', 'hero.band=3', 'milestones.blockImage=2', 'milestones.introImage=2', 'page-header.image=1'];
-      check(JSON.stringify([...got].sort()) === JSON.stringify([...want].sort()), `今天的 11 个槽落在正文那张表的位置（读到 ${got.sort().join(' · ')}）`);
+      check(JSON.stringify([...got].sort()) === JSON.stringify([...want].sort()), `今天的 12 个槽落在正文那张表的位置（读到 ${got.sort().join(' · ')}）`);
     }
 
     // A2. 列表槽看管它的旋钮（manifest 的 imageKnob）

@@ -140,7 +140,7 @@
     "sheet": "azure-29",
     "shapes": {
       "blog": "cards",
-      "contact": "details-beside",
+      "contact": "form-beside",
       "content": "article",
       "cta": "inline",
       "custom-html": "as-is",

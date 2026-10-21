@@ -460,6 +460,9 @@ const DEMO_CONTENT = {
       { kind: 'link', title: 'Book online', hint: 'Pick a time', href: '/contact' },
     ],
     form: {},
+    // #1978 —— 店面图（`image` 旋钮是 yes 的预设才画：Form beside / Photo beside）；`location` 空 = 画全部地点。
+    image: { imageUrl: imageUrl('hero-bay'), alt: 'The Northside Auto Care service bays from the street' },
+    location: '',
     bg: '#ffffff',
   },
 
@@ -771,6 +774,32 @@ const DEMO_SITE = {
   },
 };
 
+/**
+ * #1978 —— 演示生意的**三个地点**（照定稿图册 contact 一格的「3 个地点」：Burnaby / Vancouver 各有自己的邮箱，Surrey 没有 ⟹
+ * 演示「没有就用网站邮箱」那条兜底）。单格页带 `?locations=3` 时拿它换掉 DEMO_SITE 的那一家（`src/lib/catalog/cell.ts`），
+ * 不带时仍是一个地点 —— 块目录里两种都能看。`geo` 是夹具坐标（不是查出来的）。
+ */
+const DEMO_LOCATIONS = [
+  {
+    id: 'loc-burnaby', label: 'Burnaby', address: '4410 Kingsway, Burnaby, BC V5H 2A9', phone: '(604) 555-0142', email: 'burnaby@northsideauto.ca',
+    geo: { lat: 49.2276, lng: -123.0076 }, city: 'Burnaby',
+    hours: [{ days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '07:00', closes: '19:00' }],
+    rating: { ratingValue: 4.6, reviewCount: 158 },
+  },
+  {
+    id: 'loc-vancouver', label: 'Vancouver', address: '1288 Main St, Vancouver, BC V6A 4B6', phone: '(604) 555-0187', email: 'vancouver@northsideauto.ca',
+    geo: { lat: 49.2766, lng: -123.1003 }, city: 'Vancouver',
+    hours: [{ days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '08:00', closes: '18:00' }],
+    rating: { ratingValue: 4.4, reviewCount: 141 },
+  },
+  {
+    id: 'loc-surrey', label: 'Surrey', address: '10355 King George Blvd, Surrey, BC V3T 2W5', phone: '(604) 555-0163',
+    geo: { lat: 49.1886, lng: -122.849 }, city: 'Surrey',
+    hours: [{ days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' }],
+    rating: { ratingValue: 4.8, reviewCount: 96 },
+  },
+];
+
 // #1497 —— 站点博客夹具（`BlogPostConfig` 形状）。blog 只从站点博客读、块里不存文章，所以图册单格页和
 //    渲染单测要一份「这个站有博客」：单格页把它挂在一个没有任何路由会问的 locale 键下
 //    （`src/app/%5F_catalog/catalogShared.ts` §registerCatalogFixtureBlogPosts，同 service-related-pages 那几页夹具）。
@@ -875,4 +904,4 @@ const DEMO_BLOG_POST_RICH = {
   seo: { metaTitle: 'What a brake inspection covers', metaDescription: 'Pads, rotors and fluid.' },
 };
 
-module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, FEATURES_NEW_FROM_SERVICES, DEMO_SITE, DEMO_BLOG_POSTS, DEMO_BLOG_POST_RICH };
+module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, FEATURES_NEW_FROM_SERVICES, DEMO_SITE, DEMO_LOCATIONS, DEMO_BLOG_POSTS, DEMO_BLOG_POST_RICH };

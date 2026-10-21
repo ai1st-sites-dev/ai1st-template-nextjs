@@ -70,10 +70,10 @@ function recipe({ about, faq, look, steps = false, why }) {
   };
 }
 
-const QUIET = { header: 'Simple', serviceHeader: 'Photo', features: 'Side intro', faq: 'Side intro', cta: 'Boxed', contact: 'Details beside' };
+const QUIET = { header: 'Simple', serviceHeader: 'Photo', features: 'Side intro', faq: 'Side intro', cta: 'Boxed', contact: 'Form beside' };
 const SOFT = { header: 'Centered', serviceHeader: 'Photo', features: 'Cards', faq: 'Accordion', cta: 'Centered', contact: 'Form beside' };
 const BOLD = { header: 'Simple', serviceHeader: 'Photo', features: 'Grid', faq: 'Cards', cta: 'Inline', contact: 'Form beside' };
-const WARM = { header: 'Centered', serviceHeader: 'Photo', features: 'Grid', faq: 'Accordion', cta: 'Boxed', contact: 'Stacked' };
+const WARM = { header: 'Centered', serviceHeader: 'Photo', features: 'Grid', faq: 'Accordion', cta: 'Boxed', contact: 'Form beside' };
 
 // 16 组。每组一行理由：为什么开 / 不开 about、faq（给下一个读它的人，和图册那条线）。
 const SITE_RECIPES = {

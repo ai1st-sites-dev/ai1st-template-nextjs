@@ -484,6 +484,8 @@
      侧列    data-side-position（left / right / bottom）· data-form（none / teaser / full）· data-form-style（plain / card）
      items   data-items-layout（list / grid）· data-item-style（plain / card）· data-item-align（left / center）· data-item-icon（left / top）
      地图    data-map（none / beside / bottom）
+     地点    data-locations-layout（grid / list）· data-location-style（card / plain）· data-locations="many"（只在两个及以上地点时出现，#1978）
+     店面图  data-image（none / yes）· data-image-at（side / bottom，只在真画了图时出现，#1978）
      两列    data-split（form = items 5/12 + 侧列 7/12 · even = 各半（侧列只有地图）· one = 只剩一列，占满）—— Section.tsx 算
      底色    data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
    五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。规则照定稿图册 contact 段
@@ -692,49 +694,333 @@
   color: #64748b !important;
 }
 
+/* ═══ 店面图（#1978）═══════════════════════════════════════════════════════════════════════════════
+   只有一个 <img>（Section.tsx 文件头）。side：侧列最上面，侧列变成竖排、表单 / 地图叠在它下面；侧列只有它时（≥992）撑满那一列。
+   bottom：联系方式那一列里、块头下面，≥992 21:9 · 576–991 16:9 · <576 4:3。
+   窄屏（<992）的 side：侧列拆开（display: contents），图挪到最上面（order），宽度跟联系方式那一列的内容一样（左右各让半个槽宽）。 */
+[data-block="contact"] .ct-media {
+  min-width: 0;
+}
+[data-block="contact"] .ct-media-img {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-card);
+}
+[data-block="contact"][data-image-at="side"] .ct-sidecol {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+[data-block="contact"][data-image-at="side"] .ct-media-side .ct-media-img {
+  aspect-ratio: 4 / 3;
+}
+[data-block="contact"][data-image-at="side"] .ct-sidecol > .ct-map-side {
+  height: 20rem;
+  min-height: 0;
+  margin-top: 0;
+}
+@media (min-width: 992px) {
+  [data-block="contact"][data-image-at="side"] .ct-media-side:only-child {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 26rem;
+  }
+  [data-block="contact"][data-image-at="side"] .ct-media-side:only-child .ct-media-img {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+}
+@media (max-width: 991.98px) {
+  [data-block="contact"][data-image-at="side"] .ct-frame {
+    flex-direction: column;
+  }
+  /* 两列都拆开：块头（beside 时在联系方式那一列里）→ 图 → 联系方式 / 地点 → 表单 / 地图（图册 contact 一格的窄屏顺序）。 */
+  [data-block="contact"][data-image-at="side"] .ct-textcol,
+  [data-block="contact"][data-image-at="side"] .ct-sidecol {
+    display: contents;
+  }
+  [data-block="contact"][data-image-at="side"] .ct-textcol > *,
+  [data-block="contact"][data-image-at="side"] .ct-sidecol > * {
+    /* 宽度要写死：地点组是容器查询的容器（inline-size 约束），在竖排 flex 里不给宽度时 Chrome 按 0 宽量它的高（实测 3000px 的空白）。 */
+    width: calc(100% - var(--x-gutter-x));
+    margin-top: var(--x-gutter-y);
+    margin-inline: calc(var(--x-gutter-x) * 0.5);
+  }
+  [data-block="contact"][data-image-at="side"] .ct-colintro {
+    order: -2;
+    margin-bottom: 0;
+  }
+  [data-block="contact"][data-image-at="side"] .ct-media-side {
+    order: -1;
+  }
+}
+[data-block="contact"] .ct-media-bottom {
+  margin-bottom: 2rem;
+}
+[data-block="contact"] .ct-media-bottom .ct-media-img {
+  aspect-ratio: 4 / 3;
+}
+@media (min-width: 576px) {
+  [data-block="contact"] .ct-media-bottom .ct-media-img {
+    aspect-ratio: 16 / 9;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="contact"] .ct-media-bottom .ct-media-img {
+    aspect-ratio: 21 / 9;
+  }
+}
+
+/* ═══ 多个地点（#1978，定稿图册 contact 一格「3 个地点」）══════════════════════════════════════════════
+   每家一组 .ct-loc：名称 · 星级 · 地址两行 · 营业时间 · 电话 · 邮箱 · 小地图卡 · Call / Open in Google Maps。永远靠左（不听 itemAlign）。
+   列数按**联系方式那一列**的宽度算（容器查询），不按屏幕：grid 一行三组 → 两组 → 一组；list 一组一行，
+   开着地图时（≥40rem）组里左文右图，没开地图且那一列 ≥992px 时压成一行（名称 · 四行 · Call）。
+   card = 每组一张白卡片（块没给底色时 Section.tsx 铺一层浅灰）；plain = 组与组之间一条分隔线、地点名用主色。 */
+[data-block="contact"] .ct-locs {
+  container-type: inline-size;
+}
+[data-block="contact"] .ct-loc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+@container (min-width: 36rem) {
+  [data-block="contact"][data-locations-layout="grid"] .ct-loc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (min-width: 56rem) {
+  [data-block="contact"][data-locations-layout="grid"] .ct-loc-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+[data-block="contact"] .ct-loc {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: start;
+}
+[data-block="contact"] .ct-loc-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: inherit;
+  text-decoration: none;
+}
+[data-block="contact"] a.ct-loc-name:hover {
+  text-decoration: underline;
+}
+[data-block="contact"] .ct-loc-rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--x-secondary-color, #64748b);
+}
+[data-block="contact"] .ct-stars {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+[data-block="contact"] .ct-star {
+  line-height: 1;
+}
+[data-block="contact"] .ct-loc-rating b {
+  color: var(--x-body-color, #1e293b);
+  font-weight: 600;
+}
+[data-block="contact"] .ct-loc-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  line-height: 1.5;
+}
+[data-block="contact"] .ct-loc-line {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+[data-block="contact"] .ct-loc-line > svg {
+  flex: none;
+  color: var(--x-primary);
+  margin-top: 0.25rem;
+}
+[data-block="contact"] .ct-loc-line a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+[data-block="contact"] .ct-loc-email a {
+  font-weight: 400;
+}
+[data-block="contact"] .ct-loc-line a:hover {
+  color: var(--x-primary);
+  text-decoration: underline;
+}
+[data-block="contact"] .ct-map-loc {
+  height: 10rem;
+  margin-top: 1.25rem;
+}
+[data-block="contact"] .ct-map-loc .ct-map-credit {
+  font-size: 0.625rem !important;
+}
+[data-block="contact"] .ct-map-loc .ct-map-card {
+  cursor: pointer;
+  color: inherit;
+}
+[data-block="contact"] .ct-loc-btns {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 1.25rem;
+}
+[data-block="contact"] .ct-loc-btns .btn {
+  flex: 0 0 auto;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 0 1.125rem;
+}
+@media (max-width: 575.98px) {
+  [data-block="contact"] .ct-loc-btns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  [data-block="contact"] .ct-loc-btns .btn {
+    width: 100%;
+  }
+}
+[data-block="contact"][data-location-style="card"] .ct-loc {
+  background: var(--x-body-bg, #fff);
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: var(--radius-card);
+  padding: 1.5rem;
+}
+[data-block="contact"][data-location-style="plain"] .ct-loc {
+  border-top: 1px solid var(--x-border-color, #e5e7eb);
+  padding-top: 1.5rem;
+}
+[data-block="contact"][data-location-style="plain"] .ct-loc-name {
+  color: var(--x-primary);
+}
+@container (min-width: 40rem) {
+  [data-block="contact"][data-locations-layout="list"]:not([data-map="none"]) .ct-loc {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas: "head map" "rate map" "lines map" "btns map";
+    column-gap: 2rem;
+  }
+  [data-block="contact"][data-locations-layout="list"]:not([data-map="none"]) .ct-loc-head { grid-area: head; }
+  [data-block="contact"][data-locations-layout="list"]:not([data-map="none"]) .ct-loc-rating { grid-area: rate; }
+  [data-block="contact"][data-locations-layout="list"]:not([data-map="none"]) .ct-loc-lines { grid-area: lines; }
+  [data-block="contact"][data-locations-layout="list"]:not([data-map="none"]) .ct-loc-btns {
+    grid-area: btns;
+    align-self: end;
+  }
+  [data-block="contact"][data-locations-layout="list"]:not([data-map="none"]) .ct-map-loc {
+    grid-area: map;
+    margin-top: 0;
+    height: 100%;
+    min-height: 12rem;
+  }
+}
+@container (min-width: 992px) {
+  [data-block="contact"][data-locations-layout="list"][data-map="none"] .ct-loc {
+    display: grid;
+    grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 1.5rem;
+  }
+  [data-block="contact"][data-locations-layout="list"][data-map="none"] .ct-loc-rating,
+  [data-block="contact"][data-locations-layout="list"][data-map="none"] .ct-loc-btns [data-part="location-maps"] {
+    display: none !important;
+  }
+  [data-block="contact"][data-locations-layout="list"][data-map="none"] .ct-loc-lines {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr) minmax(0, 0.85fr) minmax(0, 1.35fr);
+    gap: 1.25rem;
+    align-items: center;
+    margin-top: 0;
+  }
+  [data-block="contact"][data-locations-layout="list"][data-map="none"] .ct-loc-btns {
+    padding-top: 0;
+    margin-top: 0;
+  }
+}
+
+/* 深底：组卡半透明、名称 / 图标 / 分数反白、描边按钮反白。 */
+[data-block="contact"]:not([data-tone="light"])[data-location-style="card"] .ct-loc {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+[data-block="contact"]:not([data-tone="light"])[data-location-style="plain"] .ct-loc {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+[data-block="contact"]:not([data-tone="light"]) .ct-loc-name,
+[data-block="contact"]:not([data-tone="light"]) .ct-loc-line > svg,
+[data-block="contact"]:not([data-tone="light"]) .ct-loc-rating b {
+  color: #fff;
+}
+[data-block="contact"]:not([data-tone="light"]) .ct-loc-rating {
+  color: rgba(255, 255, 255, 0.85);
+}
+
 /* ── contact · form-beside（预设 Form beside）──────────────────────────────────────────────────────────────
-   这个形态没有自己的几何：contact 是一份 markup + 十个旋钮，排版由**实际生效的旋钮**决定
-   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
+   这个形态没有自己的几何：contact 是一份 markup + 一组旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-location*` / `data-image` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
    按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
    所以这份文件只有这段说明。 */
 [data-block="contact"][data-shape="form-beside"] {
   --ct-preset: form-beside;
 }
 
-/* ── contact · details-beside（预设 Details beside）──────────────────────────────────────────────────────────────
-   这个形态没有自己的几何：contact 是一份 markup + 十个旋钮，排版由**实际生效的旋钮**决定
-   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
+/* ── contact · location-cards（预设 Location cards）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：contact 是一份 markup + 一组旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-location*` / `data-image` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
    按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
    所以这份文件只有这段说明。 */
-[data-block="contact"][data-shape="details-beside"] {
-  --ct-preset: details-beside;
+[data-block="contact"][data-shape="location-cards"] {
+  --ct-preset: location-cards;
 }
 
-/* ── contact · stacked（预设 Stacked）──────────────────────────────────────────────────────────────
-   这个形态没有自己的几何：contact 是一份 markup + 十个旋钮，排版由**实际生效的旋钮**决定
-   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
+/* ── contact · photo-beside（预设 Photo beside）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：contact 是一份 markup + 一组旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-location*` / `data-image` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
    按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
    所以这份文件只有这段说明。 */
-[data-block="contact"][data-shape="stacked"] {
-  --ct-preset: stacked;
+[data-block="contact"][data-shape="photo-beside"] {
+  --ct-preset: photo-beside;
 }
 
 /* ── contact · map-beside（预设 Map beside）──────────────────────────────────────────────────────────────
-   这个形态没有自己的几何：contact 是一份 markup + 十个旋钮，排版由**实际生效的旋钮**决定
-   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
+   这个形态没有自己的几何：contact 是一份 markup + 一组旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-location*` / `data-image` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
    按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
    所以这份文件只有这段说明。 */
 [data-block="contact"][data-shape="map-beside"] {
   --ct-preset: map-beside;
 }
 
-/* ── contact · map（预设 Map）──────────────────────────────────────────────────────────────
-   这个形态没有自己的几何：contact 是一份 markup + 十个旋钮，排版由**实际生效的旋钮**决定
-   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
+/* ── contact · compact（预设 Compact）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：contact 是一份 markup + 一组旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-side-*` / `data-form*` / `data-item*` / `data-location*` / `data-image` / `data-map` / `data-tone`，规则全在 `blocks/contact/block.css`）。
    按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
    所以这份文件只有这段说明。 */
-[data-block="contact"][data-shape="map"] {
-  --ct-preset: map;
+[data-block="contact"][data-shape="compact"] {
+  --ct-preset: compact;
 }
 
 /* ══ content ══════════════════════════════════════════════════════════════════════ */

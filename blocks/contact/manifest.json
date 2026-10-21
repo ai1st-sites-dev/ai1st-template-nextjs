@@ -25,42 +25,51 @@
         "sidePosition": "right",
         "form": "full",
         "formStyle": "card",
+        "image": "yes",
         "itemsLayout": "list",
         "itemStyle": "plain",
         "itemAlign": "left",
         "itemIcon": "left",
+        "locationsLayout": "list",
+        "locationStyle": "plain",
         "map": "none"
       }
     },
     {
-      "name": "Details beside",
-      "shape": "details-beside",
+      "name": "Location cards",
+      "shape": "location-cards",
       "knobs": {
         "introPosition": "top",
         "introAlign": "center",
-        "sidePosition": "left",
-        "form": "full",
-        "formStyle": "plain",
-        "itemsLayout": "list",
-        "itemStyle": "plain",
-        "itemAlign": "left",
-        "itemIcon": "left",
-        "map": "none"
-      }
-    },
-    {
-      "name": "Stacked",
-      "shape": "stacked",
-      "knobs": {
-        "introPosition": "top",
-        "introAlign": "center",
-        "sidePosition": "bottom",
-        "form": "full",
+        "sidePosition": "right",
+        "form": "none",
         "formStyle": "card",
+        "image": "none",
         "itemsLayout": "grid",
         "itemStyle": "card",
         "itemAlign": "center",
         "itemIcon": "top",
+        "locationsLayout": "grid",
+        "locationStyle": "card",
+        "map": "none"
+      }
+    },
+    {
+      "name": "Photo beside",
+      "shape": "photo-beside",
+      "knobs": {
+        "introPosition": "beside",
+        "introAlign": "left",
+        "sidePosition": "right",
+        "form": "none",
+        "formStyle": "card",
+        "image": "yes",
+        "itemsLayout": "list",
+        "itemStyle": "plain",
+        "itemAlign": "left",
+        "itemIcon": "left",
+        "locationsLayout": "list",
+        "locationStyle": "plain",
         "map": "none"
       }
     },
@@ -73,27 +82,33 @@
         "sidePosition": "right",
         "form": "none",
         "formStyle": "card",
+        "image": "none",
         "itemsLayout": "list",
         "itemStyle": "plain",
         "itemAlign": "left",
         "itemIcon": "left",
+        "locationsLayout": "grid",
+        "locationStyle": "card",
         "map": "beside"
       }
     },
     {
-      "name": "Map",
-      "shape": "map",
+      "name": "Compact",
+      "shape": "compact",
       "knobs": {
         "introPosition": "top",
         "introAlign": "center",
         "sidePosition": "right",
         "form": "none",
         "formStyle": "card",
+        "image": "none",
         "itemsLayout": "grid",
-        "itemStyle": "card",
+        "itemStyle": "plain",
         "itemAlign": "center",
-        "itemIcon": "top",
-        "map": "bottom"
+        "itemIcon": "left",
+        "locationsLayout": "list",
+        "locationStyle": "plain",
+        "map": "none"
       }
     }
   ],
@@ -102,7 +117,7 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{introPosition, introAlign, sidePosition, form, formStyle, itemsLayout, itemStyle, itemAlign, itemIcon, map}",
+      "shape": "{introPosition, introAlign, sidePosition, form, formStyle, image, itemsLayout, itemStyle, itemAlign, itemIcon, locationsLayout, locationStyle, map}",
       "knobs": [
         {
           "name": "introPosition",
@@ -143,6 +158,13 @@
           ]
         },
         {
+          "name": "image",
+          "values": [
+            "none",
+            "yes"
+          ]
+        },
+        {
           "name": "itemsLayout",
           "values": [
             "grid",
@@ -169,6 +191,20 @@
           "values": [
             "left",
             "top"
+          ]
+        },
+        {
+          "name": "locationsLayout",
+          "values": [
+            "grid",
+            "list"
+          ]
+        },
+        {
+          "name": "locationStyle",
+          "values": [
+            "card",
+            "plain"
           ]
         },
         {
@@ -242,6 +278,18 @@
       "promptOptional": true,
       "shape": "{id?}"
     },
+    "image": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{imageUrl, alt}",
+      "editLabel": "Image"
+    },
+    "location": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
     "bg": { "ref": "bg" }
   },
   "industries": {
@@ -259,20 +307,22 @@
     "group": "homepage",
     "order": 19,
     "headPrefix": "",
-    "headSuffix": "a block head, a group of contact items (phone / email / address / hours / link) and a side column with the lead form and an optional map, with presets for form beside, details beside, stacked, map beside and map",
+    "headSuffix": "a block head, a group of contact items (phone / email / address / hours / link) and a side column with the lead form and an optional map, one group per location when the site has more than one, with presets for form beside, location cards, photo beside, map beside and compact",
     "headExtra": null,
     "lines": [
       "@data",
       "items: only pick the kinds the site data really has (phone / email / address / hours); the value itself is read from the site data and shown under the title, so title and hint must NOT contain the phone number, email, address or opening hours (a copied value is removed) — title says what it is (\"Call us\"), hint says something else (\"Same-day reply\", \"Free parking\"); only kind link has an href (WhatsApp, booking page)",
-      "if the business has no real street address, do not use the presets with a map (Map beside / Map)",
+      "if the business has no real street address, do not use the preset with a map (Map beside)",
+      "image is a photo of the shop front shown in the side column (the image knob turns it on); location is left empty — location pages fill it with one location id",
       "form picks the site's lead form (leave id empty for the default form); how much of it shows is the form knob",
       "bg is the background colour, top-level in data (not inside options)"
     ]
   },
   "toolbarGroups": [
     ["introPosition", "introAlign", "choice:introEyebrow.style"],
-    ["sidePosition", "form", "formStyle"],
+    ["sidePosition", "form", "formStyle", "image"],
     ["itemsLayout", "itemStyle", "itemAlign", "itemIcon"],
+    ["locationsLayout", "locationStyle"],
     ["map"],
     ["color:bg"]
   ],

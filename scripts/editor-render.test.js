@@ -117,7 +117,13 @@ function freshRenderer() {
 function emptyOnCanvas() {
   const raw = {
     slug: 'home',
-    blocks: schema.components.map((c, i) => ({ id: `home-${c.type}-${i}`, type: c.type, data: catalogLib.sampleDataFor(manifests.get(c.type)) })),
+    // #1978 —— contact 的 `location` 是地点 id（不是给人看的字）：现编的那个字符串指不到任何地点 ⟹ 整块按设计不画，
+    //    所以清成空（= 全部地点）。编辑器自己播的 props 没有这一格（它不是编辑器字段，`seedProps` 不碰它）。
+    blocks: schema.components.map((c, i) => {
+      const data = catalogLib.sampleDataFor(manifests.get(c.type));
+      if (c.type === 'contact') data.location = '';
+      return { id: `home-${c.type}-${i}`, type: c.type, data };
+    }),
   };
   const pages = [JSON.parse(JSON.stringify(raw))];
   blocksLib.normalizeLocalePages(pages, {}, 'en', () => {});

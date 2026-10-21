@@ -314,6 +314,8 @@ function fixture(type) {
   const d = {};
   for (const [slot, s] of Object.entries(m.slots || {})) {
     if (slot === 'options' || slot === 'bg') continue;
+    // #1978 —— contact 的 `location` 是地点 id：给一串字就指不到任何地点、整块按设计不画 ⟹ 不给（= 全部地点）。
+    if (type === 'contact' && slot === 'location') continue;
     const shape = typeof s.shape === 'string' ? s.shape : '';
     const url = (suffix = '') => `/u/${type}/${slot}${suffix}.png`;
     if (s.kind === 'text' || s.kind === 'richtext') d[slot] = `${slot}-text`;

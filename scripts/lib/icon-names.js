@@ -41,7 +41,8 @@ const BLOCK_ICONS = {
   //    由 §iconNamesIn 收 —— 所以那个字段必须叫 `icon`。
   'team': ['person-plus', 'arrow-right'],
   // #1489 —— contact items 五种 kind 的图标（同 footer 那五个）+ 地图地址卡上的钉子。
-  'contact': ['telephone', 'envelope', 'geo-alt', 'clock', 'link-45deg', 'geo-alt-fill'],
+  //    #1978 —— 多地点时每家的星级（同 testimonials：n 颗实心 + 空心补到 5 颗）。
+  'contact': ['telephone', 'envelope', 'geo-alt', 'clock', 'link-45deg', 'geo-alt-fill', 'star-fill', 'star'],
   // #1483 —— 功能清单每行的勾号；highlights 的图标来自数据（`highlights[].icon`），由 §iconNamesIn 收。
   'pricing': ['check'],
   // #1488 —— 星级（每条 n 颗实心 + 空心补到 5 颗）和轮播的前 / 后箭头，都是组件里写死的名字。

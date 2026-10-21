@@ -31,9 +31,9 @@ import SiteRender from '@/components/SiteRender';
 import { requestSiteData } from '@/lib/site-data.server';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
-import { DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, demoDataFor, demoSourceContext } from '../../../../../scripts/lib/demo-content/index.js';
+import { DEMO_LOCATIONS, DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, demoDataFor, demoSourceContext } from '../../../../../scripts/lib/demo-content/index.js';
 import { resolveItemSources } from '@/lib/sections/item-sources';
-import { siteFactsFrom } from '../../../../../scripts/lib/contact-facts.js';
+import { locationsFactsFrom, siteFactsFrom } from '../../../../../scripts/lib/contact-facts.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
 import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
 import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js';
@@ -264,9 +264,11 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   let siteFacts: ReturnType<typeof siteFactsFrom> | undefined;
   if (block === 'contact') {
     const demo = JSON.parse(JSON.stringify(DEMO_SITE));
+    // #1978 —— `?locations=3`：换成演示生意的三个地点（块目录里 1 个 / 3 个地点两种都能看）。
+    if (one(sp.locations) === '3') demo.brand.locations = JSON.parse(JSON.stringify(DEMO_LOCATIONS));
     if (one(sp.geo) === 'none') delete demo.brand.locations[0].geo;
     if (one(sp.hours) === 'none') demo.brand.locations[0].hours = [{ days: [], opens: '', closes: '' }];
-    siteFacts = siteFactsFrom(demo.brand, null);
+    siteFacts = { ...siteFactsFrom(demo.brand, null), locations: locationsFactsFrom(demo.brand, null) };
     // `?items=none` —— contact items 清空（判据 4：那一组不渲染、空列不占位）。
     if (one(sp.items) === 'none') data.items = [];
   }

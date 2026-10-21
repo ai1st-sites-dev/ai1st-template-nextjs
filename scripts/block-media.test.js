@@ -140,7 +140,8 @@ check(sharedImgs.length === 1 && /\bimageUrl\b/.test(sharedImgs[0].src || '') &&
 const callers = (fn) => blocks.filter((b) => read[b].files.some((f) => new RegExp(`\\b${fn}\\(`).test(stripComments(f.text))));
 check(callers('slotImg').join() === imageBlocks.join(), `调 slotImg 的块 = 图槽块（${callers('slotImg').length} 个）`,
   `调的：${callers('slotImg').join(' · ')}`);
-check(callers('ratingStars').join() === 'reviews,testimonials', `调 ratingStars 的块 = reviews · testimonials`, callers('ratingStars').join(' · '));
+// #1978 —— contact 多地点时每家的星级也走它。
+check(callers('ratingStars').join() === 'contact,reviews,testimonials', `调 ratingStars 的块 = contact · reviews · testimonials`, callers('ratingStars').join(' · '));
 
 console.log('\n③ 对照：往真文件里塞一份本地渲染，必须当场红并点名那个文件');
 const inject = (block, needle) => {

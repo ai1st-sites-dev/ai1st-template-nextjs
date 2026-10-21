@@ -72,8 +72,8 @@ const ids = (mp) => [...mp.keys()].sort();
 check(JSON.stringify(ids(want)) === JSON.stringify(ids(got)), `按形状现取的位置 = 编辑器里的图片格（${want.size} 个）`,
   `少 ${ids(want).filter((x) => !got.has(x)).join(' ')} · 多 ${ids(got).filter((x) => !want.has(x)).join(' ')}`);
 console.log(`     读数：${ids(want).join(' ')}`);
-// 今天的读数（PM 2026-10-10 按谓词现取的那 12 个）。变了不一定是错，但要有人看一眼是哪一个新进来 / 走了。
-check(want.size === 12, '今天的读数是 12 个（PM 留言里现取的那一份）', String(want.size));
+// 今天的读数（PM 2026-10-10 按谓词现取的那 12 个；#1978 加了 contact.image ⟹ 13）。变了不一定是错，但要有人看一眼是哪一个新进来 / 走了。
+check(want.size === 13, '今天的读数是 13 个（PM 留言里现取的 12 个 + #1978 的 contact.image）', String(want.size));
 const optMismatch = ids(want).filter((id) => want.get(id) !== got.get(id));
 check(optMismatch.length === 0, '带不带 Remove 跟形状一致（顶层 required: false / 列表项键带 ?）', optMismatch.join(' '));
 const required = ids(got).filter((id) => !got.get(id));

@@ -22,8 +22,8 @@
 
 import type { BlockConfig, BlogPostConfig, DynamicPageConfig, SiteData } from '@template/lib/types/config';
 import { resolveItemSources } from '@template/lib/sections/item-sources';
-import { DEMO_BLOG_POSTS, DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, SITE, demoDataFor, demoSourceContext } from '../../../scripts/lib/demo-content/index.js';
-import { siteFactsFrom } from '../../../scripts/lib/contact-facts.js';
+import { DEMO_BLOG_POSTS, DEMO_LOCATIONS, DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, SITE, demoDataFor, demoSourceContext } from '../../../scripts/lib/demo-content/index.js';
+import { locationsFactsFrom, siteFactsFrom } from '../../../scripts/lib/contact-facts.js';
 import { filledOptionalSlots } from '../../../scripts/lib/slot-filled.js';
 import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, presetsOf } from '../../../scripts/lib/header-knobs.js';
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、对合法声明给出同一结果；
@@ -288,9 +288,11 @@ export function catalogCellModel({ manifest: m, block, shape, query: q }: { mani
   let siteFacts: ReturnType<typeof siteFactsFrom> | undefined;
   if (block === 'contact') {
     const demo = JSON.parse(JSON.stringify(DEMO_SITE));
+    // #1978 —— `?locations=3`：换成演示生意的三个地点（块目录里 1 个 / 3 个地点两种都能看）。
+    if (q('locations') === '3') demo.brand.locations = JSON.parse(JSON.stringify(DEMO_LOCATIONS));
     if (q('geo') === 'none') delete demo.brand.locations[0].geo;
     if (q('hours') === 'none') demo.brand.locations[0].hours = [{ days: [], opens: '', closes: '' }];
-    siteFacts = siteFactsFrom(demo.brand, null);
+    siteFacts = { ...siteFactsFrom(demo.brand, null), locations: locationsFactsFrom(demo.brand, null) };
     if (q('items') === 'none') data.items = [];
   }
 

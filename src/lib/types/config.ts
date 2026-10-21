@@ -30,6 +30,8 @@ export interface BrandLocation {
    *  读的地方一律按「可能没有」处理（`scripts/lib/contact-facts.js` · `item-sources.js` · `llms-txt.ts` · JsonLd）。 */
   address?: string;
   phone?: string;
+  /** #1978 —— 这一家自己的邮箱；没有就用网站邮箱（`brand.email`），contact 多地点时每组读它（`contact-facts.js` §locationFactsFrom）。 */
+  email?: string;
   /** #1489 —— 这个地址的坐标：建站 / 改地址时由 `scripts/lib/geocode.js`（Nominatim）查一次写进来，页面打开时不查。
    *  contact 的地图点开时拿它算 bbox / marker；没有就不画地图。 */
   geo?: { lat: number; lng: number };
@@ -348,8 +350,13 @@ export interface DynamicPageConfig {
    *  #1643 —— 骨架页（create-site.js §pageSkeleton，#1596）写的是 `placeholder: true`，按构造没有目标词 ⟹ targetKeyword 可选。
    *  必填时，整站每一页都是骨架页的站在 config.ts 的 `pagesByLocale` 断言处过不了类型检查。 */
   seo?: { targetKeyword?: string; translated?: boolean; placeholder?: boolean };
+  /** #1978 —— 地点页 / 地点总览页的标记（T4 生成页面时写）。contact 多地点时地点名链到 `kind: "location"` 且 `id` 对得上的那一页。 */
+  locationPage?: LocationPageMark;
   blocks: BlockConfig[];
 }
+
+/** #1978 —— `{"kind":"location","id":"<地点 id>"}` 是某一家的地点页；`{"kind":"overview"}` 是全部地点的总览页。 */
+export type LocationPageMark = { kind: 'location'; id: string } | { kind: 'overview' };
 
 // #1353 — 两个 Region（顶栏 / 页脚）的**形态**；#1425（T3）起再带一份按语言的 **data**。
 //

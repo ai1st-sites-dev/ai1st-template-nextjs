@@ -12,7 +12,7 @@
 //    这里不发任何请求。没有 geo ⟹ 地图那一格不渲染。
 
 const { hoursSegments } = require('./local-business-facts');
-const { mainLocation, mainLocationFacts } = require('./locations');
+const { mainLocation, mainLocationFacts, usableRating, withLocationIds } = require('./locations');
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -62,20 +62,59 @@ function validGeo(g) {
     && Math.abs(g.lat) <= 90 && Math.abs(g.lng) <= 180;
 }
 
+/** Google 地图的搜索链接（`googleMapsUrl` 没有时用）；没地址 → ''。 */
+const mapsSearchUrl = (address) => (str(address) ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(str(address))}` : '');
+
+/**
+ * #1978 —— 一个地点 → 块要的那几样值（多地点时每组一份）。`id` 指 `brand.locations[i].id`（老站没有 id：按下标补的
+ * `loc-<i>` 也认，同 `locations.js` §withLocationIds）；没有这一家 → null。
+ *   · 电话：这一家没有 ⟹ 第一家的；邮箱：这一家没有 ⟹ 网站邮箱（`brand.email`）。
+ *   · 营业时间 / 评分：读这一家的 `hours` / `rating`。🔴 `seo.json` 里的老形状**只属于第一家**（`locations.js` 文件头那条规则，
+ *     §mainLocationFacts）—— 第二家及以后不带这条兜底，否则没搬过的老站会把站级营业时间挂到每一家头上（PM #1978 第四轮）。
+ *   · Google 链接：有 `googleMapsUrl` 用它，没有就按地址拼搜索链接，没地址 → ''。
+ * @returns {{ id: string, name: string, phone: string, email: string, address: string, hours: string,
+ *   geo: { lat: number, lng: number } | null, rating: { ratingValue: number, reviewCount: number } | null, mapsUrl: string } | null}
+ */
+function locationFactsFrom(brand, id, seo) {
+  const b = brand && typeof brand === 'object' ? brand : {};
+  const locs = withLocationIds(Array.isArray(b.locations) ? b.locations : []);
+  const i = locs.findIndex((l) => l && typeof l === 'object' && l.id === id);
+  if (i < 0) return null;
+  const loc = locs[i];
+  const first = locs[0] && typeof locs[0] === 'object' ? locs[0] : {};
+  const own = i === 0 ? mainLocationFacts(b, seo) : { hours: loc.hours, rating: loc.rating };
+  const r = usableRating(own.rating);
+  return {
+    id: loc.id,
+    name: str(loc.label),
+    phone: str(loc.phone) || str(first.phone),
+    email: str(loc.email) || str(b.email),
+    address: str(loc.address),
+    hours: formatHours(own.hours),
+    geo: validGeo(loc.geo) ? { lat: loc.geo.lat, lng: loc.geo.lng } : null,
+    rating: r ? { ratingValue: r.rating, reviewCount: r.count } : null,
+    mapsUrl: str(loc.googleMapsUrl) || mapsSearchUrl(loc.address),
+  };
+}
+
+/** #1978 —— 网站的全部地点，按 `brand.locations` 的顺序各一份 §locationFactsFrom。 */
+function locationsFactsFrom(brand, seo) {
+  const b = brand && typeof brand === 'object' ? brand : {};
+  return withLocationIds(Array.isArray(b.locations) ? b.locations : [])
+    .filter((l) => l && typeof l === 'object')
+    .map((l) => locationFactsFrom(b, l.id, seo));
+}
+
 /**
  * 站点数据 → 块要的那几样值。`brand` / `seo` 就是 `@/lib/config` 的 `brand` 与 `getSeo(locale)`。
+ * #1978 起取第一家经 §locationFactsFrom，返回值不变（没有地点时全是空，同以前）。
  * @returns {{ phone: string, email: string, address: string, hours: string, geo: { lat: number, lng: number } | null }}
  */
 function siteFactsFrom(brand, seo) {
   const b = brand && typeof brand === 'object' ? brand : {};
-  const loc = mainLocation(b) || {};
-  return {
-    phone: str(loc.phone),
-    email: str(b.email),
-    address: str(loc.address),
-    hours: formatHours(mainLocationFacts(b, seo).hours),
-    geo: validGeo(loc.geo) ? { lat: loc.geo.lat, lng: loc.geo.lng } : null,
-  };
+  const f = mainLocation(b) ? locationFactsFrom(b, withLocationIds(b.locations)[0].id, seo) : null;
+  if (f) return { phone: f.phone, email: f.email, address: f.address, hours: f.hours, geo: f.geo };
+  return { phone: '', email: str(b.email), address: '', hours: formatHours(mainLocationFacts(b, seo).hours), geo: null };
 }
 
 const telHref = (phone) => `tel:${str(phone).replace(/[^\d+]/g, '')}`;
@@ -159,4 +198,4 @@ function scrubContactCopies(page, facts) {
   return n;
 }
 
-module.exports = { WEEK, formatTime, formatDays, formatHours, validGeo, siteFactsFrom, telHref, mailtoHref, osmEmbedUrl, copiesSiteFact, scrubContactItem, scrubContactCopies };
+module.exports = { WEEK, formatTime, formatDays, formatHours, validGeo, siteFactsFrom, locationFactsFrom, locationsFactsFrom, telHref, mailtoHref, osmEmbedUrl, copiesSiteFact, scrubContactItem, scrubContactCopies };

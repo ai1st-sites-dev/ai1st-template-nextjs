@@ -232,7 +232,8 @@ const EDIT_LABEL_KINDS = ['text', 'link', 'object', 'list', 'richtext'];
 // 槽位的检查关掉，而它看起来跟「已经豁免过了」一模一样。
 // 📌 #1425（T3）：原来三项（`features-grid.columns` / `text-block.background` / `service-related-pages.serviceSlug`）
 //    都是旧库的块，随旧库删了；新库今天没有这种槽。
-const NON_EDITABLE_TEXT_SLOTS = [];
+// 📌 #1978：`contact.location` —— 一个地点的 id（地点页上只画那一家），T4 生成地点页时写，不是给人看的字。
+const NON_EDITABLE_TEXT_SLOTS = ['contact.location'];
 
 // 🔴 **外壳区的两个块整块不进这一维** —— 它们没有「老板能直接改的字」这条路可走，不是「这几个槽位
 // 不是文字」。`header` / `footer`（#1353）不经 `SectionRenderer` 渲染，`Header.tsx` / `Footer.tsx`
@@ -1193,6 +1194,16 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
   }
 
   for (const page of pages || []) {
+    // #1978 —— 页面顶层的地点页标记（`locationPage`，T4 生成页面时写）：`{kind: "location", id: "<地点 id>"}` 或 `{kind: "overview"}`。
+    //    「id 指的那一家在不在」这里拿不到 brand，不查（contact 渲染时指空 ⟹ 链接不出、`location` 指空 ⟹ 整块不画）。
+    if (page && typeof page === 'object' && page.locationPage !== undefined) {
+      const lp = page.locationPage;
+      const okMark = !!lp && typeof lp === 'object' && !Array.isArray(lp)
+        && (lp.kind === 'overview' || (lp.kind === 'location' && typeof lp.id === 'string' && lp.id.trim() !== ''));
+      if (!okMark) {
+        flag(`${page.slug || '(no slug)'}: locationPage 是 ${JSON.stringify(lp)} —— 只能是 {"kind":"location","id":"<地点 id>"} 或 {"kind":"overview"}`);
+      }
+    }
     for (const [i, sec] of blocksOf(page).entries()) {
       // 🔴 #1154 —— `blocks` 数组里那一格根本不是块（`null` / 一个字符串 / 一个数组）。
       //    在这条守卫之前，下面那句 `sec.type` 直接抛 `TypeError: Cannot read properties of
