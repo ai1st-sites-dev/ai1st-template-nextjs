@@ -149,7 +149,9 @@ function main() {
     next3['brand.json'] = brand3;
     const r3 = validate(dir, prev, next3);
     const loc3 = r3.out.ok ? asObj(r3.out.content['brand.json']).locations[0] : null;
-    if (r3.out.ok && loc3 && !('geo' in loc3) && r3.out.geo && r3.out.geo.lat === 43.5 && r3.out.geo.lng === -79.5 && r3.out.geo.address === '12 Probe Street, Toronto, ON') {
+    // #1976 —— 返回值的 geo 是一组（每个地点一项，按地址对回去）。
+    const g3 = Array.isArray(r3.out.geo) && r3.out.geo.length === 1 ? r3.out.geo[0] : null;
+    if (r3.out.ok && loc3 && !('geo' in loc3) && g3 && g3.lat === 43.5 && g3.lng === -79.5 && g3.address === '12 Probe Street, Toronto, ON') {
       ok(`产出的 brand.json 不带 geo，返回值 geo=${JSON.stringify(r3.out.geo)}`);
     } else fail(`geo 没剥对：${JSON.stringify({ ok: r3.out.ok, loc3, geo: r3.out.geo, msg: r3.out.message })}`);
 

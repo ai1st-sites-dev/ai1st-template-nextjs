@@ -19,6 +19,7 @@
 const { fieldProps } = require('./editor-convert');
 const { setAt, getAt } = require('./inline-edit');
 const { platformKey } = require('./review-platforms');
+const { mainLocationFacts } = require('./locations');
 
 // #1767 —— 示例数 / 示例图标：`editor-schema.js` 的 §NUMBER_EXAMPLES / §SEED_ICONS 的副本（那个文件读 fs，进不了浏览器包；
 //    同 `blockMedia.tsx` 的 PLACEHOLDER_IMAGE_URL 那一对）。`scripts/block-seed.test.js` 钉两份相等。
@@ -211,7 +212,7 @@ function aiCells(component, props) {
 }
 
 /**
- * #1766 —— 站里存的真实评分（建站时抓到的，`seo.schema.aggregateRating`，`local-business-facts.js` §ratingFrom）**当且仅当**
+ * #1766 —— 站里存的真实评分（建站时抓到的；#1976 起在主地点的 `rating` 上，老站 seo.json 里那份照认 —— `locations.js` §mainLocationFacts；`local-business-facts.js` §ratingFrom）**当且仅当**
  * 它能证明自己来自 Google（`source` 认得出是 Google）时回 `{ rating, count }`；否则 null。
  * 🔴 §ratingFrom 在 Google 没有合格的数时会取下一家（Yelp 4.4 / 37 条），没有 `source` 就会被写成「Google 4.4」——
  *    替 Google 编分数（`create-site.js` 的 FACTS_ONLY_FROM_FORM_RULE 那条红线）。所以 `source` 不是 Google、或者没有
@@ -221,7 +222,7 @@ function aiCells(component, props) {
 function realGoogleRating(site, locale) {
   const byLocale = site && site.seoByLocale && typeof site.seoByLocale === 'object' ? site.seoByLocale : {};
   const seo = byLocale[locale] || byLocale[site && site.defaultLocale];
-  const r = seo && seo.schema && seo.schema.aggregateRating;
+  const r = mainLocationFacts(site && site.brand, seo).rating;
   if (!r || platformKey(r.source) !== 'google') return null;
   const rating = Math.round(Number(r.ratingValue) * 10) / 10;
   const count = Number(r.reviewCount);

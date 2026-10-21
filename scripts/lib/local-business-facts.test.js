@@ -2,7 +2,7 @@
 /**
  * local-business-facts.test.js — #1551：LocalBusiness 里「从老板给的料来」的几项。
  *   ① 营业时间的转写核对（§verifyTranscription）—— 票上营业时间四臂。「AI 桩」打在 Call 1 解析后的那一项上
- *      （`ai.seo.openingHours`），create-site.js 组 seo 时原样把这个函数的结果写进 `seo.schema.openingHours`（⑤ 钉住接线）；
+ *      （`ai.seo.openingHours`），create-site.js 原样把这个函数的结果写进 `brand.locations[0].hours`（#1976；⑤ 钉住接线）；
  *   ② 多段结构的规范化（§hoursSegments，老站单对象照旧认）与 contact 那一行（contact-facts §formatHours）；
  *   ③ 真实评分（§ratingFrom）；
  *   ④ 提示词：留空 ⟹ AI 的请求里不带营业时间、也没有写死的样例；填了 ⟹ 带原文和「只转写」那句。
@@ -140,13 +140,14 @@ try {
   check(strip(filled) === empty, '去掉营业时间那两处之后，两臂提示词逐字相同');
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 
-console.log('\n── ⑤ 接线：create-site.js 组 seo 时用的是核过的段与真实评分');
+console.log('\n── ⑤ 接线：create-site.js 组第一个地点时用的是核过的段与真实评分（#1976 起写在 brand.locations[0]，不在 seo.json）');
 {
   const src = fs.readFileSync(path.join(NEXT, 'scripts', 'create-site.js'), 'utf8');
   check(/verifyTranscription\(hours, ai\.seo && ai\.seo\.openingHours\)/.test(src), 'Call 1 的 openingHours 先过 verifyTranscription');
-  check(/\.\.\.\(hoursCheck\.segments\.length \? \{ openingHours: hoursCheck\.segments \} : \{\}\)/.test(src), 'seo.schema.openingHours 只写核过的段，没有就没有这一项');
-  check(!/openingHours: ai\.seo\.openingHours/.test(src), '不再把 AI 填的原样写进去');
-  check(/const rating = ratingFrom\(onlinePresence\)/.test(src) && /\.\.\.\(rating \? \{ aggregateRating: rating \} : \{\}\)/.test(src), 'aggregateRating 只来自 ratingFrom(onlinePresence)');
+  check(/\.\.\.\(hoursCheck\.segments\.length \? \{ hours: hoursCheck\.segments \} : \{\}\)/.test(src), 'locations[0].hours 只写核过的段，没有就没有这一项');
+  check(!/openingHours: ai\.seo\.openingHours/.test(src) && !/hours: ai\.seo\.openingHours/.test(src), '不再把 AI 填的原样写进去');
+  check(/const rating = ratingFrom\(onlinePresence\)/.test(src) && /\.\.\.\(rating \? \{ rating \} : \{\}\)/.test(src), 'locations[0].rating 只来自 ratingFrom(onlinePresence)');
+  check(!/\{ openingHours: hoursCheck/.test(src) && !/\{ aggregateRating: rating \}/.test(src), 'seo.schema 不再写 openingHours / aggregateRating');
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

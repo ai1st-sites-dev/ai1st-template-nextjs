@@ -145,17 +145,16 @@ async function loadEditorProps() {
 }
 
 /**
- * `sites.geo`（`{lat, lng, address}`，manager 经 `--geo` 递来）并进第一家门店：地址跟 `brand.locations[0].address` 一样才并
- * （查坐标那会儿的地址已经不是现在的 ⟹ 不用；规矩同 `site.js` §render 的 `--geo`，设计文档 §4.1 / §5.1）。没给 / 对不上 ⟹
- * content 原样（T3a 之前 content 里自带的 `locations[0].geo` 照用）。contact 块「没有 geo 地图那一格不渲染」（`contact-facts.js`）。
+ * `sites.geo`（manager 经 `--geo` 递来；#1976 起是一组 `[{address, lat, lng, …}]`，老的单个对象当一项）按地址并进各地点：
+ * 规矩同 `site.js` §render 的 `--geo`（`lib/locations.js` §mergeGeo；查坐标那会儿的地址已经不是现在的 ⟹ 对不上 ⟹ 不用）。
+ * 没给 / 一个都对不上 ⟹ content 原样（content 里自带的 `locations[i].geo` 照用）。contact 块「没有 geo 地图那一格不渲染」（`contact-facts.js`）。
  */
 function withGeo(content, geo) {
-  if (!isObj(geo) || !Object.prototype.hasOwnProperty.call(content, 'brand.json')) return content;
+  if (!geo || typeof geo !== 'object' || !Object.prototype.hasOwnProperty.call(content, 'brand.json')) return content;
   const raw = content['brand.json'];
   const brand = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  const loc = isObj(brand) && Array.isArray(brand.locations) ? brand.locations[0] : null;
-  if (!isObj(loc) || typeof geo.address !== 'string' || geo.address !== loc.address || !Number.isFinite(geo.lat) || !Number.isFinite(geo.lng)) return content;
-  return { ...content, 'brand.json': { ...brand, locations: [{ ...loc, geo: { lat: geo.lat, lng: geo.lng } }, ...brand.locations.slice(1)] } };
+  const merged = require('./locations').mergeGeo(brand, geo);
+  return merged === brand ? content : { ...content, 'brand.json': merged };
 }
 
 /**
@@ -320,7 +319,7 @@ async function save({ content, changes, keep = false, migrate = [] }) {
   const formsWrite = require('./forms-write.js');
   const editorNav = require('./editor-nav.js');
   const { editorSource } = require('./editor-page.js');
-  const { contentPatchesOf } = require('./derive-core');
+  const { contentPatchesOf, locationFactFilesChanged } = require('./derive-core');
 
   const { dir, siteDir } = materialize(content);
   try {
@@ -376,7 +375,8 @@ async function save({ content, changes, keep = false, migrate = [] }) {
 
     let next = readTree(siteDir);
     // 菜单同步 + custom.css（derive-core §contentPatchesOf，设计文档 §5.3：并进同一笔，渲染不回写库）。补丁直接是对象 / 字符串（#1838）。
-    const patches = contentPatchesOf(next);
+    // #1976 —— 这一笔改到 brand.json / seo.json ⟹ 老站的营业时间 / 评分在这一笔里搬进 locations[0]（§locationFactFilesChanged）。
+    const patches = contentPatchesOf(next, { touchedFiles: locationFactFilesChanged(content, next) });
     for (const [rel, value] of Object.entries(patches)) {
       if (value === null) delete next[rel];
       else next[rel] = value;
@@ -468,8 +468,9 @@ function dressContent(content, change) {
     throw new SiteEditorError('bad', e.message);
   }
   let next = { ...content, 'theme.json': dressed.theme, 'brand.json': dressed.brand };
-  // #1838 —— 补丁直接是对象 / 字符串。换装只碰 theme.json / brand.json ⟹ 不迁（`touchedFiles` 不传），只盖号（§theme）。
-  const patches = contentPatchesOf(next);
+  // #1838 —— 补丁直接是对象 / 字符串。换装只碰 theme.json / brand.json ⟹ 块不迁，只盖号（§theme）。
+  // #1976 —— 碰了 brand.json ⟹ 营业时间 / 评分照规矩落盘（`touchedFiles` 只含 brand.json / seo.json，不触发块迁移）。
+  const patches = contentPatchesOf(next, { touchedFiles: require('./derive-core').locationFactFilesChanged(content, next) });
   for (const [rel, value] of Object.entries(patches)) {
     if (value === null) delete next[rel];
     else next[rel] = value;

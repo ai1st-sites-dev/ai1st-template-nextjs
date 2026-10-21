@@ -114,6 +114,7 @@ const seoPage = require('./lib/seo-page');
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
 const { verifyTranscription, ratingFrom } = require('./lib/local-business-facts');
+const { withLocationIds } = require('./lib/locations');
 // #1489 r2 —— contact 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 const { scrubRowImageUrls } = require('./lib/row-image-urls');
@@ -2065,7 +2066,11 @@ function getDemoConfig(siteId, siteUrl) {
         googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
       },
       email: 'hello@demo.com',
-      locations: [{ label: 'Main Office', address: '123 Demo Street, Toronto, ON', phone: '416-555-0000', geo: { lat: 43.6532, lng: -79.3832 } }],
+      // #1976 —— 营业时间按地点存（`lib/locations.js`），不在 seo.json 里。
+      locations: [{
+        id: 'loc-0', label: 'Main Office', address: '123 Demo Street, Toronto, ON', phone: '416-555-0000', geo: { lat: 43.6532, lng: -79.3832 },
+        hours: [{ days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '09:00', closes: '17:00' }],
+      }],
       socialLinks: {},
       googleFormUrl: '',
       googleFormEntries: { source: '', services: '', propertyType: '', urgency: '' },
@@ -2094,7 +2099,7 @@ function getDemoConfig(siteId, siteUrl) {
       siteTitle: 'Demo Company — Professional Services',
       siteDescription: 'Demo Company provides professional services in the Greater Toronto Area.',
       verification: {},
-      schema: { areaServed: [{ type: 'City', name: 'Toronto, ON' }], addresses: [{ locality: 'Toronto', region: 'ON', country: 'CA' }], openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '09:00', closes: '17:00' }, priceRange: '$$', offerCatalogName: 'Demo Services' },
+      schema: { areaServed: [{ type: 'City', name: 'Toronto, ON' }], addresses: [{ locality: 'Toronto', region: 'ON', country: 'CA' }], priceRange: '$$', offerCatalogName: 'Demo Services' },
     },
     services: [
       { id: 'demo-service', name: 'Demo Service', shortDescription: 'Our core service offering.', fullDescription: 'We provide professional demo services to businesses of all sizes.', icon: 'lightbulb', features: ['Fast turnaround', 'Quality results', 'Affordable pricing'], products: [] },
@@ -2805,6 +2810,23 @@ ${FACTS_ONLY_FROM_FORM_RULE}
   // #1599 —— 站级那几份（brand / navigation / seo）怎么从 ai 拼出来，抽成两个函数：分段建站的预览（① 骨架、② 能看了）在出 logo、
   //    出图之前就要它们；images 阶段照旧调它们，再往 brand 里添坐标 / logo、往页里填图（那几步不碰导航和 seo）。
   //    `say` = 日志：images 阶段那一次打 debug，预览那几次不打（同一段日志不重复三遍）。
+  // #1976 —— 营业时间 / 评分按地点存（`lib/locations.js` 文件头）：写进第一个地点，seo.json 不再有；每个地点带稳定 id（§withLocationIds）。
+  const locationsWithFacts = (locations, say) => {
+    if (!Array.isArray(locations) || !locations.length || !locations[0] || typeof locations[0] !== 'object') return locations;
+    const hoursCheck = verifyTranscription(hours, ai.seo && ai.seo.openingHours);
+    if (hoursCheck.reason) say(`[hours] 营业时间不出：${hoursCheck.reason}`);
+    else if (hoursCheck.segments.length) say(`[hours] 营业时间 ${hoursCheck.segments.length} 段，逐个小时数都在原文里`);
+    const rating = ratingFrom(onlinePresence);
+    const out = withLocationIds(locations);
+    out[0] = {
+      ...out[0],
+      // #1551 —— 营业时间只出核过的那几段；没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出空壳，contact 那一行不画）。
+      ...(hoursCheck.segments.length ? { hours: hoursCheck.segments } : {}),
+      // #1551 —— 评分只在抓到真实平台评分时才有（§ratingFrom），不让 AI 编。
+      ...(rating ? { rating } : {}),
+    };
+    return out;
+  };
   const assembleBrand = (say = () => {}) => {
     // Assemble config files
     // TICKET-136: brand.name is per-locale. Default to companyName for the
@@ -2829,7 +2851,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       // 换装时被静默盖掉。
       settings: theme.settings,
       email: ai.brand.email || email || 'info@example.com',
-      locations: ai.brand.locations,
+      locations: locationsWithFacts(ai.brand.locations, say),
       googleFormUrl: "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform",
       googleFormEntries: { source: "entry.0000000000", services: "entry.0000000000", propertyType: "entry.0000000000", urgency: "entry.0000000000" }
     };
@@ -2913,10 +2935,6 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     };
 
     const locale = localeMap[languageName] || 'en_CA';
-    const hoursCheck = verifyTranscription(hours, ai.seo && ai.seo.openingHours);
-    if (hoursCheck.reason) say(`[hours] 营业时间不出：${hoursCheck.reason}`);
-    else if (hoursCheck.segments.length) say(`[hours] 营业时间 ${hoursCheck.segments.length} 段，逐个小时数都在原文里`);
-    const rating = ratingFrom(onlinePresence);
     const seo = {
       domain: siteUrl, // #1547：manager 给的地址，不再由 AI 编
       locale,
@@ -2926,10 +2944,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       schema: {
         areaServed: ai.seo.areaServed,
         addresses: ai.seo.addresses,
-        // #1551 —— 营业时间只出核过的那几段；没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出空壳，contact 那一行不画）。
-        ...(hoursCheck.segments.length ? { openingHours: hoursCheck.segments } : {}),
-        // #1551 —— 评分只在抓到真实平台评分时才有（§ratingFrom），不让 AI 编。
-        ...(rating ? { aggregateRating: rating } : {}),
+        // #1976 —— 营业时间 / 评分不在这里了，在 brand.json 的 locations[0]（§locationsWithFacts）。
         priceRange: ai.seo.priceRange,
         offerCatalogName: ai.seo.offerCatalogName
       }

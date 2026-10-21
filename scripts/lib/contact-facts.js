@@ -3,14 +3,16 @@
 // contact-facts.js —— contact 从站点数据里取的那几样值（#1489，总纲 #1422 的 T2.11）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 🔴 **值只有一处**：电话 / 邮箱 / 地址 / 营业时间 / 坐标都读站点数据（`brand.locations[0]` · `brand.email` ·
-//    `seo.schema.openingHours`，#1551 起可以是多段），块数据里只存 kind + 标题 + 提示。全站只有一处电话地址，老板改一次处处跟着变。
+// 🔴 **值只有一处**：电话 / 邮箱 / 地址 / 营业时间 / 坐标都读站点数据（主地点 `brand.locations[0]` · `brand.email`；
+//    营业时间 #1551 起可以是多段，#1976 起在主地点的 `hours` 上，老站 seo.json 里那份经 `locations.js` §mainLocationFacts 照认），
+//    块数据里只存 kind + 标题 + 提示。全站只有一处电话地址，老板改一次处处跟着变。
 // 🔴 **「没填」就不画那一条**：`openingHours` 没有这一项（#1551 起没写营业时间的站就是这样），或 `days` 是空数组、
 //    `opens` / `closes` 是空串（老站的空壳），都当作没填（PM #1489 09-29 裁定）。
 // 🔴 **坐标只从站点数据来**（`brand.locations[0].geo`，建站 / 改地址时由 `scripts/lib/geocode.js` 查一次写进去）；
 //    这里不发任何请求。没有 geo ⟹ 地图那一格不渲染。
 
 const { hoursSegments } = require('./local-business-facts');
+const { mainLocation, mainLocationFacts } = require('./locations');
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -66,13 +68,12 @@ function validGeo(g) {
  */
 function siteFactsFrom(brand, seo) {
   const b = brand && typeof brand === 'object' ? brand : {};
-  const loc = Array.isArray(b.locations) && b.locations[0] && typeof b.locations[0] === 'object' ? b.locations[0] : {};
-  const schema = seo && typeof seo === 'object' && seo.schema && typeof seo.schema === 'object' ? seo.schema : {};
+  const loc = mainLocation(b) || {};
   return {
     phone: str(loc.phone),
     email: str(b.email),
     address: str(loc.address),
-    hours: formatHours(schema.openingHours),
+    hours: formatHours(mainLocationFacts(b, seo).hours),
     geo: validGeo(loc.geo) ? { lat: loc.geo.lat, lng: loc.geo.lng } : null,
   };
 }

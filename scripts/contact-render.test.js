@@ -172,7 +172,7 @@ console.log('\n── 判据 3 值只读站点数据');
   check(h.includes('2150 Yonge St, Toronto, ON') && h.includes('Mon–Sat · 8am – 6pm'), `地址与营业时间读站点数据（营业时间格式化成一行「Mon–Sat · 8am – 6pm」）`);
   const changed = render('form-beside', clone(DEMO), { site: siteOf((s) => { s.brand.locations[0].phone = '(647) 555-0000'; }) });
   check(changed.includes('(647) 555-0000') && changed.includes('tel:6475550000') && !changed.includes('555-0142'), '把站点数据的电话改掉 ⟹ 渲染的电话跟着变、旧号码一处都不剩');
-  const noHours = render('form-beside', clone(DEMO), { site: siteOf((s) => { s.seo.schema.openingHours = { days: [], opens: '', closes: '' }; }) });
+  const noHours = render('form-beside', clone(DEMO), { site: siteOf((s) => { s.brand.locations[0].hours = [{ days: [], opens: '', closes: '' }]; }) });
   const kinds = (x) => itemsOf(x).map((i) => (/data-kind="([^"]+)"/.exec(i) || [])[1]).join(',');
   check(kinds(h) === 'phone,email,address,hours,link,link' && kinds(noHours) === 'phone,email,address,link,link',
     `站点数据删掉营业时间 ⟹ hours 那一条不渲染、其余照常（${kinds(h)} → ${kinds(noHours)}）`);

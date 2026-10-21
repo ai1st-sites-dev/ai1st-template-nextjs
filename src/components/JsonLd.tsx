@@ -4,6 +4,7 @@ import type { BlogPostConfig } from '@template/lib/types/config';
 import type { BlockConfig, DynamicPageConfig } from '@template/lib/types/config';
 import { faqItems } from '@blocks/faq/Section';
 import { hoursSegments } from '../../scripts/lib/local-business-facts.js';
+import { mainLocation, mainLocationFacts } from '../../scripts/lib/locations.js';
 import { keywordServiceFor } from '../../scripts/lib/keyword-service.js';
 // #1551 r3 —— 每一个 JSON-LD 标签都经这一个函数（`<` 写成 \u003c，挡 `</script>` 跳出标签）；不许再直接写 JSON.stringify。
 import { jsonLdHtml } from '../../scripts/lib/json-ld-html.js';
@@ -17,18 +18,21 @@ function socialUrls(links: unknown): string[] {
 }
 
 // #1551 —— LocalBusiness 的每一项都来自老板给的料（建站表格 / 抓到的商家资料），没有料的那一项**整项不出**，不出空壳、不编：
-//   · 营业时间：`seo.schema.openingHours`（多段，AI 转写 + 脚本核过，§hoursSegments）—— 没有 ⟹ 没有 `openingHoursSpecification`；
-//   · 地址的 `streetAddress` / `postalCode`、`geo`：`brand.locations[0]`，建站时那一次 Nominatim 回答里取（`scripts/lib/geocode.js`）；
+//   · 营业时间：主地点的 `hours`（多段，AI 转写 + 脚本核过，§hoursSegments；#1976 起按地点存，老站 seo.json 里那份派生时搬过来）
+//     —— 没有 ⟹ 没有 `openingHoursSpecification`；
+//   · 地址的 `streetAddress` / `postalCode`、`geo`：主地点（`brand.locations[0]`，`locations.js` §mainLocation），建站时那一次 Nominatim 回答里取（`scripts/lib/geocode.js`）；
 //   · `sameAs`：`brand.socialLinks`（建站时从 payload 原样写进去的社交链接）；
-//   · `aggregateRating`：`seo.schema.aggregateRating`，只在抓到真实平台评分时才有（`local-business-facts.js` §ratingFrom）。
+//   · `aggregateRating`：主地点的 `rating`（#1976，同上），只在抓到真实平台评分时才有（`local-business-facts.js` §ratingFrom）。
 export function LocalBusinessJsonLd({ site, locale }: { site: SiteData; locale: string }) {
   const { brand } = site;
   const seo = getSeo(site, locale);
   const services = getServices(site, locale);
-  const loc = brand.locations[0];
-  const segments = hoursSegments(seo.schema.openingHours);
+  const loc = mainLocation(brand);
+  // 派生已经把老站 seo.json 里那份搬进了主地点；没有地点的站搬不了，那份还留在 seo.json —— 跟 contact 那一行、check-jsonld 同一条规则读。
+  const facts = mainLocationFacts(brand, seo);
+  const segments = hoursSegments(facts.hours);
   const sameAs = socialUrls(brand.socialLinks);
-  const rating = seo.schema.aggregateRating;
+  const rating = facts.rating;
   const geo = loc?.geo && Number.isFinite(loc.geo.lat) && Number.isFinite(loc.geo.lng) ? loc.geo : null;
   const schema = {
     '@context': 'https://schema.org',
@@ -124,7 +128,7 @@ export function ServiceJsonLd({ site, locale, serviceName, serviceDescription, s
     provider: {
       '@type': 'LocalBusiness',
       name: getBrandName(site, locale),
-      telephone: brand.locations[0]?.phone,
+      telephone: mainLocation(brand)?.phone,
     },
     name: serviceName,
     description: serviceDescription,
@@ -166,7 +170,7 @@ export function KeywordServiceJsonLd({ site, locale, page, pageUrl }: { site: Si
     provider: {
       '@type': 'LocalBusiness',
       name: getBrandName(site, locale),
-      ...(brand.locations[0]?.phone ? { telephone: brand.locations[0].phone } : {}),
+      ...(mainLocation(brand)?.phone ? { telephone: mainLocation(brand)?.phone } : {}),
       ...(seo.domain ? { url: seo.domain } : {}),
     },
     ...(svc.areaServed.length ? { areaServed: svc.areaServed.map((a) => ({ '@type': a.type, name: a.name })) } : {}),

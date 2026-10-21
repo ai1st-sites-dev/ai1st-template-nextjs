@@ -632,7 +632,7 @@ console.log('── 构建得出来（#1596 r2）：站级计划另两份 payloa
   const A = run('site-addr-only', PAYLOAD({ location: undefined, address: '1200 Centre St NE, Calgary, AB', email: 'hi@silky.test' }), { site: 'other', place: 'Calgary' });
   // 地点 / 地址 / 电话 / 邮箱全不给 ⟹ locations 空、areaServed 空
   const B = run('site-bare', PAYLOAD({ location: undefined }), { site: 'other' });
-  for (const [name, R, want] of [['只给地址', A, [{ label: 'Main Office', address: '1200 Centre St NE, Calgary, AB' }]], ['什么都不给', B, []]]) {
+  for (const [name, R, want] of [['只给地址', A, [{ id: 'loc-0', label: 'Main Office', address: '1200 Centre St NE, Calgary, AB' }]], ['什么都不给', B, []]]) {
     check(`${name}：建站成功、恰好一条 site-plan；brand.locations = ${JSON.stringify(want)}、seo.schema.areaServed = []`, () => {
       assertOk(R);
       assert.strictEqual(degradedOf(R, 'site-plan').length, 1, JSON.stringify(degradedOf(R)));

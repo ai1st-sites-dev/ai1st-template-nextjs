@@ -3,7 +3,7 @@
 // local-business-facts.js —— LocalBusiness 结构化数据里「从老板给的料来」的那几项（#1551，SEO epic T7）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 🔴 **营业时间**（`seo.schema.openingHours`）：建站表格里的 `hours` 是老板用母语写的**一句话**（`Mon-Fri 9-6`、
+// 🔴 **营业时间**（#1976 起写在 `brand.locations[0].hours`，老站在 `seo.schema.openingHours`，`locations.js` 文件头）：建站表格里的 `hours` 是老板用母语写的**一句话**（`Mon-Fri 9-6`、
 //    Google 商家资料的逐天格式、`周一至周五上午9点至下午6点`……语言不限）。所以：
 //    · 没写 ⟹ 整项不出，也不问 AI（`create-site.js` 的提示词里这一项只在有料时出现）；
 //    · 写了 ⟹ AI 只把这句话**转写**成结构，这里再核一遍（§verifyTranscription）：每个 `opens` / `closes` 的小时数
@@ -11,7 +11,7 @@
 //      🔴 不按「原文里有几个时间区间」去数段数：中文写法里没有 `9-6` 这种区间形状，会数出 0 而把整项误杀（PM #1551 裁定）。
 //    · 结构是**多段**：一组 `{days, opens, closes}`（老站那种单个对象照旧认，§hoursSegments）。读它的有两处 ——
 //      JSON-LD（每段一条 `openingHoursSpecification`）和 contact 块那一行（`contact-facts.js` §formatHours）。
-// 🔴 **评分**（`seo.schema.aggregateRating`）：只在 payload 抓到了真实评分（`onlinePresence.platformRatings`）时出；
+// 🔴 **评分**（#1976 起写在 `brand.locations[0].rating`，老站在 `seo.schema.aggregateRating`）：只在 payload 抓到了真实评分（`onlinePresence.platformRatings`）时出；
 //    分数和评价条数缺一个就不出，不编（§ratingFrom）。
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

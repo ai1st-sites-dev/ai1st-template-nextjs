@@ -265,8 +265,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   if (block === 'contact') {
     const demo = JSON.parse(JSON.stringify(DEMO_SITE));
     if (one(sp.geo) === 'none') delete demo.brand.locations[0].geo;
-    if (one(sp.hours) === 'none') demo.seo.schema.openingHours = { days: [], opens: '', closes: '' };
-    siteFacts = siteFactsFrom(demo.brand, demo.seo);
+    if (one(sp.hours) === 'none') demo.brand.locations[0].hours = [{ days: [], opens: '', closes: '' }];
+    siteFacts = siteFactsFrom(demo.brand, null);
     // `?items=none` —— contact items 清空（判据 4：那一组不渲染、空列不占位）。
     if (one(sp.items) === 'none') data.items = [];
   }

@@ -18,7 +18,13 @@ export interface BrandFonts {
   googleFontsUrl: string;
 }
 
+/** #1976 —— 一个地点的 Google 评分：形状同老站的 `seo.schema.aggregateRating`（建站时抓的那一次，`local-business-facts.js` §ratingFrom）。 */
+export interface LocationRating { ratingValue: number; reviewCount: number; source?: string }
+
 export interface BrandLocation {
+  /** #1976 —— 稳定 id（`loc-` + 4 位十六进制），排序 / 改名都不变。老站没有：读的时候按下标补 `loc-0`…，第一次写 `brand.json` 时落盘
+   *  （`scripts/lib/locations.js` §withLocationIds）。 */
+  id?: string;
   label: string;
   /** #1596 —— 地址 / 电话只从老板给的料来，没给就没有这一格（站级那一通失败、代码拼站级计划时就会这样）；
    *  读的地方一律按「可能没有」处理（`scripts/lib/contact-facts.js` · `item-sources.js` · `llms-txt.ts` · JsonLd）。 */
@@ -34,6 +40,15 @@ export interface BrandLocation {
    *  LocalBusiness 的 `address.streetAddress` / `postalCode` 读它；不从地址串里猜。 */
   streetAddress?: string;
   postalCode?: string;
+  /** #1976 —— 这个地点的营业时间（形状同老站的 `seo.schema.openingHours`）。老站的那份读的时候原样搬进第一个地点
+   *  （`scripts/lib/locations.js` §liftLocationFacts）—— 所以也可能是老站那种单个对象；读它一律经 `local-business-facts.js` §hoursSegments。 */
+  hours?: OpeningHoursSegment | OpeningHoursSegment[];
+  /** #1976 —— 这个地点的评分；整站评分不存，按条数加权现算（`locations.js` §siteRating）。 */
+  rating?: LocationRating;
+  /** #1976 —— 这个地点的 Google 地图链接；没有就按地址拼搜索链接（T3 起有人读）。 */
+  googleMapsUrl?: string;
+  /** #1976 —— 地点页地址的最后一段，生成时算一次存下，改地址不变（T4 起有人读）。 */
+  slug?: string;
 }
 
 export interface BrandConfig {
@@ -193,9 +208,12 @@ export interface SeoConfig {
     /** #1551 —— 老板在建站表格里写的营业时间，AI 转写、`scripts/lib/local-business-facts.js` §verifyTranscription 核过的那份。
      *  没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出 `openingHoursSpecification`，contact 那一行不画）。
      *  可以是**多段**（一组）；老站是单个对象，读的地方一律经 §hoursSegments 规范化。 */
+    /** 🔴 #1976 起是**老形状**：新站写在 `brand.locations[0].hours`。还留着它的 seo.json 读的时候搬进第一个地点、写的时候删掉
+     *  （`scripts/lib/locations.js` 文件头），渲染不读这里。 */
     openingHours?: OpeningHoursSegment | OpeningHoursSegment[];
     /** #1551 —— 抓到的真实平台评分（`onlinePresence.platformRatings`，§ratingFrom）。没有就没有这一项，不编。
      *  #1766 —— `source`：这两个数是哪个平台的（`platformRatings` 的键）；#1766 之前建的站没有它。 */
+    /** 🔴 #1976 起是**老形状**：新站写在 `brand.locations[0].rating`，规则同上面的 `openingHours`。 */
     aggregateRating?: { ratingValue: number; reviewCount: number; source?: string };
     /** #1596 —— 代码拼的站级计划不写价位（老板没给过，不编）⟹ 没有这一项，JSON-LD 不出 `priceRange`。 */
     priceRange?: string;

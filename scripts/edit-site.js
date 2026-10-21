@@ -1071,6 +1071,9 @@ The site is defined by JSON configuration files:
   ({"source": "phone"} / {"source": "email"} / {"source": "address"} / {"source": "brand"} / {"source": "social"})
   follow brand.json automatically — so when the owner's phone number, email, address or social
   links change, change brand.json and do not go and edit those pages.
+  Opening hours belong to a location: \`locations[i].hours\` in brand.json, a list of
+  {"days": ["Monday", …], "opens": "HH:MM", "closes": "HH:MM"} (English day names, 24-hour times); the first location is the main one.
+  The location's rating is \`locations[i].rating\` — leave it as it is. Do not write openingHours or aggregateRating into seo.json.
 - **seo.json** — Domain, locale, meta title/description, targetKeywords (the keywords the owner chose in keyword research — do not invent or rewrite them), Schema.org config
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products
   Blocks on a page that say items: {"source": "services"} follow services.json automatically — they show

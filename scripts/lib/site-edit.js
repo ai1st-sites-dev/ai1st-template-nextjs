@@ -18,7 +18,7 @@
 //         · 整站派生一遍（`derive-core.js` §deriveSite，不编 site.css）—— 站容器时代 sync-config 那道闸；
 //         · 通过 ⟹ `brand.json` 里 AI 写进去的坐标剥掉（坐标住 `sites.geo`、在版本之外，设计文档 §4.1）、并进 `contentPatchesOf`
 //           （菜单同步 + custom.css）、过 `stampSchemaVersions(prev, next)`（#1838：不迁，只盖号，`prev` 用原样的 prev）。
-//       返回 `{ content, files, geo? }`（`files` = 这一笔改了 content 的哪几个键；`geo` = 剥下来的 `{lat, lng, address}`）。
+//       返回 `{ content, files, geo? }`（`files` = 这一笔改了 content 的哪几个键；`geo` = 剥下来的一组 `[{lat, lng, address}]`，#1976）。
 //       不通过 ⟹ throw `SiteEditorError('refused', <给老板的那句话>)`。
 //
 // 🔴 落库不在这里：manager 拿 result.json 调 `commitSiteContent(… reason=ai-edit, author=ai, baseVersion=这一轮开始时读到的版本)`，
@@ -150,21 +150,17 @@ async function validate({ prev, next, scope = null }) {
       throw e;
     }
   }
+  // #1976 —— 每个地点的坐标都剥（`lib/locations.js` §stripGeo）；`geo` = 剥下来的那一组 `[{lat, lng, address}]`。
   let geo;
   if (files.includes('brand.json')) {
     const brand = typeof content['brand.json'] === 'string' ? JSON.parse(content['brand.json']) : content['brand.json'];
-    const loc = isObj(brand) && Array.isArray(brand.locations) && isObj(brand.locations[0]) ? brand.locations[0] : null;
-    if (loc && Object.prototype.hasOwnProperty.call(loc, 'geo')) {
-      const { geo: g, ...rest } = loc;
-      if (isObj(g) && Number.isFinite(g.lat) && Number.isFinite(g.lng)) {
-        geo = { lat: g.lat, lng: g.lng, address: typeof loc.address === 'string' ? loc.address.trim() : '' };
-      }
-      content['brand.json'] = { ...brand, locations: [rest, ...brand.locations.slice(1)] };
-    }
+    const stripped = require('./locations').stripGeo(brand);
+    if (stripped.brand !== brand) content['brand.json'] = stripped.brand;
+    if (stripped.entries.length) geo = stripped.entries;
   }
 
   // 整站派生一遍（站容器时代的 sync-config 那道闸）：构建不出来的内容 throw DeriveError，原话给老板。
-  const { deriveSite, contentPatchesOf } = require('./derive-core');
+  const { deriveSite, contentPatchesOf, locationFactFilesChanged } = require('./derive-core');
   const { stampSchemaVersions } = require('./stamp-schema-versions');
   const out = fs.mkdtempSync(path.join(require('os').tmpdir(), 'site-validate-'));
   const log = console.log;
@@ -173,7 +169,8 @@ async function validate({ prev, next, scope = null }) {
     await deriveSite({ content, outDir: out, purge: false, skipSiteCss: true, siteLabel: 'site' });
     // #1838 —— AI 交回的是整份结果（「套」已经发生）⟹ 这里不迁、只盖号（PM 2026-10-19 裁）：再迁会把 AI 新加、还没盖号的块
     //    当 v1 再迁一遍。`touchedFiles` 不传；AI 留着的老块继承旧号，留到下一次在编辑器里保存时迁（读的时候内存里照样迁）。
-    for (const [rel, value] of Object.entries(contentPatchesOf(content))) {
+    // #1976 —— 但 brand.json / seo.json 这一轮改过 ⟹ 营业时间 / 评分照规矩落盘（touchedFiles 只含这两种文件，不触发块迁移）。
+    for (const [rel, value] of Object.entries(contentPatchesOf(content, { touchedFiles: locationFactFilesChanged(prev, content) }))) {
       if (value === null) delete content[rel];
       else content[rel] = value;
     }

@@ -91,6 +91,7 @@ const navMenu = require('./nav-menu.js');
 const { readPagesRecursive } = require('./page-files.js');
 const siteCssLib = require('./site-css.js');
 const { effectivePrimary500 } = require('../primary-family.js');
+const { liftLocationFacts } = require('./locations.js');
 
 const TEMPLATE_DIR = path.resolve(__dirname, '..', '..');
 
@@ -427,8 +428,51 @@ function contentPatchesOf(content, { globalsCssPath, touchedFiles = [] } = {}) {
       services: Array.isArray(services) ? services : [], writeOut: (rel, text) => { patches[rel] = JSON.parse(text); },
     });
   }
+  Object.assign(patches, locationPatchesOf(content, { legacy, locales, touchedFiles }));
   patches['custom.css'] = customCssOf(content, globalsCssPath ? { globalsCssPath } : {}).css;
   return patches;
+}
+
+/**
+ * #1976 —— 写的时候落盘（`lib/locations.js` 文件头）：这一笔碰了 `brand.json` 或任一 `seo.json` ⟹ 默认语言 seo.json 里的营业时间 /
+ * 评分写进 `brand.json` 的 `locations[0]`（没有 id 的地点顺带补上），并从**所有语言**的 seo.json 删掉这两项。没碰 ⟹ 不动（只迁这一笔
+ * 碰到的，先例 #1838）。搬过的站 seo.json 里已经没有这两项、id 也齐了 ⟹ 补丁里没有它们，重复跑结果不变。
+ */
+function locationPatchesOf(content, { legacy, locales, touchedFiles }) {
+  const seoRel = (locale) => (legacy ? 'seo.json' : `${locale}/seo.json`);
+  const has = (rel) => Object.prototype.hasOwnProperty.call(content, rel);
+  const touched = new Set(touchedFiles);
+  if (!touched.has('brand.json') && !locales.some((l) => touched.has(seoRel(l)))) return {};
+  if (!has('brand.json')) return {};
+  const out = {};
+  const brand = contentJson(content, 'brand.json');
+  const meta = legacy ? null : contentJson(content, 'site_meta.json');
+  const defaultLocale = legacy ? 'en' : (meta && meta.defaultLocale) || locales[0];
+  const lifted = liftLocationFacts(brand, has(seoRel(defaultLocale)) ? contentJson(content, seoRel(defaultLocale)) : null);
+  if (lifted === brand) return {};
+  if (JSON.stringify(lifted) !== JSON.stringify(brand)) out['brand.json'] = lifted;
+  for (const locale of locales) {
+    const rel = seoRel(locale);
+    if (!has(rel)) continue;
+    const seo = contentJson(content, rel);
+    const schema = seo && seo.schema && typeof seo.schema === 'object' ? seo.schema : null;
+    if (!schema || !('openingHours' in schema || 'aggregateRating' in schema)) continue;
+    const { openingHours, aggregateRating, ...rest } = schema;
+    out[rel] = { ...seo, schema: rest };
+  }
+  return out;
+}
+
+/**
+ * #1976 —— `before` → `after` 这一笔改到的 `brand.json` / `seo.json`（含各语言的）：调用方把它当 §contentPatchesOf 的 `touchedFiles`
+ * 递进去，营业时间 / 评分就在这一笔里落盘（§locationPatchesOf）。只挑这两种文件 —— 页面文件的 touchedFiles 还管块迁移，
+ * 那一半调用方各有各的时机（#1838），这里不碰。
+ */
+function locationFactFilesChanged(before, after) {
+  const isFactFile = (k) => k === 'brand.json' || k === 'seo.json' || /^[^/]+\/seo\.json$/.test(k);
+  const text = (v) => (v === undefined ? undefined : typeof v === 'string' ? v : JSON.stringify(v));
+  const norm = (v) => { const t = text(v); try { return t === undefined ? t : JSON.stringify(JSON.parse(t)); } catch { return t; } };
+  return Object.keys({ ...(before || {}), ...(after || {}) }).filter((k) => isFactFile(k) && norm((before || {})[k]) !== norm((after || {})[k])).sort();
 }
 
 function homePageMissing(locale) {
@@ -1061,6 +1105,20 @@ async function runDerive({
     log(`  [${locale}] Regenerated navigation.json`);
   }
 
+  // #1976 —— 营业时间 / 评分按地点存（`lib/locations.js` 文件头）。老站的还在默认语言的 seo.json 里：读的时候放进 `locations[0]`
+  //    （同上面 :794 把老的字符串 tagline 包成按语言一份），各语言内存里那份删掉 —— 渲染一律只读地点上的。落盘是 §contentPatchesOf 的事。
+  //    没有地点的站不搬（§liftLocationFacts 原样返回），seo.json 里那份留着，读者经 §mainLocationFacts 照样读得到。
+  {
+    const lifted = liftLocationFacts(brand, seoByLocale[defaultLocale]);
+    if (lifted !== brand) {
+      brand.locations = lifted.locations;
+      for (const locale of locales) {
+        const schema = seoByLocale[locale] && seoByLocale[locale].schema;
+        if (schema && typeof schema === 'object') { delete schema.openingHours; delete schema.aggregateRating; }
+      }
+    }
+  }
+
   // #1471 —— 各语言 forms.json 的 id / fields / primary 必须一致（逐语言那几条上面 validateSite 已经说过）。构建期只说不拦。
   for (const w of require('./site-forms').formsConsistencyProblems(formsByLocale)) log(`  ⚠️  ${w}`);
 
@@ -1527,4 +1585,4 @@ async function runDerive({
 }
 
 // #1828 —— `buildSiteCssCached` 也转出：图册按主题（不按站）编一份 site.css（`site.js catalog-site-css`），同一个缓存键。
-module.exports = { deriveSite, contentPatchesOf, siteCssKey, buildSiteCssCached, DeriveError };
+module.exports = { deriveSite, contentPatchesOf, locationFactFilesChanged, siteCssKey, buildSiteCssCached, DeriveError };

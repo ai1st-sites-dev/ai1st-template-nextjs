@@ -9,7 +9,9 @@
  *   ④ 每个块的容器带 `data-block-id`，页面 JSON 里缺 id 的块走 `generatedBlockId` 补
  *   ⑤ 同一份输入出两次逐字节相同；键序按 Postgres jsonb 重排之后仍逐字节相同（库里读回来就是那个次序）
  *   ⑥ 博客正文里写出一个字面的岛占位，整页照样渲染、那段字原样留着（#1798 QA3 量出来的那一条）
- *   ⑦ `--geo` 合并、IndexNow key 文件
+ *   ⑦ `--geo` 合并（#1976 起是一组、按地址对）、IndexNow key 文件
+ *   ⑧ #1976 老形状的评分搬进第一个地点之后 JSON-LD 不变（site-rated 夹具）
+ *   ⑨ #1976 没有地点的老站：搬不了，营业时间 / 评分留在 seo.json，JSON-LD 照样出（跟 contact 那一行、check-jsonld 同一条规则）
  *
  * 跑法:  node scripts/site-render.test.js   （或 `npm run test:scripts`）
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（不许当成通过）
@@ -222,6 +224,28 @@ async function render(name, out, extra = {}) {
   check(read(path.join(tmp, 'geo'), 'abcd1234-key.txt') === 'abcd1234-key', 'IndexNow key 文件 <key>.txt，内容是 key');
   await site.render({ content: fixture('site-bbc4ff97'), out: path.join(tmp, 'badkey'), bundleDir: BUNDLE, cacheDir: CACHE, indexnowKey: 'bad key/../x' });
   check(!files(path.join(tmp, 'badkey')).some((f) => f.endsWith('.txt') && !['llms.txt', 'robots.txt'].includes(f)), '不合格式的 key 不写文件（跟 worker/indexnow.go 同一个正则）');
+
+  // #1976 —— `sites.geo` 是一组、按地址对：两项里对上第一家的那一项进 LocalBusiness（它读主地点），另一项对不上就不用。
+  await site.render({ content: fixture('site-bbc4ff97'), out: path.join(tmp, 'geo3'), bundleDir: BUNDLE, cacheDir: CACHE,
+    geo: [{ address: 'somewhere else', lat: 1.5, lng: 2.5 }, { address: addr, lat: 33.25, lng: -44.5, city: 'X' }] });
+  const geo3 = read(path.join(tmp, 'geo3'), 'index.html');
+  check(/"latitude":33\.25,"longitude":-44\.5/.test(geo3) && !/"latitude":1\.5/.test(geo3), '--geo 一组（#1976）⟹ 按地址对上的那一项进了 LocalBusiness，对不上的那一项不用');
+
+  console.log('\n── ⑧ #1976 老形状的评分（seo.json 里）搬进第一个地点之后，JSON-LD 的评分不变');
+  await site.render({ content: fixture('site-rated'), out: path.join(tmp, 'rated'), bundleDir: BUNDLE, cacheDir: CACHE });
+  const ratedHtml = read(path.join(tmp, 'rated'), 'index.html');
+  check(ratedHtml.includes('"aggregateRating":{"@type":"AggregateRating","ratingValue":4.7,"reviewCount":128}'), 'site-rated 首页 LocalBusiness 带 4.7 / 128');
+  check(/"openingHoursSpecification":\[\{"@type":"OpeningHoursSpecification","dayOfWeek":\["Monday","Tuesday","Wednesday","Thursday","Friday"\],"opens":"09:00","closes":"17:00"\}\]/.test(ratedHtml),
+    '营业时间（同样从 seo.json 搬过来）照样进 openingHoursSpecification');
+  check(!read(path.join(tmp, 'geo'), 'index.html').includes('"aggregateRating"'), '对照：没有评分的夹具（site-bbc4ff97）⟹ 没有 aggregateRating');
+
+  console.log('\n── ⑨ #1976 没有地点的老站：营业时间 / 评分搬不进地点，留在 seo.json，JSON-LD 照样出');
+  const noLoc = fixture('site-rated');
+  noLoc['brand.json'] = { ...noLoc['brand.json'], locations: [] };
+  await site.render({ content: noLoc, out: path.join(tmp, 'noloc'), bundleDir: BUNDLE, cacheDir: CACHE });
+  const noLocHtml = read(path.join(tmp, 'noloc'), 'index.html');
+  check(noLocHtml.includes('"aggregateRating":{"@type":"AggregateRating","ratingValue":4.7,"reviewCount":128}'), 'locations: [] ⟹ 评分照样进 LocalBusiness');
+  check(noLocHtml.includes('"openingHoursSpecification":[{"@type":"OpeningHoursSpecification"'), 'locations: [] ⟹ 营业时间照样进 openingHoursSpecification');
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

@@ -717,7 +717,7 @@ const FEATURES_NEW_STEPS = {
 
 /**
  * #1489 —— 演示生意的**站点数据**那几样（contact 从站点数据读电话 / 邮箱 / 地址 / 营业时间 / 坐标，块里不存副本）。
- * 形状就是真站 `brand.json` / `seo.json` 里对应的那一截，单格页用 `scripts/lib/contact-facts.js` §siteFactsFrom 把它变成块要的值。
+ * 形状就是真站 `brand.json` 里对应的那一截，单格页用 `scripts/lib/contact-facts.js` §siteFactsFrom 把它变成块要的值。
  * `geo` 是 2150 Yonge St 附近的坐标（夹具，不是查出来的；真站由 `scripts/lib/geocode.js` 建站时查一次）。
  */
 const DEMO_SITE = {
@@ -754,7 +754,11 @@ const DEMO_SITE = {
   ],
   brand: {
     email: 'service@northsideauto.ca',
-    locations: [{ label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 }, city: 'Toronto' }],
+    // #1976 —— 营业时间按地点存（`brand.locations[i].hours`，`scripts/lib/locations.js`），不再在 seo.json 里。
+    locations: [{
+      id: 'loc-0', label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 }, city: 'Toronto',
+      hours: [{ days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' }],
+    }],
     // #1506 —— footer 的 `social: {source: "social"}` 从这里展开（数组那种存法；对象那种由 contact-refs.test.js 另测）。
     socialLinks: [
       { platform: 'google', url: 'https://g.page/northside-auto-care-toronto' },
@@ -764,9 +768,6 @@ const DEMO_SITE = {
       { platform: 'linkedin', url: 'https://linkedin.com/company/northside-auto-care-toronto' },
       { platform: 'whatsapp', url: 'https://wa.me/14165550148' },
     ],
-  },
-  seo: {
-    schema: { openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' } },
   },
 };
 

@@ -124,7 +124,7 @@ export function catalogSite(): SiteData {
     seoByLocale: {
       en: {
         domain: 'https://example.com', locale: 'en_CA', siteTitle: name, siteDescription: '',
-        schema: { areaServed: [], addresses: [], openingHours: DEMO_SITE.seo.schema.openingHours, offerCatalogName: '' },
+        schema: { areaServed: [], addresses: [], offerCatalogName: '' },
       },
     },
     servicesByLocale: { en: services },
@@ -289,8 +289,8 @@ export function catalogCellModel({ manifest: m, block, shape, query: q }: { mani
   if (block === 'contact') {
     const demo = JSON.parse(JSON.stringify(DEMO_SITE));
     if (q('geo') === 'none') delete demo.brand.locations[0].geo;
-    if (q('hours') === 'none') demo.seo.schema.openingHours = { days: [], opens: '', closes: '' };
-    siteFacts = siteFactsFrom(demo.brand, demo.seo);
+    if (q('hours') === 'none') demo.brand.locations[0].hours = [{ days: [], opens: '', closes: '' }];
+    siteFacts = siteFactsFrom(demo.brand, null);
     if (q('items') === 'none') data.items = [];
   }
 

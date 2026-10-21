@@ -27,6 +27,7 @@ const path = require('path');
 const { DAYS, hoursSegments } = require('./lib/local-business-facts');
 const { isKeywordPage, keywordServiceFor } = require('./lib/keyword-service');
 const { readPagesRecursive } = require('./lib/page-files');
+const { mainLocation, mainLocationFacts } = require('./lib/locations');
 
 const LD_RE = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
 const TIME = /^\d{2}:\d{2}$/;
@@ -173,17 +174,19 @@ function checkHtml(html, expected, slug) {
   return { problems, blocks: nodes.length };
 }
 
-/** 站点数据 → 期望值（默认语言那份 seo；brand 全站一份）。 */
+/** 站点数据 → 期望值（默认语言那份 seo；brand 全站一份；营业时间 / 评分是主地点的）。 */
 function expectedFromSite(siteDir) {
   const read = (p) => JSON.parse(fs.readFileSync(path.join(siteDir, p), 'utf-8'));
   const meta = read('site_meta.json');
   const brand = read('brand.json');
   const seo = read(path.join(meta.defaultLocale || 'en', 'seo.json'));
-  const loc = (brand.locations && brand.locations[0]) || {};
+  const loc = mainLocation(brand) || {};
+  // #1976 —— 营业时间 / 评分按地点存；这里读的是磁盘上的站点数据（没经过派生），老站 seo.json 里那份按同一条规则认。
+  const facts = mainLocationFacts(brand, seo);
   const links = brand.socialLinks;
   const sameAs = (Array.isArray(links) ? links.map((l) => l && l.url) : links && typeof links === 'object' ? Object.values(links) : [])
     .filter((u) => typeof u === 'string' && /^https?:\/\//.test(u.trim())).map((u) => u.trim());
-  const r = seo.schema && seo.schema.aggregateRating;
+  const r = facts.rating;
   // 关键词页 → 它该出的那份 Service（没有目标词 ⟹ null，也就是「不该出」）。
   const pages = [];
   const pagesDir = path.join(siteDir, meta.defaultLocale || 'en', 'pages');
@@ -198,7 +201,7 @@ function expectedFromSite(siteDir) {
     keywordPages,
     serviceNames: new Set(list.map((sv) => sv && sv.name).filter(Boolean)),
     siteName: names[meta.defaultLocale || 'en'] || Object.values(names)[0] || '',
-    hours: hoursSegments(seo.schema && seo.schema.openingHours),
+    hours: hoursSegments(facts.hours),
     rating: r && r.ratingValue > 0 && r.reviewCount > 0 ? { ratingValue: r.ratingValue, reviewCount: r.reviewCount } : null,
     sameAs,
     streetAddress: loc.streetAddress || '',

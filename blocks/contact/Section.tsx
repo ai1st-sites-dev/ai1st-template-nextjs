@@ -9,7 +9,7 @@
 //    旋钮值写在根元素上（`data-intro-position` … `data-map` / `data-tone`），`block.css` 按它们排；形态目录自己不带几何。
 //
 // 🔴 **值只有一处**：电话 / 邮箱 / 地址 / 营业时间 / 坐标读站点数据（`scripts/lib/contact-facts.js` §siteFactsFrom：
-//    `brand.locations[0]` · `brand.email` · `seo.schema.openingHours`）。块数据里的 item 只有 kind + 标题 + 提示（link 另带 href）。
+//    主地点 `brand.locations[0]`（#1976 起营业时间也在它的 `hours` 上）· `brand.email`）。块数据里的 item 只有 kind + 标题 + 提示（link 另带 href）。
 //    站点数据里没有那一项（没填营业时间 / 没有邮箱）⟹ 那一条不画。`siteFacts` 只有单格页会传（admin 预览用演示生意那一份，
 //    SectionRenderer 的注释）；真站不传 ⟹ 读 `@/lib/config`。
 //

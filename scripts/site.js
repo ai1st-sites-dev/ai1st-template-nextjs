@@ -19,7 +19,8 @@
 //       站 JSON 进、整套静态网页出：每页 `index.html`、`404.html`、`sitemap.xml`、`robots.txt`、`llms.txt`、`theme.css`、`custom.css`，
 //       模板自带的 `public/images/**`，给了 IndexNow key 时还有 `<key>.txt`。
 //       --site-id <id>        覆盖 `site_meta.json` 的 siteId（线索表单、聊天小部件的 `?site=` 都取它）。没给才用 site_meta 的。
-//       --geo <JSON | 文件>   `{lat, lng, address}`。address 跟 `brand.locations[0].address` 一样才合并进那一格的 geo（设计文档 §4.1）。
+//       --geo <JSON | 文件>   `sites.geo`：一组 `[{address, lat, lng, …}]`（#1976；老的单个 `{lat, lng, address}` 当一项）。
+//                             哪个地点的 address 跟某一项一样，那一项的 lat/lng 并进它的 geo（`lib/locations.js` §mergeGeo）。
 //       --site-url <地址>     这次发布到的站点根地址（canonical / og:url / sitemap / robots 都用它；绑了自定义域名就是那个域名）。
 //       --lead-api <地址>     线索表单 + 聊天小部件打的 manager 地址。
 //       --gsc-token <值>      Search Console 验证 meta。🔴 `seo.json` 里那份（建站写的是占位值 YOUR_GOOGLE_VERIFICATION_CODE）一律不用。
@@ -50,7 +51,7 @@
 //
 // #1801（T1）—— 编辑器那几条，manager spawn（工作目录 = 平台那份模板，`template.dir`），实现在 `lib/site-editor.js`：
 //   node scripts/site.js editor-data --site <站 JSON> [--geo <JSON>] [--locale <语言>] [--page <slug>] [--theme <id>] [--cache-dir <目录>] [--build-version <v>]
-//       --geo 是 `sites.geo`（`{lat, lng, address}`），并进第一家门店的规矩同上面 render 的 --geo。
+//       --geo 是 `sites.geo`，按地址并进各地点的规矩同上面 render 的 --geo。
 //       --theme（#1874）：content 先在内存里穿上那一套（同 `theme` 那条的换装，不写库）再算 —— 只读画布按 `?theme=` 画用。
 //       编辑器的初始 props + 画布样式（theme.css / custom.css）+ site.css 的缓存键。`--site` 的内容是 null ⟹ {"ok":true,"content":null}。
 //       --ui-flags（#1839）：`sites.ui_flags`。输出多两样：`pendingUpgrades`（样子会变的待升级块）、`pendingRetired`（冻结过、
@@ -348,12 +349,11 @@ async function render({
   if (siteId !== undefined && Object.prototype.hasOwnProperty.call(content, 'site_meta.json')) {
     content['site_meta.json'] = { ...parsed(content, 'site_meta.json'), siteId };
   }
+  // #1976 —— `sites.geo` 是一组、按地址对（老的单个对象当一项）：`lib/locations.js` §mergeGeo。
   if (geo && typeof geo === 'object' && Object.prototype.hasOwnProperty.call(content, 'brand.json')) {
     const brand = parsed(content, 'brand.json');
-    const loc = Array.isArray(brand.locations) ? brand.locations[0] : null;
-    if (loc && typeof geo.address === 'string' && geo.address === loc.address && Number.isFinite(geo.lat) && Number.isFinite(geo.lng)) {
-      content['brand.json'] = { ...brand, locations: [{ ...loc, geo: { lat: geo.lat, lng: geo.lng } }, ...brand.locations.slice(1)] };
-    }
+    const merged = require('./lib/locations').mergeGeo(brand, geo);
+    if (merged !== brand) content['brand.json'] = merged;
   }
 
   // 派生：菜单同步、theme.css / custom.css / site.css、整站校验，以及页面要的那份站点数据（T2a-1）。日志改走标准错误。
