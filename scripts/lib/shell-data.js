@@ -175,6 +175,8 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
     : [];
   if (keywordGroups.length) footer.columns.keywordGroups = keywordGroups; // 没有关键词页就不写这个键
   footer.contact = { source: 'brand' };
+  // #1979 —— 两个及以上地点：页脚另列每家一行（名称 + 电话，链到它的地点页；展开见 item-sources.js §locations）。一家 ⟹ 不写，跟以前一样。
+  if (isObj(brand) && Array.isArray(brand.locations) && brand.locations.filter(isObj).length >= 2) footer.locations = { source: 'locations' };
   footer.social = { source: 'social' };
   // AI 建站写的是「<生意名>. All rights reserved.」（不带年份），旧页脚在前面补「© 年份」；
   // skipAI 示例站那一份自己已经带着 ©，就照原样（旧页脚在那上面会印出两遍 ©）。

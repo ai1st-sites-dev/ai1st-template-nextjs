@@ -687,6 +687,15 @@ const DEMO_CONTENT = {
     // #1506 —— 联系方式与社交链接写成引用：从站点数据（单格页是 DEMO_SITE.brand）展开。`{source: "brand"}` 只带
     //    电话 / 邮箱 / 地址三样（营业时间不是它的源）⟹ 夹具里的营业时间那一行跟着不画。
     contact: { source: 'brand' },
+    // #1979 —— 两个及以上地点时页脚另列每家一行（真站写引用 `{source: "locations"}`，这里给展开后的形状，单格页三种排布都画得出）。
+    locations: [
+      { label: 'Yonge Street', phone: '(416) 555-0142', href: '/locations/yonge' },
+      { label: 'Leaside', phone: '(416) 555-0187', href: '/locations/leaside' },
+      { label: 'Don Mills and Lawrence East', phone: '(416) 555-0163', href: '/locations/don-mills' },
+      { label: 'Willowdale', phone: '(416) 555-0119', href: '/locations/willowdale' },
+      { label: 'North York Centre', href: '/locations/north-york' },
+      { label: 'Etobicoke', phone: '(416) 555-0175', href: '/locations/etobicoke' },
+    ],
     social: { source: 'social' },
     legal: [
       { label: 'Privacy', href: '/privacy' },

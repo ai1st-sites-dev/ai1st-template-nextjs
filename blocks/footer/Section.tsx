@@ -70,6 +70,8 @@ export interface FooterContact { phone?: string; address?: string; hours?: strin
  * #1739 —— `href`：这组挂的那个服务在 `columns.services` 里的地址（挂不上服务的组没有）；slim-row / stacked 按它把服务和组对起来。
  */
 export interface FooterKeywordGroup { title: string; href?: string; links: FooterLink[] }
+/** #1979 —— 两个及以上地点时每家一行（`{source: "locations"}` 展开，`scripts/lib/item-sources.js`）：名称 · 电话，`href` = 它的地点页（还没有就不带）。 */
+export interface FooterLocation { label: string; phone?: string; href?: string }
 export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean; keywordGroups?: FooterKeywordGroup[] }
 /** #1471 —— 块只选一张站级表单（空 = 第一张）；露多少是旋钮 `options.form`。 */
 export interface FooterForm { id?: string }
@@ -91,6 +93,7 @@ export interface FooterNewData {
   nav?: FooterLink[];
   columns?: FooterColumns;
   contact?: FooterContact;
+  locations?: FooterLocation[];
   social?: FooterLink[];
   legal?: FooterLink[];
   copyright?: string;
@@ -121,7 +124,7 @@ export function resolveKnobs(shape: string | undefined, options: FooterOptions =
 /** 列的固定语义（`columns` 排布专用）。#1640 —— 标题跟着站的语言走（`getLabels` 逐键回落英文，图册没有站的语言 ⟹ 英文演示）。 */
 function columnTitles(locale: string) {
   const t = getLabels(locale);
-  return { services: t.footerServices, areas: t.footerServiceAreas, pages: t.footerPages, contact: t.footerContact };
+  return { services: t.footerServices, areas: t.footerServiceAreas, pages: t.footerPages, contact: t.footerContact, locations: t.footerLocations };
 }
 
 interface Props {
@@ -164,6 +167,7 @@ function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, lo
   const social = list(data.social);
   const legal = list(data.legal);
   const contact = data.contact || {};
+  const locations = list(data.locations).filter((l) => l && l.label);
   const brand = data.brandName || '';
   const brandLogo = resolveBrandLogo(logoOptions, { hasLogo: !!data.logo, hasWordmark: data.logoHasWordmark === true });
   const copyright = data.copyright || `© ${new Date().getFullYear()} ${brand}`;
@@ -245,6 +249,25 @@ function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, lo
     );
   };
 
+  // #1979 —— 地点（两家及以上才有数据）。一家一行：名称（链到它的地点页）· 电话。
+  //    row / stacked：主体下面一组（stacked 居中、在联系一行下面）；columns：单独一栏（§columnsBody）。
+  const locationName = (l: FooterLocation, cls = '') => (l.href
+    ? <SiteLink className={`${linkTone} text-decoration-none ${cls}`} href={l.href} data-footer-location-link="">{l.label}</SiteLink>
+    : <span className={cls}>{l.label}</span>);
+  const locationPhone = (l: FooterLocation) => (l.phone
+    ? <a /* #1508：tel: 不受 basePath 影响，保持裸 <a> */ className={`${linkTone} text-decoration-none`} href={telHref(l.phone)}>{l.phone}</a>
+    : null);
+  const locationList = (center: boolean) => (locations.length ? (
+    <ul className={`list-unstyled vstack gap-1 mb-0 text-sm ${mutedTone} ${center ? 'align-items-center' : reverse ? 'align-items-end' : ''}`} data-footer-locations="">
+      {locations.map((l, i) => (
+        <li key={i} className={`d-flex flex-wrap align-items-baseline column-gap-2 ${reverse && !center ? 'flex-row-reverse' : ''}`} data-footer-location={i}>
+          {locationName(l, 'fw-semibold')}
+          {l.phone ? <><span className="opacity-50" aria-hidden="true">·</span>{locationPhone(l)}</> : null}
+        </li>
+      ))}
+    </ul>
+  ) : null);
+
   // 表单部件：`layout=stacked` 在联系一行下、`layout=columns` 在品牌列下、`layout=row` 不渲染；旋钮 `form=none` 不渲染。
   //    `teaser` 沿用 #1464 `inline` 的画法（一个字段 + 按钮一行），`full` 沿用 `stacked`（整张）。
   const formPart = (extra = '') => (formMode ? (
@@ -261,6 +284,7 @@ function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, lo
         <nav className="ftr-nav" aria-label="Footer">{linkRow(nav)}</nav>
         {socialIcons()}
       </div>
+      {locations.length ? <div className={`border-top ${lineTone} mt-10 pt-6`} data-footer-locations-row="">{locationList(false)}</div> : null}
       {serviceLinksSlim()}
     </>
   );
@@ -274,6 +298,7 @@ function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, lo
       {nav.length ? <nav className="mb-8" aria-label="Footer">{linkRow(nav, 'justify-content-center fs-5')}</nav> : null}
       {socialIcons('justify-content-center mb-8')}
       {contactLine(['phone', 'address', 'hours'], 'justify-content-center text-sm mb-8')}
+      {locations.length ? <div className="mb-8">{locationList(true)}</div> : null}
       {serviceLinksStacked()}
       {formPart('mx-auto mb-8 text-start')}
     </div>
@@ -369,6 +394,19 @@ function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, lo
                   <li key={c.key} className="d-flex gap-2">
                     <InlineIcon name={c.icon} icons={iconTable} />
                     {c.href ? <SiteLink className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</SiteLink> : <span>{c.text}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {locations.length ? (
+            <div className="col-6 col-lg" data-footer-col="locations">
+              <div className={`fw-semibold mb-3 ${headTone}`}>{titles.locations}</div>
+              <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`} data-footer-locations="">
+                {locations.map((l, i) => (
+                  <li key={i} data-footer-location={i}>
+                    <div>{locationName(l)}</div>
+                    {l.phone ? <div className="text-sm">{locationPhone(l)}</div> : null}
                   </li>
                 ))}
               </ul>

@@ -1246,6 +1246,10 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       //    `blocks.js:387-389` 写着**同时**写了 `ref` 和 `type` 的块在构建期直接 throw
       //    （「ref 是引用站级块库，不带自己的内容」）⟹ 那不是一个合法的 ref 条目，把它的报文也
       //    一起压掉等于建站期放行、构建期才炸。`{ "ref": 7 }`（ref 不是字符串）同理照旧报。
+      // #1979 —— 块顶层的 `locationsAuto`（首页那一块「全部地点」，`lib/location-pages.js` 生成时写）：只许 contact 块带、只许 true。
+      if (sec.locationsAuto !== undefined && !(sec.type === 'contact' && sec.locationsAuto === true)) {
+        flag(`${where}: locationsAuto 是 ${JSON.stringify(sec.locationsAuto)} —— 只有 contact 块能带，而且只能是 true（生成地点页时自动加的那一块）`);
+      }
       const isRefEntry = typeof sec.ref === 'string' && sec.type === undefined;
       const m = manifests.get(sec.type);
       if (!m) {

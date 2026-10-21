@@ -88,6 +88,12 @@
 //       走 `derive-core.js` §buildSiteCssCached（同一个 `siteCssKey` 缓存）。{"ok":true,"key":"…","cached":…,"css":"…","theme":"<id>"}
 //       主题不在池里 ⟹ ok:false + code bad。manager `GET /api/admin/catalog/site.css?theme=` spawn 它。
 //       📌 不走上面那条 `site-css`：它跑整站 `deriveSite`，喂一份只带配色的站 JSON 会被拒（`Required file missing: site/seo.json`）。
+//   node scripts/site.js location-pages --site <站 JSON> [--skip-ai] [--model <id>]
+//       #1979（T4，T5 的 manager 改地点后调）：两个及以上地点的地点总览页 + 每家一页 + 菜单一项 + 首页一块；不到两家 ⟹ 删掉这些
+//       （规则全在 `lib/location-pages.js` 文件头）。只给还缺地点页的那几家调一次 AI 写介绍；--skip-ai 用代码那一句。
+//       {"ok":true,"patch":{"<相对路径>": 整份文件 | null（删掉）},"usage":{"model":…|null,"inputTokens":N,"outputTokens":N},"aiError"?:"…"}
+//       `usage` 是这一次 AI 的 token 数（没调 ⟹ 0 / 0），钱由 manager 按 model_pricing.go 算（同 seo-refresh 的 ai-usage）。
+//       补丁里新块已盖当前 schemaVersion。--site 读不了（没有这个文件 / 不是 JSON / 没有 brand.json）⟹ ok:false + code bad。
 //   这几条（#1839 起含 migrate / freeze）的输出约定跟上面 bundle / render **不一样**（manager 按 `ok` + `code` 定 HTTP 状态，`site_editor.go` §writeSiteScriptError）：
 //     成功          标准输出一行 {"ok":true, …}                                  退出码 0
 //     拒收 / 不合法  标准输出一行 {"ok":false,"code":"refused|bad|stale","message":"…","field"?}   退出码 3
@@ -125,7 +131,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { DEFAULT_OUTDIR } = require('./lib/render-bundle');
 
-// 不带值的开关（`save --keep`、#1839 `migrate --dry-run`、#1938 `seo-refresh --force / --skip-ai`）。不登记在这里的 `--x` 一律要跟一个值。
+// 不带值的开关（`save --keep`、#1839 `migrate --dry-run`、#1938 `seo-refresh --force / --skip-ai`、#1979 `location-pages --skip-ai`）。不登记在这里的 `--x` 一律要跟一个值。
 const BOOLEAN_FLAGS = new Set(['keep', 'dry-run', 'force', 'skip-ai']);
 // #1830 —— 值是老板打的字（`edit --message`）：它自己就可能以 `--` 开头，下一个参数原样就是它的值。
 const FREE_TEXT_FLAGS = new Set(['message']);
@@ -168,11 +174,23 @@ const EDITOR_COMMANDS = {
   validate: (a) => require('./lib/site-edit').validate({ prev: requiredJsonArg(a.prev, 'prev'), next: requiredJsonArg(a.next, 'next'), scope: jsonArg(a.scope, 'scope') || null }),
   'catalog-site-css': (a, ed) => catalogSiteCss({ theme: a.theme, cacheDir: a['cache-dir'], buildVersion: a['build-version'] }, ed),
   migrate: (a, ed) => migrateDryRun({ content: requiredJsonArg(a.site, 'site'), only: idList(a.only), dryRun: !!a['dry-run'] }, ed),
+  'location-pages': (a, ed) => locationPages(a, ed),
   freeze: (a, ed) => freeze({
     content: requiredJsonArg(a.site, 'site'), type: a.type, bundleDir: a['bundle-dir'],
     rendered: a.rendered, ids: a.ids === undefined ? undefined : idList(a.ids), label: a.label,
   }, ed),
 };
+
+/** #1979 —— `location-pages`：库那一侧的「读不了 / 不合法」换成编辑器那几条的 bad（退出码 3、一行 JSON），别的照常冒上去。 */
+async function locationPages(a, ed) {
+  const lp = require('./lib/location-pages');
+  try {
+    return await lp.locationPagesCommand({ site: a.site, skipAI: !!a['skip-ai'], model: a.model });
+  } catch (e) {
+    if (e instanceof lp.LocationPagesError) throw new ed.SiteEditorError(e.code, e.message);
+    throw e;
+  }
+}
 
 /** `--migrate a,b` / `--only a,b` → 去空的 id 数组；没给 ⟹ []。 */
 function idList(v) {

@@ -1348,6 +1348,8 @@ async function main() {
       writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand, input.uploadsDomain);
       debug(`Demo secondary locale "${secLocale}" written (verbatim copy of primary)`);
     }
+    // #1979 —— 两个及以上地点：地点页 + 菜单一项 + 首页一块（skipAI 用代码那一句介绍）；payload 的评价按地点存进 brand.json。
+    await addLocationPages({ siteDir, reviews, skipAI: true });
     // #1600 —— skipAI 走不到关键词页和 SEO 检查 ⟹ seo / repair / keywordPages 三格是 null（那条路的正常态）。
     finishBuildReport(siteDir);
     progress('Demo site generated', 85);
@@ -1690,6 +1692,10 @@ async function main() {
       }
     }
   }
+
+  // #1979 —— 全部语言都在盘上了：地点页（介绍由 AI 再写一通，费用照常进 cost）+ 菜单一项 + 首页一块；评价按地点存进 brand.json。
+  progress('Writing location pages...', 80);
+  await addLocationPages({ siteDir, reviews, skipAI: false });
 
   // #1593 —— 建站的四个数（只算 create-site.js 这个进程，口径见 lib/build-stats.js 文件头），交给 T8 #1600 的建站报告：
   //   seoFixed / pages → 报告的 repair 格（seoPass 回值经 recordSeo 累加，三个主语言调用点 —— #1633 加了代码补的 contact 页那一处）；durationSec → finishBuildReport；
@@ -2050,6 +2056,57 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = [], u
 
   debug(`Site config written to site/ (locale: ${defaultLocale})`);
   debug(`Pages: ${content.pages.map(p => p.slug).join(', ')}`);
+}
+
+// ─── #1979: 地点页（两个及以上地点）────────────────────────────────────────────────────────────
+// 全部语言都写完之后跑一次（真 AI / skipAI 两条路都调）：先把 payload 的评价按地点存进 `brand.locations[i].reviews`（只存 4 星及以上，
+// 下标 = `brand.locations` 的下标 —— 就是 payloadLocations() 过滤之后写进去的那一组，#1993 起跟确认页对齐），再按 `lib/location-pages.js`
+// 生成总览页 / 地点页 / 菜单一项 / 首页一块，补丁写回 site/。介绍：真 AI 路站级那一通之后加一通（callAIWithRetry，花费照常记 cost 事件）；
+// skipAI 或那一通失败 ⟹ 代码那一句（失败记一笔降级，站照常建出来）。
+function readSiteJsonTree(siteDir) {
+  const out = {};
+  const walk = (rel) => {
+    for (const e of fs.readdirSync(path.join(siteDir, rel), { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (r === '.build' || r === 'build-report.json') continue;
+      if (e.isDirectory()) walk(r);
+      else if (r.endsWith('.json')) out[r] = JSON.parse(fs.readFileSync(path.join(siteDir, r), 'utf-8'));
+    }
+  };
+  walk('');
+  return out;
+}
+
+async function addLocationPages({ siteDir, reviews, skipAI }) {
+  const lp = require('./lib/location-pages');
+  const brandPath = path.join(siteDir, 'brand.json');
+  const brand = JSON.parse(fs.readFileSync(brandPath, 'utf-8'));
+  const locs = Array.isArray(brand.locations) ? brand.locations : [];
+  const stored = lp.storeLocationReviews(locs, reviews);
+  if (stored !== locs) {
+    brand.locations = stored;
+    fs.writeFileSync(brandPath, JSON.stringify(brand, null, 2) + '\n');
+    debug(`[location-pages] 评价存进地点：${stored.map((l) => (Array.isArray(l.reviews) ? l.reviews.length : 0)).join(' / ')} 条`);
+  }
+  const ai = async ({ prompt, model: m }) => {
+    const r = await callAIWithRetry({
+      client: new Anthropic(),
+      baseOptions: { model: m, max_tokens: Math.min(16000, modelOutputCap(m) || 16000), messages: [{ role: 'user', content: prompt }] },
+      costContext: { operation: 'create-site', detail: 'Location pages', pricing, durationStart: Date.now() },
+      label: 'location-pages',
+    });
+    return { parsed: r.parsed };
+  };
+  const r = await lp.runLocationPages({ content: readSiteJsonTree(siteDir), skipAI, ai, model, log: (line) => debug(line) });
+  if (r.aiError) degrade('location-pages', r.wants.map((w) => w.id).join(','), r.aiError);
+  for (const [rel, value] of Object.entries(r.patch)) {
+    const file = path.join(siteDir, rel);
+    if (value === null) { fs.rmSync(file, { force: true }); continue; }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
+  }
+  const made = Object.keys(r.patch).filter((k) => r.patch[k] !== null && /\/pages\/locations(\/|\.json$)/.test(k));
+  if (made.length) debug(`[location-pages] 地点页 ${made.length} 张：${made.join(' · ')}（AI 写了 ${skipAI ? 0 : r.wants.length} 家的介绍）`);
 }
 
 // ─── Demo Config (No AI) ────────────────────────────────────────────────────

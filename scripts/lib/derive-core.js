@@ -83,6 +83,8 @@ const { buildThemeCss } = require('../theme-css');
 // 哪一页读了哪些文件由这个文件算，边界（算什么、不算什么）写在它的文件头上。
 const { blockTypesReadingServices, createPageDeps, isServiceDetailPage } = require('./page-deps');
 const { isKeywordPage } = require('./keyword-service');
+// #1979 —— 地点总览页 / 地点页（页面顶层 `locationPage`）不自动进菜单：菜单里只有生成那一刻加的一项 Locations（§location-pages.js）。
+const { isLocationPage } = require('./location-pages');
 const { keywordFooterColumns } = require('./keyword-pages');
 // TICKET-133 的首页叫法兜底表 + 顶栏 / 页脚第一列怎么从页面推出来：#1759 起住在 `lib/nav-menu.js`
 // （编辑器顶栏 Content 页的画布预览用同一份，不许两边各写一份）。
@@ -134,7 +136,7 @@ function syncNavigation({ content, localePrefix, locale, homePage, pages, servic
   const nonHomePages = pages.filter(p => p.slug !== 'home');
   // #1033 r2 —— 这个判断搬去了 lib/page-deps.js（那边算 <lastmod> 也要问同一件事），逐字未改。
   // #1551 —— 关键词页的判断搬去了 lib/keyword-service.js（关键词页的 Service 结构化数据也要问同一件事），逐字未改。
-  const regularPages = nonHomePages.filter(p => !isKeywordPage(p) && !isServiceDetailPage(p));
+  const regularPages = nonHomePages.filter(p => !isKeywordPage(p) && !isServiceDetailPage(p) && !isLocationPage(p));
   const keywordPages = nonHomePages.filter(p => isKeywordPage(p));
 
   // TICKET-133: bypass-translation bug — these arrays previously hardcoded

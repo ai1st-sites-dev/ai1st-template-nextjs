@@ -20,9 +20,13 @@
 
 const { isServiceDetailPage } = require('./service-detail-page');
 
-/** 关键词页：建站脚本标了 `keywordPage`，或者是嵌在子目录里、又不是服务详情页的那种页（跟导航 / sitemap 同一个判断）。 */
+/**
+ * 关键词页：建站脚本标了 `keywordPage`，或者是嵌在子目录里、又不是服务详情页的那种页（跟导航 / sitemap 同一个判断）。
+ * #1979 —— 地点页（页面顶层 `locationPage`，`locations/<slug>`）也嵌在子目录里，但它不是关键词页：不进页脚的关键词栏、不出 Service。
+ */
 function isKeywordPage(page) {
   if (!page || typeof page.slug !== 'string') return false;
+  if (page.locationPage && typeof page.locationPage === 'object') return false;
   return (page.keywordPage === true || page.slug.includes('/')) && !isServiceDetailPage(page);
 }
 

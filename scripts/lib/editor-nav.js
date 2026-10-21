@@ -24,6 +24,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { isKeywordPage } = require('./keyword-service');
+const { isLocationPage } = require('./location-pages');
 const { isServiceDetailPage } = require('./service-detail-page');
 
 /** 菜单里一个链接的名字最长多少字（顶栏一行放得下；构建那头不限，这里是给老板的输入框定一个界）。 */
@@ -43,9 +44,9 @@ const refuse = (msg) => { throw new NavWriteError(REFUSED, msg); };
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v : '');
 
-/** 普通页：能进菜单的那种（同 `derive-site.js` 的 `regularPages`）。 */
+/** 普通页：能进菜单的那种（同 `derive-site.js` 的 `regularPages`；#1979 起地点页也不算）。 */
 function isRegularPage(p) {
-  return !!p && typeof p.slug === 'string' && p.slug !== 'home' && !isKeywordPage(p) && !isServiceDetailPage(p);
+  return !!p && typeof p.slug === 'string' && p.slug !== 'home' && !isKeywordPage(p) && !isServiceDetailPage(p) && !isLocationPage(p);
 }
 
 /**

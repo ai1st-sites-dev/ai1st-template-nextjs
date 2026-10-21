@@ -66,6 +66,15 @@ function answer(req) {
     const page = (cfg.plan.pages || []).find((p) => p.slug === slug) || { title: slug };
     return { json: { sections: sectionsFor(page.title, first) }, out: 3000 };
   }
+  // #1979 —— 地点页介绍那一通（两个及以上地点、真 AI 路）：每个点名的地点、每种语言各回两段 + 一句 description，菜单字回一个。
+  if (first.includes('You write the introduction for each location page')) {
+    fs.writeFileSync(process.env.LOC_STUB_PROMPT + '.locations', first);
+    const ids = [...first.matchAll(/id: "([^"]+)" · name: "([^"]+)"/g)];
+    return { json: {
+      locations: ids.map(([, id, name]) => ({ id, intros: { en: { paragraphs: [`${name} intro one.`, `${name} intro two.`], description: `${name} description.` } } })),
+      menuLabel: { en: 'Our salons' },
+    }, out: 800 };
+  }
   if (first.includes('An automatic SEO check found the problems')) {
     const m = first.match(/TEXTS TO FIX:\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/);
     return { json: { fields: m ? JSON.parse(m[1]) : {} }, out: 300 };
@@ -144,7 +153,9 @@ function run(label, payload, cfg = {}) {
   if (r.status !== 0 || error) die(`${label}：建站失败 rc=${r.status} ${error}\n${(r.stderr || '').slice(-1500)}`);
   const brand = JSON.parse(fs.readFileSync(path.join(work, 'site', 'brand.json'), 'utf8'));
   const prompt = fs.existsSync(promptFile) ? fs.readFileSync(promptFile, 'utf8') : null;
-  return { brand, prompt, events };
+  const locPrompt = fs.existsSync(`${promptFile}.locations`) ? fs.readFileSync(`${promptFile}.locations`, 'utf8') : null;
+  const readJson = (rel) => (fs.existsSync(path.join(work, 'site', rel)) ? JSON.parse(fs.readFileSync(path.join(work, 'site', rel), 'utf8')) : null);
+  return { brand, prompt, locPrompt, readJson, events };
 }
 
 const THREE = [
@@ -170,7 +181,9 @@ console.log('验收 2 —— 三地点、skipAI');
   check('skipAI 不写 hours / geo；其余字段原样', () => {
     assert.ok(locs.every((l) => !('hours' in l) && !('geo' in l)), JSON.stringify(locs));
     const { hours: _h, ...want } = THREE[0];
-    assert.deepStrictEqual({ ...locs[0], id: undefined }, { id: undefined, ...want });
+    // #1979 —— 两个及以上地点时地点页的 slug 写回这一家（`lib/location-pages.js`），单独判。
+    assert.deepStrictEqual({ ...locs[0], id: undefined, slug: undefined }, { id: undefined, slug: undefined, ...want });
+    assert.deepStrictEqual(locs.map((l) => l.slug), ['pickering', 'hair-j-ajax', 'hair-j-ontario']); // 后两家没有 city ⟹ 用 label
   });
 }
 
@@ -232,6 +245,21 @@ console.log('做什么 5 —— AI 那条路：营业时间逐个地点转写、
     assert.ok(!R.prompt.includes('"locations": [{ "label"'), '提示词里还有 locations 那一行');
     assert.ok(R.prompt.includes('"openingHoursByLocation"'));
     assert.ok(!/^ {4}"openingHours": \[\{/m.test(R.prompt), '单份 openingHours 那一行还在');
+  });
+  // #1979 —— 同一跑（四个地点、真 AI 路）：站级那一通之后加一通地点介绍，钱照常记 cost，介绍 / 菜单字用 AI 给的。
+  check('#1979 地点介绍那一通：问了四家、记了一笔 cost（detail = Location pages）、没有降级', () => {
+    assert.ok(R.locPrompt, '没截到地点介绍那一通');
+    for (const l of ['A', 'B', 'C', 'D']) assert.ok(R.locPrompt.includes(`name: "${l}"`), l);
+    assert.ok(R.events.some((e) => e.event === 'cost' && /^Location pages/.test(e.detail || '')), '没有 Location pages 那一笔 cost');
+    assert.ok(!R.events.some((e) => e.event === 'degraded' && e.step === 'location-pages'));
+  });
+  check('#1979 地点页的正文 / description 是 AI 给的，菜单那一项用 AI 给的字', () => {
+    const slug = R.brand.locations[1].slug;
+    const pg = R.readJson(`en/pages/locations/${slug}.json`);
+    assert.ok(pg, `没有 en/pages/locations/${slug}.json`);
+    assert.strictEqual(pg.blocks.find((b) => b.type === 'content').data.body, 'B intro one.\n\nB intro two.');
+    assert.strictEqual(pg.description, 'B description.');
+    assert.deepStrictEqual(R.readJson('en/navigation.json').header.links.at(-1), { label: 'Our salons', href: '/locations' });
   });
 }
 

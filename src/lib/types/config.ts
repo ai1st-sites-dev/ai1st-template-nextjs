@@ -315,6 +315,8 @@ export interface BlockConfig {
   region?: string;
   /** 排布顺序。没写就按它在数组里的位置算（见 `scripts/blocks.js` 的 effectiveWeight）。 */
   weight?: number;
+  /** #1979 —— 首页那一块「全部地点」（contact，Compact）是生成地点页时自动加的：地点减到一个时只删带它的那一块。只许 contact 块带、只许 true。 */
+  locationsAuto?: true;
   data?: Record<string, unknown>;
 }
 

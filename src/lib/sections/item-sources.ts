@@ -16,7 +16,8 @@ import * as impl from '../../../scripts/lib/item-sources.js';
 
 export interface ItemSourceContext {
   services?: Pick<ServiceConfig, 'id' | 'name' | 'shortDescription' | 'icon'>[];
-  pages?: Pick<DynamicPageConfig, 'slug' | 'title' | 'description'>[];
+  /** #1979 —— `locationPage`：页脚 `{source: "locations"}` 按它找每家的地点页。 */
+  pages?: Pick<DynamicPageConfig, 'slug' | 'title' | 'description' | 'locationPage'>[];
   /** slug → 站内链接（真站是 `localeUrl(slug, locale)`）。 */
   url: (slug: string) => string;
   /** 「Learn more」那几个字（真站取 `component-labels` 的 `learnMore`）。 */

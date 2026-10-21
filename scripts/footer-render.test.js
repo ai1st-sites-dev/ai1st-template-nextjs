@@ -106,6 +106,9 @@ const base = clone(DEMO);
 delete base.form;
 // #1471 —— 露多少是旋钮 `options.form`（演示内容写着 teaser）；它也一起拿掉，否则它压过每个预设的 `form: none`、3 个都读成 custom。
 if (base.options) delete base.options.form;
+// #1979 —— 演示内容带了 6 个地点（单格页三种排布都画得出地点那一组）；这份测试量的是没有地点的页脚，地点那一组自己有一道 border-top，
+//    会让下面「slim-row 空：只有底栏那一道」读到 2。地点那一组三种排布都在 location-pages-site.test.js 里量。
+delete base.locations;
 
 // ══ ① 验收 1：manifest 3 个预设 · 旋钮值与定稿表一致 · 目录 == 3 个预设名 · 3 个预设两两不同 ═══════════
 console.log('① 3 个预设：manifest · 目录 · 两两不同 · bg / brand 各改 HTML');

@@ -30,6 +30,7 @@
 //    ③ 根元素挂 `data-items-source`。标记只活在内存里，不写进任何文件（编辑器「改成手写」写回的是条目数组）。
 
 const { telHref, mailtoHref } = require('./contact-facts');
+const { withLocationIds } = require('./locations');
 
 const SOURCED_KEY = '_sourced';
 
@@ -205,6 +206,27 @@ const SOURCES = {
       return out;
     },
   },
+  // #1979 —— footer 的 `locations`：网站有两个及以上地点时每家一行 `[{label, phone?, href?}]`，顺序同 `brand.locations`。
+  //    电话这一家没有 ⟹ 第一家的（同 `contact-facts.js` §locationFactsFrom 的兜底）；`href` = 这一家的地点页（页面顶层
+  //    `locationPage: {kind: "location", id}`），还没有那一页就不带。不到两家 ⟹ 空（`shell-data.js` 那时也不写这个引用）。
+  locations: {
+    params: {},
+    prompt: '{source: "locations"}',
+    expand(ref, ctx) {
+      const locs = withLocationIds((isObj(ctx.brand) && Array.isArray(ctx.brand.locations) ? ctx.brand.locations : []).filter(isObj));
+      if (locs.length < 2) return [];
+      const pages = (Array.isArray(ctx.pages) ? ctx.pages : []).filter((p) => isObj(p) && typeof p.slug === 'string');
+      const firstPhone = trimmed(locs[0].phone);
+      return locs.map((l) => {
+        const it = { label: trimmed(l.label) || trimmed(l.city) || trimmed(l.address) };
+        const phone = trimmed(l.phone) || firstPhone;
+        if (phone) it.phone = phone;
+        const page = pages.find((p) => isObj(p.locationPage) && p.locationPage.kind === 'location' && p.locationPage.id === l.id);
+        if (page) it.href = ctx.url(page.slug);
+        return it;
+      }).filter((it) => it.label);
+    },
+  },
   // footer 的 `social`（#1785 起 header 也接）：`brand.socialLinks` → `[{label, href, icon}]`，顺序同存的那一份；没有网址的那一条不带。
   social: {
     params: {},
@@ -223,7 +245,7 @@ const SOURCES = {
 /** 哪个块的哪个槽接哪几个源（整槽写成引用，展开后整槽换掉）。 */
 const BLOCK_SLOTS = {
   'features': { items: ['services', 'pages'] },
-  'footer': { contact: ['brand'], social: ['social'] },
+  'footer': { contact: ['brand'], social: ['social'], locations: ['locations'] },
   // #1785 —— 顶栏的社交图标（`shell-data.js` 只在站里真填了社交链接时写这个引用）。
   'header': { social: ['social'] },
 };

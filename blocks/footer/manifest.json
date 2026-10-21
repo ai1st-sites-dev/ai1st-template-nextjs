@@ -48,6 +48,12 @@
       "promptOptional": false,
       "shape": "{phone?, address?, hours?, email?}"
     },
+    "locations": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{label, phone?, href?}]"
+    },
     "social": {
       "kind": "list",
       "required": false,
