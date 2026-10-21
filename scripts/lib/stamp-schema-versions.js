@@ -11,6 +11,9 @@
 // 「同一个块」：同一份文件里同一个 `id` 且同一个 `type`；没有 `id` 的老形状 `sections` 按位置（同一个下标、同一个 type）；
 // 共用块按 `site-blocks.json` 的键；顶栏 / 页脚按 `navigation.json` 的 `header` / `footer`。块目录里没有的类型不盖。
 // 🔴 已知残留（本票不出现，第一次有机会是 T4b-2）：AI 改站**就地**改了一个老块（id 不变）却按新形状写回来，它继承旧号。
+// #1963 —— 继承只继承整数：prev 里那个号不是整数（"2" / 2.5 / null，渲染入口一律画不出）⟹ 当成「没写」（= 1，渲染入口的
+// 默认），在 stderr 记一行点名文件和块。不改成这一型当前的号：那等于替一份来历不明的数据宣布「它已经是新版」，
+// 把「被拒的写」换成「画错的页」。原样抄回去的话，AI 每碰一次那一页就把坏号带回来一次，站从此发布不出去。
 const { loadBlockVersions } = require('./block-migrations');
 
 const PAGE_KEY_RE = /(^|\/)pages\/.+\.json$/;
@@ -24,12 +27,17 @@ const parsed = (v) => {
   try { return JSON.parse(v); } catch { return undefined; }
 };
 
-function stampOne(block, before, type, versions) {
+function stampOne(block, before, type, versions, where) {
   if (!isObj(block) || block.schemaVersion !== undefined) return block;
   const info = versions.get(type);
   if (!info) return block;
   if (isObj(before) && (before.type === undefined || before.type === block.type)) {
-    return before.schemaVersion === undefined ? block : { ...block, schemaVersion: before.schemaVersion };
+    if (before.schemaVersion === undefined) return block;
+    if (!Number.isInteger(before.schemaVersion)) {
+      console.error(`[stamp-schema-versions] ${where}: the previous schemaVersion ${JSON.stringify(before.schemaVersion)} is not a whole number — not carried over (read as 1)`);
+      return block;
+    }
+    return { ...block, schemaVersion: before.schemaVersion };
   }
   return { ...block, schemaVersion: info.schemaVersion };
 }
@@ -41,8 +49,8 @@ function stampFile(rel, value, prevValue, versions) {
   const prevDoc = isObj(was) ? was : {};
   let changed = false;
   const out = { ...doc };
-  const put = (block, before, type) => {
-    const s = stampOne(block, before, type, versions);
+  const put = (block, before, type, id) => {
+    const s = stampOne(block, before, type, versions, `${rel}#${id}`);
     if (s !== block) changed = true;
     return s;
   };
@@ -56,19 +64,19 @@ function stampFile(rel, value, prevValue, versions) {
         if (!isObj(b)) return b;
         const hasId = typeof b.id === 'string' && b.id;
         const before = hasId ? byId.get(b.id) : (isObj(old[i]) && !old[i].id ? old[i] : undefined);
-        return put(b, before && before.type === b.type ? before : undefined, b.type);
+        return put(b, before && before.type === b.type ? before : undefined, b.type, hasId ? b.id : `${field}[${i}]`);
       });
     }
   } else if (SHARED_KEY_RE.test(rel)) {
     for (const [id, b] of Object.entries(doc)) {
       if (!isObj(b)) continue;
       const before = isObj(prevDoc[id]) && prevDoc[id].type === b.type ? prevDoc[id] : undefined;
-      out[id] = put(b, before, b.type);
+      out[id] = put(b, before, b.type, id);
     }
   } else if (NAV_KEY_RE.test(rel)) {
     for (const region of REGIONS) {
       if (!isObj(doc[region])) continue;
-      out[region] = put(doc[region], isObj(prevDoc[region]) ? prevDoc[region] : undefined, region);
+      out[region] = put(doc[region], isObj(prevDoc[region]) ? prevDoc[region] : undefined, region, region);
     }
   } else {
     return null;
