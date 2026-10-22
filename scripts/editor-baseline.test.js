@@ -89,8 +89,7 @@ let lastRoot = null;
  *  #1945 —— 搜索结果三样（`editor-props.ts`）：首页取这种语言的 seo（同 getSeo）；子页取这一页 JSON 顶层（`raw`）。 */
 function builtRoot(locale, slug = 'home', raw = {}) {
   const { brand, defaultLocale } = lastRoot;
-  // #1980 —— 地点整份（page.tsx / editor-props.ts：`editorLocations(site.brand, null)`，同站里 editor-root.js 那一份）。
-  const { editorLocations } = require(path.join(multi, 'scripts', 'lib', 'editor-locations.js'));
+  const loc = (brand.locations || [])[0] || {};
   return {
     layout: lastRoot.pageLayout.id,
     headerShape: lastRoot.regions.header.shape,
@@ -101,7 +100,8 @@ function builtRoot(locale, slug = 'home', raw = {}) {
     // #1681 —— Business info 四样（page.tsx：名字同 getBrandName，其余取构建里的 brand）。
     brandName: brand.name[locale] ?? brand.name[defaultLocale] ?? Object.values(brand.name)[0] ?? '',
     email: brand.email ?? '',
-    locations: editorLocations(brand, null),
+    phone: loc.phone ?? '',
+    address: loc.address ?? '',
     // #1759 —— 顶栏 Content 页：logo（page.tsx：`site.brand.logoUrl ?? ''`）+ 按钮（page.tsx §headerContent：
     //    `getNavigation(site, locale)` 的 header.buttons，#1787 起是列表，每颗取 label / href；href 是电话 / 邮箱引用就原样）。
     // #1781 —— 菜单（page.tsx §headerContent：`header.links` 里 label 是字符串的那几项，各取 label / href）。
@@ -282,8 +282,8 @@ console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存�
     // #1681 —— brand.json 那四样也走同一条写路、同一个底稿。
     brandName: `${before.brandName} 1681`,
     email: 'changed-1681@example.com',
-    // #1980 —— 电话 / 地址住在 `locations` 里（整份），同一条写路、同一个底稿。
-    locations: [{ ...before.locations[0], phone: '(416) 555-1681', address: '1681 Changed St, Toronto, ON' }, ...before.locations.slice(1)],
+    phone: '(416) 555-1681',
+    address: '1681 Changed St, Toronto, ON',
     // #1759 —— 顶栏 Content 页：logo 在 brand.json，按钮（#1787 列表）在 en/navigation.json，同一条写路、同一个底稿。
     logoUrl: '/images/logo-1759.png',
     headerButtons: [{ label: 'Book now 1759', href: '/about' }, { label: 'Our services 1759', href: '/services' }],
@@ -308,10 +308,10 @@ console.log('⑥ #1452：外壳三样（#1681 起加 Business info 四样）存�
   // #1738 —— 底色 + 旋钮是对象：按值比（JSON），不按引用。
   const eq = (x, y) => JSON.stringify(x) === JSON.stringify(y);
   const sameRoot = (a, b) => !!a && Object.keys(b).length === Object.keys(a).length && Object.keys(b).every((k) => eq(a[k], b[k]));
-  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那十六样', JSON.stringify(got.root));
+  check(got.ok && sameRoot(got.root, change), '底稿的 root 就是刚存下去的那十七样', JSON.stringify(got.root));
   // 反向：构建里（= 编辑器页烤进去的首屏）还是旧的 —— 不送 root 的话编辑器显示的就是这一份（票正文「不见了」）。
   const stale = Object.keys(change).filter((k) => eq(before[k], (got.root || {})[k]));
-  check(stale.length === 0, '十六样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
+  check(stale.length === 0, '十七样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
 
   // 读不出来 ⟹ 不带 root（编辑器沿用构建时那份），底稿其余照常。
   // #1425（T3）：弄坏的原来是 navigation.json（公告条那一样住在那儿，今天 root 不读它了）。root 今天读的站级文件

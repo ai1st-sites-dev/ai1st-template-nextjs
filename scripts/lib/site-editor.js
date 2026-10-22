@@ -261,15 +261,6 @@ function touchedFilesOf({ changes, target, siteDir, slug, pageFiles }) {
   if (ROOT_FIELDS_IN_NAVIGATION.some((f) => Object.prototype.hasOwnProperty.call(changes.root || {}, f))) {
     add(path.join(target.localeDir, 'navigation.json'));
   }
-  // #1980 —— 整份交 `locations` 的一笔：老站营业时间先从 seo.json 搬进第一家（#1976 §locationPatchesOf），再套老板这一份 ——
-  //    反过来，存完之后那一道搬迁会拿 seo.json 里的旧营业时间盖掉老板刚改的。
-  //    搬迁那一道的补丁两半都要落：`brand.json`（营业时间进第一家）和各语言 `seo.json`（删掉那两项）—— 只落前一半，存完之后那道
-  //    搬迁看见 seo.json 里还有，又拿它盖回第一家。
-  if (Object.prototype.hasOwnProperty.call(changes.root || {}, 'locations')) {
-    add(path.join(siteDir, 'brand.json'));
-    add(path.join(siteDir, 'seo.json'));
-    for (const e of fs.readdirSync(siteDir, { withFileTypes: true })) if (e.isDirectory()) add(path.join(siteDir, e.name, 'seo.json'));
-  }
   return [...new Set(out)];
 }
 
@@ -278,12 +269,10 @@ function touchedFilesOf({ changes, target, siteDir, slug, pageFiles }) {
  *   `{ page, locale?, json?, baseHash?, root?, shared?, forms?, nav?, summary? }`（五样至少一样，同 write-editor-save.js）
  * `keep`：「Keep my changes」—— 这一笔落在**当前**内容上，页面那一半不比 baseHash（拿当前那份的 hash 顶上）。
  *
- * 返回 `{ content, summary, files, hash?, notice?, shared, addressChanged?, remapped? }`：
+ * 返回 `{ content, summary, files, hash?, notice?, shared, addressChanged? }`：
  *   `files`   这一笔写了 content 的哪几个键（含 contentPatchesOf 的补丁）
- *   `hash`    写了页面时，写进去那份页面字节的 sha256（编辑器的下一次 baseHash，同 write-editor-save.js）；
- *             #1980：这一页的地点下标被挪过时是挪过之后那份的（没交页面也回）
+ *   `hash`    写了页面时，写进去那份页面字节的 sha256（编辑器的下一次 baseHash，同 write-editor-save.js）
  *   `shared`  这一页写完之后的共用块三样（`siteBlocks / refs / slugs`，编辑器「在 N 个页面上」要它，#1406）
- *   `remapped` #1980：这一笔排序 / 删了地点，按下标的地点引用改到的那几份文件（编辑器据它重取底稿）
  *   `addressChanged` 第一家门店的地址变了 ⟹ 新地址（不进这一笔；manager 不读它 —— 写 content 时自己比地址、排 geocode，
  *                    manager/site_content.go §afterSiteContentWrite）
  * 拒收（给老板看的那句话）⟹ throw `refused`；页面在别处改过（只在不 keep 时可能）⟹ throw `stale`；形状不对 ⟹ `bad`。
@@ -385,23 +374,6 @@ async function save({ content, changes, keep = false, migrate = [] }) {
     }
 
     let next = readTree(siteDir);
-    // #1980 —— 排了序 / 删了地点：按下标的地点引用（页面、菜单、共用块）在同一笔里改成新下标（`editor-locations.js` §remapLocationRefs）。
-    //    画布手上的下标编辑器自己按同一对顺序挪（dashboard EditorApp §saved 用 §remapLocationRefsIn）—— 这一笔对页面 / 顶栏的
-    //    引用一律按「这一笔之前盘上的顺序」读，所以编辑器交上来的必须是对着库里现顺序的下标。
-    //    挪过的文件也写回临时目录：下面的 `shared`（共用块的底）读的是那儿。改到的若正是编辑器开着的这一页 ⟹ 回的 `hash` 是
-    //    挪过之后那份的（r2：回挪之前那份，编辑器下一笔的 baseHash 对不上，重取底稿落地之前存的那一笔吃一次假 409）。
-    let remapped = [];
-    if (Object.prototype.hasOwnProperty.call(root, 'locations')) {
-      const locsOf = (c) => {
-        const b = c['brand.json'];
-        const doc = typeof b === 'string' ? JSON.parse(b) : b;
-        return isObj(doc) && Array.isArray(doc.locations) ? doc.locations : [];
-      };
-      const moved = require('./editor-locations').remapLocationRefs(next, locsOf(before), locsOf(next));
-      remapped = Object.keys(moved).sort();
-      Object.assign(next, moved);
-      for (const [rel, v] of Object.entries(moved)) fs.writeFileSync(path.join(siteDir, rel), contentText(v));
-    }
     // 菜单同步 + custom.css（derive-core §contentPatchesOf，设计文档 §5.3：并进同一笔，渲染不回写库）。补丁直接是对象 / 字符串（#1838）。
     // #1976 —— 这一笔改到 brand.json / seo.json ⟹ 老站的营业时间 / 评分在这一笔里搬进 locations[0]（§locationFactFilesChanged）。
     const patches = contentPatchesOf(next, { touchedFiles: locationFactFilesChanged(content, next) });
@@ -426,12 +398,6 @@ async function save({ content, changes, keep = false, migrate = [] }) {
     const badVersions = require('./content-blocks').schemaVersionProblems(next, files);
     if (badVersions.length) throw new SiteEditorError('refused', `Not saved — ${badVersions.join('; ')}.`);
     const after = editorSource(dir, target.locale, slug, siteDir);
-    // #1980 r2 —— 开着的这一页被挪过下标：hash 换成库里最终那份字节的（同 editor-data 的算法：铺盘字节的 sha256）。只改了外壳 / 地点、
-    //    没交页面的那一笔也回 —— 不回的话编辑器手上还是挪之前的 hash。
-    if (remapped.length && !('error' in after)) {
-      const rel = after.file.replace(/^site\//, ''); // `site/<相对路径>`（editor-page.js §editorSource）
-      if (remapped.includes(rel) && next[rel] !== undefined) pageHash = require('crypto').createHash('sha256').update(contentText(next[rel]), 'utf-8').digest('hex');
-    }
     const addr = addressOf(next);
     return {
       content: next,
@@ -442,7 +408,6 @@ async function save({ content, changes, keep = false, migrate = [] }) {
       ...(s && s.notice ? { notice: s.notice } : {}),
       ...('error' in after ? {} : { shared: { siteBlocks: after.siteBlocks, refs: after.refs, slugs: after.slugs } }),
       ...(addr !== addressOf(content) ? { addressChanged: addr } : {}),
-      ...(remapped.length ? { remapped } : {}),
     };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

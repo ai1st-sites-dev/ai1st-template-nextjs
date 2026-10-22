@@ -440,7 +440,6 @@ console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
       'manager/resume_point.go': '§siteResumePoint —— GET /api/admin/sites/{id}/resume-point 读 site_meta.json 的 buildPhase 判能不能续建（#1649），走 §githubRepoFile 只发 GET，只读',
       'manager/site_content.go': '§commitSiteContent 上面那条注释提到 content 里的 site_meta.siteId 会被 --site-id 覆盖（#1796 §6.1）—— 全文只有这一处命中而且是注释，没有一行读它或写它',
       'dashboard/src/editor/EditorApp.tsx': '#1801 从模板搬进 dashboard 的编辑器：文件头一行注释说行业不在 site_meta.json 里（所以宿主另带），没有代码碰这个文件',
-      'manager/site_location_pages.go': '§contentLocalePrefixes —— #1980 判「哪种语言还缺地点页」时从 sites.content 读 site_meta.json 的 locales / defaultLocale，只读（写页面归模板 site.js location-pages）',
     };
     // #1999 —— 给存量站加语言的那条路：唯一一份往 site_meta.json 的 locales 里加一项的产品文件。它在 ⟺ 那句话里点名的
     //    Website settings → Languages 是真的。
