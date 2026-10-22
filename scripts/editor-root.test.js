@@ -148,9 +148,13 @@ function otherValues(cur) {
     footerShape: pick(footer, cur.footerShape),
     // #1681 —— Business info 四样：跟现值不同的文字就行。
     brandName: `${cur.brandName || 'Site'} Renamed`,
-    phone: cur.phone === '(416) 555-0199' ? '(416) 555-0100' : '(416) 555-0199',
     email: cur.email === 'hello@renamed.example' ? 'hi@renamed.example' : 'hello@renamed.example',
-    address: cur.address === '100 Queen St W, Toronto, ON' ? '1 Yonge St, Toronto, ON' : '100 Queen St W, Toronto, ON',
+    // #1980 —— 电话 / 地址挪进了整份 `locations`：第一家换电话，再加一家带营业时间的。
+    locations: [
+      { ...(cur.locations || [])[0], phone: (cur.locations || [])[0] && cur.locations[0].phone === '(416) 555-0199' ? '(416) 555-0100' : '(416) 555-0199' },
+      { id: 'loc-rt01', label: 'Round trip', address: '1 Yonge St, Toronto, ON', email: 'yonge@renamed.example',
+        hours: [{ days: ['Monday', 'Tuesday'], opens: '09:00', closes: '18:00' }, { days: ['Saturday'], opens: '10:00', closes: '24:00' }] },
+    ],
     // #1738 —— 顶栏 / 页脚的底色 + 旋钮：一个对象，跟现值不同就行（每一格都得是 manifest 认的，`region-options.js`）。
     headerOptions: cur.headerOptions && cur.headerOptions.menu === 'below' ? { bg: '#1e293b' } : { bg: '#0f172a', logo: 'center', menu: 'below', icons: true },
     footerOptions: cur.footerOptions && cur.footerOptions.brand === 'right' ? { form: 'teaser' } : { bg: 'brand', brand: 'right' },
@@ -169,14 +173,14 @@ const localeBrandFiles = (site) => fs.readdirSync(site, { withFileTypes: true })
 function roundTripProblems() {
   const problems = [];
   // 🔴 这张名单故意手写、不照分派表遍历：守卫要量的就是「分派表少了谁」（下面那格反向把一行拿掉）。
-  for (const f of ['layout', 'headerShape', 'footerShape', 'headerOptions', 'footerOptions', 'brandName', 'phone', 'email', 'address', 'logoUrl', 'headerButtons']) {
+  for (const f of ['layout', 'headerShape', 'footerShape', 'headerOptions', 'footerOptions', 'brandName', 'email', 'locations', 'logoUrl', 'headerButtons']) {
     freshSite();
     const before = readRoot('en');
     const want = otherValues(before)[f];
     const r = tryWrite({ [f]: want }, 'en');
     if (r.code) { problems.push(`${f}（写不进去：${r.message.slice(0, 80)}）`); continue; }
     // #1681 —— brand 那四样只许写站根那一份 brand.json；任何语言目录下都不许冒出一份。
-    if (['brandName', 'phone', 'email', 'address', 'logoUrl'].includes(f)) {
+    if (['brandName', 'email', 'locations', 'logoUrl'].includes(f)) {
       if (JSON.stringify(r.files) !== JSON.stringify(['brand.json'])) problems.push(`${f}（写的是 ${JSON.stringify(r.files)}，不是站根的 brand.json）`);
       const stray = localeBrandFiles(path.join(TEMPLATE, 'site'));
       if (stray.length) problems.push(`${f}（语言目录下多了 ${stray.join(', ')}）`);
@@ -198,7 +202,7 @@ function roundTripProblems() {
 console.log('① 往返（分派表每一行）');
 {
   const problems = roundTripProblems();
-  check(problems.length === 0, '11 个 root 字段各写一次都读得回来、不碰别的字段（brand 五样只写站根的 brand.json，按钮只写 en/navigation.json）', problems.join(' · '));
+  check(problems.length === 0, '10 个 root 字段各写一次都读得回来、不碰别的字段（brand 四样只写站根的 brand.json，按钮只写 en/navigation.json）', problems.join(' · '));
 
   // 反向：把分派表的 footerShape 那一行拿掉（editor-root.js 拿的是同一个数组）。#1425（T3）：原来拿的是 topbarLink。
   const table = fieldsMod.ROOT_FIELDS;
@@ -441,45 +445,91 @@ console.log('⑨ Business info（brand.json）');
     b.locations[0] = { ...b.locations[0], label: b.locations[0].label || 'Main', address: b.locations[0].address || '55 Bloor St W, Toronto, ON', geo: { lat: 43.67, lng: -79.39 } };
   };
 
-  // 改电话：门店数组还是数组；第一家的 label / address / geo 原样；第二家一个字节不变。
+  // #1980 —— 电话 / 地址住进整份 `locations`（Locations 区）。改第一家电话：两家都在；geo / slug / reviews 不归编辑器、原样留着；
+  //    第二家一个字节不变；brand.json 别的键不动。
   freshSite();
-  setBrand((b) => { firstWithGeo(b); b.locations[1] = SECOND; });
+  setBrand((b) => { firstWithGeo(b); b.locations[0].slug = 'main-st'; b.locations[0].reviews = [{ quote: 'Great', author: 'A' }]; b.locations[1] = SECOND; });
   const b0 = readBrand();
-  let r = tryWrite({ phone: '(647) 555-0123' }, 'en');
+  const locs0 = readRoot('en').locations;
+  check(Array.isArray(locs0) && locs0.length === 2 && locs0.every((l) => typeof l.id === 'string' && l.id) && !locs0.some((l) => 'geo' in l || 'slug' in l || 'reviews' in l),
+    '读值：两家都在、没有 id 的按下标补上、geo / slug / reviews 不给编辑器', JSON.stringify(locs0));
+  let r = tryWrite({ locations: [{ ...locs0[0], phone: '(647) 555-0123' }, locs0[1]] }, 'en');
   const b1 = readBrand();
-  check(!r.code && Array.isArray(b1.locations) && b1.locations.length === 2, '改电话 ⟹ locations 仍是数组、仍是两家', JSON.stringify(b1.locations));
+  check(!r.code && Array.isArray(b1.locations) && b1.locations.length === 2, '改电话 ⟹ locations 仍是数组、仍是两家', JSON.stringify(r));
   check(b1.locations[0].phone === '(647) 555-0123', '第一家的电话是新号码');
-  check(['label', 'address', 'geo'].every((k) => JSON.stringify(b1.locations[0][k]) === JSON.stringify(b0.locations[0][k])),
-    '第一家的 label / address / geo 原样都在', JSON.stringify(b1.locations[0]));
-  check(JSON.stringify(b1.locations[1]) === JSON.stringify(b0.locations[1]), '第二家门店一个字节不变', JSON.stringify(b1.locations[1]));
+  check(['label', 'address', 'geo', 'slug', 'reviews'].every((k) => JSON.stringify(b1.locations[0][k]) === JSON.stringify(b0.locations[0][k])),
+    '第一家的 label / address / geo / slug / reviews 原样都在', JSON.stringify(b1.locations[0]));
+  check(JSON.stringify({ ...b1.locations[1], id: undefined }) === JSON.stringify({ ...b0.locations[1], id: undefined }) && b1.locations[1].id === locs0[1].id,
+    '第二家只多了一个 id（第一次写 brand.json 时落盘），别的一个字节不变', JSON.stringify(b1.locations[1]));
   const rest = (b) => { const c = { ...b }; delete c.locations; return JSON.stringify(c); };
   check(rest(b0) === rest(b1), 'brand.json 其余键（颜色 / 字体 / 名字 …）一个不动');
 
-  // 改地址只动 address（坐标归写完之后那一步，见下面 write-editor-save 那几格）
-  r = tryWrite({ address: '200 Bay St, Toronto, ON' }, 'en');
-  const b2 = readBrand();
-  check(!r.code && b2.locations[0].address === '200 Bay St, Toronto, ON' && b2.locations[0].phone === '(647) 555-0123'
-    && JSON.stringify(b2.locations[1]) === JSON.stringify(SECOND), '改地址 ⟹ 只动第一家的 address');
+  // 整份写回再读出相同（AC1 第一句）
+  const full = readRoot('en').locations;
+  r = tryWrite({ locations: full }, 'en');
+  check(!r.code && JSON.stringify(readRoot('en').locations) === JSON.stringify(full), '整份写回 ⟹ 读出来一模一样', JSON.stringify(readRoot('en').locations));
+  // 编辑器交来的 geo 不进库（editor-data 把 sites.geo 并进了内存那份）
+  r = tryWrite({ locations: [{ ...full[0], geo: { lat: 1, lng: 2 } }, full[1]] }, 'en');
+  check(r.code === 5 && /改不了的键/.test(r.message), '编辑器交来 geo ⟹ 形状不对（5），不写进 brand.json', JSON.stringify(r));
 
   // 清空 = 删键；网站名字不许空；类型不对 = 5
-  r = tryWrite({ phone: '' }, 'en');
-  check(!r.code && !('phone' in readBrand().locations[0]) && readRoot('en').phone === '', '清空电话 ⟹ 第一家没有 phone 这个键、读回 \'\'');
+  r = tryWrite({ locations: [{ ...full[0], phone: '  ' }, full[1]] }, 'en');
+  check(!r.code && !('phone' in readBrand().locations[0]) && !('phone' in readRoot('en').locations[0]), '清空第一家电话 ⟹ 没有 phone 这个键');
   r = tryWrite({ email: '  ' }, 'en');
   check(!r.code && !('email' in readBrand()), '清空邮箱（只有空格）⟹ 没有 email 这个键');
   let before = snapshot(path.join(TEMPLATE, 'site'));
   r = tryWrite({ brandName: '   ' }, 'en');
   check(r.code === editorRoot.REFUSED && /website name can't be empty/.test(r.message) && changedFiles(before, snapshot(path.join(TEMPLATE, 'site'))).length === 0,
     '网站名字清空 ⟹ 拒收（英文那句进状态栏）、什么都没写', JSON.stringify(r));
-  r = tryWrite({ phone: 5551234 }, 'en');
+  r = tryWrite({ locations: [{ ...full[0], phone: 5551234 }] }, 'en');
   check(r.code === 5, '电话不是字符串 ⟹ 5');
+  r = tryWrite({ phone: '(416) 555-0100' }, 'en');
+  check(r.code === 5 && /不认识的字段/.test(r.message), '老字段 phone 不再收（挪进了 locations）⟹ 5', JSON.stringify(r));
 
-  // 门店数组是空的 / 没有：改电话新建第一家；清空电话不造一家空门店
+  // AC1：缺 id、营业时间 25:00、邮箱不像邮箱 ⟹ 拒收，原话给老板，什么都没写
+  before = snapshot(path.join(TEMPLATE, 'site'));
+  const refusedWith = (locations, re, label) => {
+    const x = tryWrite({ locations }, 'en');
+    check(x.code === editorRoot.REFUSED && re.test(x.message) && /Nothing was changed\.$/.test(x.message) && changedFiles(before, snapshot(path.join(TEMPLATE, 'site'))).length === 0,
+      label, JSON.stringify(x));
+  };
+  refusedWith([full[0], { label: 'No id', address: '1 Main St' }], /The location "No id" is missing its id/, '缺 id ⟹ 拒收（点名那一家）');
+  refusedWith([full[0], { ...full[1], hours: [{ days: ['Monday'], opens: '09:00', closes: '25:00' }] }], /opening hours of Second shop are not valid/, '营业时间 25:00 ⟹ 拒收');
+  refusedWith([full[0], { ...full[1], hours: [{ days: ['Mon'], opens: '09:00', closes: '17:00' }] }], /opening hours of Second shop are not valid/, '星期不是英文全名（Mon）⟹ 拒收');
+  refusedWith([full[0], { ...full[1], hours: [{ days: ['Monday'], opens: '9:00', closes: '17:00' }] }], /opening hours of Second shop are not valid/, '时间不是 HH:MM（9:00）⟹ 拒收');
+  refusedWith([full[0], { ...full[1], email: 'not-an-email' }], /The email "not-an-email" of Second shop is not an email address/, '这一家的邮箱不像邮箱 ⟹ 拒收');
+  refusedWith([full[0], { ...full[1], id: full[0].id }], /Two locations have the same id/, '两家同一个 id ⟹ 拒收');
+  // 合格的营业时间 / 这一家的邮箱写得进去（邮箱空着 = 用网站邮箱，那条兜底在 contact-facts.js）
+  r = tryWrite({ locations: [full[0], { ...full[1], email: 'king@example.com', hours: [{ days: ['Monday', 'Friday'], opens: '08:30', closes: '24:00' }] }] }, 'en');
+  check(!r.code && readBrand().locations[1].email === 'king@example.com' && JSON.stringify(readBrand().locations[1].hours) === JSON.stringify([{ days: ['Monday', 'Friday'], opens: '08:30', closes: '24:00' }]),
+    '合格的营业时间 / 这一家的邮箱 ⟹ 写进那一家', JSON.stringify(readBrand().locations[1]));
+
+  // 加一家、删一家、排序：顺序照老板的；被删那家整个不见；新的那家只有交来的那几样
   freshSite();
-  setBrand((b) => { b.locations = []; });
-  r = tryWrite({ phone: '' }, 'en');
-  check(!r.code && JSON.stringify(readBrand().locations) === '[]', '没有门店时清空电话 ⟹ 不造一家空门店');
-  r = tryWrite({ phone: '(905) 555-0111' }, 'en');
-  check(!r.code && Array.isArray(readBrand().locations) && readBrand().locations[0].phone === '(905) 555-0111', '没有门店时填电话 ⟹ 新建第一家');
+  setBrand((b) => { firstWithGeo(b); b.locations[1] = SECOND; });
+  const two = readRoot('en').locations;
+  r = tryWrite({ locations: [two[1], { id: 'loc-new1', label: 'Third', address: '3 Elm St' }] }, 'en');
+  const b3 = readBrand();
+  check(!r.code && b3.locations.length === 2 && b3.locations[0].label === 'Second shop' && b3.locations[1].id === 'loc-new1'
+    && JSON.stringify(Object.keys(b3.locations[1])) === JSON.stringify(['id', 'label', 'address']) && JSON.stringify(b3.locations[0].geo) === JSON.stringify(SECOND.geo),
+    '删掉第一家、加一家：第二家变第一（带着它的 geo），新那家只有 id / label / address', JSON.stringify(b3.locations));
+
+  // 老站：营业时间还在默认语言 seo.json ⟹ 读值里它就是第一家的（不读成空、一存就清掉）
+  freshSite();
+  const seoFile = path.join(TEMPLATE, 'site', 'en', 'seo.json');
+  const legacyHours = [{ days: ['Monday'], opens: '09:00', closes: '17:00' }];
+  { const seo = JSON.parse(fs.readFileSync(seoFile, 'utf-8')); seo.schema = { ...(seo.schema || {}), openingHours: legacyHours }; fs.writeFileSync(seoFile, `${JSON.stringify(seo, null, 2)}\n`); }
+  setBrand((b) => { b.locations = [{ label: 'Main', address: '55 Bloor St W, Toronto, ON' }]; });
+  check(JSON.stringify(readRoot('en').locations[0].hours) === JSON.stringify(legacyHours), '老站：seo.json 里的营业时间读成第一家的', JSON.stringify(readRoot('en').locations));
+
+  // 没有地点的站：读出 []；交一份空的 ⟹ 不留空数组；交一家 ⟹ 新建
+  freshSite();
+  setBrand((b) => { delete b.locations; });
+  check(JSON.stringify(readRoot('en').locations) === '[]', '没有地点 ⟹ 读出 []');
+  r = tryWrite({ locations: [] }, 'en');
+  check(!r.code && !('locations' in readBrand()), '交一份空的 ⟹ 没有 locations 这个键');
+  r = tryWrite({ locations: [{ id: 'loc-a1b2', phone: '(905) 555-0111' }] }, 'en');
+  check(!r.code && readBrand().locations[0].phone === '(905) 555-0111', '没有地点时加一家 ⟹ 新建第一家');
 
   // 多语言：名字只动这种语言那一格；电话三种语言读回同一个
   freshSite();
@@ -491,8 +541,8 @@ console.log('⑨ Business info（brand.json）');
     '在 zh 改名字 ⟹ 只有 name.zh 变', JSON.stringify(nameAfter));
   check(readRoot('zh').brandName === '北区汽修' && readRoot('en').brandName === nameBefore.en, '读回：zh 是新名字、en 还是原名字');
   check(readRoot('fr').brandName === (nameBefore.fr ?? nameBefore.en), 'fr 没有自己那一格时读回默认语言那一格（同 getBrandName）', readRoot('fr').brandName);
-  r = tryWrite({ phone: '(416) 555-0777' }, 'zh');
-  check(!r.code && ['en', 'fr', 'zh'].every((l) => readRoot(l).phone === '(416) 555-0777'), '在 zh 改电话 ⟹ 三种语言读回同一个号码');
+  { const l = readRoot('zh').locations; r = tryWrite({ locations: [{ ...l[0], phone: '(416) 555-0777' }, ...l.slice(1)] }, 'zh'); }
+  check(!r.code && ['en', 'fr', 'zh'].every((l) => readRoot(l).locations[0].phone === '(416) 555-0777'), '在 zh 改电话 ⟹ 三种语言读回同一个号码');
   check(localeBrandFiles(path.join(TEMPLATE, 'site')).length === 0, '语言目录下没有冒出 brand.json');
 
   // 老站：name 还是字符串 ⟹ 改 zh 名字变成 {en: 原名字, zh: 新名字}
@@ -523,16 +573,18 @@ console.log('⑨ Business info（brand.json）');
 
   freshSite();
   setBrand((b) => { firstWithGeo(b); b.locations[1] = SECOND; });
-  let s = runScript({ page: 'home', locale: 'en' }, { root: { address: '200 Bay St, Toronto, ON' } }, hitEnv);
+  // #1980 —— 地址住在 `locations` 里：交整份，第一家换地址。
+  const withFirst = (patch) => { const l = readRoot('en').locations; return { root: { locations: [{ ...l[0], ...patch }, ...l.slice(1)] } }; };
+  let s = runScript({ page: 'home', locale: 'en' }, withFirst({ address: '200 Bay St, Toronto, ON' }), hitEnv);
   let b = readBrand();
   check(s.status === 0 && s.last && s.last.ok && JSON.stringify(s.last.files) === JSON.stringify(['site/brand.json']), '只改地址 ⟹ 成功、files 只有 site/brand.json', `${s.status} ${s.stdout} ${s.stderr}`);
   check(b.locations[0].address === '200 Bay St, Toronto, ON' && b.locations[0].geo && b.locations[0].geo.lat === 43.6487 && b.locations[0].city === 'Toronto',
     '地址变了 ⟹ 查到的新坐标 / 城市写回同一份 brand.json', JSON.stringify(b.locations[0]));
-  check(JSON.stringify(b.locations[1]) === JSON.stringify(SECOND), '查坐标那一步不碰第二家门店');
+  check(JSON.stringify({ ...b.locations[1], id: undefined }) === JSON.stringify(SECOND), '查坐标那一步不碰第二家门店（只多了 id）', JSON.stringify(b.locations[1]));
   const n = calls();
-  s = runScript({ page: 'home', locale: 'en' }, { root: { phone: '(416) 555-0900' } }, hitEnv);
+  s = runScript({ page: 'home', locale: 'en' }, withFirst({ phone: '(416) 555-0900' }), hitEnv);
   check(s.status === 0 && calls() === n && JSON.stringify(readBrand().locations[0].geo) === JSON.stringify(b.locations[0].geo), '只改电话（地址没变）⟹ 一个请求都不发、坐标不动', `calls ${n}→${calls()}`);
-  s = runScript({ page: 'home', locale: 'en' }, { root: { address: '1 Nowhere Rd' } }, missEnv);
+  s = runScript({ page: 'home', locale: 'en' }, withFirst({ address: '1 Nowhere Rd', city: '' }), missEnv);
   b = readBrand();
   check(s.status === 0 && s.last && s.last.ok && b.locations[0].address === '1 Nowhere Rd' && !('geo' in b.locations[0]) && !('city' in b.locations[0]),
     '查不到（网络错）⟹ 保存照样成功、旧坐标删掉（不留一个指着老地方的钉子）', `${s.status} ${JSON.stringify(b.locations[0])} ${s.stderr}`);

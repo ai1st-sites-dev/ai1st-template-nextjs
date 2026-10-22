@@ -11,6 +11,7 @@ import { editorSource, locateInRaw, effectiveWeights } from '../../scripts/lib/e
 import { editorSchema } from '../../scripts/lib/editor-schema.js';
 import { blocksDir, registryPath } from '../../scripts/lib/block-paths.js';
 import { pageToPuck, pageSeoToPuck, rootToPuck } from '../../scripts/lib/editor-convert.js';
+import { editorLocations } from '../../scripts/lib/editor-locations.js';
 import { editorPages } from '../../scripts/lib/editor-pages.js';
 import { topbarLinksOf } from '../../scripts/lib/topbar-links.js';
 import { iconTableFor, usesIconTable } from '../../scripts/lib/icons.js';
@@ -97,9 +98,10 @@ export function editorProps({ site, root, siteDir, locale, slug }: { site: SiteD
           footerOptions: regions.footer.options || {},
           // #1681 —— Business info 四样：名字取这种语言那一格，同站上顶栏的读法。
           brandName: getBrandName(site, locale),
-          phone: site.brand.locations?.[0]?.phone ?? '',
           email: site.brand.email ?? '',
-          address: site.brand.locations?.[0]?.address ?? '',
+          // #1980 —— Locations 区：读法同站里 `editor-root.js` §readBrandValues（`editor-locations.js` §editorLocations；派生过的这一份
+          //    老站营业时间已经搬进第一家，所以不再传 seo.json）。
+          locations: editorLocations(site.brand, null),
           // #1759 —— 顶栏 Content 页：logo、按钮（#1787）、菜单（#1781）—— 按钮和菜单都在这种语言的 navigation.json。
           logoUrl: site.brand.logoUrl ?? '',
           // #1785 —— Social links：读法同站里 `editor-root.js` §readBrandValues（两种老形状都读成数组、平台名小写）。

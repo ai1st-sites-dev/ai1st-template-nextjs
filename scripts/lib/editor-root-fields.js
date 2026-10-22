@@ -14,7 +14,7 @@
 //   `sync-config.js` 与 `lib/dress-site-in-theme.js` 都从站根读；每种语言必须有的文件里没有它）。「按语言」的只有
 //   网站名字，而它是在**文件里面**按语言（`name` 是一张 `{语言: 名字}` 的表），不在目录上 ⟹ 键里写 `'{locale}'`，
 //   由写盘 / 读值那一侧换成这次存盘的语言（扁平站 = 默认语言）。这张表里只放占位符，不放解析它的代码。
-//   电话 / 地址只管第一家门店（`locations[0]`）：建站只生成一家（#1681 不做）。
+//   电话 / 地址原来只管第一家门店（`locations[0].phone` / `.address` 两行）；#1980 起换成整份 `locations`（每一家都能改）。
 //   #1738 —— headerOptions / footerOptions 也是 `site` 档：顶栏 / 页脚的底色 + 旋钮，值是一个对象（形状与校验在
 //   `region-options.js`），整份换。空对象 = 删掉那个键（回到主题 / 预设的默认）。预设本身仍是 headerShape / footerShape 那两行。
 //   #1759 —— 顶栏 Content 页：logoUrl（`brand.json`，整站一份，空串 = 删掉，顶栏画名字）· headerButtons（#1787：这种语言的
@@ -33,9 +33,10 @@ const ROOT_FIELDS = [
   { field: 'headerOptions', scope: 'site', file: 'theme.json', key: ['regionOptions', 'header'] },
   { field: 'footerOptions', scope: 'site', file: 'theme.json', key: ['regionOptions', 'footer'] },
   { field: 'brandName', scope: 'site', file: 'brand.json', key: ['name', '{locale}'] },
-  { field: 'phone', scope: 'site', file: 'brand.json', key: ['locations', 0, 'phone'] },
   { field: 'email', scope: 'site', file: 'brand.json', key: ['email'] },
-  { field: 'address', scope: 'site', file: 'brand.json', key: ['locations', 0, 'address'] },
+  // #1980 —— Website settings 的 Locations 区：整份地点数组（电话 / 地址从 Name & contact 挪进来，每一家自己一份）。
+  //    形状与校验在 `editor-root.js` §locationsProblem；写盘按 id 跟盘上那一家合（§mergeLocations：坐标 / slug / 评价不归编辑器）。
+  { field: 'locations', scope: 'site', file: 'brand.json', key: ['locations'] },
   { field: 'logoUrl', scope: 'site', file: 'brand.json', key: ['logoUrl'] },
   { field: 'headerButtons', scope: 'locale', file: 'navigation.json', key: ['header', 'buttons'] },
   { field: 'headerTopbar', scope: 'locale', file: 'navigation.json', key: ['header', 'topbarLinks'] },

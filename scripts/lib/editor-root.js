@@ -18,7 +18,8 @@
 //                                不另造覆盖层；theme.json 其他键一个字节不动）
 //   brandName                  → site/brand.json 的 name[<这次存盘的语言>]（#1681；键里的 '{locale}' 在 §resolveKey 换掉）
 //   email                      → site/brand.json 的 email
-//   phone / address            → site/brand.json 的 locations[0].phone / .address（只管第一家门店）
+//   locations                  → site/brand.json 的 locations（#1980：整份数组，原来的 phone / address 两格只管第一家；
+//                                读值 / 校验 / 合并在 `editor-locations.js`）
 //   headerOptions / footerOptions → site/theme.json 的 regionOptions.header / .footer（#1738：底色 + 旋钮，一个对象；
 //                                空对象 = 删掉那个键）
 //   logoUrl                    → site/brand.json 的 logoUrl（#1759；空串 = 删掉，顶栏画名字）
@@ -52,6 +53,7 @@ const { isButtonRef, socialPairs, BUTTON_SOURCES, refProblemsAt } = require('./i
 const { hrefAllowed } = require('./href-allowed');
 const { headerButtonsProblem } = require('./header-buttons');
 const { isMenuRef, menuItemProblem, childrenProblem } = require('./nav-editor');
+const { editorLocations, locationsProblem, mergeLocations } = require('./editor-locations');
 
 /** 老板在编辑器里可能收到的拒收码。worker 把它原样换成状态栏那句话（`blocks_task.go`）。 */
 const REFUSED = 11;
@@ -69,7 +71,8 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** #1681 —— 分派表 `key` 里的语言占位符（`editor-root-fields.js` 只放它，解析在这里）。 */
 const LOCALE_SLOT = '{locale}';
-const BRAND_FIELDS = ['brandName', 'email', 'phone', 'address'];
+// #1980 —— 电话 / 地址挪进了 `locations`（每一家一份），这里只剩两样文字。
+const BRAND_FIELDS = ['brandName', 'email'];
 const REGION_OPTION_FIELDS = ['headerOptions', 'footerOptions'];
 /** #1785 —— 一个站最多几条社交链接（面板那头也按它停「+ Add」；写盘这头再挡一次）。 */
 const MAX_SOCIAL_LINKS = 12;
@@ -205,11 +208,22 @@ function readBrandValues(siteDir, locale) {
     const n = brand.name;
     brandName = str(n[locale || def] ?? n[def] ?? Object.values(n)[0]);
   }
-  const loc = Array.isArray(brand.locations) && isObj(brand.locations[0]) ? brand.locations[0] : {};
+  // #1980 —— Locations 区：老站营业时间还在默认语言 seo.json 时经同一条搬迁规则读（`editor-locations.js` 文件头）。
+  const locations = editorLocations(brand, readDefaultSeo(siteDir));
   // #1759 —— logo 也住在 brand.json（顶栏读的就是它，`shell-data.js`）。
   // #1785 —— 社交链接：两种老形状（数组 / 对象）都读成数组 `[{platform, url}]`（同 item-sources.js §socialPairs）。
   const socialLinks = socialPairs(brand.socialLinks).map(([platform, url]) => ({ platform: platform.toLowerCase(), url }));
-  return { brandName, email: str(brand.email), phone: str(loc.phone), address: str(loc.address), logoUrl: str(brand.logoUrl), socialLinks };
+  return { brandName, email: str(brand.email), locations, logoUrl: str(brand.logoUrl), socialLinks };
+}
+
+/** #1980 —— 默认语言那份 `seo.json`（扁平站在根上）；不在 / 读不出 ⟹ null。 */
+function readDefaultSeo(siteDir) {
+  const flat = !fs.existsSync(path.join(siteDir, 'site_meta.json'));
+  try {
+    return JSON.parse(fs.readFileSync(path.join(siteDir, flat ? '' : defaultLocaleOf(siteDir), 'seo.json'), 'utf-8'));
+  } catch {
+    return null;
+  }
 }
 
 /** 形状检查：这一份 root 里只许有分派表里的字段，每个的类型对。 */
@@ -233,8 +247,14 @@ function checkShape(root, layouts) {
     const problems = regionOptionsProblems(block, root[field]);
     if (problems.length) bad(`${field} 不对：${problems.join(' · ')}`);
   }
-  // #1681 —— Business info：都是文字。电话 / 邮箱 / 地址可以清空（用到它们的顶栏那一项 / 按钮自己不画，
+  // #1681 —— Business info：都是文字。邮箱可以清空（用到它的顶栏那一项 / 按钮自己不画，
   // `item-sources.js` §contactFact）；网站名字不许空 —— 那句话给老板看（拒收码，进状态栏）。
+  // #1980 —— 地点：形状不对 ⟹ 5；缺 id、营业时间不合格、邮箱不像邮箱 ⟹ 拒收（话同编辑器子页的 Done，`editor-locations.js`）。
+  if ('locations' in root) {
+    const p = locationsProblem(root.locations);
+    if (p && p.bad) bad(p.bad);
+    if (p) refuse(p.refuse);
+  }
   for (const field of BRAND_FIELDS) {
     if (field in root && typeof root[field] !== 'string') bad(`${field} 必须是字符串：${JSON.stringify(root[field])}`);
   }
@@ -411,7 +431,7 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       const k = key[slot - 1];
       if (isObj(parent) && typeof parent[k] === 'string') parent[k] = { [defaultLocaleOf(siteDir)]: parent[k] };
     }
-    // 电话 / 邮箱 / 地址清空 = 删掉那个键：读它们的地方（顶栏 / 按钮 / JsonLd / llms.txt）都按「没有」处理。
+    // 邮箱清空 = 删掉那个键：读它的地方（顶栏 / 按钮 / JsonLd / llms.txt）都按「没有」处理。
     const v = root[f.field];
     if (REGION_OPTION_FIELDS.includes(f.field)) {
       // #1738 —— 空对象 = 删掉那个键；`regionOptions` 删空了也一起删（不留一个 `{}` 在 theme.json 里）。
@@ -455,6 +475,12 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
         }) : [];
         return kids.length ? { ...one(l), children: kids } : one(l);
       }));
+      continue;
+    }
+    if (f.field === 'locations') {
+      // #1980 —— 整份换，每一家按 id 跟盘上那一家合（坐标 / slug / 评价原样留着，`editor-locations.js` §mergeLocations）。
+      const next = mergeLocations(entry.doc.locations, v);
+      setAt(entry.doc, key, next.length ? next : null);
       continue;
     }
     if (f.field === 'siteDescription') {

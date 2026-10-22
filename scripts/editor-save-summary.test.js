@@ -213,10 +213,23 @@ eq(run({ root: { footerShape: '' } }), `${rootLabels.footerShape} → (default)`
 eq(run({ json: edit((j) => { at(j, 'home-cta-0').data[barText.slot] = 'x'; }), root: { layout: 'standard' } }),
   `${B} · ${barText.label} · "x"; ${rootLabels.layout} → standard`, '页面 + 外壳同一笔');
 // #1681 —— Business info 四样是文字框（#1776 起组名 Name & contact、记录前缀 Website settings）：跟块文字同一个规矩（写新值），清空写 (empty)。字段名照 EditorApp.tsx 的 ROOT_SAVE_LABELS 形状。
-const biz = { phone: 'Website settings · Phone', brandName: 'Website settings · Website name', address: 'Website settings · Address' };
-eq(run({ root: { phone: '647-555-0199' }, rootLabels: biz }), 'Website settings · Phone · "647-555-0199"', '改电话：写新号码');
+// #1980 —— 电话 / 地址挪进了 Locations 区（整份 `locations`），这里留邮箱 / 名字两格；地点那一组逐家说（§locationSegments）。
+const biz = { email: 'Website settings · Email', brandName: 'Website settings · Website name', locations: 'Website settings · Locations' };
+eq(run({ root: { email: 'hi@bakery.example' }, rootLabels: biz }), 'Website settings · Email · "hi@bakery.example"', '改邮箱：写新值');
 eq(run({ root: { brandName: '港湾面包坊' }, rootLabels: biz }), 'Website settings · Website name · "港湾面包坊"', '改名字（中文）');
-eq(run({ root: { phone: '' }, rootLabels: biz }), 'Website settings · Phone · (empty)', '清空电话');
+eq(run({ root: { email: '' }, rootLabels: biz }), 'Website settings · Email · (empty)', '清空邮箱');
+{
+  const A = { id: 'loc-a', label: 'Downtown', address: '1 King St' };
+  const B = { id: 'loc-b', label: 'Uptown', phone: '555' };
+  const C = { id: 'loc-c', city: 'Markham' };
+  const L = (after, before = [A, B]) => run({ root: { locations: after }, rootBefore: { locations: before }, rootLabels: biz });
+  eq(L([A, B, C]), 'Website settings · Locations · Added "Markham"', '加一家（没名字用城市）');
+  eq(L([A]), 'Website settings · Locations · Removed "Uptown"', '删一家');
+  eq(L([B, A]), 'Website settings · Locations · Order', '只换顺序');
+  eq(L([A, { ...B, phone: '666' }]), 'Website settings · Locations · "Uptown"', '改了一家');
+  eq(L([{ ...B, phone: '666' }]), 'Website settings · Locations · "Uptown"; Website settings · Locations · Removed "Downtown"', '同一笔：改一家 + 删一家（删掉的不算换顺序）');
+  eq(run({ root: { locations: [A] }, rootLabels: biz }), 'Website settings · Locations', '前一份不在 ⟹ 只说字段名');
+}
 // #1776 —— 记录前缀住在 EditorApp.tsx 的 ROOT_SAVE_LABELS：联系方式四样 + 布局带「Website settings · 」，顶栏 / 页脚那几样不带。
 {
   const src = fs.readFileSync(path.join(__dirname, '..', 'src/components/editor/EditorApp.tsx'), 'utf8');
@@ -225,8 +238,8 @@ eq(run({ root: { phone: '' }, rootLabels: biz }), 'Website settings · Phone · 
     'ROOT_SAVE_LABELS：摊开 ROOT_FIELD_LABELS 之后，联系方式四样和 layout 都改写成 Website settings · …');
   eq(/(headerShape|footerShape|headerOptions|footerOptions)\s*:/.test(blk), false, 'ROOT_SAVE_LABELS 不另写顶栏 / 页脚四样（它们照旧是 Header · … / Footer · …）');
 }
-eq(run({ root: { address: 'A'.repeat(50), layout: 'standard' }, rootLabels: { ...rootLabels, ...biz } }),
-  `${rootLabels.layout} → standard; Website settings · Address · "${'A'.repeat(40)}…"`, '长地址截 40 个字 + 同一笔改版式（按 schema.root.fields 的顺序）');
+eq(run({ root: { email: 'A'.repeat(50), layout: 'standard' }, rootLabels: { ...rootLabels, ...biz } }),
+  `${rootLabels.layout} → standard; Website settings · Email · "${'A'.repeat(40)}…"`, '长文字截 40 个字 + 同一笔改版式（按 schema.root.fields 的顺序）');
 
 console.log('⑦ 共用块：按块库里那一块的类型取名');
 eq(run({ shared: { 'site-bar': { data: { [barText.slot]: 'x' }, was: {} } }, siteBlocks: { 'site-bar': { type: 'cta', data: {} } } }),

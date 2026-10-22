@@ -719,7 +719,8 @@ function applySharedChanges(siteBlocks, changes, slug) {
  * 站级文件的现值 → Puck root 的 props。
  * #1681 —— 加 Business info 四样（网站名字 / 电话 / 邮箱 / 地址，`site/brand.json`）；没带的那一样不放键
  * （老站仓里的底稿不带它们，编辑器那头就留构建时那份）。
- * @param {{ layout: string, headerShape: string, footerShape: string, brandName?: string, phone?: string, email?: string, address?: string }} values
+ * #1980 —— 电话 / 地址换成整份 `locations`。
+ * @param {{ layout: string, headerShape: string, footerShape: string, brandName?: string, email?: string, locations?: object[] }} values
  */
 function rootToPuck(values) {
   const out = {
@@ -729,7 +730,9 @@ function rootToPuck(values) {
   };
   // #1738 —— 顶栏 / 页脚的底色 + 旋钮（一个对象；老站仓里的底稿不带 ⟹ 不放键，编辑器那头留构建时那份）。
   for (const k of ['headerOptions', 'footerOptions']) if (isPlainObject(values[k])) out[k] = { ...values[k] };
-  for (const k of ['brandName', 'phone', 'email', 'address']) if (typeof values[k] === 'string') out[k] = values[k];
+  for (const k of ['brandName', 'email']) if (typeof values[k] === 'string') out[k] = values[k];
+  // #1980 —— Locations 区（`brand.json` 的地点，每家只带编辑器能改的那几样，`editor-locations.js` §editorLocations）。
+  if (Array.isArray(values.locations)) out.locations = clone(values.locations);
   // #1759 —— 顶栏 Content 页：logo、按钮（#1787：`[{label, href}]`，0–3 颗）。
   // #1781 —— 菜单（`headerLinks`，`navigation.json` 的 `header.links` 原样）：分派表里的字段，存盘同别的 root 字段经 §puckRootChanges。
   if (typeof values.logoUrl === 'string') out.logoUrl = values.logoUrl;
@@ -1171,12 +1174,39 @@ function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabel
         if (segs.length) parts.push(...segs); else if (!shapeChanged) parts.push(name);
         continue;
       }
+      if (field === 'locations') {
+        parts.push(...locationSegments(name, isPlainObject(rootBefore) ? rootBefore.locations : undefined, v));
+        continue;
+      }
       // #1681 —— Business info 四样是文字框：跟块文字同一个规矩（手改写新值），清空 = `(empty)`。
       if (typeof v !== 'string' || ROOT_NAME_ONLY.has(field)) parts.push(name);
       else parts.push(ROOT_CHOICE_FIELDS.has(field) ? `${name} → ${v || '(default)'}` : `${name} · ${quoteText(v)}`);
     }
   }
   return parts.length ? parts.join('; ') : 'Saved changes in the page editor.';
+}
+
+/**
+ * #1980 —— Locations 区这一笔逐家说：`Website settings · Locations · Added "Uptown"` · `… · Removed "Downtown"` ·
+ * `… · "Midtown"`（改了那一家） · `… · Order`（只换了顺序）。按 id 对；前一份不在（老板第一次碰这一组之前的底稿没带）⟹ 只说字段名。
+ */
+function locationSegments(name, before, after) {
+  const list = (v) => (Array.isArray(v) ? v.filter((l) => isPlainObject(l) && typeof l.id === 'string') : null);
+  const a = list(before);
+  const b = list(after) || [];
+  if (!a) return [name];
+  const nameOf = (l) => quoteText([l.label, l.city, l.address].find((x) => typeof x === 'string' && x.trim()) || l.id);
+  const was = new Map(a.map((l) => [l.id, l]));
+  const now = new Set(b.map((l) => l.id));
+  const out = [];
+  for (const l of b) {
+    if (!was.has(l.id)) out.push(`${name} · Added ${nameOf(l)}`);
+    else if (!deepEqual(was.get(l.id), l)) out.push(`${name} · ${nameOf(l)}`);
+  }
+  for (const l of a) if (!now.has(l.id)) out.push(`${name} · Removed ${nameOf(l)}`);
+  const kept = (xs, other) => xs.map((l) => l.id).filter((id) => other.has(id));
+  if (kept(a, now).join('\n') !== kept(b, was).join('\n')) out.push(`${name} · Order`);
+  return out.length ? out : [name];
 }
 
 /** 外壳四样里是「选一项」的那几个：记录里带上选了哪一项（`Website settings · Page layout → standard`）。 */
