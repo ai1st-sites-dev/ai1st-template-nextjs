@@ -512,11 +512,11 @@ console.log('⑨ 这个语言这个站有吗（#1138）');
     if (/never|permanently|will not have/i.test(why)) {
       problems.push(`${JSON.stringify(p)} 把话说死了（出现 never / permanently）：${head(why)}`);
     }
-    // 🔴 也不许把老板指到某个界面去加语言 —— 那个界面不存在（语言只在建站向导里选）。
-    //    这一条是活体跑逼出来的：只说「这条聊天改不了」时，真模型自己补出了「去 dashboard 设置里加」。
-    //    整段理由 + 那个事实的仓库读数在 `site-shape.test.js` ⑤c（这里是那一格的快版，不用建夹具）。
-    if (!/cannot be done yet/i.test(why) || !/no screen or setting/i.test(why) || /dashboard/i.test(why)) {
-      problems.push(`${JSON.stringify(p)} 里「加语言」那半句不对（要说清今天做不到 + 没有那个界面，且不许提 dashboard）：${head(why)}`);
+    // 🔴 也不许把老板指到一个不存在的界面去加语言。这一条是活体跑逼出来的：只说「这条聊天改不了」时，
+    //    真模型自己补出了「去 dashboard 设置里加」。#1999 起真有了那个地方（编辑器 Website settings → Languages），
+    //    所以那句话要点名它、且只点名它。整段理由 + 那个事实的仓库读数在 `site-shape.test.js` ⑤c（这里是快版）。
+    if (!/this chat cannot add a language/i.test(why) || !/Website settings → Languages/.test(why) || /dashboard/i.test(why)) {
+      problems.push(`${JSON.stringify(p)} 里「加语言」那半句不对（要说清这条聊天加不了 + 点名 Website settings → Languages，且不许提 dashboard）：${head(why)}`);
     }
   }
   if (problems.length === 0) {

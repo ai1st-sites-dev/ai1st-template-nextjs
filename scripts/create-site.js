@@ -805,21 +805,8 @@ function normalizeLocale(input) {
   return LANG_NAME_TO_ISO[k] || k;
 }
 
-// TICKET-169: returns a sentence-level prompt addendum the AI uses to pick the
-// right Chinese character variant. The root cause of "user picks Chinese →
-// site comes back Traditional sometimes" was that the LANGUAGE instruction
-// just said "Write in Chinese" — Claude flipped a coin. This pins it.
-function chineseVariantHint(languageName) {
-  if (!languageName) return '';
-  const n = languageName.toLowerCase();
-  if (n === 'traditional chinese' || n === 'taiwanese' || n === 'cantonese') {
-    return ' Use Traditional Chinese characters (Taiwan / Hong Kong convention, 繁體). Do NOT use Simplified Chinese characters anywhere.';
-  }
-  if (n === 'chinese' || n === 'mandarin' || n === 'simplified chinese') {
-    return ' Use Simplified Chinese characters (mainland China convention, 简体). Do NOT use Traditional Chinese characters anywhere.';
-  }
-  return '';
-}
+// #1999 —— chineseVariantHint / localeMapForBcp47 / 语言名表搬到了 lib/locale-names.js（建站之后加语言那条路也用）。
+const { LANGUAGE_NAMES, chineseVariantHint, localeMapForBcp47 } = require('./lib/locale-names');
 
 // ─── Read stdin ───────────────────────────────────────────────────────────────
 
@@ -1370,17 +1357,8 @@ async function main() {
     progress('AI is designing your website...', 15);
   }
 
-  // Language map
-  // TICKET-169: 'zh' stays Simplified Chinese (historic default, preserves
-  // existing sites). 'zh-tw' is the new Traditional Chinese variant — maps to
-  // languageName 'Traditional Chinese' so downstream prompt builder can detect
-  // and add Simplified-vs-Traditional disambiguation hint.
-  const langMap = {
-    'en': 'English', 'zh': 'Chinese', 'zh-tw': 'Traditional Chinese', 'fr': 'French', 'es': 'Spanish',
-    'ja': 'Japanese', 'ko': 'Korean', 'de': 'German', 'it': 'Italian',
-    'pt': 'Portuguese', 'ru': 'Russian', 'vi': 'Vietnamese', 'ar': 'Arabic',
-    'hi': 'Hindi', 'th': 'Thai',
-  };
+  // Language map（#1999 起住在 lib/locale-names.js）
+  const langMap = LANGUAGE_NAMES;
   // TICKET-122a (5th round, QA3 feedback): use defaultLocale (already normalized to
   // ISO code via langMapInverse + toLowerCase above) so natural-name inputs like
   // 'Chinese' / 'chinese' / 'CHINESE' all resolve to languageName='Chinese' instead
@@ -1870,19 +1848,6 @@ function buildSecondaryContent({ content, locale, book, industry, disabledBlocks
     pages,
     tierDistribution,
   };
-}
-
-// Map ISO code → BCP-47-style locale string for seo.locale (e.g. zh → zh_CN, fr → fr_CA).
-// Defaults pick the most common variant per locale; can be overridden later.
-function localeMapForBcp47(iso) {
-  const map = {
-    // TICKET-169: 'zh' (Simplified) and 'zh-tw' (Traditional) map to canonical
-    // BCP-47 region-suffixed forms used in hreflang / JsonLd inLanguage.
-    en: 'en_CA', zh: 'zh_CN', 'zh-tw': 'zh_TW', fr: 'fr_CA', es: 'es_MX', ja: 'ja_JP',
-    ko: 'ko_KR', de: 'de_DE', it: 'it_IT', pt: 'pt_BR', ru: 'ru_RU',
-    vi: 'vi_VN', ar: 'ar_SA', hi: 'hi_IN', th: 'th_TH',
-  };
-  return map[iso] || `${iso}_${iso.toUpperCase()}`;
 }
 
 // Writes a fully translated secondary locale to site/<secondaryLocale>/. Mirrors

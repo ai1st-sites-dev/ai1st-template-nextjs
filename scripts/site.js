@@ -123,6 +123,12 @@
 //   node scripts/site.js seo-refresh --site <站 JSON 文件> --before <站 JSON 文件> --locale <l> --page <slug|home> [--force] [--skip-ai] --out-dir <目录>
 //       标准输入：建站表格（地点 / 行业 / 事实出处）。最后一行 `{"event":"seo-refresh", "result"?: "<目录>/result.json", "skipped"?: …}`。
 //
+// #1999 —— 建站之后再加一种语言，manager 的执行器 `kind=add-locale` 时 spawn（实现在 `lib/add-locale.js`，那份文件头有完整约定）：
+//   node scripts/site.js add-locale --site <站 JSON 文件> --locale <语言> [--brand-name <这个语言的店名>] --out-dir <目录>
+//       标准输入：建站表格（行业 / model）。标准输出：`ai-usage` · `add-locale-progress {done, total}`（按页）· 最后一行
+//       `{"event":"add-locale","result":"<目录>/result.json",…}`（result.json = 只有新增的文件 + 品牌名 / 标语两格），
+//       或 `{"event":"add-locale-failed","message":"…","where":"…"}` + 退出码 1。主语言那一份不在产物里。
+//
 // 🔴 渲染只读不写：拿到的 content 不回写（菜单同步、custom.css 的补丁只用在这一次的输出里，设计文档 §6.1「渲染任务只读库」）。
 const fs = require('fs');
 const os = require('os');
@@ -134,7 +140,8 @@ const { DEFAULT_OUTDIR } = require('./lib/render-bundle');
 // 不带值的开关（`save --keep`、#1839 `migrate --dry-run`、#1938 `seo-refresh --force / --skip-ai`、#1979 `location-pages --skip-ai`）。不登记在这里的 `--x` 一律要跟一个值。
 const BOOLEAN_FLAGS = new Set(['keep', 'dry-run', 'force', 'skip-ai']);
 // #1830 —— 值是老板打的字（`edit --message`）：它自己就可能以 `--` 开头，下一个参数原样就是它的值。
-const FREE_TEXT_FLAGS = new Set(['message']);
+// #1999 —— `add-locale --brand-name`：老板填的店名，同理。
+const FREE_TEXT_FLAGS = new Set(['message', 'brand-name']);
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -629,6 +636,17 @@ async function main() {
     });
     return;
   }
+  if (cmd === 'add-locale') {
+    checkPathArg('site', a.site);
+    checkPathArg('out-dir', a['out-dir']);
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    process.exitCode = await require('./lib/add-locale').addLocaleCommand({
+      sitePath: a.site, locale: a.locale, brandName: a['brand-name'] || '',
+      outDir: path.resolve(a['out-dir']), stdinText: Buffer.concat(chunks).toString('utf-8'),
+    });
+    return;
+  }
   if (cmd === 'bundle') {
     // #1838 —— `--blocks-dir` / `--registry`：测试包（假块 A / B 那份块目录 + 它生成的注册表），见文件头。
     if (!!a['blocks-dir'] !== !!a.registry) throw new Error('--blocks-dir 和 --registry 要一起给');
@@ -674,7 +692,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ event: 'rendered', ...result })}\n`);
     return;
   }
-  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', 'create', 'edit', 'seo-refresh', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
+  throw new Error(`用法：node scripts/site.js <${['bundle', 'render', 'render-catalog', 'create', 'edit', 'seo-refresh', 'add-locale', ...Object.keys(EDITOR_COMMANDS)].join('|')}> …（拿到的是 ${JSON.stringify(cmd)}）`);
 }
 
 if (require.main === module) {

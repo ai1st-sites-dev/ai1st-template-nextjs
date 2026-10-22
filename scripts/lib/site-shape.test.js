@@ -394,17 +394,22 @@ const head = (s) => String(s).replace(/\n/g, '⏎').slice(0, 110);
 //    ⟹ 那句话必须把「今天谁都加不了」也说出来，而这一格钉住它。
 // 🔴 两半都钉：① 那句话自己的措辞 ② 它声称的那个**关于仓库的事实**（没有任何东西会写
 //    `site_meta.json`）。只钉 ① 的话，有人真做出那个界面时那句话会静默变成假话。
+// 📌 #1999 真做出了那个界面（编辑器 Website settings → Languages，写的是 manager/site_add_locale.go），
+//    这一格按设计红了、措辞改成了指向它。所以两半现在钉的是新的实话：① 那句话说「这条聊天加不了」+ 点名
+//    **真有**的那个地方（Website settings → Languages），仍不许提 dashboard / 设置页这种不存在的去处；
+//    ② 写 `site_meta.json` 语言清单的产品文件**恰好**是下面 SITE_META_LANGUAGE_ADDERS 那一份 —— 再多一份
+//    （另一条加语言的路）或者那一份没了（界面撤了，那句话又成了假话），这一格都红。
 console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
 {
   const why = String(askOn(localeSite, 'fr/seo.json') || '');
   const problems = [];
-  // ① 措辞：不许把老板/模型指到某个界面去加语言
-  if (!/cannot be done yet/i.test(why)) problems.push('那句话没说清「今天做不到」');
-  if (!/no screen or setting/i.test(why)) problems.push('那句话没把「没有那个界面」说出来 —— 模型会自己补一个（活体跑真发生过）');
-  if (/dashboard|settings page|site settings/i.test(why)) {
-    problems.push(`那句话把人指到了一个后台界面：${head(why)}`);
+  // ① 措辞：这条聊天加不了；去处只许是真有的那一个（#1999），不许是模型自己补的后台界面
+  if (!/this chat cannot add a language/i.test(why)) problems.push('那句话没说清「这条聊天加不了」');
+  if (!/Website settings → Languages/.test(why)) problems.push('那句话没点名真有的那个地方（编辑器 Website settings → Languages）—— 模型会自己补一个（活体跑真发生过）');
+  if (/dashboard|settings page/i.test(why)) {
+    problems.push(`那句话把人指到了一个不存在的后台界面：${head(why)}`);
   }
-  if (problems.length === 0) ok('拒绝话里「加语言」那半句：说了今天做不到、说了没有那个界面、没把人指到后台去');
+  if (problems.length === 0) ok('拒绝话里「加语言」那半句：说了这条聊天加不了、点名了编辑器 Website settings → Languages、没把人指到别的后台去');
   else problems.forEach(bad);
 }
 {
@@ -436,27 +441,38 @@ console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
       'manager/site_content.go': '§commitSiteContent 上面那条注释提到 content 里的 site_meta.siteId 会被 --site-id 覆盖（#1796 §6.1）—— 全文只有这一处命中而且是注释，没有一行读它或写它',
       'dashboard/src/editor/EditorApp.tsx': '#1801 从模板搬进 dashboard 的编辑器：文件头一行注释说行业不在 site_meta.json 里（所以宿主另带），没有代码碰这个文件',
     };
+    // #1999 —— 给存量站加语言的那条路：唯一一份往 site_meta.json 的 locales 里加一项的产品文件。它在 ⟺ 那句话里点名的
+    //    Website settings → Languages 是真的。
+    const SITE_META_LANGUAGE_ADDERS = {
+      'manager/site_add_locale.go': '§applyAddedLocale —— 编辑器 Website settings → Languages 排的加语言任务，在 locales 末尾加一项（#1999）',
+    };
     const isTest = (f) => /(_test\.go|\.test\.[jt]sx?|\.spec\.[jt]sx?)$/.test(f);
     // 🔴 先校准尺子：拿同一把尺量一个**真存在**的东西。少了这一步，一个坏掉的 grep 会打出 0，
     //    而那个 0 长得跟「真的没有」一模一样。
     const calib = listFiles('themeId').length;
     const mentions = listFiles('site_meta|siteMeta').filter((f) => !isTest(f));
-    const unlisted = mentions.filter((f) => !SITE_META_READERS[f]);
+    const unlisted = mentions.filter((f) => !SITE_META_READERS[f] && !SITE_META_LANGUAGE_ADDERS[f]);
+    const addersGone = Object.keys(SITE_META_LANGUAGE_ADDERS).filter((f) => !mentions.includes(f));
     const listedWriters = mentions.filter((f) => SITE_META_READERS[f]).filter((f) => {
       const src = fs.readFileSync(path.join(REPO, f), 'utf-8');
       return src.split('\n').some((l) => /site_meta/.test(l) && /\bPUT\b|writeFile|WriteFile|method:\s*['"]PUT/.test(l));
     });
     if (calib === 0) {
       bad('⑤c 尺子校准失败：连 themeId 都数到 0 —— 这两个 grep 的读数一个都不能信');
-    } else if (unlisted.length === 0 && listedWriters.length === 0) {
-      ok(`⑤c dashboard/src · manager · worker 里提到 site_meta|siteMeta 的产品文件 ${mentions.length} 个，`
-        + `全在只读名单里（${Object.keys(SITE_META_READERS).length} 条），且没有一行写回它`
-        + `（同一把尺量 themeId = ${calib} 个文件 ⟹ 读数是真的）⟹ 那句「没有那个界面」是实话`);
+    } else if (unlisted.length === 0 && listedWriters.length === 0 && addersGone.length === 0) {
+      ok(`⑤c dashboard/src · manager · worker 里提到 site_meta|siteMeta 的产品文件 ${mentions.length} 个：`
+        + `只读名单 ${Object.keys(SITE_META_READERS).length} 条（没有一行写回它）+ 加语言的那一份 `
+        + `${Object.keys(SITE_META_LANGUAGE_ADDERS).join(' · ')}（同一把尺量 themeId = ${calib} 个文件 ⟹ 读数是真的）`
+        + '⟹ 那句「去 Website settings → Languages」指的是唯一一条真有的路');
     } else {
       if (unlisted.length) {
         bad(`⑤c 有 ${unlisted.length} 个产品文件提到 site_meta / siteMeta 而不在只读名单里：${unlisted.join(' · ')} —— `
-          + '如果产品真做出了给存量站加语言的路，editable-files.js 里那句「nothing in the product today adds one」就成了假话，'
-          + '回去改措辞；只读的话把它加进 SITE_META_READERS 并写理由');
+          + '如果它是另一条给存量站加语言的路，editable-files.js 里那句「去 Website settings → Languages」就不全了，'
+          + '回去改措辞并把它加进 SITE_META_LANGUAGE_ADDERS；只读的话把它加进 SITE_META_READERS 并写理由');
+      }
+      if (addersGone.length) {
+        bad(`⑤c 加语言的那一份不再提 site_meta 了：${addersGone.join(' · ')} —— 那条路要是撤了，editable-files.js 里`
+          + '那句「去 Website settings → Languages」就成了假话（又把老板指到一个不存在的地方），回去改措辞');
       }
       if (listedWriters.length) {
         bad(`⑤c 只读名单里的文件出现了写回 site_meta 的写法：${listedWriters.join(' · ')}`);

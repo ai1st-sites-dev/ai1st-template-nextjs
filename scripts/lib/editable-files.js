@@ -339,10 +339,10 @@ function wrongPlaceForShape(normalized, locale, rest, shape) {
       + `${JSON.stringify(`site/${locale}/`)} is read `
       + `by nothing — it would be saved and the site would not change. To change this content, write `
       + `${shape.locales[0]}/${bare} instead${shape.locales.length > 1 ? ' (or the same file under one of the other languages above)' : ''}.\n`
-      + `If the owner wanted a new language rather than a change to an existing one: a site's languages are `
-      + `chosen when the site is created, and nothing in the product today adds one to a site that already `
-      + `exists. So the honest answer is that it cannot be done yet — do not tell the owner to go and add `
-      + `the language somewhere, there is no screen or setting for it.`
+      + `If the owner wanted a new language rather than a change to an existing one: this chat cannot add a `
+      + `language. The owner adds one in the website editor, under Website settings → Languages — the AI there `
+      + `translates every page of the website into it. Tell the owner exactly that, and do not write any files `
+      + `for the new language here.`
       + `\n\nNothing was written. ${EDITABLE_SUMMARY}`;
   }
 

@@ -156,10 +156,15 @@ function splitLocaleReply(got, primaryLocale, otherLocales) {
 
 /**
  * 提示词里那一段：这一页（或站级那一份）要同时写哪几种语言、回包长什么样。只在有第二语言时出现。
- * @param {{ primary: {code,name}, others: {code,name,hint?}[], kind: 'page'|'keyword'|'site', hasKeyword?: boolean, keywordsByLocale?: Record<string,string[]> }} p
+ * @param {{ primary: {code,name}, others: {code,name,hint?}[], kind: 'page'|'keyword'|'site'|'texts', hasKeyword?: boolean, keywordsByLocale?: Record<string,string[]>, given?: boolean }} p
+ *
+ * #1999 —— `given: true`：建站之后再加一种语言。主语言那一份是库里的现稿、已经写在提示词上面，**不许重写** ⟹ 回包里只有
+ *   `others` 那几种（`{ "<code>": … }`，没有主语言那个键）；页的块列表叫 `blocks`（库里的形状），不叫 `sections`。
+ *   kind 'texts' = 一份只装着字的 JSON（站级的字、共用块库），回包是同一副形状、每个字换成那种语言。
  */
-function languagesPrompt({ primary, others, kind, hasKeyword = false, keywordsByLocale = {} }) {
+function languagesPrompt({ primary, others, kind, hasKeyword = false, keywordsByLocale = {}, given = false }) {
   const names = others.map((o) => `${o.name} ("${o.code}")`).join(', ');
+  if (given) return givenLanguagesPrompt({ primary, others, names, kind, hasKeyword });
   const head = `LANGUAGES: this website is in ${1 + others.length} languages — ${primary.name} ("${primary.code}") is the main one, plus ${names}. `
     + `You write every language in this one answer: the ${primary.name} part exactly as asked above, and the same content written natively in each other language (not a word-for-word translation; keep the brand name verbatim).`
     + others.map((o) => o.hint || '').join('');
@@ -180,6 +185,25 @@ Respond with ONE JSON object keyed by language code:
 { "${primary.code}": ${primaryShape}, ${others.map((o) => `"${o.code}": { "title": "...", "description": "...", "navLabel": "..."${kw}, "sections": [ ... ] }`).join(', ')} }
 - Each other language has EXACTLY the same sections as "${primary.code}": same count, same order, same "type", same "options", same images, links, icons and colors, same number of items in every list — only the visitor-facing words change.
 - Its "title", "description" and "navLabel" are this page's title, meta description and nav label in that language (title and nav label: same length limits).${others.map((o) => `\n- "${o.code}" meta description: ${descriptionSpec(o.code)}.`).join('')}${extra}`;
+}
+
+/** #1999 —— §languagesPrompt 的 `given` 那一支（见那份文件头）。 */
+function givenLanguagesPrompt({ primary, others, names, kind, hasKeyword }) {
+  const head = `LANGUAGES: this website is in ${primary.name} ("${primary.code}") and is getting ${others.length === 1 ? 'one more language' : 'more languages'}: ${names}. `
+    + `The ${primary.name} version above is final — do NOT rewrite, shorten or improve it. You write only ${names}: the same content written natively (not a word-for-word translation; keep the brand name verbatim).`
+    + others.map((o) => o.hint || '').join('');
+  if (kind === 'texts') {
+    return `${head}
+Respond with ONE JSON object keyed by language code:
+{ ${others.map((o) => `"${o.code}": { ...the same JSON as TEXTS above, every string written in that language... }`).join(', ')} }
+- Same keys, same nesting, same number of items in every list, same order. Only the words change; ids stay as they are.`;
+  }
+  const kw = hasKeyword ? ', "targetKeyword": "<the phrase a speaker of that language would search for — the target keyword, translated>"' : '';
+  return `${head}
+Respond with ONE JSON object keyed by language code:
+{ ${others.map((o) => `"${o.code}": { "title": "...", "description": "...", "navLabel": "..."${kw}, "blocks": [ ... ] }`).join(', ')} }
+- Each language has EXACTLY the same blocks as the ${primary.name} page: same count, same order, same "type", same "options", same images, links, icons and colors, same number of items in every list — only the visitor-facing words change.
+- Its "title", "description" and "navLabel" are this page's title, meta description and nav label in that language (title and nav label: same length limits).${others.map((o) => `\n- "${o.code}" meta description: ${descriptionSpec(o.code)}.`).join('')}`;
 }
 
 /**
