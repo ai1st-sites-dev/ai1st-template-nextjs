@@ -7,6 +7,8 @@ export interface EditorSub {
   required?: boolean;
   /** #1694 —— `imageRow` 子字段的条数上限（manifest 对象槽的 `listMax`；没写就不带） */
   max?: number;
+  /** #1981 —— 项是哪一家（testimonials 的 `location?`）：值是地点的 `id`，网站 ≥2 个地点时画成下拉 */
+  location?: boolean;
 }
 export interface EditorField {
   slot: string;

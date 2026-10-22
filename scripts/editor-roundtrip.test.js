@@ -109,11 +109,13 @@ console.log('② 字段两层比');
         ? [...Object.keys((slots[f.slot] || {}).itemChoices || {}), ...Object.values((slots[f.slot] || {}).itemNeeds || {}).flat()] : [];
       // #1686 —— 带点的 editLabel（`cta.label`）合成项里那个对象的一格（`cta`）；项形状里可选的 `href?` 多一格 Link。
       const optHref = f.kind === 'list' && itemShapeEntries((slots[f.slot] || {}).shape).some((e) => e.key === 'href' && e.optional) ? ['href'] : [];
+      // #1981 —— 项形状里可选的 `location?`（testimonials 的一条评价是哪一家）多一格 Location。
+      const optLocation = f.kind === 'list' && itemShapeEntries((slots[f.slot] || {}).shape).some((e) => e.key === 'location' && e.optional) ? ['location'] : [];
       // #1694 —— 一列图（项的顶层键只有 imageUrl + alt? + href?，editLabel 标了 imageUrl）：图的名字 / 说明 `alt` 也是一格。
       const rowKeys = itemShapeEntries((slots[f.slot] || {}).shape).map((e) => e.key);
       const rowAlt = f.kind === 'list' && rowKeys.includes('imageUrl') && rowKeys.includes('alt') && rowKeys.every((k) => ['imageUrl', 'alt', 'href'].includes(k))
         && esp.some((e) => e.slot === f.slot && e.sub === 'imageUrl') ? ['alt'] : [];
-      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub.split('.')[0]), ...choiceSubs, ...itemSubs, ...optHref, ...rowAlt,
+      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub.split('.')[0]), ...choiceSubs, ...itemSubs, ...optHref, ...optLocation, ...rowAlt,
         ...(f.kind === 'link' ? ['href'] : []), ...(special(f.slot) === 'formRef' ? ['id'] : []),
         // #1518 —— 项形状里必有 `href` 的列表槽（按钮列表）也多一个 `href`。哪几个槽算数由下面 #1518 那一节逐个钉死。
         ...(f.kind === 'list' && itemTopKeys((slots[f.slot] || {}).shape).includes('href') ? ['href'] : []),

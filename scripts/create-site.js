@@ -115,6 +115,7 @@ const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
 const { verifyTranscription, ratingFrom } = require('./lib/local-business-facts');
 const { withLocationIds } = require('./lib/locations');
+const { applyReviewFacts } = require('./lib/review-facts');
 const { payloadLocations } = require('./lib/payload-locations');
 // #1489 r2 —— contact 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
@@ -1646,6 +1647,13 @@ async function main() {
       buildReportLib.recordSeo(buildReport, await seoPass({ content: sub, payload: input, locale: defaultLocale, industry, location, companyName, disabledBlocks }));
       const i = content.pages.findIndex((p) => p.slug === 'contact');
       if (i >= 0 && sub.pages[0] && sub.pages[0].slug === 'contact') content.pages[i] = sub.pages[0];
+    }
+
+    // #1981 —— 评价是哪一家（地点 id）、块头 Google 总分（各地点按条数加权）由代码写，不靠 AI 抄（`lib/review-facts.js` 文件头）。
+    //    在写盘之前、第二语言拼装之前：第二语言按主语言这一版拼，`location` 是结构键（all-locales.js STRUCT_KEYS）、分数是数字，都取主语言。
+    {
+      const facts = applyReviewFacts({ pages: content.pages, brand: content.brand, reviews });
+      debug(`[reviews] 评价标上地点 ${facts.located} 条 · 块头 Google 总分改写 ${facts.rated} 处${facts.why ? `（没改：${facts.why}）` : ''}`);
     }
 
     writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks, input.uploadsDomain);

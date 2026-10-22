@@ -32,8 +32,9 @@ const { descriptionSpec } = require('./description-fit');
 //      键在 STRUCT_KEYS 里的是链接 / 图片 / 图标 / 枚举 ⟹ 主语言；数字、布尔一律主语言；其余字符串是访客读的字。
 // 🔴 STRUCT_KEYS 里的枚举键（style / size / kind / show …）对着 manifest 的 shape 有一格单测在看：manifest 里新写一个
 //    `键: "a" | "b"` 形状的枚举而这里没登记，那一格就红（create-site-all-locales.test.js「枚举键全在 STRUCT_KEYS」）。
+// #1981 —— `location`：testimonials 一条评价是哪一家（地点 id，建站时由代码写），contact 块只画哪一家（同样是地点 id）—— 都不是访客读的字。
 const STRUCT_KEYS = new Set(['href', 'imageUrl', 'logoUrl', 'url', 'icon', 'id', 'style', 'size', 'arrow', 'kind', 'show',
-  'source', 'under', 'stops', 'angle', 'bg', 'options']);
+  'source', 'under', 'stops', 'angle', 'bg', 'options', 'location']);
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const filled = (v) => typeof v === 'string' && v.trim() !== '';

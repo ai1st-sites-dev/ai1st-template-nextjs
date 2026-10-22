@@ -237,7 +237,7 @@
           5
         ]
       },
-      "shape": "[{quote, name, role?, photo?: {imageUrl, alt}, rating?: 1–5, source?}]",
+      "shape": "[{quote, name, role?, photo?: {imageUrl, alt}, rating?: 1–5, source?, location?}]",
       "editLabel": {
         "quote": "Quote",
         "name": "Name",

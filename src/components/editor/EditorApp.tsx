@@ -97,6 +97,7 @@ import SiteShell, { ShellRegion, type ShellOverride } from '@/components/SiteShe
 import EditorChat, { RevertConfirm, scopeOf, type ChatScope, type EditorChatState, type Src as ChatSrc } from './EditorChat';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
+import { withLocationIds } from '../../../scripts/lib/locations.js';
 import type { AiNote, AiNotes, PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
 import type { EditorPageGroup } from '../../../scripts/lib/editor-pages';
 import {
@@ -311,6 +312,7 @@ function subField(s: EditorField['subs'][number], site: SiteData): Field {
   if (s.nested && s.nested.length) return nestedTextField(s.sub, s.label, s.nested, site);
   if (s.strings) return stringListField(s.label);
   if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources, site);
+  if (s.location) return locationField(s.label, site); // #1981 —— 这一项是哪一家（testimonials 的 `location`，值是地点 id）
   if (s.choices && s.choiceDefault && s.choiceDefault !== s.choices[0]) return choiceField(s.label, s.choices, s.choiceDefault);
   return s.choices
     ? ({ type: 'select', label: s.label, options: s.choices.map((c) => ({ label: c, value: c })) } as Field)
@@ -629,6 +631,42 @@ function linkHrefField(label: string, sources: string[], site: SiteData): Field 
     label,
     render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => (
       <LinkHrefControl label={label} sources={sources} value={value} onChange={onChange} readOnly={readOnly} site={site} />
+    ),
+  } as unknown as Field;
+}
+
+// ── #1981 —— 这一项是哪一家（testimonials 一条评价的 `location`）：网站 ≥2 个地点时一格下拉 ─────────────────────────
+//    🔴 值是地点的 `id`（`brand.locations[k].id`），第一家也写它自己的 id；第一项「No location」= 不写这个键（onChange(undefined)，
+//       editor-convert §mergeSlot 的 list 分支不写 undefined 的键）。打开时 id 找不到 ⟹ 选中「No location」。
+//       跟上面 LinkHrefControl 选门店那一格只是样子像 —— 那一格存的是下标、第一家不写，这里不是。
+//    id 跟渲染那一侧同一个来源（§withLocationIds：老站没落盘 id 时按下标补，读写两边算出同一个）。单地点 ⟹ 什么都不画。
+const NO_LOCATION = '';
+
+function LocationControl({ label, value, onChange, readOnly, site }: {
+  label: string; value: unknown; onChange: (v: unknown) => void; readOnly?: boolean; site: SiteData;
+}) {
+  const raw = site.brand && Array.isArray(site.brand.locations) ? site.brand.locations : [];
+  if (raw.length < 2) return null;
+  const locations = withLocationIds(raw) as { id: string; label?: string; address?: string }[];
+  const current = typeof value === 'string' && locations.some((l) => l.id === value) ? value : NO_LOCATION;
+  return (
+    <div data-editor-location="">
+      <FieldLabel label={label} el="div" readOnly={readOnly} />
+      <select data-editor-location-select="" value={current} disabled={readOnly} style={INPUT_STYLE}
+        onChange={(e) => onChange(e.target.value === NO_LOCATION ? undefined : e.target.value)}>
+        <option value={NO_LOCATION}>No location</option>
+        {locations.map((l, i) => <option key={l.id} value={l.id}>{l.label || l.address || `Location ${i + 1}`}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function locationField(label: string, site: SiteData): Field {
+  return {
+    type: 'custom',
+    label,
+    render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => (
+      <LocationControl label={label} value={value} onChange={onChange} readOnly={readOnly} site={site} />
     ),
   } as unknown as Field;
 }

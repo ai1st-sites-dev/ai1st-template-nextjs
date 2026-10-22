@@ -39,7 +39,7 @@ import type { ReactNode } from 'react';
 import { slotImg, ratingStars } from '@template/lib/sections/blockMedia';
 import { emptyListHidesBlock, sourcedOf } from '@template/lib/sections/emptyList';
 import BlockSection from '@template/components/BlockSection';
-import type { BlockConfig } from '@template/lib/types/config';
+import type { BlockConfig, SiteData } from '@template/lib/types/config';
 import InlineIcon, { type IconTable } from '@template/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@template/components/Eyebrow';
 import manifest from './manifest.json';
@@ -48,6 +48,7 @@ import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { type BgValue } from '../../scripts/lib/contrast.js';
 import { platformLogo } from '../../scripts/lib/review-platforms.js';
 import { itemPath } from '@template/lib/sections/itemPath';
+import { withLocationIds } from '../../scripts/lib/locations.js';
 
 export interface TestimonialsNewImage { imageUrl?: string; alt?: string }
 export interface TestimonialsNewItem {
@@ -57,6 +58,8 @@ export interface TestimonialsNewItem {
   photo?: TestimonialsNewImage;
   rating?: number;
   source?: string;
+  /** #1981 —— 这条评价是哪一家的：地点的 `id`（`brand.locations[k].id`），不是下标。 */
+  location?: string;
 }
 export interface TestimonialsNewPlatform { source?: string; rating?: number | string; count?: number | string; href?: string; logoUrl?: string }
 export interface TestimonialsNewOptions {
@@ -80,6 +83,8 @@ interface Props {
   block?: BlockConfig;
   /** 服务端查好的图标表（`scripts/lib/icons.js` §iconTableFor）。没给 ⟹ 一个图标都不画。 */
   iconTable?: IconTable;
+  /** #1981 —— 这个站的内容（SectionRenderer 递下来）：评价名字后面的地点名从 `brand.locations` 读。 */
+  site?: SiteData;
 }
 
 // 评价 1–12 条、平台 1–4 个（manifest 的 `maxItems`，validateSite 拦超出的）。
@@ -111,7 +116,7 @@ function platformOf(v: unknown, index: number): Platform | null {
 const fmt = (n: number): string => n.toFixed(1);
 const initialsOf = (name: string): string => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
-export default function TestimonialsNewSection({ data, block, iconTable = {} }: Props) {
+export default function TestimonialsNewSection({ data, block, iconTable = {}, site }: Props) {
   const d: TestimonialsNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: TestimonialsNewOptions = isObj(d.options) ? d.options : {};
@@ -167,9 +172,16 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
   const perSlide = Math.max(1, Number(k.itemsColumns) || 1);
   const slides = carousel ? Array.from({ length: Math.ceil(items.length / perSlide) }, (_, s) => items.slice(s * perSlide, (s + 1) * perSlide)) : [];
   const carId = `tn-carousel${block && typeof block.id === 'string' && block.id ? `-${block.id.replace(/[^A-Za-z0-9_-]/g, '')}` : ''}`;
+  // #1981 —— 网站 ≥2 个地点、这条的 `location`（地点 id）找得到 ⟹ 名字后面加「· 地点名」；找不到或单地点不画。
+  const locations = site && site.brand && Array.isArray(site.brand.locations) && site.brand.locations.length >= 2 ? withLocationIds(site.brand.locations) : [];
+  const placeOf = (id: unknown): string => {
+    const loc = typeof id === 'string' && id ? locations.find((l) => l.id === id) : undefined;
+    return loc ? str(loc.label).trim() || str(loc.address).trim() : '';
+  };
   const renderItem = (it: TestimonialsNewItem, i: number) => {
     const photo = imgOf(it.photo);
     const name = str(it.name);
+    const place = placeOf(it.location);
     const rating = itemRating(it.rating);
     const source = str(it.source);
     return (
@@ -185,7 +197,13 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
               </span>
             ) : null}
             <span className="d-block min-w-0">
-              {name ? <span className="d-block fw-semibold text-sm tn-name" data-slot={`items.${i}.name`}>{name}</span> : null}
+              {/* 有地点名时名字包一层，地点名跟在同一行；没有时原样（单地点网站逐字节不变）。 */}
+              {name && place ? (
+                <span className="d-block fw-semibold text-sm tn-name">
+                  <span data-slot={`items.${i}.name`}>{name}</span>
+                  <span className="fw-normal text-muted" data-part="place"> · {place}</span>
+                </span>
+              ) : name ? <span className="d-block fw-semibold text-sm tn-name" data-slot={`items.${i}.name`}>{name}</span> : null}
               {it.role ? <span className="d-block text-xs text-muted tn-role" data-slot={`items.${i}.role`}>{it.role}</span> : null}
             </span>
           </figcaption>

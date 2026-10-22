@@ -11,7 +11,8 @@
  *   · 每段都能 JSON.parse；
  *   · FAQPage —— 这一页 faq 块里画出来的问答（`data-block="faq"` 里带 `data-slot="items.N.answer"` 的条数）≥1 ⟹ 恰好一份 FAQPage，
  *     `mainEntity` 条数 == 那个数，每条有问题和答案；没有问答 ⟹ 不许有 FAQPage；
- *   · LocalBusiness —— `openingHoursSpecification` 出了就不许是空壳（星期是英文星期名、非空；时间 HH:MM）；
+ *   · LocalBusiness —— 给了 --site 且网站有 ≥2 个地点 ⟹ 带外壳的页每个地点一份、`@id` 各不相同，按地点顺序逐份对那一家（#1981）；
+ *     `openingHoursSpecification` 出了就不许是空壳（星期是英文星期名、非空；时间 HH:MM）；
  *     `aggregateRating` 出了就要有 (0,5] 的分数和正整数条数；`geo` 出了就是两个数；街道 / 邮编出了就非空；
  *   · WebSite —— 不许挂 SearchAction（站上没有搜索）；
  *   · 带站点外壳的页（有 LocalBusiness 的那些）—— `og:site_name`、`og:type` 两个 meta 都在；
@@ -28,6 +29,9 @@ const { DAYS, hoursSegments } = require('./lib/local-business-facts');
 const { isKeywordPage, keywordServiceFor } = require('./lib/keyword-service');
 const { readPagesRecursive } = require('./lib/page-files');
 const { mainLocation, mainLocationFacts } = require('./lib/locations');
+
+const ratingOf = (r) => (r && r.ratingValue > 0 && r.reviewCount > 0 ? { ratingValue: r.ratingValue, reviewCount: r.reviewCount } : null);
+const geoOf = (g) => (g && Number.isFinite(g.lat) && Number.isFinite(g.lng) ? { lat: g.lat, lng: g.lng } : null);
 
 const LD_RE = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
 const TIME = /^\d{2}:\d{2}$/;
@@ -93,7 +97,15 @@ function checkHtml(html, expected, slug) {
 
   // ── LocalBusiness ──
   const lbs = nodes.filter((n) => typesOf(n).includes('LocalBusiness'));
-  for (const lb of lbs) {
+  // #1981 —— 两个及以上地点：带外壳的页每个地点一份，`@id` 各不相同，按地点顺序逐份对这一家的数据。
+  const perLocation = expected && expected.locations && expected.locations.length >= 2 ? expected.locations : null;
+  if (perLocation && lbs.length) {
+    if (lbs.length !== perLocation.length) problems.push(`网站有 ${perLocation.length} 个地点，LocalBusiness 却有 ${lbs.length} 份（应当每个地点一份）`);
+    const ids = lbs.map((lb) => lb['@id']);
+    if (ids.some((id) => typeof id !== 'string' || !id) || new Set(ids).size !== ids.length) problems.push(`LocalBusiness 的 @id 缺了或有重复：${JSON.stringify(ids)}`);
+  }
+  lbs.forEach((lb, at) => {
+    const want = perLocation ? perLocation[at] : expected;
     if ('openingHoursSpecification' in lb) {
       const specs = Array.isArray(lb.openingHoursSpecification) ? lb.openingHoursSpecification : [lb.openingHoursSpecification];
       if (!specs.length) problems.push('LocalBusiness.openingHoursSpecification 是空数组（没有营业时间就不该出这一项）');
@@ -117,21 +129,22 @@ function checkHtml(html, expected, slug) {
     for (const k of ['streetAddress', 'postalCode']) {
       if (addr0 && k in addr0 && !String(addr0[k] || '').trim()) problems.push(`LocalBusiness.address.${k} 出了但是空的`);
     }
-    if (expected) {
+    if (want) {
       const got = (key) => JSON.stringify(key);
+      const who = perLocation ? `第 ${at + 1} 份 LocalBusiness 的` : '';
       const specs = Array.isArray(lb.openingHoursSpecification) ? lb.openingHoursSpecification.map((s) => ({ days: s.dayOfWeek, opens: s.opens, closes: s.closes })) : [];
-      if (got(specs) !== got(expected.hours)) problems.push(`营业时间跟站点数据不一致：JSON-LD ${got(specs)} · 站点数据 ${got(expected.hours)}`);
+      if (got(specs) !== got(want.hours)) problems.push(`${who}营业时间跟站点数据不一致：JSON-LD ${got(specs)} · 站点数据 ${got(want.hours)}`);
       const rating = lb.aggregateRating ? { ratingValue: lb.aggregateRating.ratingValue, reviewCount: lb.aggregateRating.reviewCount } : null;
-      if (got(rating) !== got(expected.rating)) problems.push(`aggregateRating 跟站点数据不一致：JSON-LD ${got(rating)} · 站点数据 ${got(expected.rating)}`);
-      if (got(lb.sameAs || []) !== got(expected.sameAs)) problems.push(`sameAs 跟站点数据不一致：JSON-LD ${got(lb.sameAs || [])} · 站点数据 ${got(expected.sameAs)}`);
-      for (const [k, want] of [['streetAddress', expected.streetAddress], ['postalCode', expected.postalCode]]) {
+      if (got(rating) !== got(want.rating)) problems.push(`${who}aggregateRating 跟站点数据不一致：JSON-LD ${got(rating)} · 站点数据 ${got(want.rating)}`);
+      if (got(lb.sameAs || []) !== got(expected.sameAs)) problems.push(`${who}sameAs 跟站点数据不一致：JSON-LD ${got(lb.sameAs || [])} · 站点数据 ${got(expected.sameAs)}`);
+      for (const [k, w] of [['streetAddress', want.streetAddress], ['postalCode', want.postalCode]]) {
         const have = addr0 && addr0[k] ? addr0[k] : '';
-        if (have !== want) problems.push(`address.${k} 跟站点数据不一致：JSON-LD ${got(have)} · 站点数据 ${got(want)}`);
+        if (have !== w) problems.push(`${who}address.${k} 跟站点数据不一致：JSON-LD ${got(have)} · 站点数据 ${got(w)}`);
       }
       const geo = lb.geo ? { lat: lb.geo.latitude, lng: lb.geo.longitude } : null;
-      if (got(geo) !== got(expected.geo)) problems.push(`geo 跟站点数据不一致：JSON-LD ${got(geo)} · 站点数据 ${got(expected.geo)}`);
+      if (got(geo) !== got(want.geo)) problems.push(`${who}geo 跟站点数据不一致：JSON-LD ${got(geo)} · 站点数据 ${got(want.geo)}`);
     }
-  }
+  });
 
   // ── WebSite ──
   for (const ws of nodes.filter((n) => typesOf(n).includes('WebSite'))) {
@@ -174,7 +187,7 @@ function checkHtml(html, expected, slug) {
   return { problems, blocks: nodes.length };
 }
 
-/** 站点数据 → 期望值（默认语言那份 seo；brand 全站一份；营业时间 / 评分是主地点的）。 */
+/** 站点数据 → 期望值（默认语言那份 seo；brand 全站一份；营业时间 / 评分是主地点的；`locations` 是每个地点一份，≥2 个地点时逐份对）。 */
 function expectedFromSite(siteDir) {
   const read = (p) => JSON.parse(fs.readFileSync(path.join(siteDir, p), 'utf-8'));
   const meta = read('site_meta.json');
@@ -202,11 +215,17 @@ function expectedFromSite(siteDir) {
     serviceNames: new Set(list.map((sv) => sv && sv.name).filter(Boolean)),
     siteName: names[meta.defaultLocale || 'en'] || Object.values(names)[0] || '',
     hours: hoursSegments(facts.hours),
-    rating: r && r.ratingValue > 0 && r.reviewCount > 0 ? { ratingValue: r.ratingValue, reviewCount: r.reviewCount } : null,
+    rating: ratingOf(r),
     sameAs,
     streetAddress: loc.streetAddress || '',
     postalCode: loc.postalCode || '',
-    geo: loc.geo && Number.isFinite(loc.geo.lat) && Number.isFinite(loc.geo.lng) ? { lat: loc.geo.lat, lng: loc.geo.lng } : null,
+    geo: geoOf(loc.geo),
+    // #1981 —— 每个地点一份的期望（第一家的营业时间 / 评分同上面那条规则；其余读这一家自己的）。
+    locations: (Array.isArray(brand.locations) ? brand.locations : []).map((l, i) => {
+      const x = l && typeof l === 'object' ? l : {};
+      const f = i === 0 ? facts : { hours: x.hours, rating: x.rating };
+      return { hours: hoursSegments(f.hours), rating: ratingOf(f.rating), streetAddress: x.streetAddress || '', postalCode: x.postalCode || '', geo: geoOf(x.geo) };
+    }),
   };
 }
 

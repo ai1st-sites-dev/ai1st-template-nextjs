@@ -31,6 +31,7 @@
 //                       kind list 且 editLabel 带点（`cta.label` / `link.label` / `price.monthly`）→ 合成项里那个对象的一格（`nested`）；对象是按钮
 //                                                （`{label, href, …}`）时再补 Link，带 `sources`（#1686，§itemSubs）
 //                       kind list 且项形状顶层有可选 `href?`（点评平台 / logo）→ 每项多一格 Link，不带 `sources`（#1686，§addOptionalHref）
+//                       kind list 且项形状顶层有可选 `location?`（testimonials）→ 每项多一格 Location（`location: true`，值是地点 id，#1981，§addLocationRef）
 //   一张图（#1693）      形状是 `{imageUrl, alt}` 的对象槽 → 一格图片（`control: 'image'`）：缩略图 + Change + 图片说明（alt），
 //                        可选的（`required: false`）再给 Remove；列表项里值是 `{imageUrl, alt}` 的那个键 → 同样一格（`image: true`，
 //                        可选 = 项形状里那个键带 `?`）。判据是形状（§isOneImage），不写块名单。
@@ -292,6 +293,7 @@ function fieldsOf(manifest) {
         subs.push({ sub: LINK_HREF, label: 'Link', sources: BUTTON_SOURCES.slice() });
       }
       addOptionalHref(subs, spec);
+      addLocationRef(subs, spec);
     }
     // #1755 —— 按钮列表（项的顶层必有 `label` + `href`，Link 那格带本店引用 —— 正是上面 #1518 / #1521 补的那几条）：编辑器整个
     //    换成一套按钮控件（Link Type 五选一 + 那一格 + Button label，`src/components/editor/ButtonLink.tsx`），画布上点按钮开按钮弹窗。
@@ -390,6 +392,17 @@ function addOptionalHref(subs, spec) {
   const e = itemShapeEntries(spec && spec.shape).find((x) => x.key === LINK_HREF);
   if (!e || !e.optional || subs.some((x) => x.sub === LINK_HREF)) return;
   insertByShape(subs, { sub: LINK_HREF, label: 'Link' }, spec);
+}
+
+/**
+ * #1981 —— 项形状里有可选的 `location?`（testimonials 的一条评价是哪一家的）⟹ 每项补一格 Location（`location: true`）。
+ * 值是地点的 `id`，EditorApp 画成下拉（网站 ≥2 个地点才画）。它不是页面上的一段字（没有 `data-slot`），所以不进 `editLabel`，
+ * 同上面 `href?` 那条按形状补。
+ */
+function addLocationRef(subs, spec) {
+  const e = itemShapeEntries(spec && spec.shape).find((x) => x.key === 'location');
+  if (!e || !e.optional || subs.some((x) => x.sub === 'location')) return;
+  insertByShape(subs, { sub: 'location', label: 'Location', location: true }, spec);
 }
 
 /** 照项形状里的键序把一个子字段插进去（插在形状里排它后面的第一格之前；都没有就放最后）。 */

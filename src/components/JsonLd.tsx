@@ -4,7 +4,7 @@ import type { BlogPostConfig } from '@template/lib/types/config';
 import type { BlockConfig, DynamicPageConfig } from '@template/lib/types/config';
 import { faqItems } from '@blocks/faq/Section';
 import { hoursSegments } from '../../scripts/lib/local-business-facts.js';
-import { mainLocation, mainLocationFacts } from '../../scripts/lib/locations.js';
+import { mainLocation, mainLocationFacts, withLocationIds } from '../../scripts/lib/locations.js';
 import { keywordServiceFor } from '../../scripts/lib/keyword-service.js';
 // #1551 r3 —— 每一个 JSON-LD 标签都经这一个函数（`<` 写成 \u003c，挡 `</script>` 跳出标签）；不许再直接写 JSON.stringify。
 import { jsonLdHtml } from '../../scripts/lib/json-ld-html.js';
@@ -25,6 +25,7 @@ function socialUrls(links: unknown): string[] {
 //   · `aggregateRating`：主地点的 `rating`（#1976，同上），只在抓到真实平台评分时才有（`local-business-facts.js` §ratingFrom）。
 export function LocalBusinessJsonLd({ site, locale }: { site: SiteData; locale: string }) {
   const { brand } = site;
+  if (Array.isArray(brand.locations) && brand.locations.length >= 2) return <LocationsJsonLd site={site} locale={locale} />;
   const seo = getSeo(site, locale);
   const services = getServices(site, locale);
   const loc = mainLocation(brand);
@@ -94,6 +95,93 @@ export function LocalBusinessJsonLd({ site, locale }: { site: SiteData; locale: 
       type="application/ld+json"
       dangerouslySetInnerHTML={{ __html: jsonLdHtml(schema) }}
     />
+  );
+}
+
+/** 地点名里已经含品牌名（不分大小写）⟹ 地点名；否则「品牌名 – 地点名」；地点没有名字 ⟹ 品牌名。 */
+function locationBusinessName(brandName: string, label: string | undefined): string {
+  const l = (label || '').trim();
+  if (!l) return brandName;
+  return brandName && !l.toLowerCase().includes(brandName.toLowerCase()) ? `${brandName} – ${l}` : l;
+}
+
+/** 这一家的地点页（页面 JSON 顶层 `locationPage: {kind: "location", id}`，同 contact 块 §locationPageHref）的完整地址；没有 ⟹ 网站地址。 */
+function locationUrl(site: SiteData, locale: string, domain: string, id: string): string {
+  const pages = (site.pagesByLocale && site.pagesByLocale[locale]) || [];
+  const page = pages.find((p) => p.locationPage && p.locationPage.kind === 'location' && p.locationPage.id === id);
+  return page ? `${(domain || '').replace(/\/+$/, '')}${localeUrl(site, page.slug, locale)}` : domain;
+}
+
+// #1981（Epic:MultiLocation T6）—— 两个及以上地点：每个地点一份 LocalBusiness，各带这一家的地址 / 电话 / 营业时间 / 坐标 / 评分。
+//   · `@id` = 这一家地点页地址（没有地点页就是网站地址）+ `#business-<地点 id>`，`url` = 前半；
+//   · `telephone` 这一家没有就用主地点的；`address` 一份：街道 / 城市 / 邮编是这一家的，省 / 国家取 `seo.schema.addresses[0]`，哪一项没有就不出；
+//   · 营业时间 / 评分：第一家经 §mainLocationFacts（老站 seo.json 里那份算它的，同单地点那一份），其余读这一家自己的；规则同单地点；
+//   · `sameAs` / `priceRange` / `areaServed` / `hasOfferCatalog` 每份都带，同单地点。
+//   一个地点 ⟹ 不走这里，上面那份原样（输出逐字节不变）。
+function LocationsJsonLd({ site, locale }: { site: SiteData; locale: string }) {
+  const { brand } = site;
+  const seo = getSeo(site, locale);
+  const services = getServices(site, locale);
+  const brandName = getBrandName(site, locale);
+  const sameAs = socialUrls(brand.socialLinks);
+  const main = mainLocation(brand);
+  const mainFacts = mainLocationFacts(brand, seo);
+  const region = seo.schema.addresses[0];
+  const locations = withLocationIds(brand.locations);
+  const schemas = locations.map((loc, i) => {
+    const facts = i === 0 ? mainFacts : { hours: loc.hours, rating: loc.rating };
+    const segments = hoursSegments(facts.hours);
+    const rating = facts.rating;
+    const geo = loc.geo && Number.isFinite(loc.geo.lat) && Number.isFinite(loc.geo.lng) ? loc.geo : null;
+    const url = locationUrl(site, locale, seo.domain, loc.id as string);
+    const address = {
+      ...(loc.streetAddress ? { streetAddress: loc.streetAddress } : {}),
+      ...(loc.city ? { addressLocality: loc.city } : {}),
+      ...(region && region.region ? { addressRegion: region.region } : {}),
+      ...(loc.postalCode ? { postalCode: loc.postalCode } : {}),
+      ...(region && region.country ? { addressCountry: region.country } : {}),
+    };
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'LocalBusiness',
+      '@id': `${url}#business-${loc.id}`,
+      inLanguage: getInLanguage(site, locale),
+      name: locationBusinessName(brandName, loc.label),
+      description: seo.siteDescription,
+      url,
+      telephone: loc.phone || main?.phone,
+      email: loc.email || brand.email,
+      ...(seo.schema.areaServed.length ? {
+        areaServed: seo.schema.areaServed.map((area) => ({ '@type': area.type, name: area.name })),
+      } : {}),
+      ...(Object.keys(address).length ? { address: { '@type': 'PostalAddress', ...address } } : {}),
+      ...(geo ? { geo: { '@type': 'GeoCoordinates', latitude: geo.lat, longitude: geo.lng } } : {}),
+      ...(sameAs.length ? { sameAs } : {}),
+      hasOfferCatalog: {
+        '@type': 'OfferCatalog',
+        name: seo.schema.offerCatalogName,
+        itemListElement: services.map((service) => ({
+          '@type': 'Offer',
+          itemOffered: { '@type': 'Service', name: service.name, description: service.shortDescription },
+        })),
+      },
+      ...(seo.schema.priceRange ? { priceRange: seo.schema.priceRange } : {}),
+      ...(segments.length ? {
+        openingHoursSpecification: segments.map((seg) => ({
+          '@type': 'OpeningHoursSpecification', dayOfWeek: seg.days, opens: seg.opens, closes: seg.closes,
+        })),
+      } : {}),
+      ...(rating && rating.ratingValue > 0 && rating.reviewCount > 0 ? {
+        aggregateRating: { '@type': 'AggregateRating', ratingValue: rating.ratingValue, reviewCount: rating.reviewCount },
+      } : {}),
+    };
+  });
+  return (
+    <>
+      {schemas.map((schema) => (
+        <script key={schema['@id']} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(schema) }} />
+      ))}
+    </>
   );
 }
 

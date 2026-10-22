@@ -404,7 +404,9 @@ console.log('\n── AC12 编辑器 schema');
     && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), '第一个字段：预设 5 个 → 八个旋钮');
   const it = on.fields.find((f) => f.slot === 'items');
   // #1686 —— 每条评价的星级（rating）也有一格了。#1693 —— 头像一格图片（可选 ⟹ 带 Remove）。
-  check(it.control === 'list' && it.subs.map((x) => x.sub).join() === 'quote,name,role,photo,rating,source', `items 是列表字段、每条可改 quote / name / role / photo / rating / source（${it.subs.map((x) => x.sub).join(' / ')}）`);
+  // #1981 —— 最后多一格 Location（是哪一家，值是地点 id；EditorApp 只在 ≥2 个地点时画下拉）。
+  check(it.control === 'list' && it.subs.map((x) => x.sub).join() === 'quote,name,role,photo,rating,source,location'
+    && it.subs[6].location === true, `items 是列表字段、每条可改 quote / name / role / photo / rating / source / location（${it.subs.map((x) => x.sub).join(' / ')}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[2].knobs) === 'Big quote' && presetNameFor(man, { ...M.presets[2].knobs, itemsColumns: '2' }) === 'custom',
     '点 Big quote = 那一组旋钮；拧偏一个（itemsColumns=2）⟹ custom');
